@@ -1474,11 +1474,17 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
-    
+
+    // 如果名稱為空，預設採用檔名（去除副檔名）
+    const autoName = !formData.name ? file.name.replace(/\.[^/.]+$/, '') : formData.name;
+    if (!formData.name) {
+      setUseNameSelect(false); // 切換到文字輸入模式讓使用者編輯
+    }
+
     // 計算檔案 hash
     const hash = await calculateFileHash(file);
     setFileHash(hash);
-    setFormData({ ...formData, hash });
+    setFormData({ ...formData, name: autoName, hash });
     
     // 檢查是否有重複的 hash
     const duplicateMusic = existingMusic.find(m => 

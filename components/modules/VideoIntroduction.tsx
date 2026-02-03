@@ -1127,7 +1127,10 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
-    
+
+    // 如果名稱為空，預設採用檔名（去除副檔名）
+    const autoName = !formData.name ? file.name.replace(/\.[^/.]+$/, '') : formData.name;
+
     // 計算檔案 hash
     const hash = await calculateFileHash(file);
     setFileHash(hash);
@@ -1139,7 +1142,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
 
     // 檢查是否與現有影片重複
     setFileHash(hash);
-    setFormData({ ...formData, hash });
+    setFormData({ ...formData, name: autoName, hash });
     
     // 檢查是否有重複的 hash
     const duplicateVideo = existingVideos.find(vid => 
