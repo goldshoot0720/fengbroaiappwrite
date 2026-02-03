@@ -1002,6 +1002,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
             {selectedItem.file ? (
               <div className="bg-white dark:bg-gray-800 rounded-lg p-2">
                 <PlyrPlayer 
+                  key={selectedItem.$id}
                   type="audio"
                   src={getProxiedMediaUrl(selectedItem.file)}
                   loop={isLooping}
