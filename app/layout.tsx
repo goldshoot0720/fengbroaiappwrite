@@ -29,7 +29,9 @@ export default function RootLayout({
   return (
     <html lang="zh-TW" className="scroll-smooth" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/jpeg" href="/favicon.jpg" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.jpg" type="image/jpeg" />
+        <link rel="shortcut icon" href="/favicon.ico" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="鋒兄AI Appwrite" />
