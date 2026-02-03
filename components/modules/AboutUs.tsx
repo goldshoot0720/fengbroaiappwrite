@@ -9,7 +9,7 @@ export default function AboutUs() {
     <div className="space-y-4 lg:space-y-6">
       <CopyrightBanner />
       
-      <PageTitle title="鋒兄關於" description="了解鋒兄資訊管理系統的使命與願景" />
+      <PageTitle title="鋒兄關於" description="了解鋒兄管理資訊系統的使命與願景" />
       
       <DataCard className="p-6 lg:p-8">
         <div className="max-w-4xl mx-auto space-y-12">
@@ -160,7 +160,7 @@ function Copyright() {
   return (
     <div className="text-center border-t border-gray-200 dark:border-gray-700 pt-8">
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-        <h3 className="text-2xl font-bold mb-4">鋒兄資訊管理系統</h3>
+        <h3 className="text-2xl font-bold mb-4">鋒兄管理資訊系統</h3>
       </div>
       <div className="space-y-2 text-gray-600 dark:text-gray-300">
         <p className="text-lg font-medium">鋒兄塗哥公關資訊有限公司</p>
@@ -174,7 +174,7 @@ function Copyright() {
       </div>
       
       <div className="mt-6 flex flex-wrap justify-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-        <span>鋒兄資訊管理系統 v2.0.0</span>
+        <span>鋒兄管理資訊系統 v2.0.0</span>
         <span className="hidden sm:inline">•</span>
         <span>Next.js + TypeScript</span>
         <span className="hidden sm:inline">•</span>

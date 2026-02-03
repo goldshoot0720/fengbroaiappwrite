@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "鋒兄AI Appwrite",
-  description: "鋒兄資訊管理系統，幫助您輕鬆管理食品庫存和訂閱服務，避免浪費並控制支出。",
+  description: "鋒兄管理資訊系統，幫助您輕鬆管理食品庫存和訂閱服務，避免浪費並控制支出。",
   keywords: "食品管理, 訂閱管理, 庫存管理, 過期提醒, 支出控制, Next.js",
   authors: [{ name: "鋒兄塗哥公關資訊" }],
   manifest: "/manifest.json",

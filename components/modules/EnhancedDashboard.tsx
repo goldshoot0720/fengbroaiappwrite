@@ -98,7 +98,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">精美介紹</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">鋒兄資訊管理系統核心架構</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">鋒兄管理資訊系統核心架構</p>
               </div>
             </div>
             
@@ -140,7 +140,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         </div>
       )}
 
-      <PageTitle title={title} description="鋒兄資訊管理系統 - 數據匯總與分析" />
+      <PageTitle title={title} description="鋒兄管理資訊系統 - 數據匯總與分析" />
       
       {/* 詳細統計區域 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
