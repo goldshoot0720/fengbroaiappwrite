@@ -1,0 +1,409 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* 自定義響應式斷點 */
+  --breakpoint-xs: 375px;
+  --breakpoint-3xl: 1920px;
+  
+  /* 顏色變量 */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* 改善觸控體驗 */
+  @media (hover: none) and (pointer: coarse) {
+    button, a, [role="button"] {
+      @apply min-h-[44px] min-w-[44px];
+    }
+  }
+  
+  /* 平滑滾動 */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* 自定義滾動條 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full hover:bg-gray-400;
+  }
+  
+  /* 響應式文字 */
+  .responsive-text {
+    @apply text-sm sm:text-base lg:text-lg;
+  }
+  
+  /* 卡片陰影動畫 */
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-1;
+  }
+  
+  /* 漸變背景 */
+  .gradient-bg {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  
+  /* 玻璃效果 */
+  .glass-effect {
+    @apply bg-white/80 backdrop-blur-sm border border-white/20;
+  }
+}
+
+/* 設備特定響應式斷點 */
+@layer utilities {
+  /* iPhone SE2 直向 (375px) */
+  @media (max-width: 374px) {
+    .iphone-se-portrait {
+      @apply text-xs p-2 gap-2;
+    }
+  }
+  
+  /* iPhone SE2 橫向 (667px) */
+  @media (min-width: 375px) and (max-width: 666px) and (orientation: landscape) {
+    .iphone-se-landscape {
+      @apply text-sm p-3 gap-3;
+    }
+  }
+  
+  /* Samsung Galaxy A53 直向 (412px) */
+  @media (min-width: 375px) and (max-width: 480px) and (orientation: portrait) {
+    .galaxy-a53-portrait {
+      @apply text-sm p-3 gap-3;
+    }
+  }
+  
+  /* Samsung Galaxy A53 橫向 (915px) */
+  @media (min-width: 800px) and (max-width: 1024px) and (orientation: landscape) {
+    .galaxy-a53-landscape {
+      @apply text-base p-4 gap-4;
+    }
+  }
+  
+  /* 8.7吋平板 直向 (800x1280) */
+  @media (min-width: 768px) and (max-width: 900px) and (orientation: portrait) {
+    .tablet-8-7-portrait {
+      @apply text-base p-4 gap-4;
+    }
+  }
+  
+  /* 8.7吋平板 橫向 (1280x800) */
+  @media (min-width: 1200px) and (max-width: 1400px) and (orientation: landscape) {
+    .tablet-8-7-landscape {
+      @apply text-lg p-5 gap-5;
+    }
+  }
+  
+  /* 8.7吋平板通用樣式 */
+  @media (min-width: 768px) and (max-width: 1400px) {
+    .tablet-8-7 {
+      /* 適中的字體大小 */
+      font-size: clamp(0.875rem, 2.5vw, 1.125rem);
+      
+      /* 適中的間距 */
+      --spacing-unit: clamp(0.75rem, 2vw, 1.25rem);
+      
+      /* 觸控友好的按鈕大小 */
+      button, .btn {
+        min-height: 48px;
+        min-width: 48px;
+        padding: 0.75rem 1.5rem;
+      }
+      
+      /* 卡片間距 */
+      .card {
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+      }
+      
+      /* 網格佈局優化 */
+      .grid-responsive {
+        gap: 1rem;
+      }
+    }
+  }
+  
+  /* 桌面 100% 縮放 */
+  @media (min-width: 1440px) and (max-width: 1920px) {
+    .desktop-100 {
+      @apply text-lg p-6 gap-6;
+    }
+  }
+  
+  /* 桌面 150% 縮放 (等效更小視窗) */
+  @media (min-width: 960px) and (max-width: 1280px) {
+    .desktop-150 {
+      @apply text-base p-4 gap-4;
+    }
+  }
+  
+  /* 響應式間距工具類 */
+  .spacing-responsive {
+    @apply p-2 xs:p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8;
+  }
+  
+  .gap-responsive {
+    @apply gap-2 xs:gap-3 sm:gap-4 md:gap-5 lg:gap-6 xl:gap-8;
+  }
+  
+  .text-responsive {
+    @apply text-xs xs:text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl;
+  }
+  
+  /* 圖片網格響應式 - 針對8.7吋平板優化 */
+  .image-grid-responsive {
+    /* 手機直向: 2欄 */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  
+  /* 手機橫向: 3欄 */
+  @media (min-width: 375px) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.875rem;
+    }
+  }
+  
+  /* 大手機/小平板: 4欄 */
+  @media (min-width: 640px) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
+  }
+  
+  /* 8.7吋平板直向: 5欄 - 專門優化 */
+  @media (min-width: 768px) and (max-width: 900px) and (orientation: portrait) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1rem;
+    }
+  }
+  
+  /* 8.7吋平板橫向: 7欄 - 專門優化 */
+  @media (min-width: 1200px) and (max-width: 1400px) and (orientation: landscape) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 1.25rem;
+    }
+  }
+  
+  /* 一般平板: 5欄 */
+  @media (min-width: 768px) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1rem;
+    }
+  }
+  
+  /* 大平板/小桌面: 6欄 */
+  @media (min-width: 1024px) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 1.125rem;
+    }
+  }
+  
+  /* 桌面: 7欄 */
+  @media (min-width: 1280px) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 1.25rem;
+    }
+  }
+  
+  /* 大桌面: 8欄 */
+  @media (min-width: 1536px) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 1.5rem;
+    }
+  }
+  
+  /* 超大屏幕: 10欄 */
+  @media (min-width: 1920px) {
+    .image-grid-responsive {
+      grid-template-columns: repeat(10, minmax(0, 1fr));
+      gap: 1.75rem;
+    }
+  }
+  
+  /* 安全區域支援 */
+  .safe-area-inset {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* 影片播放器響應式樣式 */
+  .video-container {
+    @apply relative w-full;
+    aspect-ratio: 16 / 9;
+  }
+  
+  .video-controls {
+    @apply absolute bottom-0 left-0 right-0 p-2 sm:p-4;
+    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+  }
+  
+  .video-progress {
+    @apply relative h-1 sm:h-2 bg-white/20 rounded-full cursor-pointer;
+    transition: height 0.2s ease;
+  }
+  
+  .video-progress:hover {
+    @apply h-2 sm:h-3;
+  }
+  
+  /* 觸控優化 */
+  @media (hover: none) and (pointer: coarse) {
+    .video-progress {
+      @apply h-2;
+    }
+    
+    .video-controls button {
+      @apply min-h-[44px] min-w-[44px];
+    }
+  }
+  
+  /* 文字截斷 */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+  
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}

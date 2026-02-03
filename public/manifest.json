@@ -1,0 +1,21 @@
+{
+  "name": "鋒兄AI Appwrite",
+  "short_name": "鋒兄AI",
+  "description": "鋒兄AI Appwrite",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "zh-TW",
+  "dir": "ltr"
+}

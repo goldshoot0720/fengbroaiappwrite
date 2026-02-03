@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音樂播放測試</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .audio-player {
+            margin: 20px 0;
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #4f46e5;
+        }
+        .info {
+            background: #f0f9ff;
+            border-left: 4px solid #0ea5e9;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .error {
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            margin: 20px 0;
+            color: #dc2626;
+        }
+        .success {
+            background: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 15px;
+            margin: 20px 0;
+            color: #16a34a;
+        }
+        #log {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 0;
+            border-bottom: 1px solid #334155;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 鋒兄音樂播放測試</h1>
+        
+        <div class="info">
+            <strong>測試音頻：</strong>鋒兄進化 Show！🔥進行曲<br>
+            <strong>來源：</strong>Appwrite Storage
+        </div>
+
+        <div class="audio-player">
+            <audio id="audioPlayer" controls style="width: 100%;">
+                您的瀏覽器不支持音頻播放。
+            </audio>
+        </div>
+
+        <div>
+            <button onclick="testPlay()">▶️ 測試播放</button>
+            <button onclick="testPause()">⏸️ 暫停</button>
+            <button onclick="testStop()">⏹️ 停止</button>
+            <button onclick="clearLog()">🗑️ 清除日誌</button>
+        </div>
+
+        <div id="status"></div>
+        
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const audioUrl = 'https://fra.cloud.appwrite.io/v1/storage/buckets/6867c5280021205ba9c0/files/697f3cf20030a7bef057/view?project=680c76af0037a7d23e44';
+        const audio = document.getElementById('audioPlayer');
+        const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function showStatus(message, type = 'info') {
+            statusDiv.className = type;
+            statusDiv.innerHTML = `<strong>${type === 'error' ? '❌ 錯誤' : type === 'success' ? '✅ 成功' : 'ℹ️ 信息'}：</strong>${message}`;
+        }
+
+        function clearLog() {
+            logDiv.innerHTML = '';
+            statusDiv.innerHTML = '';
+        }
+
+        // 設置音頻事件監聽器
+        audio.addEventListener('loadstart', () => {
+            log('🔄 開始加載音頻...');
+            showStatus('正在加載音頻文件...', 'info');
+        });
+
+        audio.addEventListener('loadedmetadata', () => {
+            log(`✅ 音頻元數據已加載 - 時長: ${audio.duration.toFixed(2)}秒`);
+            showStatus(`音頻已加載，時長: ${audio.duration.toFixed(2)}秒`, 'success');
+        });
+
+        audio.addEventListener('canplay', () => {
+            log('✅ 音頻可以開始播放');
+        });
+
+        audio.addEventListener('playing', () => {
+            log('▶️ 音頻正在播放');
+            showStatus('音頻正在播放中...', 'success');
+        });
+
+        audio.addEventListener('pause', () => {
+            log('⏸️ 音頻已暫停');
+            showStatus('音頻已暫停', 'info');
+        });
+
+        audio.addEventListener('ended', () => {
+            log('⏹️ 音頻播放結束');
+            showStatus('播放完成', 'info');
+        });
+
+        audio.addEventListener('error', (e) => {
+            const errorMessages = {
+                1: 'MEDIA_ERR_ABORTED - 用戶中止了音頻加載',
+                2: 'MEDIA_ERR_NETWORK - 網絡錯誤導致音頻下載失敗',
+                3: 'MEDIA_ERR_DECODE - 音頻解碼失敗',
+                4: 'MEDIA_ERR_SRC_NOT_SUPPORTED - 不支持的音頻格式或來源'
+            };
+            const errorCode = audio.error ? audio.error.code : 'unknown';
+            const errorMsg = errorMessages[errorCode] || `未知錯誤 (代碼: ${errorCode})`;
+            log(`❌ 音頻錯誤: ${errorMsg}`, 'error');
+            showStatus(`音頻加載失敗: ${errorMsg}`, 'error');
+            
+            // 詳細錯誤信息
+            if (audio.error) {
+                log(`   錯誤詳情: ${audio.error.message || '無詳細信息'}`);
+                log(`   網絡狀態: ${audio.networkState}`);
+                log(`   就緒狀態: ${audio.readyState}`);
+            }
+        });
+
+        audio.addEventListener('timeupdate', () => {
+            // 每秒記錄一次進度
+            if (Math.floor(audio.currentTime) % 5 === 0 && audio.currentTime > 0) {
+                const progress = ((audio.currentTime / audio.duration) * 100).toFixed(1);
+                log(`⏱️ 播放進度: ${audio.currentTime.toFixed(1)}s / ${audio.duration.toFixed(1)}s (${progress}%)`);
+            }
+        });
+
+        function testPlay() {
+            log('🎵 嘗試播放音頻...');
+            log(`📍 音頻 URL: ${audioUrl}`);
+            
+            if (!audio.src || audio.src !== audioUrl) {
+                audio.src = audioUrl;
+                log('✅ 已設置音頻來源');
+            }
+            
+            audio.play()
+                .then(() => {
+                    log('✅ 播放成功啟動');
+                })
+                .catch(error => {
+                    log(`❌ 播放失敗: ${error.message}`, 'error');
+                    showStatus(`播放失敗: ${error.message}`, 'error');
+                });
+        }
+
+        function testPause() {
+            audio.pause();
+        }
+
+        function testStop() {
+            audio.pause();
+            audio.currentTime = 0;
+            log('⏹️ 已停止播放');
+        }
+
+        // 頁面加載時自動設置音頻源
+        window.addEventListener('load', () => {
+            log('🚀 測試頁面已加載');
+            log(`📍 音頻 URL: ${audioUrl}`);
+            audio.src = audioUrl;
+            log('✅ 已設置音頻來源，點擊「測試播放」按鈕開始');
+            showStatus('準備就緒，點擊「測試播放」按鈕', 'info');
+        });
+    </script>
+</body>
+</html>
