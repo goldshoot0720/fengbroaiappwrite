@@ -1498,7 +1498,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     setUploadProgress(0);
 
     try {
-      // Direct upload to Appwrite Storage (bypasses Next.js API route)
+      // Direct upload to Appwrite Storage (bypasses Next.js 4MB API limit)
       const result = await uploadToAppwriteStorage(file, (progress) => {
         setUploadProgress(progress);
       });
@@ -1607,7 +1607,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     setCoverUploadProgress(0);
 
     try {
-      // Direct upload to Appwrite Storage (bypasses Next.js API route)
+      // Direct upload to Appwrite Storage (bypasses Next.js 4MB API limit)
       const result = await uploadToAppwriteStorage(file, (progress) => {
         setCoverUploadProgress(progress);
       });
