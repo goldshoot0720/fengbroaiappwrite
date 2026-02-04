@@ -347,8 +347,11 @@ export default function MusicManagement() {
           else if (urlLower.includes('.m4a') || urlLower.includes('audio%2Fm4a')) fileExtension = 'm4a';
           const sanitizedName = item.name.replace(/[<>:"\/\\|?*]/g, '_');
           const categoryPrefix = item.category ? `[${item.category.replace(/[<>:"\/\\|?*]/g, '_')}]_` : '';
+          const languageSuffix = item.language ? `_${item.language.replace(/[<>:"\/\\|?*]/g, '_')}` : '';
           const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
-          const filename = nameHasExtension ? `${categoryPrefix}${sanitizedName}` : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
+          const filename = nameHasExtension 
+            ? `${categoryPrefix}${sanitizedName.slice(0, -fileExtension.length - 1)}${languageSuffix}.${fileExtension}` 
+            : `${categoryPrefix}${sanitizedName}${languageSuffix}.${fileExtension}`;
           zip.file(filename, blob);
         } catch (err) { console.error(`處理 ${item.name} 時出錯:`, err); }
       }
