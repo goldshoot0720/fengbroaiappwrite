@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Music, Search, Plus, Heart, Play, Pause, Volume2, SkipBack, SkipForward, Download, Copy } from "lucide-react";
+import { Music, Search, Plus, Heart, Play, Pause, Volume2, SkipBack, SkipForward, Download, Copy, Check } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useMusic, MusicData } from "@/hooks/useMusic";
 import { getProxiedMediaUrl } from "@/lib/utils";
@@ -1124,6 +1124,7 @@ export default function MusicLyrics() {
   }, [selectedSong, currentLanguage]);
 
   // 复制歌词到剪贴板
+  const [copySuccess, setCopySuccess] = useState(false);
   const copyLyrics = useCallback(async () => {
     if (!selectedSong) return;
     
@@ -1132,10 +1133,26 @@ export default function MusicLyrics() {
     
     try {
       await navigator.clipboard.writeText(lyrics);
-      // 这里可以添加一个 toast 通知
-      console.log('歌词已复制到剪贴板');
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
     } catch (error) {
       console.error('复制失败:', error);
+      // 降級方案：使用舊版API
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = lyrics;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      } catch (fallbackError) {
+        console.error('降級複製也失敗:', fallbackError);
+        alert('複製失敗，請手動複製');
+      }
     }
   }, [selectedSong, currentLanguage]);
 
@@ -2021,10 +2038,23 @@ export default function MusicLyrics() {
                         variant="outline" 
                         size="sm" 
                         onClick={copyLyrics}
-                        className="flex items-center gap-1 text-xs sm:text-sm"
+                        className={`flex items-center gap-1 text-xs sm:text-sm transition-all ${
+                          copySuccess 
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-500 text-green-600 dark:text-green-400' 
+                            : ''
+                        }`}
                       >
-                        <Copy size={14} />
-                        <span className="hidden sm:inline">複製</span>
+                        {copySuccess ? (
+                          <>
+                            <Check size={14} className="animate-bounce" />
+                            <span className="hidden sm:inline">已複製</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} />
+                            <span className="hidden sm:inline">複製歌詞</span>
+                          </>
+                        )}
                       </Button>
                       <Button 
                         variant="outline" 
