@@ -51,10 +51,10 @@ export async function PUT(req, context) {
     if (name !== undefined) payload.name = name;
     if (note !== undefined) payload.note = note || "";
     
-    // Only include datetime fields if they have values
-    if (lastdate1 !== undefined && lastdate1) payload.lastdate1 = lastdate1;
-    if (lastdate2 !== undefined && lastdate2) payload.lastdate2 = lastdate2;
-    if (lastdate3 !== undefined && lastdate3) payload.lastdate3 = lastdate3;
+    // Handle datetime fields - explicitly set null when cleared
+    if (lastdate1 !== undefined) payload.lastdate1 = lastdate1 || null;
+    if (lastdate2 !== undefined) payload.lastdate2 = lastdate2 || null;
+    if (lastdate3 !== undefined) payload.lastdate3 = lastdate3 || null;
     
     // Only include URL fields if not empty
     if (link !== undefined && link && link.trim()) payload.link = link;
