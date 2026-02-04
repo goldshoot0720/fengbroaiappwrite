@@ -328,7 +328,6 @@ export default function CommonDocumentManagement() {
     setExportZipProgress({ current: 0, total: commondocument.length, status: '準備中...' });
     try {
       const zip = new JSZip();
-      const docFolder = zip.folder('documents');
       let successCount = 0, failCount = 0;
       for (let i = 0; i < commondocument.length; i++) {
         const doc = commondocument[i];
@@ -343,7 +342,7 @@ export default function CommonDocumentManagement() {
           const categoryPrefix = doc.category ? `[${doc.category}]_` : '';
           const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
           const filename = nameHasExtension ? `${categoryPrefix}${sanitizedName}` : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
-          docFolder?.file(filename, blob);
+          zip.file(filename, blob);
           successCount++;
         } catch (error) { console.error(`下載失敗: ${doc.name}`, error); failCount++; }
       }
