@@ -2047,12 +2047,12 @@ export default function MusicLyrics() {
                         {copySuccess ? (
                           <>
                             <Check size={14} className="animate-bounce" />
-                            <span className="hidden sm:inline">已複製</span>
+                            <span>已複製</span>
                           </>
                         ) : (
                           <>
                             <Copy size={14} />
-                            <span className="hidden sm:inline">複製歌詞</span>
+                            <span>複製歌詞</span>
                           </>
                         )}
                       </Button>
