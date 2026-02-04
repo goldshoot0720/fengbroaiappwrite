@@ -374,18 +374,18 @@ function ModulesOverview() {
     { num: 1, name: "鋒兄首頁", desc: "系統概覽與快速入口" },
     { num: 2, name: "鋒兄儀表", desc: "詳細數據統計與分析圖表" },
     { num: 3, name: "鋒兄訂閱", desc: "訂閱服務與定期支出管理" },
-    { num: 4, name: "鋒允食品", desc: "食品庫存、分類與過期管理" },
+    { num: 4, name: "鋒兄食品", desc: "食品庫存、分類與過期管理" },
     { num: 5, name: "鋒兄筆記", desc: "多功能筆記系統，支援附件與預覽" },
-    { num: 6, name: "鋒允常用", desc: "常用帳號、網站與連結管理" },
-    { num: 7, name: "鋒允圖片", desc: "圖片上傳、瀏覽與藝廊管理" },
-    { num: 8, name: "鋒允影片", desc: "影片播放與簡介管理" },
-    { num: 9, name: "鋒允音樂", desc: "音樂播放、歌詞顯示與專輯管理" },
-    { num: 10, name: "鋒允文件", desc: "綜合文件管理（PDF、Office、ZIP）" },
-    { num: 11, name: "鋒允播客", desc: "播客音訊播放與進度管理" },
-    { num: 12, name: "鋒允銀行", desc: "銀行帳戶、餘額與財務記錄" },
-    { num: 13, name: "鋒允例行", desc: "例行公事、週期性任務管理" },
-    { num: 14, name: "鋒允設定", desc: "系統配置、API 設定與主題切換" },
-    { num: 15, name: "鋒允關於", desc: "系統版本與專案資訊" },
+    { num: 6, name: "鋒兄常用", desc: "常用帳號、網站與連結管理" },
+    { num: 7, name: "鋒兄圖片", desc: "圖片上傳、瀏覽與藝廊管理" },
+    { num: 8, name: "鋒兄影片", desc: "影片播放與簡介管理" },
+    { num: 9, name: "鋒兄音樂", desc: "音樂播放、歌詞顯示與專輯管理" },
+    { num: 10, name: "鋒兄文件", desc: "綜合文件管理（PDF、Office、ZIP）" },
+    { num: 11, name: "鋒兄播客", desc: "播客音訊播放與進度管理" },
+    { num: 12, name: "鋒兄銀行", desc: "銀行帳戶、餘額與財務記錄" },
+    { num: 13, name: "鋒兄例行", desc: "例行公事、週期性任務管理" },
+    { num: 14, name: "鋒兄設定", desc: "系統配置、API 設定與主題切換" },
+    { num: 15, name: "鋒兄關於", desc: "系統版本與專案資訊" },
   ];
 
   return (
@@ -393,7 +393,7 @@ function ModulesOverview() {
       <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">功能模組一覽</h2>
       
       <p className="text-gray-600 dark:text-gray-400">
-        鋒允AI Appwrite 管理系統包含 15 大功能模組，幫助您集中管理日常生活中的各種資料。
+        鋒兄AI Appwrite 管理系統包含 15 大功能模組，幫助您集中管理日常生活中的各種資料。
       </p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -478,7 +478,7 @@ function UserGuide() {
         {/* USER_GUIDE.md 內容 */}
         <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl p-6">
           <div className="space-y-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">鋒允AI Appwrite 管理系統 — 使用者教學手冊</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">鋒兄AI Appwrite 管理系統 — 使用者教學手冊</h1>
             <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
               <p><strong>版本</strong>: v1.0.0</p>
               <p><strong>技術框架</strong>: Next.js 16 / React 19 / Appwrite</p>
@@ -491,7 +491,7 @@ function UserGuide() {
         <section className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">1. 系統簡介</h2>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            <strong>鋒允AI Appwrite</strong> 是一套個人資訊管理系統，幫助您集中管理日常生活中的各種資料。
+            <strong>鋒兄AI Appwrite</strong> 是一套個人資訊管理系統，幫助您集中管理日常生活中的各種資料。
           </p>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -551,7 +551,7 @@ npm run dev`}</pre>
 
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3 mt-6">2.3 首次使用：初始化資料庫</h3>
           <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
-            <li>點擊左側選單的 <strong>「鋒允設定」</strong></li>
+            <li>點擊左側選單的 <strong>「鋒兄設定」</strong></li>
             <li>找到 <strong>「資料庫欄位統計」</strong> 區塊</li>
             <li>紅色標示的表格代表尚未建立</li>
             <li>點擊 <strong>「一鍵建立所有缺失 Table」</strong> 按鈕</li>
@@ -566,9 +566,9 @@ npm run dev`}</pre>
             title="3. 首頁與儀表板"
             content={
               <div className="space-y-2 text-sm">
-                <p><strong>首頁（鋒允首頁）</strong></p>
+                <p><strong>首頁（鋒兄首頁）</strong></p>
                 <p>首頁顯示系統標題資訊，是進入系統後的預設畫面。</p>
-                <p><strong>儀表板（鋒允儀表）</strong></p>
+                <p><strong>儀表板（鋒兄儀表）</strong></p>
                 <p>儀表板彙整了所有模組的關鍵統計數據，讓你一眼掌握重要資訊。</p>
                 <ul className="list-disc list-inside space-y-1 ml-4">
                   <li>食品區塊：總數、正常、7天內到期、30天內到期、已過期</li>
@@ -692,11 +692,11 @@ npm run dev`}</pre>
           <div className="space-y-4 text-sm">
             <FAQItem 
               q="Q1: 開啟模組時顯示「Table xxx 不存在」"
-              a="解決方式：到「鋒允設定」→「資料庫欄位統計」，點擊「一鍵建立所有缺失 Table」建立缺失的資料表。"
+              a="解決方式：到「鋒兄設定」→「資料庫欄位統計」，點擊「一鍵建立所有缺失 Table」建立缺失的資料表。"
             />
             <FAQItem 
               q="Q2: 資料沒有更新 / 顯示舊資料"
-              a="解決方式：1) 嘗試重新整理瀏覽器頁面（Ctrl+F5 / Cmd+Shift+R） 2) 如果仍有問題，到「鋒允設定」切換帳號再切回來，會強制清除快取。"
+              a="解決方式：1) 嘗試重新整理瀏覽器頁面（Ctrl+F5 / Cmd+Shift+R） 2) 如果仍有問題，到「鋒兄設定」切換帳號再切回來，會強制清除快取。"
             />
             <FAQItem 
               q="Q3: 影片/音樂無法播放"
@@ -728,7 +728,7 @@ npm run dev`}</pre>
             />
             <FAQItem 
               q="Q10: 儲存空間滿了怎麼辦？"
-              a="1) 到「鋒允設定」檢查「孤立檔案」並清除 2) 刪除不需要的影片、音樂、圖片等媒體檔案 3) 清除瀏覽器的離線快取（每種媒體類型上限 500MB） 4) 考慮升級 Appwrite 方案以獲得更多儲存空間。"
+              a="1) 到「鋒兄設定」檢查「孤立檔案」並清除 2) 刪除不需要的影片、音樂、圖片等媒體檔案 3) 清除瀏覽器的離線快取（每種媒體類型上限 500MB） 4) 考慮升級 Appwrite 方案以獲得更多儲存空間。"
             />
           </div>
         </section>
