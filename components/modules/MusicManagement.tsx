@@ -506,13 +506,6 @@ export default function MusicManagement() {
               匯入 ZIP
             </Button>
             <input ref={importZipInputRef} type="file" accept=".zip" onChange={handleImportZip} className="hidden" />
-            <Button onClick={() => document.getElementById('csv-import-music')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
-              <Upload size={18} /> 匯入
-            </Button>
-            <input id="csv-import-music" type="file" accept=".csv" className="hidden" onChange={handleCsvFileSelect} />
-            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV">
-              <Download size={18} /> 匯出
-            </Button>
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
               <Plus size={16} />
               新增音樂
