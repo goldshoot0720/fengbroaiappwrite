@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Calendar, Search, ChevronDown, Download, Upload, ArrowRight } from "lucide-react";
+import { Plus, Calendar, Search, ChevronDown, Download, Upload, ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -553,12 +553,26 @@ export default function RoutineManagement() {
 
                   <div className="space-y-1">
                     <label className="block text-sm font-medium mb-2">最近例行日期之一 / Last Date 1 (Recent)</label>
-                    <Input
-                      type="date"
-                      value={form.lastdate1}
-                      onChange={(e) => setForm({ ...form, lastdate1: e.target.value })}
-                      className="h-12 rounded-xl"
-                    />
+                    <div className="flex gap-1 items-center">
+                      <Input
+                        type="date"
+                        value={form.lastdate1}
+                        onChange={(e) => setForm({ ...form, lastdate1: e.target.value })}
+                        className="h-12 rounded-xl flex-1"
+                      />
+                      {form.lastdate1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setForm({ ...form, lastdate1: "" })}
+                          className="h-12 w-12 rounded-xl px-0"
+                          title="清空日期"
+                        >
+                          <X size={16} />
+                        </Button>
+                      )}
+                    </div>
                     <div className="px-1 h-4">
                       {form.lastdate1 ? (
                         <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已選擇 / Selected</span>
@@ -570,12 +584,26 @@ export default function RoutineManagement() {
 
                   <div className="space-y-1">
                     <label className="block text-sm font-medium mb-2">最近例行日期之二 / Last Date 2</label>
-                    <Input
-                      type="date"
-                      value={form.lastdate2}
-                      onChange={(e) => setForm({ ...form, lastdate2: e.target.value })}
-                      className="h-12 rounded-xl"
-                    />
+                    <div className="flex gap-1 items-center">
+                      <Input
+                        type="date"
+                        value={form.lastdate2}
+                        onChange={(e) => setForm({ ...form, lastdate2: e.target.value })}
+                        className="h-12 rounded-xl flex-1"
+                      />
+                      {form.lastdate2 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setForm({ ...form, lastdate2: "" })}
+                          className="h-12 w-12 rounded-xl px-0"
+                          title="清空日期"
+                        >
+                          <X size={16} />
+                        </Button>
+                      )}
+                    </div>
                     <div className="px-1 h-4">
                       {form.lastdate2 ? (
                         <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已選擇 / Selected</span>
@@ -587,12 +615,26 @@ export default function RoutineManagement() {
 
                   <div className="space-y-1">
                     <label className="block text-sm font-medium mb-2">最近例行日期之三 / Last Date 3 (Oldest)</label>
-                    <Input
-                      type="date"
-                      value={form.lastdate3}
-                      onChange={(e) => setForm({ ...form, lastdate3: e.target.value })}
-                      className="h-12 rounded-xl"
-                    />
+                    <div className="flex gap-1 items-center">
+                      <Input
+                        type="date"
+                        value={form.lastdate3}
+                        onChange={(e) => setForm({ ...form, lastdate3: e.target.value })}
+                        className="h-12 rounded-xl flex-1"
+                      />
+                      {form.lastdate3 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setForm({ ...form, lastdate3: "" })}
+                          className="h-12 w-12 rounded-xl px-0"
+                          title="清空日期"
+                        >
+                          <X size={16} />
+                        </Button>
+                      )}
+                    </div>
                     <div className="px-1 h-4">
                       {form.lastdate3 ? (
                         <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已選擇 / Selected</span>
