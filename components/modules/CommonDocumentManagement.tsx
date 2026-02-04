@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
+import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { CodeEditor } from "@/components/ui/code-editor";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
@@ -382,13 +383,12 @@ export default function CommonDocumentManagement() {
         try {
           const arrayBuffer = await docFile.file.async('arraybuffer');
           const ext = fileName.split('.').pop()?.toLowerCase() || 'pdf';
-          const blob = new Blob([arrayBuffer]);
+          const blob = new Blob([arrayBuffer], { type: 'application/octet-stream' });
           const docFileObj = new (File as any)([blob], fileName, { type: 'application/octet-stream' });
-          const formDataUpload = new FormData();
-          formDataUpload.append('file', docFileObj);
-          const uploadResponse = await fetch('/api/upload-music', { method: 'POST', headers: getAppwriteHeaders(), body: formDataUpload });
-          if (!uploadResponse.ok) throw new Error('上傳失敗');
-          const uploadData = await uploadResponse.json();
+          
+          // Upload to Appwrite Storage
+          const uploadData = await uploadToAppwriteStorage(docFileObj);
+          
           const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT);
           const createResponse = await fetch(createUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fileName, file: uploadData.url, filetype: ext, note: '', ref: '', category: '', hash: '', cover: '' }) });
           if (!createResponse.ok) throw new Error('建立記錄失敗');
