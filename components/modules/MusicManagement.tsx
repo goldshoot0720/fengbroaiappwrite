@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Repeat, FileText, Download, ListPlus, HardDrive, Check } from "lucide-react";
+import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Repeat, FileText, Download, ListPlus, HardDrive, Check, FolderUp } from "lucide-react";
 import { useMusic, MusicData } from "@/hooks/useMusic";
 import { useMusicQueue, QueueItem } from "@/hooks/useMusicQueue";
 import { useMusicCache } from "@/hooks/useMusicCache";
@@ -20,6 +20,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import JSZip from "jszip";
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -54,6 +55,11 @@ export default function MusicManagement() {
   const [editingMusic, setEditingMusic] = useState<MusicData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedMusicId, setExpandedMusicId] = useState<string | null>(null);
+  const [exportingZip, setExportingZip] = useState(false);
+  const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
+  const [importingZip, setImportingZip] = useState(false);
+  const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+  const importZipInputRef = useRef<HTMLInputElement>(null);
 
   // 音樂快取管理
   const {
@@ -318,6 +324,68 @@ export default function MusicManagement() {
 注意：音樂檔案和封面圖需要另行上傳（因為 Appwrite Storage 綁定帳號）`);
   };
 
+  const handleExportZip = async () => {
+    if (music.length === 0) { alert('沒有音樂可以匯出'); return; }
+    setExportingZip(true); setExportZipProgress({ current: 0, total: music.length, status: '準備中...' });
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < music.length; i++) {
+        const item = music[i];
+        setExportZipProgress({ current: i + 1, total: music.length, status: `正在處理: ${item.name}` });
+        try {
+          const proxyUrl = getProxiedMediaUrl(item.file);
+          const response = await fetch(proxyUrl);
+          if (!response.ok) continue;
+          const blob = await response.blob();
+          const urlLower = item.file.toLowerCase();
+          let fileExtension = 'mp3';
+          if (urlLower.includes('.mp3') || urlLower.includes('audio%2Fmp3') || urlLower.includes('audio%2Fmpeg')) fileExtension = 'mp3';
+          else if (urlLower.includes('.wav') || urlLower.includes('audio%2Fwav')) fileExtension = 'wav';
+          else if (urlLower.includes('.ogg') || urlLower.includes('audio%2Fogg')) fileExtension = 'ogg';
+          else if (urlLower.includes('.aac') || urlLower.includes('audio%2Faac')) fileExtension = 'aac';
+          else if (urlLower.includes('.flac') || urlLower.includes('audio%2Fflac')) fileExtension = 'flac';
+          else if (urlLower.includes('.m4a') || urlLower.includes('audio%2Fm4a')) fileExtension = 'm4a';
+          const sanitizedName = item.name.replace(/[<>:"\/\\|?*]/g, '_');
+          const categoryPrefix = item.category ? `[${item.category.replace(/[<>:"\/\\|?*]/g, '_')}]_` : '';
+          const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
+          const filename = nameHasExtension ? `${categoryPrefix}${sanitizedName}` : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
+          zip.file(filename, blob);
+        } catch (err) { console.error(`處理 ${item.name} 時出錯:`, err); }
+      }
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content); const a = document.createElement('a'); a.href = url; a.download = 'appwrite-music.zip'; a.click(); URL.revokeObjectURL(url);
+      setExportZipProgress({ current: music.length, total: music.length, status: '完成！' });
+      setTimeout(() => setExportingZip(false), 1500);
+    } catch (error) { console.error('匯出 ZIP 失敗:', error); alert('匯出失敗'); setExportingZip(false); }
+  };
+
+  const handleImportZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setImportingZip(true); setImportZipProgress({ current: 0, total: 0, status: '讀取 ZIP 檔案...', success: 0, failed: 0 });
+    try {
+      const zip = new JSZip(); const contents = await zip.loadAsync(file); const files = Object.keys(contents.files).filter(name => !contents.files[name].dir);
+      setImportZipProgress({ current: 0, total: files.length, status: `找到 ${files.length} 個檔案`, success: 0, failed: 0 });
+      let successCount = 0, failedCount = 0;
+      for (let i = 0; i < files.length; i++) {
+        const fileName = files[i]; setImportZipProgress({ current: i + 1, total: files.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
+        try {
+          const fileData = await contents.files[fileName].async('blob'); const ext = fileName.split('.').pop()?.toLowerCase() || 'mp3';
+          const validExts = ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'];
+          if (!validExts.includes(ext)) { failedCount++; continue; }
+          const musicFileObj = new (File as any)([fileData], fileName, { type: 'application/octet-stream' });
+          const uploadData = await uploadToAppwriteStorage(musicFileObj);
+          const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.MUSIC);
+          const createResponse = await fetch(createUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fileName, file: uploadData.url, filetype: ext, lyrics: '', note: '', ref: '', category: '', hash: '', language: '', cover: '' }) });
+          if (createResponse.ok) successCount++; else failedCount++;
+        } catch (err) { console.error(`處理 ${fileName} 時出錯:`, err); failedCount++; }
+        setImportZipProgress({ current: i + 1, total: files.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
+      }
+      setImportZipProgress({ current: files.length, total: files.length, status: '完成！', success: successCount, failed: failedCount });
+      setTimeout(() => { setImportingZip(false); loadMusic(true); }, 2000);
+    } catch (error) { console.error('匯入 ZIP 失敗:', error); alert('匯入失敗'); setImportingZip(false); }
+    if (importZipInputRef.current) importZipInputRef.current.value = '';
+  };
+
   // 搜尋過濾 + Lyrics Fallback
   const filteredMusic = useMemo(() => {
     // 首先添加 computedLyrics 到所有音樂
@@ -429,6 +497,15 @@ export default function MusicManagement() {
         showAccountLabel={true}
         action={
           <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={handleExportZip} disabled={exportingZip || music.length === 0} className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl">
+              <FolderUp size={16} />
+              匯出 ZIP
+            </Button>
+            <Button onClick={() => importZipInputRef.current?.click()} disabled={importingZip} className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl">
+              <FolderUp size={16} />
+              匯入 ZIP
+            </Button>
+            <input ref={importZipInputRef} type="file" accept=".zip" onChange={handleImportZip} className="hidden" />
             <Button onClick={() => document.getElementById('csv-import-music')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
               <Upload size={18} /> 匯入
             </Button>
@@ -628,6 +705,41 @@ export default function MusicManagement() {
 
       {/* 音樂佇列面板 */}
       <MusicQueuePanel />
+
+      {/* 匯出 ZIP 進度 */}
+      {exportingZip && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full space-y-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">匯出 ZIP</h3>
+            <div className="space-y-2">
+              <div className="text-sm text-gray-600 dark:text-gray-400">{exportZipProgress.status}</div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-300" style={{ width: `${exportZipProgress.total > 0 ? (exportZipProgress.current / exportZipProgress.total) * 100 : 0}%` }} />
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{exportZipProgress.current} / {exportZipProgress.total}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 匯入 ZIP 進度 */}
+      {importingZip && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full space-y-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">匯入 ZIP</h3>
+            <div className="space-y-2">
+              <div className="text-sm text-gray-600 dark:text-gray-400">{importZipProgress.status}</div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-orange-500 to-orange-600 transition-all duration-300" style={{ width: `${importZipProgress.total > 0 ? (importZipProgress.current / importZipProgress.total) * 100 : 0}%` }} />
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {importZipProgress.current} / {importZipProgress.total}
+                {importZipProgress.total > 0 && ` (成功: ${importZipProgress.success}, 失敗: ${importZipProgress.failed})`}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
