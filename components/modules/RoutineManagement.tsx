@@ -208,7 +208,11 @@ export default function RoutineManagement() {
       return;
     }
     
-    if (confirm(`確定要執行日期遞移嗎？\n\n最近例行之一 → 最近例行之二\n最近例行之二 → 最近例行之三`)) {
+    if (confirm(`確定要執行日期遞移嗎？
+
+最近例行之一 → 最近例行之二
+最近例行之二 → 最近例行之三
+最近例行之一 → 清空`)) {
       const payload = {
         name: routine.name,
         note: routine.note || "",
