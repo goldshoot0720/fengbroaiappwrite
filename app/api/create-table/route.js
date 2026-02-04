@@ -131,6 +131,7 @@ const TABLE_SCHEMAS = {
     attributes: [
       { key: 'name', type: 'string', size: 100, required: true },
       { key: 'file', type: 'string', size: 150, required: false },
+      { key: 'filetype', type: 'string', size: 20, required: false },
       { key: 'note', type: 'string', size: 100, required: false },
       { key: 'ref', type: 'string', size: 100, required: false },
       { key: 'category', type: 'string', size: 100, required: false },
