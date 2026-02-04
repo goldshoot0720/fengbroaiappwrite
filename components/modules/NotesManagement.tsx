@@ -11,7 +11,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatCard } from "@/components/ui/stat-card";
 import { useArticles } from "@/hooks/useArticles";
+import { fetchApi } from "@/hooks/useApi";
 import { ArticleFormData, Article } from "@/types";
+import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
@@ -162,7 +164,7 @@ function ZipPreview({ url, title }: { url: string; title: string }) {
 }
 
 export default function NotesManagement() {
-  const { articles, loading, error, stats, createArticle, updateArticle, deleteArticle } = useArticles();
+  const { articles, loading, error, stats, loadArticles, createArticle, updateArticle, deleteArticle } = useArticles();
   const [form, setForm] = useState<ArticleFormData>(INITIAL_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ArticleFormData>(INITIAL_FORM);
@@ -659,36 +661,54 @@ export default function NotesManagement() {
     e.target.value = '';
   };
 
+  // 準備匯入用的 API 資料（與 useArticles 中相同邏輯）
+  const prepareArticleData = (formData: ArticleFormData) => {
+    const dateTime = new Date(formData.newDate).toISOString();
+    const dataToSend: any = {
+      title: formData.title,
+      content: formData.content,
+      newDate: dateTime,
+    };
+    if (formData.url1 && formData.url1.trim()) dataToSend.url1 = formData.url1;
+    if (formData.url2 && formData.url2.trim()) dataToSend.url2 = formData.url2;
+    if (formData.url3 && formData.url3.trim()) dataToSend.url3 = formData.url3;
+    return dataToSend;
+  };
+
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
-    
+
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
       setImportProgress({ current: i + 1, total: importPreview.data.length });
       try {
-        // 查找是否已存在相同 title 的記錄
         const existing = articles.find(a => a.title === formData.title);
-        
+        const dataToSend = prepareArticleData(formData);
+
         if (existing) {
-          // 更新現有記錄
-          const success = await updateArticle(existing.$id, formData);
-          if (success) successCount++;
-          else failCount++;
+          await fetchApi(`${API_ENDPOINTS.ARTICLE}/${existing.$id}`, {
+            method: "PUT",
+            body: JSON.stringify(dataToSend),
+          });
         } else {
-          // 建立新記錄
-          const success = await createArticle(formData);
-          if (success) successCount++;
-          else failCount++;
+          await fetchApi(API_ENDPOINTS.ARTICLE, {
+            method: "POST",
+            body: JSON.stringify(dataToSend),
+          });
         }
+        successCount++;
       } catch {
         failCount++;
       }
     }
-    
+
+    // 全部完成後一次性重新載入
+    await loadArticles(true);
+
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
