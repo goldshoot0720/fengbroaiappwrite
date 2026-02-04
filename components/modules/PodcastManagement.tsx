@@ -678,7 +678,13 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
     // 計算檔案 hash
     const hash = await calculateFileHash(file);
     setFileHash(hash);
-    setFormData({ ...formData, hash });
+    
+    // 如果名稱欄位為空，自動填入檔案名稱
+    if (!formData.name) {
+      setFormData({ ...formData, name: file.name, hash });
+    } else {
+      setFormData({ ...formData, hash });
+    }
     
     // 檢查是否有重複的 hash
     const duplicatePodcast = existingPodcast.find(m => 
