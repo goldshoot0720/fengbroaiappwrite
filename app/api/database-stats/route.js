@@ -81,6 +81,7 @@ const TABLE_DEFINITIONS = {
   image: [
     { key: 'name', type: 'string', size: 100 },
     { key: 'file', type: 'string', size: 150 },
+    { key: 'filetype', type: 'string', size: 20 },
     { key: 'note', type: 'string', size: 100 },
     { key: 'ref', type: 'string', size: 100 },
     { key: 'category', type: 'string', size: 100 },
@@ -90,6 +91,7 @@ const TABLE_DEFINITIONS = {
   video: [
     { key: 'name', type: 'string', size: 100 },
     { key: 'file', type: 'string', size: 150 },
+    { key: 'filetype', type: 'string', size: 20 },
     { key: 'note', type: 'string', size: 100 },
     { key: 'ref', type: 'string', size: 100 },
     { key: 'category', type: 'string', size: 100 },

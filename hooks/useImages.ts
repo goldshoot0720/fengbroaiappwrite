@@ -8,6 +8,7 @@ export interface ImageData {
   $id: string;
   name: string;
   file: string;
+  filetype: string;
   note: string;
   ref: string;
   category: string;

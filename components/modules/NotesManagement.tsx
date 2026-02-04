@@ -16,7 +16,7 @@ import { formatDate } from "@/lib/formatters";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl } from "@/lib/utils";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon, Download, Upload } from "lucide-react";
 import JSZip from "jszip";
 
 const INITIAL_FORM: ArticleFormData = {
@@ -171,6 +171,13 @@ export default function NotesManagement() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // CSV 匯入/匯出功能
+  const [importPreview, setImportPreview] = useState<{data: ArticleFormData[], errors: string[]} | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const CSV_HEADERS = ['title', 'content', 'newDate', 'url1', 'url2', 'url3'];
+  const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
   
   // File upload states
   const [selectedFile1, setSelectedFile1] = useState<File | null>(null);
@@ -506,6 +513,192 @@ export default function NotesManagement() {
     }
   };
 
+  // CSV Export function
+  const exportToCSV = () => {
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
+      return str;
+    };
+    const rows = [CSV_HEADERS.join(',')];
+    articles.forEach(item => {
+      rows.push([
+        escapeCSV(item.title),
+        escapeCSV(item.content || ''),
+        escapeCSV(formatDate(item.newDate) || ''),
+        escapeCSV(item.url1 || ''),
+        escapeCSV(item.url2 || ''),
+        escapeCSV(item.url3 || '')
+      ].join(','));
+    });
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `appwrite-Notes-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  // RFC 4180 compliant CSV parser
+  const parseCSV = (text: string): {data: ArticleFormData[], errors: string[]} => {
+    const errors: string[] = [];
+    const data: ArticleFormData[] = [];
+    const cleanText = text.replace(/^\uFEFF/, '');
+    
+    // Parse CSV properly handling multi-line quoted fields
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentField = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < cleanText.length; i++) {
+      const char = cleanText[i];
+      const nextChar = cleanText[i + 1];
+      
+      if (inQuotes) {
+        if (char === '"') {
+          if (nextChar === '"') {
+            currentField += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          currentField += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          currentRow.push(currentField);
+          currentField = '';
+        } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+          currentRow.push(currentField);
+          currentField = '';
+          if (currentRow.length > 0 && currentRow.some(f => f.trim())) {
+            rows.push(currentRow);
+          }
+          currentRow = [];
+          if (char === '\r') i++;
+        } else if (char !== '\r') {
+          currentField += char;
+        }
+      }
+    }
+    if (currentField || currentRow.length > 0) {
+      currentRow.push(currentField);
+      if (currentRow.some(f => f.trim())) {
+        rows.push(currentRow);
+      }
+    }
+    
+    if (rows.length < 2) {
+      errors.push('CSV 檔案至少需要表頭和一行資料');
+      return { data, errors };
+    }
+    
+    const headerValues = rows[0];
+    if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
+      errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
+      return { data, errors };
+    }
+    for (let i = 0; i < CSV_HEADERS.length; i++) {
+      if (headerValues[i]?.trim() !== CSV_HEADERS[i]) {
+        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${CSV_HEADERS[i]}"，實際 "${headerValues[i]?.trim()}"`);
+        if (errors.length >= 5) { errors.push('...更多錯誤已省略'); break; }
+      }
+    }
+    if (errors.length > 0) return { data, errors };
+    
+    for (let i = 1; i < rows.length; i++) {
+      const values = rows[i];
+      const lineNum = i + 1;
+      if (values.length !== EXPECTED_COLUMN_COUNT) {
+        errors.push(`第 ${lineNum} 行: 欄位數量錯誤 (預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${values.length} 欄)`);
+        continue;
+      }
+      if (!values[0]?.trim()) {
+        errors.push(`第 ${lineNum} 行: title 欄位不能為空`);
+        continue;
+      }
+      data.push({
+        title: values[0].trim(),
+        content: values[1]?.trim() || '',
+        newDate: values[2]?.trim() || new Date().toISOString().split('T')[0],
+        url1: values[3]?.trim() || '',
+        url2: values[4]?.trim() || '',
+        url3: values[5]?.trim() || '',
+        file1: '',
+        file1name: '',
+        file1type: '',
+        file2: '',
+        file2name: '',
+        file2type: '',
+        file3: '',
+        file3name: '',
+        file3type: ''
+      });
+    }
+    return { data, errors };
+  };
+
+  const handleCsvFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.csv')) {
+      alert('請選擇 CSV 檔案');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImportPreview(parseCSV(event.target?.result as string));
+    };
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  };
+
+  const executeImport = async () => {
+    if (!importPreview || importPreview.data.length === 0) return;
+    
+    setImporting(true);
+    setImportProgress({ current: 0, total: importPreview.data.length });
+    
+    let successCount = 0, failCount = 0;
+    for (let i = 0; i < importPreview.data.length; i++) {
+      const formData = importPreview.data[i];
+      setImportProgress({ current: i + 1, total: importPreview.data.length });
+      try {
+        // 查找是否已存在相同 title 的記錄
+        const existing = articles.find(a => a.title === formData.title);
+        
+        if (existing) {
+          // 更新現有記錄
+          const success = await updateArticle(existing.$id, formData);
+          if (success) successCount++;
+          else failCount++;
+        } else {
+          // 建立新記錄
+          const success = await createArticle(formData);
+          if (success) successCount++;
+          else failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+    
+    setImporting(false);
+    setImportProgress({ current: 0, total: 0 });
+    setImportPreview(null);
+    alert(`匯入完成！
+成功: ${successCount} 筆
+失敗: ${failCount} 筆
+
+注意：檔案附件需要另行上傳`);
+  };
+
   if (loading) return <FullPageLoading text="載入筆記資料中..." />;
 
   return (
@@ -521,7 +714,16 @@ export default function NotesManagement() {
         subtitle={`共 ${stats.total} 篇筆記`}
         showAccountLabel={true}
         action={
-          <StatCard title="筆記總數" value={stats.total} gradient="from-blue-500 to-blue-600" className="min-w-[160px]" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={() => document.getElementById('csv-import-notes')?.click()} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯入 CSV">
+              <Upload size={18} /> 匯入
+            </Button>
+            <input id="csv-import-notes" type="file" accept=".csv" className="hidden" onChange={handleCsvFileSelect} />
+            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯出 CSV">
+              <Download size={18} /> 匯出
+            </Button>
+            <StatCard title="筆記總數" value={stats.total} gradient="from-blue-500 to-blue-600" className="min-w-[160px]" />
+          </div>
         }
       />
 
@@ -771,6 +973,97 @@ export default function NotesManagement() {
         </form>
         )}
       </FormCard>
+
+      {/* CSV 匯入預覽對話框 */}
+      {importPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">CSV 匯入預覽</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {importPreview.errors.length > 0 ? '發現錯誤，請修正後重試' : `準備匯入 ${importPreview.data.length} 筆資料`}
+              </p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {importPreview.errors.length > 0 ? (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-red-600 dark:text-red-400">錯誤訊息：</h3>
+                  {importPreview.errors.map((err, idx) => (
+                    <div key={idx} className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
+                      {err}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <p>• 如果標題已存在，將會更新該筆記</p>
+                    <p>• 如果標題不存在，將會建立新筆記</p>
+                    <p>• 檔案附件需要在匯入後另行上傳</p>
+                  </div>
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div className="max-h-96 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">#</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">標題</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">內容</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">日期</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {importPreview.data.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{idx + 1}</td>
+                              <td className="px-3 py-2 text-gray-900 dark:text-gray-100 font-medium">{item.title}</td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">{item.content || '-'}</td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{item.newDate}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {importing && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm text-purple-600 dark:text-purple-400">正在匯入中... ({importProgress.current}/{importProgress.total})</p>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" 
+                      style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+              <Button 
+                onClick={() => setImportPreview(null)} 
+                variant="outline" 
+                className="rounded-xl"
+                disabled={importing}
+              >
+                取消
+              </Button>
+              {importPreview.errors.length === 0 && (
+                <Button 
+                  onClick={executeImport} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
+                  disabled={importing}
+                >
+                  {importing ? '匯入中...' : '確認匯入'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 搜尋欄位 */}
       {articles.length > 0 && (

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
@@ -15,6 +15,7 @@ import { useImages, ImageData } from "@/hooks";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders } from "@/lib/utils";
+import JSZip from "jszip";
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -49,6 +50,11 @@ export default function ImageGallery() {
   const [showForm, setShowForm] = useState(false);
   const [editingImage, setEditingImage] = useState<ImageData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' });
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 });
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // 搜尋過濾
   const filteredImages = useMemo(() => {
@@ -76,6 +82,247 @@ export default function ImageGallery() {
     setEditingImage(null);
   };
 
+  // Export all images as ZIP
+  const handleExportZip = async () => {
+    if (images.length === 0) {
+      alert('沒有圖片可以匯出');
+      return;
+    }
+
+    if (exporting) return;
+
+    const confirm = window.confirm(`準備匯出 ${images.length} 張圖片至 ZIP 檔案，是否繼續？`);
+    if (!confirm) return;
+
+    setExporting(true);
+    setExportProgress({ current: 0, total: images.length, status: '準備中...' });
+
+    try {
+      const zip = new JSZip();
+      const imageFolder = zip.folder('images');
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
+        setExportProgress({ current: i + 1, total: images.length, status: `正在下載: ${image.name}` });
+
+        if (!image.file) {
+          console.warn(`跳過無圖片 URL: ${image.name}`);
+          failCount++;
+          continue;
+        }
+
+        try {
+          // Fetch image as blob
+          const response = await fetch(image.file);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
+          const blob = await response.blob();
+          
+          // Generate filename with category
+          // Use filetype field if available, otherwise extract from URL
+          const fileExtension = image.filetype || image.file.split('.').pop()?.split('?')[0] || 'jpg';
+          const sanitizedName = image.name.replace(/[/\\?%*:|"<>]/g, '-');
+          const categoryPrefix = image.category ? `[${image.category}]_` : '';
+          
+          // Check if name already has the correct extension to avoid double extension
+          const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
+          const filename = nameHasExtension 
+            ? `${categoryPrefix}${sanitizedName}`
+            : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
+          
+          // Add to zip
+          imageFolder?.file(filename, blob);
+          successCount++;
+        } catch (error) {
+          console.error(`下載失敗: ${image.name}`, error);
+          failCount++;
+        }
+      }
+
+      setExportProgress({ current: images.length, total: images.length, status: '正在壓縮...' });
+
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      // Download ZIP
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      const timestamp = new Date().toISOString().split('T')[0];
+      link.download = `appwrite-image.zip`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+
+      setExportProgress({ current: 0, total: 0, status: '' });
+      alert(`匯出完成！\n成功: ${successCount} 張\n失敗: ${failCount} 張`);
+    } catch (error) {
+      console.error('ZIP export error:', error);
+      alert('匯出失敗，請再試一次');
+    } finally {
+      setExporting(false);
+      setExportProgress({ current: 0, total: 0, status: '' });
+    }
+  };
+
+  // 計算檔案 SHA-256 hash
+  const calculateFileHash = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    try {
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+      console.error('Hash calculation error:', error);
+      return `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+  };
+
+  // Import images from ZIP
+  const handleImportZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input
+    if (importInputRef.current) {
+      importInputRef.current.value = '';
+    }
+
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      alert('請選擇 ZIP 檔案');
+      return;
+    }
+
+    setImporting(true);
+    setImportProgress({ current: 0, total: 0, status: '正在解壓縮 ZIP...', success: 0, skipped: 0, failed: 0 });
+
+    try {
+      const zip = await JSZip.loadAsync(file);
+      
+      // Find all image files in ZIP
+      const imageFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+      const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      
+      zip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir) {
+          const ext = relativePath.split('.').pop()?.toLowerCase() || '';
+          if (validExtensions.includes(ext)) {
+            imageFiles.push({ name: relativePath, file: zipEntry });
+          }
+        }
+      });
+
+      if (imageFiles.length === 0) {
+        alert('ZIP 檔案中沒有找到圖片檔案 (JPG, PNG, GIF, WEBP)');
+        setImporting(false);
+        return;
+      }
+
+      const confirmImport = window.confirm(`找到 ${imageFiles.length} 張圖片，是否開始匯入？`);
+      if (!confirmImport) {
+        setImporting(false);
+        return;
+      }
+
+      let successCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+
+      for (let i = 0; i < imageFiles.length; i++) {
+        const imageFile = imageFiles[i];
+        const fileName = imageFile.name.split('/').pop() || imageFile.name;
+        
+        setImportProgress({
+          current: i + 1,
+          total: imageFiles.length,
+          status: `正在處理: ${fileName}`,
+          success: successCount,
+          skipped: skippedCount,
+          failed: failedCount
+        });
+
+        try {
+          // Extract image data
+          const arrayBuffer = await imageFile.file.async('arraybuffer');
+
+          // Create blob and file
+          const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+          const mimeType = ext === 'png' ? 'image/png' : 
+                          ext === 'gif' ? 'image/gif' : 
+                          ext === 'webp' ? 'image/webp' : 'image/jpeg';
+          const blob = new Blob([arrayBuffer], { type: mimeType });
+          const imageFileObj = new File([blob], fileName, { type: mimeType });
+
+          // Upload to Appwrite Storage
+          const formDataUpload = new FormData();
+          formDataUpload.append('file', imageFileObj);
+
+          const uploadResponse = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: getAppwriteHeaders(),
+            body: formDataUpload,
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error('上傳失敗');
+          }
+
+          const uploadData = await uploadResponse.json();
+
+          // Create database record with simple fields
+          const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE);
+          const createResponse = await fetch(createUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: fileName,        // 完整檔名（包含副檔名）
+              file: uploadData.url,  // Appwrite Storage URL
+              filetype: ext,         // 檔案格式
+              note: '',              // 空
+              ref: '',               // 空
+              category: '',          // 空
+              hash: '',              // 空
+              cover: false           // false
+            }),
+          });
+
+          if (!createResponse.ok) {
+            throw new Error('建立記錄失敗');
+          }
+
+          successCount++;
+        } catch (error) {
+          console.error(`匯入失敗: ${fileName}`, error);
+          failedCount++;
+        }
+      }
+
+      setImportProgress({
+        current: imageFiles.length,
+        total: imageFiles.length,
+        status: '完成',
+        success: successCount,
+        skipped: skippedCount,
+        failed: failedCount
+      });
+
+      alert(`匯入完成！\n成功: ${successCount} 張\n失敗: ${failedCount} 張`);
+      
+      if (successCount > 0) {
+        loadImages(true);
+      }
+    } catch (error) {
+      console.error('ZIP import error:', error);
+      alert('匯入失敗，請確認 ZIP 檔案格式正確');
+    } finally {
+      setImporting(false);
+      setImportProgress({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 });
+    }
+  };
+
   return (
     <div className="space-y-4 lg:space-y-6">
       {error && (
@@ -89,7 +336,32 @@ export default function ImageGallery() {
         subtitle={loading ? "載入中..." : `共 ${images.length} 張圖片`}
         showAccountLabel={true}
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              onClick={handleExportZip} 
+              disabled={loading || exporting || importing || images.length === 0}
+              className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50"
+              title="匯出所有圖片為 ZIP"
+            >
+              <Download size={16} className={exporting ? "animate-bounce" : ""} />
+              <span className="hidden sm:inline">{exporting ? '匯出中...' : '匯出 ZIP'}</span>
+            </Button>
+            <Button 
+              onClick={() => importInputRef.current?.click()} 
+              disabled={loading || exporting || importing}
+              className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl disabled:opacity-50"
+              title="從 ZIP 匯入圖片"
+            >
+              <FolderUp size={16} className={importing ? "animate-bounce" : ""} />
+              <span className="hidden sm:inline">{importing ? '匯入中...' : '匯入 ZIP'}</span>
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".zip"
+              onChange={handleImportZip}
+              className="hidden"
+            />
             <Button onClick={handleAdd} className="gap-2 bg-green-500 hover:bg-green-600 rounded-xl">
               <Plus size={16} />
               <span className="hidden sm:inline">新增圖片</span>
@@ -103,6 +375,72 @@ export default function ImageGallery() {
       />
 
       <ImageStats images={images} />
+
+      {/* Export Progress Modal */}
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯出圖片中...</h3>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {exportProgress.status}
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>進度</span>
+                  <span>{exportProgress.current} / {exportProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                  <div 
+                    className="bg-purple-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Progress Modal */}
+      {importing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯入圖片中...</h3>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {importProgress.status}
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>進度</span>
+                  <span>{importProgress.current} / {importProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                  <div 
+                    className="bg-orange-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-xs text-center">
+                <div className="bg-green-100 dark:bg-green-900/30 rounded-lg p-2">
+                  <div className="font-bold text-green-600 dark:text-green-400">{importProgress.success}</div>
+                  <div className="text-green-600/70 dark:text-green-400/70">成功</div>
+                </div>
+                <div className="bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-2">
+                  <div className="font-bold text-yellow-600 dark:text-yellow-400">{importProgress.skipped}</div>
+                  <div className="text-yellow-600/70 dark:text-yellow-400/70">跳過</div>
+                </div>
+                <div className="bg-red-100 dark:bg-red-900/30 rounded-lg p-2">
+                  <div className="font-bold text-red-600 dark:text-red-400">{importProgress.failed}</div>
+                  <div className="text-red-600/70 dark:text-red-400/70">失敗</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 搜尋欄位 */}
       {images.length > 0 && (
@@ -312,6 +650,7 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
   const [formData, setFormData] = useState({
     name: image?.name || '',
     file: image?.file || '',
+    filetype: image?.filetype || '',
     note: image?.note || '',
     ref: image?.ref || '',
     category: image?.category || '',
@@ -378,7 +717,19 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
     // 計算檔案 hash
     const hash = await calculateFileHash(file);
     setFileHash(hash);
-    setFormData({ ...formData, hash });
+    
+    // 取得檔案類型（副檔名）
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+    const filetype = fileExt; // e.g., 'png', 'jpg', 'gif', 'webp'
+    
+    // 一次性更新 formData（包含名稱、hash 和 filetype）
+    // 使用完整檔案名稱（包含副檔名）作為預設名稱
+    setFormData(prev => ({
+      ...prev,
+      name: prev.name.trim() ? prev.name : file.name, // 如果當前名稱為空才自動填入完整檔名
+      hash: hash,
+      filetype: filetype
+    }));
     
     // 檢查是否有重複的 hash
     const duplicateImage = existingImages.find(img => 

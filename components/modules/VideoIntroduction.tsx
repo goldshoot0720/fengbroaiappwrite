@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera } from "lucide-react";
+import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp } from "lucide-react";
 import SimpleVideoPlayer from "@/components/ui/simple-video-player";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
@@ -23,6 +23,7 @@ import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
 import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { VideoScreenshotButton } from "@/components/ui/video-screenshot-button";
+import JSZip from "jszip";
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -63,6 +64,11 @@ export default function VideoIntroduction() {
   const [importPreview, setImportPreview] = useState<{ data: VideoFormData[]; errors: string[] } | null>(null);
     const [importing, setImporting] = useState(false);
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [exportingZip, setExportingZip] = useState(false);
+  const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
+  const [importingZip, setImportingZip] = useState(false);
+  const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+  const importZipInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { addToQueue, isInQueue } = useVideoQueue();
 
@@ -221,6 +227,208 @@ export default function VideoIntroduction() {
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
+  // ZIP 匯出
+  const handleExportZip = async () => {
+    if (videos.length === 0) {
+      alert('沒有影片可以匯出');
+      return;
+    }
+
+    if (exportingZip) return;
+
+    const confirm = window.confirm(`準備匯出 ${videos.length} 部影片至 ZIP 檔案，是否繼續？`);
+    if (!confirm) return;
+
+    setExportingZip(true);
+    setExportZipProgress({ current: 0, total: videos.length, status: '準備中...' });
+
+    try {
+      const zip = new JSZip();
+      const videoFolder = zip.folder('videos');
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < videos.length; i++) {
+        const video = videos[i];
+        setExportZipProgress({ current: i + 1, total: videos.length, status: `正在下載: ${video.name}` });
+
+        if (!video.file) {
+          console.warn(`跳過無影片 URL: ${video.name}`);
+          failCount++;
+          continue;
+        }
+
+        try {
+          const response = await fetch(video.file);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
+          const blob = await response.blob();
+          
+          const fileExtension = video.filetype || video.file.split('.').pop()?.split('?')[0] || 'mp4';
+          const sanitizedName = video.name.replace(/[/\\?%*:|"<>]/g, '-');
+          const categoryPrefix = video.category ? `[${video.category}]_` : '';
+          const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
+          const filename = nameHasExtension 
+            ? `${categoryPrefix}${sanitizedName}`
+            : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
+          
+          videoFolder?.file(filename, blob);
+          successCount++;
+        } catch (error) {
+          console.error(`下載失敗: ${video.name}`, error);
+          failCount++;
+        }
+      }
+
+      setExportZipProgress({ current: videos.length, total: videos.length, status: '正在壓縮...' });
+
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `appwrite-video.zip`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+
+      setExportZipProgress({ current: 0, total: 0, status: '' });
+      alert(`匯出完成！\n成功: ${successCount} 部\n失敗: ${failCount} 部`);
+    } catch (error) {
+      console.error('ZIP export error:', error);
+      alert('匯出失敗，請再試一次');
+    } finally {
+      setExportingZip(false);
+      setExportZipProgress({ current: 0, total: 0, status: '' });
+    }
+  };
+
+  // ZIP 匯入
+  const handleImportZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (importZipInputRef.current) {
+      importZipInputRef.current.value = '';
+    }
+
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      alert('請選擇 ZIP 檔案');
+      return;
+    }
+
+    setImportingZip(true);
+    setImportZipProgress({ current: 0, total: 0, status: '正在解壓縮 ZIP...', success: 0, failed: 0 });
+
+    try {
+      const zip = await JSZip.loadAsync(file);
+      
+      const videoFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+      const validExtensions = ['mp4', 'webm', 'ogg', 'mov'];
+      
+      zip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir) {
+          const ext = relativePath.split('.').pop()?.toLowerCase() || '';
+          if (validExtensions.includes(ext)) {
+            videoFiles.push({ name: relativePath, file: zipEntry });
+          }
+        }
+      });
+
+      if (videoFiles.length === 0) {
+        alert('ZIP 檔案中沒有找到影片檔案 (MP4, WebM, OGG, MOV)');
+        setImportingZip(false);
+        return;
+      }
+
+      const confirmImport = window.confirm(`找到 ${videoFiles.length} 部影片，是否開始匯入？`);
+      if (!confirmImport) {
+        setImportingZip(false);
+        return;
+      }
+
+      let successCount = 0;
+      let failedCount = 0;
+
+      for (let i = 0; i < videoFiles.length; i++) {
+        const videoFile = videoFiles[i];
+        const fileName = videoFile.name.split('/').pop() || videoFile.name;
+        
+        setImportZipProgress({
+          current: i + 1,
+          total: videoFiles.length,
+          status: `正在處理: ${fileName}`,
+          success: successCount,
+          failed: failedCount
+        });
+
+        try {
+          const arrayBuffer = await videoFile.file.async('arraybuffer');
+
+          const ext = fileName.split('.').pop()?.toLowerCase() || 'mp4';
+          const mimeType = ext === 'webm' ? 'video/webm' : 
+                          ext === 'ogg' ? 'video/ogg' : 
+                          ext === 'mov' ? 'video/quicktime' : 'video/mp4';
+          const blob = new Blob([arrayBuffer], { type: mimeType });
+          const videoFileObj = new File([blob], fileName, { type: mimeType });
+
+          // Upload to Appwrite Storage
+          const uploadResult = await uploadToAppwriteStorage(videoFileObj, (progress) => {
+            setImportZipProgress(prev => ({ ...prev, status: `上傳中: ${fileName} (${progress}%)` }));
+          });
+
+          // Create database record
+          const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
+          const createResponse = await fetch(createUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: fileName,
+              file: uploadResult.url,
+              filetype: ext,
+              note: '',
+              ref: '',
+              category: '',
+              hash: '',
+              cover: ''
+            }),
+          });
+
+          if (!createResponse.ok) {
+            throw new Error('建立記錄失敗');
+          }
+
+          successCount++;
+        } catch (error) {
+          console.error(`匯入失敗: ${fileName}`, error);
+          failedCount++;
+        }
+      }
+
+      setImportZipProgress({
+        current: videoFiles.length,
+        total: videoFiles.length,
+        status: '完成',
+        success: successCount,
+        failed: failedCount
+      });
+
+      alert(`匯入完成！\n成功: ${successCount} 部\n失敗: ${failedCount} 部`);
+      
+      if (successCount > 0) {
+        loadVideos(true);
+      }
+    } catch (error) {
+      console.error('ZIP import error:', error);
+      alert('匯入失敗，請確認 ZIP 檔案格式正確');
+    } finally {
+      setImportingZip(false);
+      setImportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+    }
+  };
+
   // 搜尋過濾
   const filteredVideos = useMemo(() => {
     if (!searchQuery.trim()) return videos;
@@ -347,12 +555,37 @@ export default function VideoIntroduction() {
         showAccountLabel={true}
         action={
           <div className="flex items-center gap-2 flex-wrap">
+            <Button 
+              onClick={handleExportZip} 
+              disabled={loading || exportingZip || importingZip || videos.length === 0}
+              className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50"
+              title="匯出所有影片為 ZIP"
+            >
+              <Download size={16} className={exportingZip ? "animate-bounce" : ""} />
+              <span className="hidden sm:inline">{exportingZip ? '匯出中...' : '匯出 ZIP'}</span>
+            </Button>
+            <Button 
+              onClick={() => importZipInputRef.current?.click()} 
+              disabled={loading || exportingZip || importingZip}
+              className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl disabled:opacity-50"
+              title="從 ZIP 匯入影片"
+            >
+              <FolderUp size={16} className={importingZip ? "animate-bounce" : ""} />
+              <span className="hidden sm:inline">{importingZip ? '匯入中...' : '匯入 ZIP'}</span>
+            </Button>
+            <input
+              ref={importZipInputRef}
+              type="file"
+              accept=".zip"
+              onChange={handleImportZip}
+              className="hidden"
+            />
             <Button onClick={() => document.getElementById('csv-import-video')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
-              <Upload size={18} /> 匯入
+              <Upload size={18} /> 匯入 CSV
             </Button>
             <input id="csv-import-video" type="file" accept=".csv" className="hidden" onChange={handleCsvFileSelect} />
             <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV">
-              <Download size={18} /> 匯出
+              <Download size={18} /> 匯出 CSV
             </Button>
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
               <Plus size={16} />
@@ -443,6 +676,68 @@ export default function VideoIntroduction() {
           }}
           onSuccess={handleFormSuccess}
         />
+      )}
+
+      {/* ZIP 匯出進度模態框 */}
+      {exportingZip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯出影片中...</h3>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {exportZipProgress.status}
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>進度</span>
+                  <span>{exportZipProgress.current} / {exportZipProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                  <div 
+                    className="bg-purple-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${exportZipProgress.total > 0 ? (exportZipProgress.current / exportZipProgress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ZIP 匯入進度模態框 */}
+      {importingZip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯入影片中...</h3>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {importZipProgress.status}
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>進度</span>
+                  <span>{importZipProgress.current} / {importZipProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                  <div 
+                    className="bg-orange-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${importZipProgress.total > 0 ? (importZipProgress.current / importZipProgress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-2 text-xs text-center">
+                <div className="bg-green-100 dark:bg-green-900/30 rounded-lg p-2">
+                  <div className="font-bold text-green-600 dark:text-green-400">{importZipProgress.success}</div>
+                  <div className="text-green-600/70 dark:text-green-400/70">成功</div>
+                </div>
+                <div className="bg-red-100 dark:bg-red-900/30 rounded-lg p-2">
+                  <div className="font-bold text-red-600 dark:text-red-400">{importZipProgress.failed}</div>
+                  <div className="text-red-600/70 dark:text-red-400/70">失敗</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* CSV 匯入預覽模態框 */}
@@ -1013,6 +1308,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
   const [formData, setFormData] = useState({
     name: video?.name || '',
     file: video?.file || '',
+    filetype: video?.filetype || '',
     note: video?.note || '',
     ref: video?.ref || '',
     category: video?.category || '',
@@ -1140,9 +1436,13 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       generateThumbnailFromVideo(objectUrl, file.name);
     }
 
+    // 取得檔案類型（副檔名）
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+    const filetype = fileExt; // e.g., 'mp4', 'webm', 'mov'
+
     // 檢查是否與現有影片重複
     setFileHash(hash);
-    setFormData({ ...formData, name: autoName, hash });
+    setFormData({ ...formData, name: autoName, hash, filetype });
     
     // 檢查是否有重複的 hash
     const duplicateVideo = existingVideos.find(vid => 
