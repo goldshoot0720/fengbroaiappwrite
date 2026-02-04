@@ -11,11 +11,32 @@
 5. [鋒兄筆記](./05_notes.md) - 多功能筆記系統，支援附件與預覽
 6. [鋒兄常用](./06_common_accounts.md) - 常用帳號、網站與連結管理
 7. [鋒兄圖片](./07_images.md) - 圖片上傳、瀏覽與藝廊管理
-8. [鋒兄影片](./08_videos.md) - 影片播放與簡介管理
+8. [鋒兄影片](./08_videos.md) - 影片串流播放、佇列與快取管理
 9. [鋒兄音樂](./09_music.md) - 音樂播放、歌詞顯示與專輯管理
-10. [鋒兄文件](./10_documents.md) - 綜合文件管理（PDF、Office、ZIP）
-11. [鋒兄播客](./11_podcast.md) - 播客音訊播放與進度管理
+10. [鋒兄文件](./10_documents.md) - 綜合文件管理（PDF、Office、程式碼、ZIP）
+11. [鋒兄播客](./11_podcast.md) - 播客音訊/視訊播放與快取管理
 12. [鋒兄銀行](./12_bank.md) - 銀行帳戶、餘額與財務記錄
-13. [鋒兄例行](./13_routine.md) - 例行公事、週期性任務管理
-14. [鋒兄設定](./14_settings.md) - 系統配置、API 設定與主題切換
+13. [鋒兄例行](./13_routine.md) - 例行公事、日期遞移與週期性任務管理
+14. [鋒兄設定](./14_settings.md) - 系統配置、資料庫管理、儲存空間與主題切換
 15. [鋒兄關於](./15_about.md) - 系統版本與專案資訊
+
+## 資料庫 Table 結構總覽
+
+| # | Collection 名稱 | 欄位數 | 對應模組 | 說明文件 |
+|---|----------------|--------|---------|---------|
+| 1 | food | 7 | 鋒兄食品 | [04_food.md](./04_food.md) |
+| 2 | subscription | 8 | 鋒兄訂閱 | [03_subscription.md](./03_subscription.md) |
+| 3 | article | 17 | 鋒兄筆記 | [05_notes.md](./05_notes.md) |
+| 4 | commonaccount | 75 | 鋒兄常用 | [06_common_accounts.md](./06_common_accounts.md) |
+| 5 | bank | 9 | 鋒兄銀行 | [12_bank.md](./12_bank.md) |
+| 6 | routine | 7 | 鋒兄例行 | [13_routine.md](./13_routine.md) |
+| 7 | image | 8 | 鋒兄圖片 | [07_images.md](./07_images.md) |
+| 8 | video | 8 | 鋒兄影片 | [08_videos.md](./08_videos.md) |
+| 9 | music | 10 | 鋒兄音樂 | [09_music.md](./09_music.md) |
+| 10 | podcast | 8 | 鋒兄播客 | [11_podcast.md](./11_podcast.md) |
+| 11 | commondocument | 8 | 鋒兄文件 | [10_documents.md](./10_documents.md) |
+
+## 其他文件
+
+- [公司簡介](./00_company_introduction.md) - 鋒兄塗哥公關資訊公司介紹
+- [使用手冊](./USER_GUIDE.md) - 完整使用者教學手冊

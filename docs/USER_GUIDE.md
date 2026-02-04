@@ -1,6 +1,6 @@
 # 鋒兄AI Appwrite 管理系統 — 使用者教學手冊
 
-> **版本**: v1.0.0
+> **版本**: v2.0.0
 > **技術框架**: Next.js 16 / React 19 / Appwrite
 > **最後更新**: 2026-02-04
 
@@ -43,7 +43,7 @@
 | 播客管理 | 管理 Podcast 內容 |
 | 文件管理 | 上傳與管理各類文件 |
 | 銀行管理 | 記錄銀行帳戶與存款資訊 |
-| 例行管理 | 管理日常例行事務 |
+| 例行管理 | 管理日常例行事務與日期遞移 |
 
 系統支援 **亮色 / 暗色 / 跟隨系統** 三種主題模式，並提供 **手機、平板、桌面** 三種裝置的響應式佈局。
 
@@ -105,7 +105,7 @@ docker run -p 3000:3000 \
 2. 找到 **「資料庫欄位統計」** 區塊
 3. 紅色標示的表格代表尚未建立
 4. 點擊 **「一鍵建立所有缺失 Table」** 按鈕
-5. 等待所有表格建立完成（會顯示進度）
+5. 等待所有表格建立完成（會顯示 SSE 串流進度）
 6. 建立完成後，回到其他模組即可開始使用
 
 ---
@@ -159,14 +159,26 @@ docker run -p 3000:3000 \
 1. 點擊 **「新增」** 按鈕
 2. 填寫以下資訊：
    - **名稱**（必填）— 食品名稱
-   - **數量**（必填）— 庫存數量
-   - **到期日**（必填）— 食品的最佳賞味期限
-   - **照片** — 可上傳食品照片
-   - **價格** — 購買金額
+   - **數量** — 庫存數量（±1 / ±10 快速調整）
+   - **到期日** — 食品的最佳賞味期限
+   - **照片** — 可上傳食品照片（50MB 限制）
+   - **價格** — 購買金額（±1000 快速調整）
    - **商店** — 購買地點
 3. 點擊 **「儲存」**
 
-### 4.2 到期狀態說明
+### 4.2 資料表結構
+
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| name | string(100) | ✅ | 食品名稱 |
+| amount | integer | ❌ | 庫存數量 |
+| price | integer | ❌ | 購買價格 |
+| shop | string(100) | ❌ | 購買商店 |
+| todate | datetime | ❌ | 到期日期 |
+| photo | url | ❌ | 照片連結 |
+| photohash | string(256) | ❌ | 照片雜湊 |
+
+### 4.3 到期狀態說明
 
 | 狀態 | 顏色 | 說明 |
 |------|------|------|
@@ -174,11 +186,6 @@ docker run -p 3000:3000 \
 | 即將到期 | 黃色 | 距離到期日在 3-7 天內 |
 | 緊急 | 橘色 | 距離到期日在 3 天內 |
 | 已過期 | 紅色 | 已超過到期日 |
-
-### 4.3 調整數量
-
-- 可直接在列表中調整食品數量
-- 用完的食品建議直接刪除
 
 ---
 
@@ -191,16 +198,27 @@ docker run -p 3000:3000 \
 填寫以下資訊：
 - **名稱**（必填）— 訂閱服務名稱（如 Netflix、Spotify）
 - **網站** — 服務的網址
-- **費用**（必填）— 每期的費用金額
-- **幣別** — 支援台幣(TWD)、美元(USD)、歐元(EUR)、日圓(JPY)、人民幣(CNY)、港幣(HKD)
-- **下次續費日** — 下一次需要付款的日期
+- **費用** — 每期的費用金額
+- **幣別** — 支援 TWD、USD、EUR、JPY、CNY、HKD
+- **下次續費日** — 下一次需要付款的日期（±30 天快速調整）
 - **帳號** — 登入帳號
 - **備註** — 其他備忘資訊
 - **持續訂閱** — 是否為持續性訂閱
 
-### 5.2 幣別換算
+### 5.2 資料表結構
 
-系統內建匯率轉換功能，所有外幣金額會自動換算為台幣(TWD)顯示：
+| 欄位 | 類型 | 必填 | 預設值 | 說明 |
+|------|------|------|--------|------|
+| name | string(100) | ✅ | - | 服務名稱 |
+| site | url | ❌ | - | 服務網站 |
+| price | integer | ❌ | - | 費用金額 |
+| nextdate | datetime | ❌ | - | 下次續費日 |
+| note | string(100) | ❌ | - | 備註 |
+| account | string(100) | ❌ | - | 帳號 |
+| currency | string(100) | ❌ | - | 幣別代碼 |
+| continue | boolean | ❌ | true | 持續訂閱 |
+
+### 5.3 幣別換算
 
 | 幣別 | 對台幣匯率 |
 |------|-----------|
@@ -221,14 +239,29 @@ docker run -p 3000:3000 \
 ### 6.1 新增筆記
 
 - **標題** — 筆記標題
-- **內容** — 筆記內容（支援文字編輯）
-- **日期** — 建立日期
-- **附件連結** — 最多可附加 3 個外部網址
-- **附件檔案** — 最多可附加 3 個檔案
+- **內容** — 筆記內容（最大 1000 字元）
+- **分類** — 分類標籤
+- **日期** — 建立日期（±7 天快速調整）
+- **附件連結** — 最多可附加 3 個外部網址 (url1-3)
+- **附件檔案** — 最多可附加 3 個檔案 (file1-3)
 
-### 6.2 筆記排序
+### 6.2 資料表結構
 
-筆記預設依 **日期由新到舊** 排列，最新的筆記會顯示在最上方。
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| title | string(100) | ❌ | 標題 |
+| content | string(1000) | ❌ | 內容 |
+| category | string(100) | ❌ | 分類 |
+| ref | string(100) | ❌ | 參考 |
+| newDate | datetime | ❌ | 日期 |
+| url1-3 | url | ❌ | 附件連結 (3 個) |
+| file1-3 | string(150) | ❌ | 附件檔案 ID (3 組) |
+| file1name-3name | string(100) | ❌ | 附件檔名 (3 個) |
+| file1type-3type | string(20) | ❌ | 附件類型 (3 個) |
+
+### 6.3 附件預覽
+
+筆記支援即時預覽以下格式：圖片、PDF、音訊、影片、Office 文件、ZIP 結構、程式碼。
 
 ---
 
@@ -240,12 +273,26 @@ docker run -p 3000:3000 \
 
 每個常用帳號可以儲存：
 - **名稱** — 帳號群組名稱
-- **網站連結** — 最多 37 個常用網站連結
-- **備忘筆記** — 最多 37 則相關備忘
+- **網站連結** — 最多 37 個常用網站連結 (site01-37)
+- **備忘筆記** — 最多 37 則相關備忘 (note01-37)
 
-### 7.2 Favicon 顯示
+### 7.2 資料表結構
+
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| name | string(100) | ✅ | 群組名稱 |
+| site01 ~ site37 | string(100) | ❌ | 網站連結 (37 個) |
+| note01 ~ note37 | string(100) | ❌ | 備忘筆記 (37 個) |
+
+> 總共 75 個欄位：1 name + 37 site + 37 note
+
+### 7.3 Favicon 顯示
 
 系統會自動嘗試載入每個網站的圖示（Favicon），讓你更容易辨識。已內建常見網站（如 GitHub、Gmail、Netflix、YouTube 等）的圖示路徑。
+
+### 7.4 行內編輯
+
+支援直接在列表中編輯各網站項目，無需開啟表單。支援 A-Z 排序與一鍵複製。
 
 ---
 
@@ -253,19 +300,32 @@ docker run -p 3000:3000 \
 
 瀏覽與管理上傳到 Appwrite Storage 的圖片。
 
-### 8.1 功能
+### 8.1 資料表結構
 
-- 瀏覽所有上傳的圖片
+| 欄位 | 類型 | 必填 | 預設值 | 說明 |
+|------|------|------|--------|------|
+| name | string(100) | ✅ | - | 圖片名稱 |
+| file | string(150) | ❌ | - | Storage 檔案 ID |
+| filetype | string(20) | ❌ | - | 檔案類型 |
+| note | string(100) | ❌ | - | 備註 |
+| ref | string(100) | ❌ | - | 參考 |
+| category | string(100) | ❌ | - | 分類 |
+| hash | string(300) | ❌ | - | 雜湊 |
+| cover | boolean | ❌ | false | 封面圖 |
+
+### 8.2 功能
+
+- 瀏覽所有上傳的圖片（網格藝廊）
 - 依分類篩選
-- 支援圖片詳細資訊查看
-- 圖片名稱、備註、分類管理
+- 全螢幕圖片預覽
+- 批次 ZIP 匯入匯出
+- 支援 JPG、PNG、GIF、WEBP
 
-### 8.2 離線快取
+### 8.3 離線快取
 
-圖片下載後會儲存在瀏覽器的 IndexedDB 快取中：
-- 快取上限 **500MB**
-- 超過上限時，系統會自動清除最舊的快取
-- 離線時可以瀏覽已快取的圖片
+- 快取上限 **500MB**（IndexedDB）
+- 超過上限時自動清除最舊快取
+- 離線時可瀏覽已快取的圖片
 
 ---
 
@@ -273,12 +333,18 @@ docker run -p 3000:3000 \
 
 管理與播放影片收藏。
 
-### 9.1 功能
+### 9.1 資料表結構
 
-- 影片清單瀏覽
-- 線上串流播放（支援進度條拖曳）
-- 影片分類管理
-- 封面圖設定
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| name | string(100) | ✅ | 影片名稱 |
+| file | string(150) | ❌ | Storage 檔案 ID |
+| filetype | string(20) | ❌ | 檔案類型 |
+| note | string(100) | ❌ | 備註 |
+| ref | string(100) | ❌ | 參考 |
+| category | string(100) | ❌ | 分類 |
+| hash | string(300) | ❌ | 雜湊 |
+| cover | string(150) | ❌ | 封面圖 File ID |
 
 ### 9.2 播放佇列
 
@@ -288,17 +354,13 @@ docker run -p 3000:3000 \
 
 ### 9.3 影片快取
 
-影片同樣支援離線快取功能：
-- 快取上限 **500MB**
+- 快取上限 **500MB**（IndexedDB）
 - 下載時顯示進度百分比
 - 超過上限自動清除最舊影片
 
 ### 9.4 串流播放
 
-影片播放支援 HTTP Range 請求，可以：
-- 快速跳轉到影片的任意位置
-- 不需要等待整部影片下載完成
-- 透過內建代理(Media Proxy)確保播放流暢
+影片播放支援 HTTP Range 請求，透過 Media Proxy 確保播放流暢。
 
 ---
 
@@ -306,29 +368,35 @@ docker run -p 3000:3000 \
 
 管理與播放音樂庫。
 
-### 10.1 功能
+### 10.1 資料表結構
 
-- 音樂清單瀏覽
-- 線上播放
-- 歌詞顯示
-- 分類與語言標記
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| name | string(100) | ✅ | 歌曲名稱 |
+| file | string(150) | ❌ | Storage 檔案 ID |
+| filetype | string(20) | ❌ | 檔案類型 |
+| lyrics | string(3337) | ❌ | 歌詞文字 |
+| note | string(100) | ❌ | 備註 |
+| ref | string(100) | ❌ | 參考 |
+| category | string(100) | ❌ | 分類 |
+| hash | string(300) | ❌ | 雜湊 |
+| language | string(100) | ❌ | 語言 |
+| cover | string(150) | ❌ | 封面圖 File ID |
 
 ### 10.2 播放佇列
 
-與影片佇列相同的操作方式：
-- 加入佇列 / 立即播放
+- 加入佇列 / 立即播放 / 排序管理
 - 自動播放下一首
-- 佇列排序與管理
 
 ### 10.3 音樂快取
 
-- 快取上限 **500MB**
-- 支援的音訊格式：MP3、M4A、WAV、OGG、FLAC、AAC、WEBA
+- 快取上限 **500MB**（IndexedDB）
+- 支援格式：MP3、M4A、WAV、OGG、FLAC、AAC、WEBA
 - 離線模式可播放已快取的音樂
 
 ### 10.4 歌詞功能
 
-音樂項目可以附帶歌詞文字，在播放時同步顯示歌詞內容。
+音樂項目可以附帶歌詞文字（最大 3337 字元），在播放時同步顯示歌詞內容。
 
 ---
 
@@ -336,19 +404,29 @@ docker run -p 3000:3000 \
 
 管理 Podcast 節目與集數。
 
-### 11.1 功能
+### 11.1 資料表結構
 
-- 播客節目清單
-- 線上收聽/觀看
-- 分類管理
-- 封面圖設定
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| name | string(100) | ✅ | 播客名稱 |
+| file | string(150) | ❌ | Storage 檔案 ID |
+| filetype | string(20) | ❌ | 檔案類型 |
+| note | string(100) | ❌ | 備註 |
+| ref | string(100) | ❌ | 參考 |
+| category | string(100) | ❌ | 分類 |
+| hash | string(300) | ❌ | 雜湊 |
+| cover | string(150) | ❌ | 封面圖 File ID |
 
 ### 11.2 播客快取
 
-- 快取上限 **500MB**
+- 快取上限 **500MB**（IndexedDB）
 - 同時支援音訊與視訊格式的 Podcast
 - 音訊格式：MP3、M4A、WAV、OGG、FLAC、AAC、WEBA
 - 視訊格式：MP4、WEBM、MOV
+
+### 11.3 刪除確認
+
+刪除播客前需輸入確認文字「DELETE [播客名稱]」，防止誤刪。
 
 ---
 
@@ -356,27 +434,37 @@ docker run -p 3000:3000 \
 
 上傳與管理各類文件。
 
-### 12.1 支援的檔案格式
+### 12.1 資料表結構
 
-| 類型 | 格式 |
-|------|------|
-| 文件 | PDF、DOC、DOCX |
-| 試算表 | XLS、XLSX |
-| 簡報 | PPT、PPTX |
-| 文字 | TXT、MD、JSON、XML、HTML、CSS、JS |
-| 壓縮 | ZIP |
-| 圖片 | JPG、PNG、GIF、WEBP |
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| name | string(100) | ✅ | 文件名稱 |
+| file | string(150) | ❌ | Storage 檔案 ID |
+| filetype | string(20) | ❌ | 檔案類型 |
+| note | string(100) | ❌ | 備註 |
+| ref | string(100) | ❌ | 參考 |
+| category | string(100) | ❌ | 分類 |
+| hash | string(300) | ❌ | 雜湊 |
+| cover | string(150) | ❌ | 封面圖 File ID |
 
-### 12.2 文件快取
+### 12.2 支援的檔案格式
 
-- 快取上限 **500MB**
-- 下載過的文件會暫存在瀏覽器中
+| 類型 | 格式 | 預覽方式 |
+|------|------|---------|
+| 文件 | PDF | 內建 PDF Viewer |
+| 文件 | DOC、DOCX | Office Web Viewer |
+| 試算表 | XLS、XLSX | Office Web Viewer |
+| 簡報 | PPT、PPTX | Office Web Viewer |
+| 文字 | TXT、MD | 文字預覽 + 編輯 |
+| 程式碼 | JS、TS、HTML、CSS、JSON、XML | 語法高亮 + 編輯 |
+| 壓縮 | ZIP | 結構預覽 |
+| 圖片 | JPG、PNG、GIF、WEBP | 圖片預覽 |
+
+### 12.3 離線快取
+
+- 快取上限 **500MB**（IndexedDB）
+- 下載過的文件暫存在瀏覽器中
 - 再次開啟時無需重新下載
-
-### 12.3 匯出功能
-
-- 支援將文件匯出為 ZIP 壓縮檔
-- 支援 CSV 格式匯出
 
 ---
 
@@ -384,23 +472,27 @@ docker run -p 3000:3000 \
 
 記錄與追蹤銀行帳戶資訊。
 
-### 13.1 可記錄的欄位
+### 13.1 資料表結構
 
-- **銀行名稱**（必填）
-- **存款金額** — 帳戶餘額
-- **網站** — 網路銀行連結
-- **地址** — 銀行分行地址
-- **提款資訊** — 提款相關備忘
-- **轉帳資訊** — 轉帳相關備忘
-- **活動** — 帳戶活動記錄
-- **卡片** — 關聯的金融卡/信用卡
-- **帳號** — 銀行帳號
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| name | string(100) | ✅ | 銀行名稱 |
+| deposit | integer | ❌ | 存款金額 |
+| site | url | ❌ | 網路銀行連結 |
+| address | string(100) | ❌ | 分行地址 |
+| withdrawals | integer | ❌ | 提款資訊 |
+| transfer | integer | ❌ | 轉帳資訊 |
+| activity | url | ❌ | 活動連結 |
+| card | string(100) | ❌ | 卡片資訊 |
+| account | string(100) | ❌ | 銀行帳號 |
 
 ### 13.2 統計
 
-儀表板會自動統計：
-- 銀行帳戶總數
-- 所有帳戶的存款總額
+儀表板會自動統計銀行帳戶總數與所有帳戶的存款總額。
+
+### 13.3 刪除確認
+
+刪除帳戶前需輸入「DELETE [銀行名稱]」確認，防止誤刪。
 
 ---
 
@@ -408,11 +500,38 @@ docker run -p 3000:3000 \
 
 管理日常的例行事務與定期任務。
 
-### 14.1 功能
+### 14.1 資料表結構
 
-- 建立例行事項
-- 追蹤排程與完成狀況
-- 分類管理
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| name | string(100) | ✅ | 事項名稱 |
+| note | string(100) | ❌ | 備註 |
+| lastdate1 | datetime | ❌ | 最近完成日期 1 |
+| lastdate2 | datetime | ❌ | 最近完成日期 2 |
+| lastdate3 | datetime | ❌ | 最近完成日期 3 |
+| link | url | ❌ | 相關連結 |
+| photo | url | ❌ | 照片連結 |
+
+### 14.2 日期遞移操作
+
+例行模組的核心功能，一鍵將日期向後遞移：
+
+```
+操作前：lastdate1=01/15, lastdate2=01/01, lastdate3=12/15
+操作後：lastdate1=NULL,  lastdate2=01/15, lastdate3=01/01
+```
+
+- lastdate1 → lastdate2
+- lastdate2 → lastdate3
+- lastdate1 清空（設為 NULL），等待下次記錄
+
+### 14.3 清除日期
+
+每個日期欄位旁有 X 按鈕，可單獨將該日期設為 NULL。API 的 PATCH 方法支援將日期欄位設為 NULL。
+
+### 14.4 天數差計算
+
+系統自動計算每個日期距今的天數，直覺呈現上次完成距今多久。
 
 ---
 
@@ -432,23 +551,33 @@ docker run -p 3000:3000 \
    - **API Key** — API 金鑰
 3. 儲存後系統會自動清除快取並重新載入資料
 
-切換帳號時，系統會自動：
-- 清除所有本地快取
-- 重設所有模組的資料
-- 使用新的連線設定載入資料
-
 > 要切回 .env 的預設帳號，點擊 **「重設為 .env 預設」** 按鈕即可。
 
 ### 15.2 資料庫管理
 
-**欄位統計**：
-- 每個資料表的狀態顯示：
-  - 🟢 **綠色** — 表格存在且有資料
-  - 🟡 **黃色** — 表格存在但無資料
-  - 🔴 **紅色** — 表格不存在
+**表格狀態**：
+- 🟢 **綠色** — 表格存在且有資料
+- 🟡 **黃色** — 表格存在但無資料
+- 🔴 **紅色** — 表格不存在
+
+**資料庫表格一覽 (11 個 Collection)**：
+
+| # | 表格名稱 | 欄位數 | 用途 |
+|---|----------|--------|------|
+| 1 | food | 7 | 食品庫存 |
+| 2 | subscription | 8 | 訂閱服務 |
+| 3 | article | 17 | 筆記文章 |
+| 4 | commonaccount | 75 | 常用帳號 |
+| 5 | bank | 9 | 銀行帳戶 |
+| 6 | routine | 7 | 例行事務 |
+| 7 | image | 8 | 圖片 |
+| 8 | video | 8 | 影片 |
+| 9 | music | 10 | 音樂 |
+| 10 | podcast | 8 | 播客 |
+| 11 | commondocument | 8 | 文件 |
 
 **表格操作**：
-- **一鍵建立** — 建立所有缺失的資料表
+- **一鍵建立** — 建立所有缺失的資料表（SSE 串流顯示進度）
 - **個別重建** — 重建單一資料表（⚠ 會清除該表所有資料）
 - **結構修正** — 當欄位數量不符預期時，可重建表格結構
 
@@ -461,9 +590,9 @@ docker run -p 3000:3000 \
 ### 15.4 主題切換
 
 三種主題模式可選：
-- ☀ **亮色模式** — 白色背景，適合白天使用
-- 🌙 **暗色模式** — 深色背景，適合夜間使用
-- 💻 **跟隨系統** — 自動跟隨作業系統的深淺色設定
+- **亮色模式** — 白色背景，適合白天使用
+- **暗色模式** — 深色背景，適合夜間使用
+- **跟隨系統** — 自動跟隨作業系統的深淺色設定
 
 主題設定會儲存在瀏覽器中，下次開啟時自動套用。
 
@@ -495,10 +624,11 @@ docker run -p 3000:3000 \
 - Appwrite 免費方案有 **頻寬限制**，超過後會暫時無法上傳
 - 確認 API Key 有正確的寫入權限
 - 確認 Bucket ID 設定正確
+- 單檔限制 50MB
 
 ### Q5: 如何備份資料？
 
-目前資料儲存在 Appwrite 雲端，可透過 Appwrite Console 進行資料備份。文件管理模組支援 ZIP 匯出功能。
+目前資料儲存在 Appwrite 雲端，可透過 Appwrite Console 進行資料備份。各模組支援 CSV 匯出與 ZIP 匯出功能。
 
 ### Q6: 支援哪些瀏覽器？
 
@@ -517,7 +647,8 @@ docker run -p 3000:3000 \
 ### Q8: 離線可以使用嗎？
 
 部分功能支援離線使用：
-- 已快取的影片、音樂、圖片、文件可離線瀏覽/播放
+- 已快取的影片、音樂、圖片、文件、播客可離線瀏覽/播放
+- 每種媒體類型快取上限 500MB（IndexedDB）
 - 新增/修改/刪除等操作需要網路連線
 
 ### Q9: 匯率不正確怎麼辦？
@@ -549,18 +680,19 @@ docker run -p 3000:3000 \
 │                    瀏覽器前端                        │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
 │  │ 模組頁面  │  │ UI 元件   │  │ React Hooks     │  │
-│  │ (15 個)   │  │ (34 個)   │  │ (20 個)         │  │
+│  │ (15 個)   │  │ (51 個)   │  │ (17 個)         │  │
 │  └──────────┘  └──────────┘  └──────────────────┘  │
 │                       │                              │
 │              ┌────────┴────────┐                     │
 │              │  IndexedDB 快取  │                     │
 │              │  (離線瀏覽支援)   │                    │
+│              │  500MB/類型      │                    │
 │              └─────────────────┘                     │
 └────────────────────────┬───────────────────────────┘
                          │ HTTP API
 ┌────────────────────────┴───────────────────────────┐
 │                  Next.js API 路由                    │
-│              (24 個 API 端點群組)                     │
+│              (38 個 API 端點)                        │
 └────────────────────────┬───────────────────────────┘
                          │ Appwrite SDK
 ┌────────────────────────┴───────────────────────────┐
@@ -574,21 +706,155 @@ docker run -p 3000:3000 \
 
 ---
 
-## 附錄 C：資料表一覽
+## 附錄 C：資料表完整結構一覽
 
-| 表格名稱 | 用途 | 主要欄位 |
-|----------|------|---------|
-| food | 食品庫存 | name, amount, todate, photo, price, shop |
-| subscription | 訂閱服務 | name, site, price, nextdate, currency, continue |
-| article | 筆記文章 | title, content, newDate, url1-3, file1-3 |
-| commonaccount | 常用帳號 | name, site01-37, note01-37 |
-| bank | 銀行帳戶 | name, deposit, site, address, card, account |
-| routine | 例行事務 | (視表格定義) |
-| image | 圖片 | name, file, filetype, note, category, hash |
-| music | 音樂 | name, file, filetype, lyrics, category, language |
-| podcast | 播客 | name, file, filetype, note, category |
-| video | 影片 | name, file, filetype, note, category, cover |
-| commondocument | 文件 | name, file, filetype, note, category |
+### food (7 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 100 | ✅ | 食品名稱 |
+| amount | integer | - | ❌ | 數量 |
+| price | integer | - | ❌ | 價格 |
+| shop | string | 100 | ❌ | 商店 |
+| todate | datetime | - | ❌ | 到期日 |
+| photo | url | - | ❌ | 照片 |
+| photohash | string | 256 | ❌ | 照片雜湊 |
+
+### subscription (8 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 預設 | 說明 |
+|------|------|------|------|------|------|
+| name | string | 100 | ✅ | - | 名稱 |
+| site | url | - | ❌ | - | 網站 |
+| price | integer | - | ❌ | - | 費用 |
+| nextdate | datetime | - | ❌ | - | 續費日 |
+| note | string | 100 | ❌ | - | 備註 |
+| account | string | 100 | ❌ | - | 帳號 |
+| currency | string | 100 | ❌ | - | 幣別 |
+| continue | boolean | - | ❌ | true | 持續 |
+
+### article (17 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| title | string | 100 | ❌ | 標題 |
+| content | string | 1000 | ❌ | 內容 |
+| category | string | 100 | ❌ | 分類 |
+| ref | string | 100 | ❌ | 參考 |
+| newDate | datetime | - | ❌ | 日期 |
+| url1 | url | - | ❌ | 連結 1 |
+| url2 | url | - | ❌ | 連結 2 |
+| url3 | url | - | ❌ | 連結 3 |
+| file1 | string | 150 | ❌ | 檔案 1 ID |
+| file1name | string | 100 | ❌ | 檔案 1 名稱 |
+| file1type | string | 20 | ❌ | 檔案 1 類型 |
+| file2 | string | 150 | ❌ | 檔案 2 ID |
+| file2name | string | 100 | ❌ | 檔案 2 名稱 |
+| file2type | string | 20 | ❌ | 檔案 2 類型 |
+| file3 | string | 150 | ❌ | 檔案 3 ID |
+| file3name | string | 100 | ❌ | 檔案 3 名稱 |
+| file3type | string | 20 | ❌ | 檔案 3 類型 |
+
+### commonaccount (75 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 100 | ✅ | 群組名稱 |
+| site01~37 | string | 100 | ❌ | 網站連結 x37 |
+| note01~37 | string | 100 | ❌ | 備忘筆記 x37 |
+
+### bank (9 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 100 | ✅ | 銀行名稱 |
+| deposit | integer | - | ❌ | 存款 |
+| site | url | - | ❌ | 網銀連結 |
+| address | string | 100 | ❌ | 地址 |
+| withdrawals | integer | - | ❌ | 提款 |
+| transfer | integer | - | ❌ | 轉帳 |
+| activity | url | - | ❌ | 活動連結 |
+| card | string | 100 | ❌ | 卡片 |
+| account | string | 100 | ❌ | 帳號 |
+
+### routine (7 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 100 | ✅ | 事項名稱 |
+| note | string | 100 | ❌ | 備註 |
+| lastdate1 | datetime | - | ❌ | 最近日期 1 |
+| lastdate2 | datetime | - | ❌ | 最近日期 2 |
+| lastdate3 | datetime | - | ❌ | 最近日期 3 |
+| link | url | - | ❌ | 相關連結 |
+| photo | url | - | ❌ | 照片 |
+
+### image (8 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 預設 | 說明 |
+|------|------|------|------|------|------|
+| name | string | 100 | ✅ | - | 名稱 |
+| file | string | 150 | ❌ | - | 檔案 ID |
+| filetype | string | 20 | ❌ | - | 類型 |
+| note | string | 100 | ❌ | - | 備註 |
+| ref | string | 100 | ❌ | - | 參考 |
+| category | string | 100 | ❌ | - | 分類 |
+| hash | string | 300 | ❌ | - | 雜湊 |
+| cover | boolean | - | ❌ | false | 封面 |
+
+### video (8 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 100 | ✅ | 名稱 |
+| file | string | 150 | ❌ | 檔案 ID |
+| filetype | string | 20 | ❌ | 類型 |
+| note | string | 100 | ❌ | 備註 |
+| ref | string | 100 | ❌ | 參考 |
+| category | string | 100 | ❌ | 分類 |
+| hash | string | 300 | ❌ | 雜湊 |
+| cover | string | 150 | ❌ | 封面 ID |
+
+### music (10 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 100 | ✅ | 名稱 |
+| file | string | 150 | ❌ | 檔案 ID |
+| filetype | string | 20 | ❌ | 類型 |
+| lyrics | string | 3337 | ❌ | 歌詞 |
+| note | string | 100 | ❌ | 備註 |
+| ref | string | 100 | ❌ | 參考 |
+| category | string | 100 | ❌ | 分類 |
+| hash | string | 300 | ❌ | 雜湊 |
+| language | string | 100 | ❌ | 語言 |
+| cover | string | 150 | ❌ | 封面 ID |
+
+### podcast (8 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 100 | ✅ | 名稱 |
+| file | string | 150 | ❌ | 檔案 ID |
+| filetype | string | 20 | ❌ | 類型 |
+| note | string | 100 | ❌ | 備註 |
+| ref | string | 100 | ❌ | 參考 |
+| category | string | 100 | ❌ | 分類 |
+| hash | string | 300 | ❌ | 雜湊 |
+| cover | string | 150 | ❌ | 封面 ID |
+
+### commondocument (8 欄位)
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 100 | ✅ | 名稱 |
+| file | string | 150 | ❌ | 檔案 ID |
+| filetype | string | 20 | ❌ | 類型 |
+| note | string | 100 | ❌ | 備註 |
+| ref | string | 100 | ❌ | 參考 |
+| category | string | 100 | ❌ | 分類 |
+| hash | string | 300 | ❌ | 雜湊 |
+| cover | string | 150 | ❌ | 封面 ID |
 
 ---
 
@@ -603,3 +869,27 @@ docker run -p 3000:3000 \
 | `NEXT_PUBLIC_APPWRITE_API_KEY` | Appwrite API 金鑰 | `abc123...` |
 
 > 所有變數以 `NEXT_PUBLIC_` 開頭，代表在瀏覽器端也可存取。系統支援在「鋒兄設定」中動態覆蓋這些設定，免重新部署。
+
+---
+
+## 附錄 E：API 端點總覽
+
+| 模組 | 端點前綴 | CRUD |
+|------|---------|------|
+| 食品 | `/api/food` | GET, POST, GET/PUT/DELETE [id] |
+| 訂閱 | `/api/subscription` | GET, POST, GET/PUT/DELETE [id] |
+| 筆記 | `/api/article` | GET, POST, GET/PUT/DELETE [id] |
+| 常用帳號 | `/api/commonaccount` | GET, POST, GET/PUT/DELETE [id] |
+| 銀行 | `/api/bank` | GET, POST, GET/PUT/DELETE [id] |
+| 例行 | `/api/routine` | GET, POST, GET/PUT/PATCH/DELETE [id] |
+| 圖片 | `/api/image` | GET, POST, GET/PUT/DELETE [id] |
+| 影片 | `/api/video` | GET, POST, GET/PUT/DELETE [id] |
+| 音樂 | `/api/music` | GET, POST, GET/PUT/DELETE [id] |
+| 播客 | `/api/podcast` | GET, POST, GET/PUT/DELETE [id] |
+| 文件 | `/api/commondocument` | GET, POST, GET/PUT/DELETE [id] |
+| 上傳 | `/api/upload-image`, `/api/upload-music`, `/api/upload-podcast`, `/api/upload-video` | POST |
+| 影片串流 | `/api/videos/[filename]` | GET |
+| 媒體代理 | `/api/media-proxy` | GET |
+| 資料庫管理 | `/api/create-table`, `/api/update-schema`, `/api/fix-permissions` | GET/POST |
+| 統計 | `/api/database-stats`, `/api/storage-stats` | GET |
+| 圖片列表 | `/api/images` | GET |

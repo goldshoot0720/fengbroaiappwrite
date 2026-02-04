@@ -472,27 +472,69 @@ function TechnicalDocs() {
 function UserGuide() {
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">使用手冊</h2>
+      <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">完整文件內容</h2>
       
-      <div className="prose dark:prose-invert max-w-none">
+      <div className="prose dark:prose-invert max-w-none space-y-8">
+        {/* USER_GUIDE.md 內容 */}
         <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl p-6">
-          <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">📖 快速開始</h3>
-          
-          <div className="space-y-4 text-gray-700 dark:text-gray-300">
-            <div>
-              <h4 className="font-bold text-lg mb-2">環境需求</h4>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Node.js: 18 以上版本</li>
-                <li>瀏覽器: Chrome、Firefox、Safari、Edge</li>
-                <li>Appwrite: 雲端或自架帳號</li>
-              </ul>
+          <div className="space-y-4">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">鋒允AI Appwrite 管理系統 — 使用者教學手冊</h1>
+            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+              <p><strong>版本</strong>: v1.0.0</p>
+              <p><strong>技術框架</strong>: Next.js 16 / React 19 / Appwrite</p>
+              <p><strong>最後更新</strong>: 2026-02-04</p>
             </div>
-            
-            <div>
-              <h4 className="font-bold text-lg mb-2">安裝步驟</h4>
-              <div className="bg-gray-900 dark:bg-gray-950 rounded-xl p-4 overflow-x-auto">
-                <pre className="text-green-400 text-sm font-mono">
-{`# 1. 安裝套件
+          </div>
+        </div>
+
+        {/* 1. 系統簡介 */}
+        <section className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">1. 系統簡介</h2>
+          <p className="text-gray-700 dark:text-gray-300 mb-4">
+            <strong>鋒允AI Appwrite</strong> 是一套個人資訊管理系統，幫助您集中管理日常生活中的各種資料。
+          </p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">功能模組</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">用途</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">食品管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">追蹤食品庫存與到期日，避免浪費</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">訂閱管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">管理各種訂閱服務與付費週期</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">筆記管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">撰寫、整理個人筆記與文章</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">常用帳號</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">收藏常用網站連結與備忘</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">圖片管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">瀏覽與管理圖片庫</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">影片管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">管理與播放影片收藏</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">音樂管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">音樂庫管理與播放</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">播客管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">管理 Podcast 內容</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">文件管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">上傳與管理各類文件</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">銀行管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">記錄銀行帳戶與存款資訊</td></tr>
+                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">例行管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">管理日常例行事務</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-gray-700 dark:text-gray-300 mt-4">
+            系統支援 <strong>亮色 / 暗色 / 跟隨系統</strong> 三種主題模式，並提供 <strong>手機、平板、桌面</strong> 三種裝置的響應式佈局。
+          </p>
+        </section>
+
+        {/* 2. 快速開始 */}
+        <section className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">2. 快速開始</h2>
+          
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3 mt-6">2.1 環境需求</h3>
+          <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">
+            <li><strong>Node.js</strong>: 18 以上版本</li>
+            <li><strong>瀏覽器</strong>: Chrome、Firefox、Safari、Edge（現代瀏覽器）</li>
+            <li><strong>Appwrite</strong>: 需要一個 Appwrite 雲端或自架帳號</li>
+          </ul>
+
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3 mt-6">2.2 安裝步驟</h3>
+          <div className="bg-gray-900 dark:bg-gray-950 rounded-xl p-4 overflow-x-auto mb-4">
+            <pre className="text-green-400 text-sm font-mono">{`# 1. 安裝套件
 npm install
 
 # 2. 複製環境設定檔
@@ -501,74 +543,215 @@ cp .env.example .env.local
 # 3. 編輯 .env.local，填入你的 Appwrite 設定
 
 # 4. 啟動開發伺服器
-npm run dev`}
-                </pre>
+npm run dev`}</pre>
+          </div>
+          <p className="text-gray-700 dark:text-gray-300">
+            啟動後在瀏覽器開啟 <code className="bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">http://localhost:3000</code> 即可使用。
+          </p>
+
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3 mt-6">2.3 首次使用：初始化資料庫</h3>
+          <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>點擊左側選單的 <strong>「鋒允設定」</strong></li>
+            <li>找到 <strong>「資料庫欄位統計」</strong> 區塊</li>
+            <li>紅色標示的表格代表尚未建立</li>
+            <li>點擊 <strong>「一鍵建立所有缺失 Table」</strong> 按鈕</li>
+            <li>等待所有表格建立完成（會顯示進度）</li>
+            <li>建立完成後，回到其他模組即可開始使用</li>
+          </ol>
+        </section>
+
+        {/* 各模組說明 - 簡化版本 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ModuleDocCard 
+            title="3. 首頁與儀表板"
+            content={
+              <div className="space-y-2 text-sm">
+                <p><strong>首頁（鋒允首頁）</strong></p>
+                <p>首頁顯示系統標題資訊，是進入系統後的預設畫面。</p>
+                <p><strong>儀表板（鋒允儀表）</strong></p>
+                <p>儀表板彙整了所有模組的關鍵統計數據，讓你一眼掌握重要資訊。</p>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>食品區塊：總數、正常、7天內到期、30天內到期、已過期</li>
+                  <li>訂閱區塊：總數、3天內到期、7天內到期、已逾期</li>
+                  <li>財務概覽：年費總計、月費總計、下月預估費、銀行總存款</li>
+                  <li>多媒體儲存：圖片、影片、音樂、文件、播客的數量與佔用空間</li>
+                </ul>
               </div>
-            </div>
-            
-            <div>
-              <h4 className="font-bold text-lg mb-2">首次使用</h4>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>點擊左側選單的「鋒兄設定」</li>
-                <li>找到「資料庫欄位統計」區塊</li>
-                <li>點擊「一鍵建立所有缺失 Table」按鈕</li>
-                <li>等待所有表格建立完成</li>
-                <li>回到其他模組即可開始使用</li>
-              </ol>
-            </div>
-          </div>
+            }
+          />
+
+          <ModuleDocCard 
+            title="4. 食品管理"
+            content={
+              <div className="space-y-2 text-sm">
+                <p>食品管理模組幫助你追蹤家中食品的庫存與到期日期。</p>
+                <p><strong>到期狀態說明：</strong></p>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>🟢 正常：距離到期日超過 7 天</li>
+                  <li>🟡 即將到期：距離到期日在 3-7 天內</li>
+                  <li>🟠 緊急：距離到期日在 3 天內</li>
+                  <li>🔴 已過期：已超過到期日</li>
+                </ul>
+              </div>
+            }
+          />
+
+          <ModuleDocCard 
+            title="5. 訂閱管理"
+            content={
+              <div className="space-y-2 text-sm">
+                <p>管理你的各種付費訂閱服務，追蹤續費日期與費用。</p>
+                <p><strong>幣別換算：</strong></p>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>USD（美元）：1 USD = 35 TWD</li>
+                  <li>EUR（歐元）：1 EUR = 40 TWD</li>
+                  <li>JPY（日圓）：1 JPY = 0.35 TWD</li>
+                  <li>CNY（人民幣）：1 CNY = 4.5 TWD</li>
+                  <li>HKD（港幣）：1 HKD = 4 TWD</li>
+                </ul>
+                <p className="text-xs text-gray-500">注意：匯率為固定值，非即時匯率，僅供預估參考。</p>
+              </div>
+            }
+          />
+
+          <ModuleDocCard 
+            title="6. 筆記管理"
+            content={
+              <div className="space-y-2 text-sm">
+                <p>筆記管理模組讓你撰寫與整理個人筆記和文章。</p>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>標題、內容、日期</li>
+                  <li>附件連結：最多可附加 3 個外部網址</li>
+                  <li>附件檔案：最多可附加 3 個檔案</li>
+                  <li>筆記預設依 <strong>日期由新到舊</strong> 排列</li>
+                </ul>
+              </div>
+            }
+          />
+
+          <ModuleDocCard 
+            title="7-11. 多媒體模組"
+            content={
+              <div className="space-y-2 text-sm">
+                <p><strong>7. 常用帳號</strong>：最多 37 個常用網站連結、Favicon 自動顯示</p>
+                <p><strong>8. 圖片管理</strong>：上傳、瀏覽、分類、離線快取 (500MB)</p>
+                <p><strong>9. 影片管理</strong>：播放佇列、串流播放、離線快取</p>
+                <p><strong>10. 音樂管理</strong>：歌詞顯示、播放佇列、離線快取</p>
+                <p><strong>11. 播客管理</strong>：音訊/視訊 Podcast、離線快取</p>
+              </div>
+            }
+          />
+
+          <ModuleDocCard 
+            title="12. 文件管理"
+            content={
+              <div className="space-y-2 text-sm">
+                <p>上傳與管理各類文件。</p>
+                <p><strong>支援的檔案格式：</strong></p>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>文件：PDF、DOC、DOCX</li>
+                  <li>試算表：XLS、XLSX</li>
+                  <li>簡報：PPT、PPTX</li>
+                  <li>文字：TXT、MD、JSON、XML、HTML、CSS、JS</li>
+                  <li>壓縮：ZIP</li>
+                  <li>圖片：JPG、PNG、GIF、WEBP</li>
+                </ul>
+                <p>支援 ZIP 匯出、CSV 匯出、ZIP 匯入</p>
+              </div>
+            }
+          />
+
+          <ModuleDocCard 
+            title="13-14. 銀行與例行"
+            content={
+              <div className="space-y-2 text-sm">
+                <p><strong>13. 銀行管理</strong></p>
+                <p>記錄與追蹤銀行帳戶資訊：銀行名稱、存款金額、網站、地址、提款資訊、轉帳資訊、卡片、帳號。</p>
+                <p><strong>14. 例行管理</strong></p>
+                <p>管理日常的例行事務與定期任務：最近例行之一、之二、之三，支援日期遞移功能。</p>
+              </div>
+            }
+          />
+
+          <ModuleDocCard 
+            title="15. 系統設定"
+            content={
+              <div className="space-y-2 text-sm">
+                <p><strong>Appwrite 帳號切換</strong>：支援動態切換不同的 Appwrite 後端</p>
+                <p><strong>資料庫管理</strong>：一鍵建立表格、個別重建、結構修正</p>
+                <p><strong>儲存空間管理</strong>：孤立檔案檢測、批次清除、分類統計</p>
+                <p><strong>主題切換</strong>：☀ 亮色模式 / 🌙 暗色模式 / 💻 跟隨系統</p>
+              </div>
+            }
+          />
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-6">
-            <h4 className="font-bold text-lg text-green-900 dark:text-green-100 mb-3">💡 主要特點</h4>
-            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-              <li>✅ 智慧統計與數據分析</li>
-              <li>✅ 自動提醒與桌面推播</li>
-              <li>✅ 多幣別支援與換算</li>
-              <li>✅ CSV/ZIP 批次操作</li>
-            </ul>
+
+        {/* 常見問題 */}
+        <section className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">16. 常見問題</h2>
+          <div className="space-y-4 text-sm">
+            <FAQItem 
+              q="Q1: 開啟模組時顯示「Table xxx 不存在」"
+              a="解決方式：到「鋒允設定」→「資料庫欄位統計」，點擊「一鍵建立所有缺失 Table」建立缺失的資料表。"
+            />
+            <FAQItem 
+              q="Q2: 資料沒有更新 / 顯示舊資料"
+              a="解決方式：1) 嘗試重新整理瀏覽器頁面（Ctrl+F5 / Cmd+Shift+R） 2) 如果仍有問題，到「鋒允設定」切換帳號再切回來，會強制清除快取。"
+            />
+            <FAQItem 
+              q="Q3: 影片/音樂無法播放"
+              a="可能原因與解決方式：1) 確認檔案已上傳到 Appwrite Storage 2) 確認 Appwrite Bucket 的權限設定為公開讀取 3) 嘗試清除瀏覽器快取後重新載入 4) 確認網路連線正常。"
+            />
+            <FAQItem 
+              q="Q4: 檔案上傳失敗"
+              a="可能原因：1) Appwrite 免費方案有頻寬限制，超過後會暫時無法上傳 2) 確認 API Key 有正確的寫入權限 3) 確認 Bucket ID 設定正確。"
+            />
+            <FAQItem 
+              q="Q5: 如何備份資料？"
+              a="目前資料儲存在 Appwrite 雲端，可透過 Appwrite Console 進行資料備份。文件管理模組支援 ZIP 匯出功能。"
+            />
+            <FAQItem 
+              q="Q6: 支援哪些瀏覽器？"
+              a="支援所有現代瀏覽器：Google Chrome 90+、Mozilla Firefox 90+、Apple Safari 14+、Microsoft Edge 90+。"
+            />
+            <FAQItem 
+              q="Q7: 可以安裝為手機 App 嗎？"
+              a="系統為 PWA（漸進式網頁應用），可以透過瀏覽器的「加到主畫面」功能安裝到手機：iOS：Safari → 分享 → 加入主畫面 / Android：Chrome → 選單 → 安裝應用程式。"
+            />
+            <FAQItem 
+              q="Q8: 離線可以使用嗎？"
+              a="部分功能支援離線使用：已快取的影片、音樂、圖片、文件可離線瀏覽/播放，新增/修改/刪除等操作需要網路連線。"
+            />
+            <FAQItem 
+              q="Q9: 匯率不正確怎麼辦？"
+              a="系統使用固定匯率作為預估參考。如需精確匯率，請以實際銀行匯率為準。目前匯率設定為硬編碼，需修改程式碼才能更新。"
+            />
+            <FAQItem 
+              q="Q10: 儲存空間滿了怎麼辦？"
+              a="1) 到「鋒允設定」檢查「孤立檔案」並清除 2) 刪除不需要的影片、音樂、圖片等媒體檔案 3) 清除瀏覽器的離線快取（每種媒體類型上限 500MB） 4) 考慮升級 Appwrite 方案以獲得更多儲存空間。"
+            />
           </div>
-          
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6">
-            <h4 className="font-bold text-lg text-blue-900 dark:text-blue-100 mb-3">🎨 使用者體驗</h4>
-            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-              <li>✅ 三種主題模式</li>
-              <li>✅ 響應式設計</li>
-              <li>✅ 離線瀏覽支援</li>
-              <li>✅ PWA 安裝支援</li>
-            </ul>
-          </div>
-          
-          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-6">
-            <h4 className="font-bold text-lg text-purple-900 dark:text-purple-100 mb-3">🔒 安全與穩定</h4>
-            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-              <li>✅ API Key 認證</li>
-              <li>✅ 雲端資料備份</li>
-              <li>✅ 完整錯誤處理</li>
-              <li>✅ 自動快取管理</li>
-            </ul>
-          </div>
-        </div>
-        
-        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-6 mt-6">
-          <h4 className="font-bold text-lg text-orange-900 dark:text-orange-100 mb-3">❓ 常見問題</h4>
-          <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-            <div>
-              <p className="font-bold">Q: 資料沒有更新怎麼辦？</p>
-              <p>A: 嘗試重新整理頁面 (Ctrl+F5)，或到「鋒兄設定」切換帳號再切回來。</p>
-            </div>
-            <div>
-              <p className="font-bold">Q: 影片/音樂無法播放？</p>
-              <p>A: 確認檔案已上傳到 Appwrite Storage，並確認 Bucket 權限設定為公開讀取。</p>
-            </div>
-            <div>
-              <p className="font-bold">Q: 可以離線使用嗎？</p>
-              <p>A: 已快取的影片、音樂、圖片、文件可離線瀏覽/播放，新增/修改/刪除需要網路連線。</p>
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
+    </div>
+  );
+}
+
+// 輔助元件
+function ModuleDocCard({ title, content }: { title: string; content: React.ReactNode }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">{title}</h3>
+      <div className="text-gray-700 dark:text-gray-300">{content}</div>
+    </div>
+  );
+}
+
+function FAQItem({ q, a }: { q: string; a: string }) {
+  return (
+    <div className="border-l-4 border-orange-400 pl-4">
+      <p className="font-bold text-gray-900 dark:text-gray-100 mb-1">{q}</p>
+      <p className="text-gray-700 dark:text-gray-300">{a}</p>
     </div>
   );
 }

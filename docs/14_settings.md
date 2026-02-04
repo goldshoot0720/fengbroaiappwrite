@@ -1,10 +1,96 @@
 # 鋒兄設定 (Settings)
 
 ## 功能概述
-系統全域配置中心，用於管理 Appwrite API 連線、主題切換與其他系統參數。
+
+系統全域配置中心，管理 Appwrite 連線設定、資料庫表格建立與維護、儲存空間管理、主題切換等功能。
 
 ## 主要特點
-- **Appwrite 配置**：可動態設定 API Endpoint、Project ID、Database ID、Bucket ID 與 API Key。
-- **主題切換**：支援明亮/深色主題切換，並記憶使用者偏好。
-- **資料清除**：提供清除快取與重置設定的功能。
-- **即時驗證**：儲存設定後，會即時檢測 API 連線狀態。
+
+- **Appwrite 帳號切換**：動態切換不同 Appwrite 後端，免重新部署。
+- **資料庫管理**：檢視表格狀態、一鍵建立缺失表格、個別重建表格。
+- **Schema 驗證**：檢測欄位數量是否符合預期，識別結構異常。
+- **儲存空間管理**：掃描孤立檔案並批次清除。
+- **主題切換**：亮色 / 暗色 / 跟隨系統三種模式。
+
+## Appwrite 帳號配置
+
+| 設定項目 | 說明 | 環境變數 |
+|----------|------|---------|
+| Endpoint | Appwrite 伺服器位址 | `NEXT_PUBLIC_APPWRITE_ENDPOINT` |
+| Project ID | 專案 ID | `NEXT_PUBLIC_APPWRITE_PROJECT_ID` |
+| Database ID | 資料庫 ID | `NEXT_PUBLIC_APPWRITE_DATABASE_ID` |
+| Bucket ID | 儲存桶 ID | `NEXT_PUBLIC_APPWRITE_BUCKET_ID` |
+| API Key | API 金鑰 | `NEXT_PUBLIC_APPWRITE_API_KEY` |
+
+- 支援動態覆蓋 .env 設定，透過 URL 參數傳遞
+- 切換帳號時自動清除所有本地快取並重新載入
+- 可點擊「重設為 .env 預設」按鈕還原
+
+## 資料庫管理
+
+### 表格狀態指示
+
+| 顏色 | 狀態 | 說明 |
+|------|------|------|
+| 🟢 綠色 | 正常 | 表格存在且有資料 |
+| 🟡 黃色 | 空表 | 表格存在但無資料 |
+| 🔴 紅色 | 不存在 | 表格尚未建立 |
+
+### 資料庫表格一覽 (11 個 Collection)
+
+| # | 表格名稱 | 欄位數 | 用途 |
+|---|----------|--------|------|
+| 1 | food | 7 | 食品庫存管理 |
+| 2 | subscription | 8 | 訂閱服務管理 |
+| 3 | article | 17 | 筆記文章管理 |
+| 4 | commonaccount | 75 | 常用帳號管理 |
+| 5 | bank | 9 | 銀行帳戶管理 |
+| 6 | routine | 7 | 例行事務管理 |
+| 7 | image | 8 | 圖片管理 |
+| 8 | video | 8 | 影片管理 |
+| 9 | music | 10 | 音樂管理 |
+| 10 | podcast | 8 | 播客管理 |
+| 11 | commondocument | 8 | 文件管理 |
+
+### 表格操作
+
+| 操作 | 說明 |
+|------|------|
+| 一鍵建立所有缺失 Table | 建立所有紅色狀態的表格 |
+| 個別重建 | 重建單一表格（⚠ 會清除該表所有資料） |
+| 結構修正 | 當欄位數量不符預期時重建表格結構 |
+
+## 儲存空間管理
+
+| 功能 | 說明 |
+|------|------|
+| 孤立檔案檢測 | 找出沒有被任何記錄引用的 Storage 檔案 |
+| 批次清除 | 一次刪除所有孤立檔案，釋放空間 |
+| 分類統計 | 查看各類媒體檔案的數量與空間佔用 |
+
+## 主題設定
+
+| 模式 | 說明 |
+|------|------|
+| 亮色模式 | 白色背景，適合白天 |
+| 暗色模式 | 深色背景，適合夜間 |
+| 跟隨系統 | 自動跟隨作業系統設定 |
+
+主題設定儲存在瀏覽器 localStorage，下次開啟自動套用。
+
+## API 端點
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/create-table?table={name}` | SSE 串流建立表格 |
+| POST | `/api/create-table` | 建立表格（傳統方式） |
+| GET | `/api/database-stats` | 資料庫統計 |
+| GET | `/api/storage-stats` | 儲存空間統計 |
+| POST | `/api/update-schema` | 更新表格結構 |
+| POST | `/api/fix-permissions` | 修復 Appwrite 權限 |
+
+## 技術規格
+
+- **元件路徑**：`components/modules/SettingsManagement.tsx`
+- **主題元件**：`components/providers/theme-provider.tsx`、`components/ui/theme-toggle.tsx`
+- **Table Schema 定義**：`app/api/create-table/route.js` → `TABLE_SCHEMAS`
