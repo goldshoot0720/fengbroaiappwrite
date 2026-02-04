@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp } from "lucide-react";
+import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp } from "lucide-react";
 import { useCommonDocument, CommonDocumentData } from "@/hooks/useCommonDocument";
 import { useDocumentCache } from "@/hooks/useDocumentCache";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -1611,7 +1611,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
                   {entry.isDir ? (
                     <FileArchive className="w-5 h-5 text-yellow-500 flex-shrink-0" />
                   ) : (
-                    <File className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                    <FileIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
                   )}
                   <span className="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate">{displayName}</span>
                   {!entry.isDir && (
