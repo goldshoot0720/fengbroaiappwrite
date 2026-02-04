@@ -86,6 +86,7 @@ export async function PUT(request, { params }) {
       {
         name: body.name,
         file: body.file || '',
+        filetype: body.filetype || '',
         lyrics: body.lyrics || '',
         note: body.note || '',
         ref: body.ref || '',

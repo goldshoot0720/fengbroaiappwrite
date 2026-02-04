@@ -8,6 +8,7 @@ export interface MusicData {
   $id: string;
   name: string;
   file: string;
+  filetype: string;
   lyrics: string;
   note: string;
   ref: string;

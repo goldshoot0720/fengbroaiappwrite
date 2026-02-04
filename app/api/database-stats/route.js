@@ -101,6 +101,7 @@ const TABLE_DEFINITIONS = {
   music: [
     { key: 'name', type: 'string', size: 100 },
     { key: 'file', type: 'string', size: 150 },
+    { key: 'filetype', type: 'string', size: 20 },
     { key: 'lyrics', type: 'string', size: 3337 },
     { key: 'note', type: 'string', size: 100 },
     { key: 'ref', type: 'string', size: 100 },
