@@ -536,7 +536,7 @@ export default function NotesManagement() {
     const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `appwrite-Notes-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = 'appwrite-article.csv';
     link.click();
     URL.revokeObjectURL(link.href);
   };
