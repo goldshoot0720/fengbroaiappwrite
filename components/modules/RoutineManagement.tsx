@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Calendar, Search, ChevronDown, Download, Upload } from "lucide-react";
+import { Plus, Calendar, Search, ChevronDown, Download, Upload, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -199,6 +199,26 @@ export default function RoutineManagement() {
     const routine = routines.find(r => r.$id === id);
     if (routine && confirm(`確定要刪除此例行事項嗎？\n\n注意：若包含圖片，將同時從Appwrite儲存空間永久刪除。`)) {
       await remove(id);
+    }
+  };
+
+  const handleShiftDates = async (routine: Routine) => {
+    if (!routine.lastdate1) {
+      alert("最近例行之一為空，無法執行日期遞移");
+      return;
+    }
+    
+    if (confirm(`確定要執行日期遞移嗎？\n\n最近例行之一 → 最近例行之二\n最近例行之二 → 最近例行之三`)) {
+      const payload = {
+        name: routine.name,
+        note: routine.note || "",
+        lastdate1: "",
+        lastdate2: routine.lastdate1,
+        lastdate3: routine.lastdate2 || "",
+        link: routine.link || "",
+        photo: routine.photo || "",
+      };
+      await update(routine.$id, payload);
     }
   };
 
@@ -732,6 +752,15 @@ export default function RoutineManagement() {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => handleShiftDates(routine)}
+                              disabled={!routine.lastdate1}
+                              title="日期遞移：一→二，二→三"
+                            >
+                              <ArrowRight size={16} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => handleEdit(routine)}
                             >
                               編輯
@@ -796,6 +825,16 @@ export default function RoutineManagement() {
                         </div>
                       </div>
                       <div className="flex gap-2 pt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleShiftDates(routine)}
+                          disabled={!routine.lastdate1}
+                          className="flex-1"
+                          title="日期遞移：一→二，二→三"
+                        >
+                          <ArrowRight size={16} />
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"

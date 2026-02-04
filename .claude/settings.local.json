@@ -5,7 +5,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nUpdate upload comments to clarify bypassing Next.js 4MB API limit\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
       "Bash(npx next build:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(find:*)"
     ]
   }
 }
