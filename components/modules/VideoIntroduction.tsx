@@ -372,12 +372,18 @@ export default function VideoIntroduction() {
                           ext === 'ogg' ? 'video/ogg' : 
                           ext === 'mov' ? 'video/quicktime' : 'video/mp4';
           const blob = new Blob([arrayBuffer], { type: mimeType });
+          const fileSizeMB = (blob.size / (1024 * 1024)).toFixed(2);
+          
+          console.log(`[ZIP Import] Processing: ${fileName}, Size: ${fileSizeMB}MB, Type: ${mimeType}`);
+          
           const videoFileObj = new File([blob], fileName, { type: mimeType });
 
           // Upload to Appwrite Storage
           const uploadResult = await uploadToAppwriteStorage(videoFileObj, (progress) => {
             setImportZipProgress(prev => ({ ...prev, status: `上傳中: ${fileName} (${progress}%)` }));
           });
+
+          console.log(`[ZIP Import] Upload success: ${fileName}, URL: ${uploadResult.url}`);
 
           // Create database record
           const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
@@ -397,12 +403,15 @@ export default function VideoIntroduction() {
           });
 
           if (!createResponse.ok) {
-            throw new Error('建立記錄失敗');
+            const errorData = await createResponse.json().catch(() => ({}));
+            console.error(`[ZIP Import] DB create failed: ${fileName}`, errorData);
+            throw new Error(errorData.error || `HTTP ${createResponse.status}`);
           }
 
+          console.log(`[ZIP Import] Success: ${fileName}`);
           successCount++;
         } catch (error) {
-          console.error(`匯入失敗: ${fileName}`, error);
+          console.error(`[ZIP Import] Failed: ${fileName}`, error);
           failedCount++;
         }
       }
