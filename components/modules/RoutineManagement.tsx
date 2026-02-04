@@ -216,9 +216,9 @@ export default function RoutineManagement() {
       const payload = {
         name: routine.name,
         note: routine.note || "",
-        lastdate1: "",
+        lastdate1: null,
         lastdate2: routine.lastdate1,
-        lastdate3: routine.lastdate2 || "",
+        lastdate3: routine.lastdate2 || null,
         link: routine.link || "",
         photo: routine.photo || "",
       };
