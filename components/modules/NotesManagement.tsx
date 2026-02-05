@@ -17,7 +17,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
-import { getProxiedMediaUrl, getAppwriteDownloadUrl } from "@/lib/utils";
+import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon, Download, Upload } from "lucide-react";
 import JSZip from "jszip";
 
@@ -1104,14 +1104,17 @@ export default function NotesManagement() {
         ) : filteredArticles.length === 0 ? (
           <EmptyState emoji="🔍" title="無搜尋結果" description={`找不到「${searchQuery}」相關的筆記`} />
         ) : (
-          <DataCardList>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
             {filteredArticles.map((article) => {
               const isEditing = editingId === article.$id;
               const isExpanded = expandedArticles.has(article.$id);
               const hasUrls = article.url1 || article.url2 || article.url3;
               
               return (
-                <DataCardItem key={article.$id} className={isEditing ? "ring-2 ring-purple-500" : ""}>
+                <div key={article.$id} className={cn(
+                  "bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm",
+                  isEditing && "ring-2 ring-purple-500"
+                )}>
                   {isEditing ? (
                     <form onSubmit={handleUpdate} className="space-y-4 p-2">
                       <div className="flex items-center gap-3 mb-2 border-l-4 border-purple-500 pl-3">
@@ -1468,10 +1471,10 @@ export default function NotesManagement() {
                       </div>
                     </div>
                   )}
-                </DataCardItem>
+                </div>
               );
             })}
-          </DataCardList>
+          </div>
         )}
       </DataCard>
     </div>
