@@ -15,6 +15,17 @@ export function useBanks() {
     setLoading(true);
     setError(null);
     try {
+      // 檢查 Appwrite 配置是否存在
+      if (typeof window !== 'undefined') {
+        const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
+        const projectId = localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+        const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID') || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+        
+        if (!endpoint || !projectId || !databaseId) {
+          throw new Error("Appwrite 配置不完整，請至「鋒兄設定」中完成設定");
+        }
+      }
+      
       const resData = await fetchApi<Bank[]>(`/api/bank?t=${Date.now()}`);
       let data: Bank[] = Array.isArray(resData) ? resData : [];
       // 按名稱排序

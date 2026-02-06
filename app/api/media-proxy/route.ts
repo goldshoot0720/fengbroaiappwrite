@@ -161,6 +161,12 @@ function createProxiedResponse(response: Response, url: string) {
   // Force inline disposition to prevent download prompts
   responseHeaders.set('content-disposition', 'inline');
 
+  // Add CORS headers to allow PDF preview and other cross-origin usage
+  responseHeaders.set('access-control-allow-origin', '*');
+  responseHeaders.set('access-control-allow-methods', 'GET, HEAD, OPTIONS');
+  responseHeaders.set('access-control-allow-headers', 'range, content-type');
+  responseHeaders.set('access-control-expose-headers', 'content-range, accept-ranges, content-length');
+
   // Detect and fix content types based on file extension if they are generic
   let contentType = responseHeaders.get('content-type');
   if (!contentType || contentType === 'application/octet-stream') {
@@ -173,6 +179,7 @@ function createProxiedResponse(response: Response, url: string) {
     else if (ext === 'wav') contentType = 'audio/wav';
     else if (ext === 'flac') contentType = 'audio/flac';
     else if (ext === 'aac') contentType = 'audio/aac';
+    else if (ext === 'pdf') contentType = 'application/pdf';
     
     if (contentType) responseHeaders.set('content-type', contentType);
   }

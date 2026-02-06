@@ -16,21 +16,24 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '**',
         port: '',
-        pathname: '/favicon.ico',
-      },
-      {
-        protocol: 'https',
-        hostname: '**',
-        port: '',
-        pathname: '/favicon.png',
-      },
-      {
-        protocol: 'https',
-        hostname: 'www.google.com',
-        port: '',
-        pathname: '/s2/favicons**',
+        pathname: '/**',
       },
     ],
+  },
+
+  // 添加正確的 MIME type 給 .mjs 檔案
+  async headers() {
+    return [
+      {
+        source: '/pdf.worker.min.mjs',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/javascript',
+          },
+        ],
+      },
+    ];
   },
   
   // 其他配置

@@ -72,6 +72,9 @@ export default function MusicManagement() {
     lyrics: '',
     cover: '',
   });
+  const [inlineCoverFile, setInlineCoverFile] = useState<File | null>(null);
+  const [inlineCoverPreview, setInlineCoverPreview] = useState<string>('');
+  const [inlineCoverUploading, setInlineCoverUploading] = useState(false);
 
   // 音樂快取管理
   const {
@@ -500,6 +503,8 @@ export default function MusicManagement() {
       lyrics: musicItem.lyrics || '',
       cover: musicItem.cover || '',
     });
+    setInlineCoverFile(null);
+    setInlineCoverPreview('');
     setInlineEditingId(musicItem.$id);
   };
 
@@ -507,6 +512,23 @@ export default function MusicManagement() {
   const handleInlineSave = async (musicId: string) => {
     if (!inlineEditingId) return;
     try {
+      let coverUrl = inlineEditForm.cover;
+      
+      // 如果有選擇封面檔案，先上傳
+      if (inlineCoverFile) {
+        setInlineCoverUploading(true);
+        try {
+          const result = await uploadToAppwriteStorage(inlineCoverFile);
+          coverUrl = result.url;
+        } catch (uploadError) {
+          console.error('封面圖上傳失敗:', uploadError);
+          alert('封面圖上傳失敗，請稍後再試');
+          setInlineCoverUploading(false);
+          return;
+        }
+        setInlineCoverUploading(false);
+      }
+      
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.MUSIC}/${musicId}`);
       const response = await fetch(url, {
         method: 'PUT',
@@ -518,13 +540,15 @@ export default function MusicManagement() {
           note: inlineEditForm.note,
           ref: inlineEditForm.ref,
           lyrics: inlineEditForm.lyrics,
-          cover: inlineEditForm.cover,
+          cover: coverUrl,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadMusic(true);
       setInlineEditingId(null);
       setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '' });
+      setInlineCoverFile(null);
+      setInlineCoverPreview('');
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
@@ -535,6 +559,8 @@ export default function MusicManagement() {
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
     setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '' });
+    setInlineCoverFile(null);
+    setInlineCoverPreview('');
   };
 
   if (loading) {
@@ -627,6 +653,11 @@ export default function MusicManagement() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
+              inlineCoverFile={inlineCoverFile}
+              setInlineCoverFile={setInlineCoverFile}
+              inlineCoverPreview={inlineCoverPreview}
+              setInlineCoverPreview={setInlineCoverPreview}
+              inlineCoverUploading={inlineCoverUploading}
             />
           ))}
         </div>
@@ -821,10 +852,41 @@ interface GroupedMusicCardProps {
   onInlineEdit: (music: MusicData) => void;
   onInlineSave: (musicId: string) => void;
   onInlineCancel: () => void;
+  // Inline cover upload props
+  inlineCoverFile: File | null;
+  setInlineCoverFile: (file: File | null) => void;
+  inlineCoverPreview: string;
+  setInlineCoverPreview: (preview: string) => void;
+  inlineCoverUploading: boolean;
 }
 
-function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: GroupedMusicCardProps) {
+function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: GroupedMusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
+  const inlineCoverInputRef = useRef<HTMLInputElement>(null);
+
+  // 處理行內編輯封面上傳
+  const handleInlineCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 檢查檔案類型
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
+      return;
+    }
+
+    // 檢查檔案大小 (10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('封面圖大小不能超過 10MB');
+      return;
+    }
+
+    setInlineCoverFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setInlineCoverPreview(objectUrl);
+  };
   const [expandedLyricsId, setExpandedLyricsId] = useState<string | null>(null);
   const [selectedBaseLanguage, setSelectedBaseLanguage] = useState<string | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
@@ -919,6 +981,11 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
         onInlineEdit={onInlineEdit}
         onInlineSave={onInlineSave}
         onInlineCancel={onInlineCancel}
+        inlineCoverFile={inlineCoverFile}
+        setInlineCoverFile={setInlineCoverFile}
+        inlineCoverPreview={inlineCoverPreview}
+        setInlineCoverPreview={setInlineCoverPreview}
+        inlineCoverUploading={inlineCoverUploading}
       />
     );
   }
@@ -1089,12 +1156,58 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                   onChange={(e) => setInlineEditForm({ ...inlineEditForm, lyrics: e.target.value })}
                   className="rounded-lg text-sm h-24 resize-none"
                 />
-                <Input
-                  placeholder="封面圖 URL"
-                  value={inlineEditForm.cover}
-                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
-                  className="h-9 rounded-lg text-sm"
-                />
+                
+                {/* 封面圖上傳 */}
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
+                  
+                  {/* 顯示當前封面或預覽 */}
+                  {(inlineCoverPreview || inlineEditForm.cover) && (
+                    <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
+                      <img 
+                        src={inlineCoverPreview || inlineEditForm.cover} 
+                        alt="封面預覽" 
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => { 
+                          setInlineCoverFile(null); 
+                          setInlineCoverPreview(''); 
+                          setInlineEditForm({ ...inlineEditForm, cover: '' });
+                          if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = '';
+                        }}
+                        className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* 封面 URL 輸入 */}
+                  <Input
+                    placeholder="封面圖 URL"
+                    value={inlineEditForm.cover}
+                    onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                  
+                  {/* 上傳按鈕 */}
+                  <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+                    <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                      {inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖'}
+                    </span>
+                    <input
+                      ref={inlineCoverInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                      onChange={handleInlineCoverSelect}
+                      disabled={inlineCoverUploading}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                
                 <Textarea
                   placeholder="備註"
                   value={inlineEditForm.note}
@@ -1110,14 +1223,16 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                 <div className="flex gap-2">
                   <Button
                     onClick={() => onInlineSave(selectedItem.$id)}
-                    className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5"
+                    disabled={inlineCoverUploading}
+                    className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50"
                   >
-                    儲存
+                    {inlineCoverUploading ? '上傳中...' : '儲存'}
                   </Button>
                   <Button
                     onClick={onInlineCancel}
                     variant="outline"
-                    className="flex-1 gap-1 rounded-lg text-xs py-1.5"
+                    disabled={inlineCoverUploading}
+                    className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50"
                   >
                     取消
                   </Button>
@@ -1343,13 +1458,44 @@ interface MusicCardProps {
   onInlineEdit?: (music: MusicData) => void;
   onInlineSave?: (musicId: string) => void;
   onInlineCancel?: () => void;
+  // Inline cover upload props
+  inlineCoverFile?: File | null;
+  setInlineCoverFile?: (file: File | null) => void;
+  inlineCoverPreview?: string;
+  setInlineCoverPreview?: (preview: string) => void;
+  inlineCoverUploading?: boolean;
 }
 
-function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: MusicCardProps) {
+function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: MusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
   const { addToQueue, isInQueue } = useMusicQueue();
   const { cacheStatus, downloadAndCacheMusic, checkMusicCache, loadMusicFromCache } = useMusicCache();
   const [isCached, setIsCached] = useState(false);
+  const inlineCoverInputRef = useRef<HTMLInputElement>(null);
+
+  // 處理行內編輯封面上傳
+  const handleInlineCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !setInlineCoverFile || !setInlineCoverPreview) return;
+
+    // 檢查檔案類型
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
+      return;
+    }
+
+    // 檢查檔案大小 (10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('封面圖大小不能超過 10MB');
+      return;
+    }
+
+    setInlineCoverFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setInlineCoverPreview(objectUrl);
+  };
 
   // 檢查快取狀態
   useEffect(() => {
@@ -1383,61 +1529,114 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
       {/* 行內編輯模式 */}
       {isInlineEditing ? (
         <div className="p-3 sm:p-4">
-          <div className="flex items-start gap-3 sm:gap-4 mb-3">
-            {/* 封面 */}
-            <div className="relative w-14 h-14 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
-              {music.cover ? (
-                <img src={music.cover} alt={music.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <MusicIcon className="text-white w-7 h-7 sm:w-10 sm:h-10 drop-shadow-lg" />
-                </div>
-              )}
-            </div>
-            {/* 編輯表單 */}
-            <div className="flex-1 min-w-0 space-y-2">
-              <div className="text-sm font-semibold text-purple-600 dark:text-purple-400">編輯中</div>
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-purple-600 dark:text-purple-400">編輯中</div>
+            <Input
+              placeholder="歌曲名稱"
+              value={inlineEditForm.name}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+              className="h-9 rounded-lg text-sm"
+            />
+            <div className="grid grid-cols-2 gap-2">
               <Input
-                placeholder="歌曲名稱"
-                value={inlineEditForm.name}
-                onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                placeholder="分類"
+                value={inlineEditForm.category}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
                 className="h-9 rounded-lg text-sm"
               />
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="分類"
-                  value={inlineEditForm.category}
-                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
-                  className="h-9 rounded-lg text-sm"
-                />
-                <Input
-                  placeholder="語言"
-                  value={inlineEditForm.language}
-                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, language: e.target.value })}
-                  className="h-9 rounded-lg text-sm"
-                />
-              </div>
-              <Textarea
-                placeholder="備註"
-                value={inlineEditForm.note}
-                onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
-                className="rounded-lg text-sm h-16 resize-none"
+              <Input
+                placeholder="語言"
+                value={inlineEditForm.language}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, language: e.target.value })}
+                className="h-9 rounded-lg text-sm"
               />
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => onInlineSave(music.$id)}
-                  className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5"
-                >
-                  儲存
-                </Button>
-                <Button
-                  onClick={onInlineCancel}
-                  variant="outline"
-                  className="flex-1 gap-1 rounded-lg text-xs py-1.5"
-                >
-                  取消
-                </Button>
-              </div>
+            </div>
+            <Textarea
+              placeholder="歌詞"
+              value={inlineEditForm.lyrics}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, lyrics: e.target.value })}
+              className="rounded-lg text-sm h-24 resize-none"
+            />
+            
+            {/* 封面圖上傳 */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
+              
+              {/* 顯示當前封面或預覽 */}
+              {(inlineCoverPreview || inlineEditForm.cover) && (
+                <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
+                  <img 
+                    src={inlineCoverPreview || inlineEditForm.cover} 
+                    alt="封面預覽" 
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => { 
+                      setInlineCoverFile?.(null); 
+                      setInlineCoverPreview?.(''); 
+                      setInlineEditForm({ ...inlineEditForm, cover: '' });
+                      if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = '';
+                    }}
+                    className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              
+              {/* 封面 URL 輸入 */}
+              <Input
+                placeholder="封面圖 URL"
+                value={inlineEditForm.cover}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
+                className="h-9 rounded-lg text-sm"
+              />
+              
+              {/* 上傳按鈕 */}
+              <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+                <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                  {inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖'}
+                </span>
+                <input
+                  ref={inlineCoverInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleInlineCoverSelect}
+                  disabled={inlineCoverUploading}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            
+            <Textarea
+              placeholder="備註"
+              value={inlineEditForm.note}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+              className="rounded-lg text-sm h-16 resize-none"
+            />
+            <Input
+              placeholder="參考"
+              value={inlineEditForm.ref}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+              className="h-9 rounded-lg text-sm"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={() => onInlineSave(music.$id)}
+                disabled={inlineCoverUploading}
+                className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50"
+              >
+                {inlineCoverUploading ? '上傳中...' : '儲存'}
+              </Button>
+              <Button
+                onClick={onInlineCancel}
+                variant="outline"
+                disabled={inlineCoverUploading}
+                className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50"
+              >
+                取消
+              </Button>
             </div>
           </div>
         </div>

@@ -211,9 +211,9 @@ export default function RoutineManagement() {
     setInlineEditForm({
       name: routine.name || '',
       note: routine.note || '',
-      lastdate1: routine.lastdate1 || '',
-      lastdate2: routine.lastdate2 || '',
-      lastdate3: routine.lastdate3 || '',
+      lastdate1: routine.lastdate1 ? routine.lastdate1.substring(0, 10) : '',
+      lastdate2: routine.lastdate2 ? routine.lastdate2.substring(0, 10) : '',
+      lastdate3: routine.lastdate3 ? routine.lastdate3.substring(0, 10) : '',
       link: routine.link || '',
       photo: routine.photo || '',
     });
@@ -806,56 +806,129 @@ export default function RoutineManagement() {
                     <TableBody>
                       {filteredRoutines.map((routine) => (
                         <TableRow key={routine.$id}>
-                          <TableCell className="font-medium">{routine.name}</TableCell>
-                          <TableCell>
-                            {routine.note && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 bg-gray-50 dark:bg-gray-800/50 p-2 rounded border border-gray-100 dark:border-gray-700 max-w-[250px] max-h-[150px] overflow-y-auto whitespace-pre-wrap break-all shadow-sm">
-                                {routine.note}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {routine.photo ? (
-                              <img
-                                src={routine.photo}
-                                alt={routine.name}
-                                className="w-12 h-12 object-contain rounded"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
-                                <Calendar size={20} className="text-gray-400" />
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>{formatDateTime(routine.lastdate1)}</TableCell>
-                          <TableCell>{formatDateTime(routine.lastdate2)}</TableCell>
-                          <TableCell>{calculateDaysDiff(routine.lastdate1, routine.lastdate2)}</TableCell>
-                          <TableCell>{formatDateTime(routine.lastdate3)}</TableCell>
-                          <TableCell className="text-right space-x-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleShiftDates(routine)}
-                              disabled={!routine.lastdate1}
-                              title="日期遞移：一→二，二→三"
-                            >
-                              <ArrowRight size={16} />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleInlineEdit(routine)}
-                            >
-                              編輯
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDelete(routine.$id)}
-                            >
-                              刪除
-                            </Button>
-                          </TableCell>
+                          {inlineEditingId === routine.$id ? (
+                            // 行內編輯模式
+                            <>
+                              <TableCell colSpan={8} className="bg-orange-50 dark:bg-orange-900/20">
+                                <div className="space-y-3 py-2">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-3">
+                                    <Input
+                                      placeholder="名稱"
+                                      value={inlineEditForm.name}
+                                      onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                                      className="h-9 rounded-lg text-sm"
+                                    />
+                                    <Input
+                                      placeholder="備註"
+                                      value={inlineEditForm.note}
+                                      onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+                                      className="h-9 rounded-lg text-sm"
+                                    />
+                                    <Input
+                                      placeholder="日期一"
+                                      type="date"
+                                      value={inlineEditForm.lastdate1}
+                                      onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate1: e.target.value })}
+                                      className="h-9 rounded-lg text-sm"
+                                    />
+                                    <Input
+                                      placeholder="日期二"
+                                      type="date"
+                                      value={inlineEditForm.lastdate2}
+                                      onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate2: e.target.value })}
+                                      className="h-9 rounded-lg text-sm"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-3">
+                                    <Input
+                                      placeholder="日期三"
+                                      type="date"
+                                      value={inlineEditForm.lastdate3}
+                                      onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate3: e.target.value })}
+                                      className="h-9 rounded-lg text-sm"
+                                    />
+                                    <Input
+                                      placeholder="連結"
+                                      value={inlineEditForm.link}
+                                      onChange={(e) => setInlineEditForm({ ...inlineEditForm, link: e.target.value })}
+                                      className="h-9 rounded-lg text-sm"
+                                    />
+                                    <Input
+                                      placeholder="圖片網址"
+                                      value={inlineEditForm.photo}
+                                      onChange={(e) => setInlineEditForm({ ...inlineEditForm, photo: e.target.value })}
+                                      className="h-9 rounded-lg text-sm col-span-2"
+                                    />
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <Button size="sm" onClick={() => handleInlineSave(routine.$id)} className="bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                                      儲存
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="rounded-lg">
+                                      取消
+                                    </Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </>
+                          ) : (
+                            // 正常顯示模式
+                            <>
+                              <TableCell className="font-medium">{routine.name}</TableCell>
+                              <TableCell>
+                                {routine.note && (
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 bg-gray-50 dark:bg-gray-800/50 p-2 rounded border border-gray-100 dark:border-gray-700 max-w-[250px] max-h-[150px] overflow-y-auto whitespace-pre-wrap break-all shadow-sm">
+                                    {routine.note}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {routine.photo ? (
+                                  <img
+                                    src={routine.photo}
+                                    alt={routine.name}
+                                    className="w-12 h-12 object-contain rounded"
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
+                                    <Calendar size={20} className="text-gray-400" />
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>{formatDateTime(routine.lastdate1)}</TableCell>
+                              <TableCell>{formatDateTime(routine.lastdate2)}</TableCell>
+                              <TableCell>{calculateDaysDiff(routine.lastdate1, routine.lastdate2)}</TableCell>
+                              <TableCell>{formatDateTime(routine.lastdate3)}</TableCell>
+                              <TableCell className="text-right space-x-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleShiftDates(routine)}
+                                  disabled={!routine.lastdate1}
+                                  title="日期遞移：一→二，二→三"
+                                >
+                                  <ArrowRight size={16} />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleInlineEdit(routine)}
+                                >
+                                  編輯
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDelete(routine.$id)}
+                                >
+                                  刪除
+                                </Button>
+                              </TableCell>
+                            </>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>

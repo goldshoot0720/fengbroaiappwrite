@@ -19,7 +19,9 @@ import {
   Search,
   Download,
   Upload,
-  X
+  X,
+  Trash2,
+  Edit2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -787,15 +789,31 @@ export default function BankManagement() {
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      {Number(bank.deposit) > 0 && (
-                        <>
-                          <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                            {formatCurrency(bank.deposit)}
-                          </div>
-                          <span className="text-xs text-gray-400">資產餘額</span>
-                        </>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        {Number(bank.deposit) > 0 && (
+                          <>
+                            <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                              {formatCurrency(bank.deposit)}
+                            </div>
+                            <span className="text-xs text-gray-400">資產餘額</span>
+                          </>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleInlineEdit(bank)}
+                        className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
+                        title="編輯"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(bank.$id, bank.name)}
+                        className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                        title="刪除"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </div>
 
@@ -849,12 +867,6 @@ export default function BankManagement() {
                         <span>最新活動優惠</span>
                       </a>
                     )}
-                  </div>
-
-                  <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-                    <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(bank)} className="flex-1 rounded-xl">
-                      編輯
-                    </Button>
                   </div>
                 </div>
                 )}

@@ -77,7 +77,11 @@ export default function VideoIntroduction() {
     category: '',
     note: '',
     ref: '',
+    cover: '',
   });
+  const [inlineCoverFile, setInlineCoverFile] = useState<File | null>(null);
+  const [inlineCoverPreview, setInlineCoverPreview] = useState<string>('');
+  const [inlineCoverUploading, setInlineCoverUploading] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const { addToQueue, isInQueue } = useVideoQueue();
@@ -521,7 +525,10 @@ export default function VideoIntroduction() {
       category: video.category || '',
       note: video.note || '',
       ref: video.ref || '',
+      cover: typeof video.cover === 'string' ? video.cover : '',
     });
+    setInlineCoverFile(null);
+    setInlineCoverPreview('');
     setInlineEditingId(video.$id);
   };
 
@@ -529,6 +536,23 @@ export default function VideoIntroduction() {
   const handleInlineSave = async (videoId: string) => {
     if (!inlineEditingId) return;
     try {
+      let coverUrl = inlineEditForm.cover;
+      
+      // 如果有選擇封面檔案，先上傳
+      if (inlineCoverFile) {
+        setInlineCoverUploading(true);
+        try {
+          const result = await uploadToAppwriteStorage(inlineCoverFile);
+          coverUrl = result.url;
+        } catch (uploadError) {
+          console.error('封面圖上傳失敗:', uploadError);
+          alert('封面圖上傳失敗，請稍後再試');
+          setInlineCoverUploading(false);
+          return;
+        }
+        setInlineCoverUploading(false);
+      }
+      
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${videoId}`);
       const response = await fetch(url, {
         method: 'PUT',
@@ -538,12 +562,15 @@ export default function VideoIntroduction() {
           category: inlineEditForm.category,
           note: inlineEditForm.note,
           ref: inlineEditForm.ref,
+          cover: coverUrl,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadVideos(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', category: '', note: '', ref: '' });
+      setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
+      setInlineCoverFile(null);
+      setInlineCoverPreview('');
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
@@ -553,7 +580,9 @@ export default function VideoIntroduction() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', category: '', note: '', ref: '' });
+    setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
+    setInlineCoverFile(null);
+    setInlineCoverPreview('');
   };
 
   const playVideo = useCallback(async (video: VideoData) => {
@@ -711,6 +740,11 @@ export default function VideoIntroduction() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
+              inlineCoverFile={inlineCoverFile}
+              setInlineCoverFile={setInlineCoverFile}
+              inlineCoverPreview={inlineCoverPreview}
+              setInlineCoverPreview={setInlineCoverPreview}
+              inlineCoverUploading={inlineCoverUploading}
             />
           ))}
         </div>
@@ -1202,17 +1236,48 @@ interface VideoManagementCardProps {
   isInQueue?: boolean;
   // Inline editing props
   isEditing: boolean;
-  inlineEditForm: { name: string; category: string; note: string; ref: string };
-  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string }) => void;
+  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
   onInlineEdit: (video: VideoData) => void;
   onInlineSave: (videoId: string) => void;
   onInlineCancel: () => void;
+  // Inline cover upload props
+  inlineCoverFile: File | null;
+  setInlineCoverFile: (file: File | null) => void;
+  inlineCoverPreview: string;
+  setInlineCoverPreview: (preview: string) => void;
+  inlineCoverUploading: boolean;
 }
 
 // 影片管理卡片 (模仿首頁瀑布流)
-function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: VideoManagementCardProps) {
+function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const inlineCoverInputRef = useRef<HTMLInputElement>(null);
+
+  // 處理行內編輯封面上傳
+  const handleInlineCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 檢查檔案類型
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
+      return;
+    }
+
+    // 檢查檔案大小 (10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('封面圖大小不能超過 10MB');
+      return;
+    }
+
+    setInlineCoverFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setInlineCoverPreview(objectUrl);
+  };
 
   useEffect(() => {
     if (!video.cover && video.file) {
@@ -1318,17 +1383,72 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
                 onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
                 className="rounded-lg text-sm h-16 resize-none"
               />
-              <div className="flex gap-2">
+              
+              {/* 封面圖上傳 */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
+                
+                {/* 顯示當前封面或預覽 */}
+                {(inlineCoverPreview || inlineEditForm.cover) && (
+                  <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                    <img 
+                      src={inlineCoverPreview || inlineEditForm.cover} 
+                      alt="封面預覽" 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setInlineCoverFile(null); 
+                        setInlineCoverPreview(''); 
+                        setInlineEditForm({ ...inlineEditForm, cover: '' });
+                        if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = '';
+                      }}
+                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                
+                {/* 封面 URL 輸入 */}
+                <Input
+                  placeholder="封面圖 URL"
+                  value={inlineEditForm.cover}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
+                  className="h-8 rounded-lg text-sm"
+                />
+                
+                {/* 上傳按鈕 */}
+                <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+                  <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                    {inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖'}
+                  </span>
+                  <input
+                    ref={inlineCoverInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    onChange={handleInlineCoverSelect}
+                    disabled={inlineCoverUploading}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              
+              <div className="flex gap-2 pt-2">
                 <Button
                   onClick={(e) => { e.stopPropagation(); onInlineSave(video.$id); }}
-                  className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5"
+                  disabled={inlineCoverUploading}
+                  className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50"
                 >
-                  儲存
+                  {inlineCoverUploading ? '上傳中...' : '儲存'}
                 </Button>
                 <Button
                   onClick={(e) => { e.stopPropagation(); onInlineCancel(); }}
                   variant="outline"
-                  className="flex-1 gap-1 rounded-lg text-xs py-1.5"
+                  disabled={inlineCoverUploading}
+                  className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50"
                 >
                   取消
                 </Button>

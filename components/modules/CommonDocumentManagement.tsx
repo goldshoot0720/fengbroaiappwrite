@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp } from "lucide-react";
+import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus } from "lucide-react";
 import { useCommonDocument, CommonDocumentData } from "@/hooks/useCommonDocument";
 import { useDocumentCache } from "@/hooks/useDocumentCache";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -168,7 +168,13 @@ export default function CommonDocumentManagement() {
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
-  const [inlineEditForm, setInlineEditForm] = useState({ name: '', category: '', note: '' });
+  const [inlineEditForm, setInlineEditForm] = useState({ name: '', category: '', note: '', ref: '', cover: '' });
+
+  // View mode state (grid or table)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  // Cover upload state
+  const [uploadingCoverId, setUploadingCoverId] = useState<string | null>(null);
 
   // 文件快取管理
   const {
@@ -187,7 +193,7 @@ export default function CommonDocumentManagement() {
   }, [updateCacheStats]);
 
   // CSV 匯出/匯入
-  const CSV_HEADERS = ['name', 'category', 'note', 'ref'];
+  const CSV_HEADERS = ['name', 'category', 'note', 'ref', 'cover'];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
 
   interface DocumentFormData {
@@ -195,6 +201,7 @@ export default function CommonDocumentManagement() {
     category: string;
     note: string;
     ref: string;
+    cover: string;
   }
 
   const exportToCSV = () => {
@@ -210,7 +217,8 @@ export default function CommonDocumentManagement() {
         escapeCSV(item.name),
         escapeCSV(item.category || ''),
         escapeCSV(item.note || ''),
-        escapeCSV(item.ref || '')
+        escapeCSV(item.ref || ''),
+        escapeCSV(item.cover || '')
       ].join(','));
     });
     const BOM = '\uFEFF';
@@ -272,7 +280,7 @@ export default function CommonDocumentManagement() {
       const values = rows[i];
       if (values.length !== EXPECTED_COLUMN_COUNT) { errors.push(`第 ${i + 1} 行: 欄位數量錯誤`); continue; }
       if (!values[0]?.trim()) { errors.push(`第 ${i + 1} 行: name 欄位不能為空`); continue; }
-      data.push({ name: values[0].trim(), category: values[1]?.trim() || '', note: values[2]?.trim() || '', ref: values[3]?.trim() || '' });
+      data.push({ name: values[0].trim(), category: values[1]?.trim() || '', note: values[2]?.trim() || '', ref: values[3]?.trim() || '', cover: values[4]?.trim() || '' });
     }
     return { data, errors };
   };
@@ -304,9 +312,9 @@ export default function CommonDocumentManagement() {
           : addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT);
         const method = existing ? 'PUT' : 'POST';
         const submitData = {
-          name: formData.name, category: formData.category, note: formData.note, ref: formData.ref,
-          ...(existing && { file: existing.file, cover: existing.cover, hash: existing.hash }),
-          ...(!existing && { file: '', cover: '', hash: `csv_import_${Date.now()}_${Math.random().toString(36).substring(7)}` })
+          name: formData.name, category: formData.category, note: formData.note, ref: formData.ref, cover: formData.cover,
+          ...(existing && { file: existing.file, hash: existing.hash }),
+          ...(!existing && { file: '', hash: `csv_import_${Date.now()}_${Math.random().toString(36).substring(7)}` })
         };
         const response = await fetch(apiUrl, { method, headers: { 'Content-Type': 'application/json', ...getAppwriteHeaders() }, body: JSON.stringify(submitData) });
         if (response.ok) { successCount++; } else { failCount++; }
@@ -456,6 +464,8 @@ export default function CommonDocumentManagement() {
       name: doc.name || '',
       category: doc.category || '',
       note: doc.note || '',
+      ref: doc.ref || '',
+      cover: doc.cover || '',
     });
     setInlineEditingId(doc.$id);
   };
@@ -472,12 +482,14 @@ export default function CommonDocumentManagement() {
           name: inlineEditForm.name,
           category: inlineEditForm.category,
           note: inlineEditForm.note,
+          ref: inlineEditForm.ref,
+          cover: inlineEditForm.cover,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadCommonDocument(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', category: '', note: '' });
+      setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
@@ -487,7 +499,66 @@ export default function CommonDocumentManagement() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', category: '', note: '' });
+    setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
+  };
+
+  // 處理封面上傳
+  const handleCoverUpload = async (docId: string, file: File) => {
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      alert('封面圖片大小不能超過 50MB');
+      return;
+    }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG, PNG, GIF, WebP 格式的圖片');
+      return;
+    }
+
+    setUploadingCoverId(docId);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', file);
+
+      const response = await fetch('/api/upload-music', {
+        method: 'POST',
+        headers: getAppwriteHeaders(),
+        body: formDataUpload,
+      });
+
+      if (!response.ok) {
+        throw new Error('上傳失敗');
+      }
+
+      const data = await response.json();
+      
+      // Update document with new cover URL
+      const doc = commondocument.find(d => d.$id === docId);
+      if (doc) {
+        const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${docId}`);
+        const updateResponse = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: doc.name,
+            category: doc.category,
+            note: doc.note,
+            ref: doc.ref,
+            cover: data.url,
+          }),
+        });
+
+        if (!updateResponse.ok) throw new Error('更新封面失敗');
+        
+        loadCommonDocument(true);
+      }
+    } catch (error) {
+      console.error('Cover upload failed:', error);
+      alert(error instanceof Error ? error.message : '封面上傳失敗');
+    } finally {
+      setUploadingCoverId(null);
+    }
   };
 
   const handleFormSuccess = () => {
@@ -552,16 +623,42 @@ export default function CommonDocumentManagement() {
         <StatCard title="快取大小" value={formatFileSize(cacheStats.totalSize)} icon={HardDrive} />
       </div>
 
-      {/* 搜尋欄位 */}
+      {/* 搜尋欄位和視圖切換 */}
       {commondocument.length > 0 && (
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="搜尋文件名稱、備註、分類..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 rounded-xl"
-          />
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              placeholder="搜尋文件名稱、備註、分類..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 rounded-xl"
+            />
+          </div>
+          <div className="flex bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <LayoutGrid size={16} />
+              卡片
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <TableIcon size={16} />
+              表格
+            </button>
+          </div>
         </div>
       )}
 
@@ -578,7 +675,7 @@ export default function CommonDocumentManagement() {
           title="無搜尋結果"
           description={`找不到「${searchQuery}」相關的文件`}
         />
-      ) : (
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDocuments.map((doc) => (
             <DocumentCard
@@ -594,9 +691,27 @@ export default function CommonDocumentManagement() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
+              onCoverUpload={handleCoverUpload}
+              uploadingCoverId={uploadingCoverId}
             />
           ))}
         </div>
+      ) : (
+        <DocumentTable
+          documents={filteredDocuments}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onPreview={handlePreview}
+          onEditContent={handleEditContent}
+          inlineEditingId={inlineEditingId}
+          inlineEditForm={inlineEditForm}
+          setInlineEditForm={setInlineEditForm}
+          onInlineEdit={handleInlineEdit}
+          onInlineSave={handleInlineSave}
+          onInlineCancel={cancelInlineEdit}
+          onCoverUpload={handleCoverUpload}
+          uploadingCoverId={uploadingCoverId}
+        />
       )}
 
       {/* 表單模態框 */}
@@ -657,6 +772,7 @@ export default function CommonDocumentManagement() {
                           <th className="px-3 py-2 text-left">名稱</th>
                           <th className="px-3 py-2 text-left">分類</th>
                           <th className="px-3 py-2 text-left">備註</th>
+                          <th className="px-3 py-2 text-left">封面</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -665,6 +781,7 @@ export default function CommonDocumentManagement() {
                             <td className="px-3 py-2 font-medium">{item.name}</td>
                             <td className="px-3 py-2">{item.category || '-'}</td>
                             <td className="px-3 py-2 max-w-[200px] truncate">{item.note || '-'}</td>
+                            <td className="px-3 py-2 max-w-[100px] truncate">{item.cover ? '有' : '-'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -790,20 +907,24 @@ interface DocumentCardProps {
   onEditContent: () => void;
   // Inline editing props
   inlineEditingId: string | null;
-  inlineEditForm: { name: string; category: string; note: string };
-  setInlineEditForm: (form: { name: string; category: string; note: string }) => void;
+  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
   onInlineEdit: (doc: CommonDocumentData) => void;
   onInlineSave: (docId: string) => void;
   onInlineCancel: () => void;
+  // Cover upload props
+  onCoverUpload: (docId: string, file: File) => void;
+  uploadingCoverId: string | null;
 }
 
-function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: DocumentCardProps) {
+function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onCoverUpload, uploadingCoverId }: DocumentCardProps) {
   const fileInfo = getFileTypeInfo(document.name || document.file || '', document.filetype);
   const canPreview = document.file && canPreviewFile(document.name || document.file || '', document.filetype);
   const canEditContent = document.file && canEditFile(document.name || document.file || '', document.filetype);
   const { cacheStatus, downloadAndCacheDocument, checkDocumentCache } = useDocumentCache();
   const [isCached, setIsCached] = useState(false);
   const isInlineEditing = inlineEditingId === document.$id;
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   // 檢查快取狀態
   useEffect(() => {
@@ -853,6 +974,65 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
             onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
             className="rounded-lg text-sm h-16 resize-none"
           />
+          {/* 封面圖片 - 可上傳或輸入 URL */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="封面圖 URL"
+              value={inlineEditForm.cover}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
+              className="h-9 rounded-lg text-sm flex-1"
+            />
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  onCoverUpload(document.$id, file);
+                  const previewUrl = URL.createObjectURL(file);
+                  setInlineEditForm({ ...inlineEditForm, cover: previewUrl });
+                }
+                e.target.value = '';
+              }}
+              className="hidden"
+              id={`card-cover-upload-${document.$id}`}
+            />
+            <label
+              htmlFor={`card-cover-upload-${document.$id}`}
+              className="px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer transition-colors flex items-center"
+              title="上傳封面"
+            >
+              <Upload className="w-4 h-4" />
+            </label>
+          </div>
+          {/* 封面預覽 */}
+          {uploadingCoverId === document.$id ? (
+            <div className="flex items-center gap-2 text-sm text-blue-600">
+              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              上傳封面中...
+            </div>
+          ) : inlineEditForm.cover ? (
+            <div className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <img 
+                src={inlineEditForm.cover} 
+                alt="封面預覽" 
+                className="w-16 h-16 object-cover rounded-lg border"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+              <button
+                onClick={() => setInlineEditForm({ ...inlineEditForm, cover: '' })}
+                className="text-xs text-red-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50"
+              >
+                清除封面
+              </button>
+            </div>
+          ) : null}
+          <Input
+            placeholder="參考"
+            value={inlineEditForm.ref}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
           <div className="flex gap-2">
             <Button size="sm" onClick={() => onInlineSave(document.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
               <Check className="w-4 h-4 mr-1" /> 儲存
@@ -866,15 +1046,66 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
     );
   }
 
+  const hasCover = document.cover && document.cover.trim() !== '';
+  const isUploadingCover = uploadingCoverId === document.$id;
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 group border border-gray-200 dark:border-gray-700 p-4">
+      {/* 封面圖片區域 */}
+      <div className="relative mb-4 -mx-4 -mt-4 h-32 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden">
+        {hasCover ? (
+          <>
+            <img 
+              src={document.cover} 
+              alt={document.name}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+          </>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            {isUploadingCover ? (
+              <div className="flex flex-col items-center gap-2 text-gray-400">
+                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs">上傳中...</span>
+              </div>
+            ) : (
+              <>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) onCoverUpload(document.$id, file);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => coverInputRef.current?.click()}
+                  className="flex flex-col items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors"
+                >
+                  <ImagePlus className="w-8 h-8" />
+                  <span className="text-xs">上傳封面</span>
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {/* 文件類型標籤 */}
+        <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium ${fileInfo.bgColor} ${fileInfo.color}`}>
+          {fileInfo.label}
+        </span>
+      </div>
+
       <div className="flex items-start gap-4">
         {/* 文件圖示 */}
-        <div className={`w-14 h-14 flex-shrink-0 rounded-xl ${fileInfo.bgColor} flex items-center justify-center`}>
+        <div className={`w-12 h-12 flex-shrink-0 rounded-xl ${fileInfo.bgColor} flex items-center justify-center`}>
           {getFileExtension(document.name || document.file || '', document.filetype) === 'zip' ? (
-            <FileArchive className={`w-7 h-7 ${fileInfo.color}`} />
+            <FileArchive className={`w-6 h-6 ${fileInfo.color}`} />
           ) : (
-            <DocumentIcon className={`w-7 h-7 ${fileInfo.color}`} />
+            <DocumentIcon className={`w-6 h-6 ${fileInfo.color}`} />
           )}
         </div>
 
@@ -882,9 +1113,6 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
         <div className="flex-1 min-w-0 space-y-1">
           <h3 className="font-bold text-base text-gray-900 dark:text-gray-100 truncate">{document.name}</h3>
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
-            <span className={`px-2 py-0.5 rounded-full ${fileInfo.bgColor} ${fileInfo.color} font-medium`}>
-              {fileInfo.label}
-            </span>
             {document.category && (
               <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full font-medium">
                 {document.category}
@@ -991,6 +1219,367 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
   );
 }
 
+// 文件表格
+interface DocumentTableProps {
+  documents: CommonDocumentData[];
+  onEdit: (doc: CommonDocumentData) => void;
+  onDelete: (doc: CommonDocumentData) => void;
+  onPreview: (doc: CommonDocumentData) => void;
+  onEditContent: (doc: CommonDocumentData) => void;
+  inlineEditingId: string | null;
+  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
+  onInlineEdit: (doc: CommonDocumentData) => void;
+  onInlineSave: (docId: string) => void;
+  onInlineCancel: () => void;
+  onCoverUpload: (docId: string, file: File) => void;
+  uploadingCoverId: string | null;
+}
+
+function DocumentTable({ 
+  documents, 
+  onEdit, 
+  onDelete, 
+  onPreview, 
+  onEditContent,
+  inlineEditingId,
+  inlineEditForm,
+  setInlineEditForm,
+  onInlineEdit,
+  onInlineSave,
+  onInlineCancel,
+  onCoverUpload,
+  uploadingCoverId
+}: DocumentTableProps) {
+  const coverInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-16">封面</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">文件名稱</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">分類</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">備註</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">建立日期</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            {documents.map((doc) => (
+              <DocumentTableRow
+                key={doc.$id}
+                document={doc}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onPreview={onPreview}
+                onEditContent={onEditContent}
+                isInlineEditing={inlineEditingId === doc.$id}
+                inlineEditForm={inlineEditForm}
+                setInlineEditForm={setInlineEditForm}
+                onInlineEdit={onInlineEdit}
+                onInlineSave={onInlineSave}
+                onInlineCancel={onInlineCancel}
+                onCoverUpload={onCoverUpload}
+                isUploadingCover={uploadingCoverId === doc.$id}
+                coverInputRefs={coverInputRefs}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// 表格行組件
+interface DocumentTableRowProps {
+  document: CommonDocumentData;
+  onEdit: (doc: CommonDocumentData) => void;
+  onDelete: (doc: CommonDocumentData) => void;
+  onPreview: (doc: CommonDocumentData) => void;
+  onEditContent: (doc: CommonDocumentData) => void;
+  isInlineEditing: boolean;
+  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
+  onInlineEdit: (doc: CommonDocumentData) => void;
+  onInlineSave: (docId: string) => void;
+  onInlineCancel: () => void;
+  onCoverUpload: (docId: string, file: File) => void;
+  isUploadingCover: boolean;
+  coverInputRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
+}
+
+function DocumentTableRow({
+  document,
+  onEdit,
+  onDelete,
+  onPreview,
+  onEditContent,
+  isInlineEditing,
+  inlineEditForm,
+  setInlineEditForm,
+  onInlineEdit,
+  onInlineSave,
+  onInlineCancel,
+  onCoverUpload,
+  isUploadingCover,
+  coverInputRefs
+}: DocumentTableRowProps) {
+  const fileInfo = getFileTypeInfo(document.name || document.file || '', document.filetype);
+  const canPreview = document.file && canPreviewFile(document.name || document.file || '', document.filetype);
+  const canEditContent = document.file && canEditFile(document.name || document.file || '', document.filetype);
+  const hasCover = document.cover && document.cover.trim() !== '';
+
+  // 行內編輯模式
+  if (isInlineEditing) {
+    return (
+      <tr className="bg-orange-50 dark:bg-orange-900/20">
+        <td colSpan={6} className="px-4 py-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Input
+                value={inlineEditForm.name}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                placeholder="文件名稱"
+                className="h-9 text-sm"
+              />
+              <Input
+                value={inlineEditForm.category}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+                placeholder="分類"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Input
+                value={inlineEditForm.note}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+                placeholder="備註"
+                className="h-9 text-sm"
+              />
+              <Input
+                value={inlineEditForm.ref}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+                placeholder="參考連結"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex gap-2">
+                <Input
+                  value={inlineEditForm.cover}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
+                  placeholder="封面圖片 URL"
+                  className="h-9 text-sm flex-1"
+                />
+                {/* 上傳封面按鈕 */}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      onCoverUpload(document.$id, file);
+                      // 上傳成功後會更新 document.cover，這裡先顯示預覽
+                      const previewUrl = URL.createObjectURL(file);
+                      setInlineEditForm({ ...inlineEditForm, cover: previewUrl });
+                    }
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                  id={`inline-cover-upload-${document.$id}`}
+                />
+                <label
+                  htmlFor={`inline-cover-upload-${document.$id}`}
+                  className="px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer transition-colors flex items-center gap-1"
+                  title="上傳封面"
+                >
+                  <Upload className="w-4 h-4" />
+                </label>
+              </div>
+              {/* 封面預覽 */}
+              <div className="flex items-center gap-3">
+                {isUploadingCover ? (
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    上傳中...
+                  </div>
+                ) : inlineEditForm.cover ? (
+                  <>
+                    <img 
+                      src={inlineEditForm.cover} 
+                      alt="封面預覽" 
+                      className="w-12 h-12 object-cover rounded-lg border"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <button
+                      onClick={() => setInlineEditForm({ ...inlineEditForm, cover: '' })}
+                      className="text-xs text-red-500 hover:text-red-600"
+                    >
+                      清除
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-400">無封面</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={() => onInlineSave(document.$id)}
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+              >
+                <Check className="w-4 h-4" />
+                儲存
+              </button>
+              <button
+                onClick={onInlineCancel}
+                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+              >
+                <X className="w-4 h-4" />
+                取消
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+      {/* 封面欄位 */}
+      <td className="px-4 py-3">
+        <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 group">
+          <input
+            ref={(el) => { coverInputRefs.current[document.$id] = el; }}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onCoverUpload(document.$id, file);
+              e.target.value = '';
+            }}
+            className="hidden"
+          />
+          {hasCover ? (
+            <>
+              <img src={document.cover} alt="" className="w-full h-full object-cover" />
+              <button
+                onClick={() => coverInputRefs.current[document.$id]?.click()}
+                className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                title="更換封面"
+              >
+                <Edit2 className="w-4 h-4 text-white" />
+              </button>
+            </>
+          ) : isUploadingCover ? (
+            <div className="flex items-center justify-center w-full h-full">
+              <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <button
+              onClick={() => coverInputRefs.current[document.$id]?.click()}
+              className="flex items-center justify-center w-full h-full text-gray-400 hover:text-blue-500 transition-colors"
+              title="上傳封面"
+            >
+              <ImagePlus className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      </td>
+
+      {/* 文件名稱 */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          {getFileExtension(document.name || document.file || '', document.filetype) === 'zip' ? (
+            <FileArchive className={`w-4 h-4 ${fileInfo.color}`} />
+          ) : (
+            <DocumentIcon className={`w-4 h-4 ${fileInfo.color}`} />
+          )}
+          <span className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[200px]">
+            {document.name}
+          </span>
+        </div>
+      </td>
+
+      {/* 分類 */}
+      <td className="px-4 py-3">
+        {document.category ? (
+          <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full text-xs font-medium">
+            {document.category}
+          </span>
+        ) : (
+          <span className="text-gray-400 text-xs">-</span>
+        )}
+      </td>
+
+      {/* 備註 */}
+      <td className="px-4 py-3">
+        <span className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-[200px] block">
+          {document.note || '-'}
+        </span>
+      </td>
+
+      {/* 建立日期 */}
+      <td className="px-4 py-3 text-sm text-gray-500">
+        {formatLocalDate(document.$createdAt)}
+      </td>
+
+      {/* 操作 */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          {canPreview && (
+            <button
+              onClick={() => onPreview(document)}
+              className="p-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+              title="預覽"
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+          )}
+          {canEditContent && (
+            <button
+              onClick={() => onEditContent(document)}
+              className="p-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-lg transition-colors"
+              title="編輯文件"
+            >
+              <Edit className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => onInlineEdit(document)}
+            className="p-1.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded-lg transition-colors"
+            title="快速編輯"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onEdit(document)}
+            className="p-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+            title="編輯詳情"
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onDelete(document)}
+            className="p-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors"
+            title="刪除"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 // 文件表單模態框
 function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: { 
   document: CommonDocumentData | null; 
@@ -1015,8 +1604,56 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
   const [fileHash, setFileHash] = useState<string>('');
   const [duplicateWarning, setDuplicateWarning] = useState<string>('');
   const [useCategorySelect, setUseCategorySelect] = useState(true);
+  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
 
   const existingCategories = Array.from(new Set(existingDocuments.map(d => d.category).filter(Boolean)));
+
+  // 處理封面上傳
+  const handleCoverFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      alert('封面圖片大小不能超過 50MB');
+      return;
+    }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG, PNG, GIF, WebP 格式的圖片');
+      return;
+    }
+
+    setSelectedCoverFile(file);
+    // 創建本地預覽 URL
+    const previewUrl = URL.createObjectURL(file);
+    setFormData(prev => ({ ...prev, cover: previewUrl }));
+  };
+
+  const uploadCoverToAppwrite = async (file: File): Promise<string> => {
+    setCoverUploading(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append('file', file);
+
+    try {
+      const response = await fetch('/api/upload-music', {
+        method: 'POST',
+        headers: getAppwriteHeaders(),
+        body: formDataUpload,
+      });
+
+      if (!response.ok) {
+        throw new Error('封面上傳失敗');
+      }
+
+      const data = await response.json();
+      return data.url;
+    } finally {
+      setCoverUploading(false);
+    }
+  };
 
   const calculateFileHash = async (file: File): Promise<string> => {
     try {
@@ -1139,10 +1776,16 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
     setSubmitting(true);
     try {
       let fileUrl = formData.file;
+      let coverUrl = formData.cover;
 
       if (selectedFile) {
         const uploadResult = await uploadFileToAppwrite(selectedFile);
         fileUrl = uploadResult.url;
+      }
+
+      // 上傳封面圖片
+      if (selectedCoverFile) {
+        coverUrl = await uploadCoverToAppwrite(selectedCoverFile);
       }
 
       const url = document
@@ -1155,6 +1798,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
         body: JSON.stringify({
           ...formData,
           file: fileUrl,
+          cover: coverUrl,
           filetype: formData.filetype,
           hash: fileHash || formData.hash,
         }),
@@ -1314,6 +1958,80 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
               placeholder="輸入參考連結"
               className="h-12 rounded-xl"
             />
+          </div>
+
+          {/* 封面圖片 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              封面圖片
+            </label>
+            
+            {/* 上傳區域 */}
+            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-4 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleCoverFileSelect}
+                className="hidden"
+                id="cover-upload"
+              />
+              <label htmlFor="cover-upload" className="cursor-pointer flex items-center justify-center gap-2">
+                <ImagePlus className="w-5 h-5 text-gray-400" />
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {selectedCoverFile ? selectedCoverFile.name : (formData.cover ? '更換封面' : '點擊上傳封面圖片')}
+                </span>
+              </label>
+              <p className="text-xs text-gray-400 mt-1">支援 JPG, PNG, GIF, WebP (最大 5MB)</p>
+            </div>
+
+            {/* 或輸入 URL */}
+            <div className="mt-2">
+              <span className="text-xs text-gray-500">或輸入圖片網址：</span>
+              <Input
+                value={formData.cover && !selectedCoverFile ? formData.cover : ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, cover: e.target.value });
+                  setSelectedCoverFile(null);
+                }}
+                placeholder="https://..."
+                className="h-10 rounded-lg mt-1"
+              />
+            </div>
+
+            {/* 封面預覽 */}
+            {formData.cover && (
+              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">封面預覽：</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, cover: '' }));
+                      setSelectedCoverFile(null);
+                    }}
+                    className="text-xs text-red-500 hover:text-red-600"
+                  >
+                    移除
+                  </button>
+                </div>
+                <img 
+                  src={formData.cover} 
+                  alt="封面預覽" 
+                  className="w-full h-32 object-cover rounded-lg"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+
+            {/* 上傳中狀態 */}
+            {coverUploading && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                上傳封面圖片中...
+              </div>
+            )}
           </div>
 
           {/* 提交按鈕 */}

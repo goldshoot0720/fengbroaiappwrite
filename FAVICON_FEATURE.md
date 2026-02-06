@@ -57,9 +57,51 @@ const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
 
 可以使用 `test-favicon.html` 文件測試不同網站的 favicon 顯示效果。
 
+## 銀行 Favicon 支援
+
+目前已支援以下台灣主要銀行的 favicon 顯示：
+
+| 銀行名稱 | 網域 |
+|---------|------|
+| 台北富邦銀行 | taipeifubon.com.tw, ebank.taipeifubon.com.tw |
+| 玉山銀行 | esunbank.com.tw |
+| 國泰世華銀行 | cathaybk.com.tw |
+| 中國信託 | ctbcbank.com |
+| 台新銀行 | taishinbank.com.tw |
+| 永豐銀行 | bank.sinopac.com |
+| 第一銀行 | firstbank.com.tw |
+| 華南銀行 | hncb.com.tw |
+| 兆豐銀行 | megabank.com.tw |
+| 合作金庫 | tcb-bank.com.tw |
+| 土地銀行 | landbank.com.tw |
+| 彰化銀行 | bankchb.com |
+| 台灣企銀 | tbb.com.tw |
+| 上海商銀 | scsb.com.tw |
+| 渣打銀行 | sc.com |
+| 星展銀行 | dbs.com.tw |
+| 滙豐銀行 | hsbc.com.tw |
+| 凱基銀行 | kgibank.com |
+| 王道銀行 | obank.com.tw |
+| 遠東商銀 | feib.com.tw |
+| 元大銀行 | yuanta.com |
+| 台灣銀行 | bot.com.tw |
+| 高雄銀行 | bok.com.tw |
+| 京城銀行 | kingsbank.com.tw |
+| 安泰銀行 | entiebank.com.tw |
+| 陽信銀行 | sunnybank.com.tw |
+| 板信銀行 | bop.com.tw |
+| 三信銀行 | credit.com.tw |
+| 聯邦銀行 | ubot.com.tw |
+| 新光銀行 | skbank.com.tw |
+| 瑞興銀行 | taipeistarbank.com.tw |
+| 華泰銀行 | entrustbank.com.tw |
+| 台中銀行 | tcbbank.com.tw |
+| 台灣中小企銀 | tbb.com.tw |
+
 ## 未來改進
 
 1. 添加 favicon 緩存機制
 2. 支持自定義 favicon 上傳
 3. 添加 favicon 品質檢測
 4. 支持多種 favicon 格式
+5. 自動偵測並更新失效的 favicon URL

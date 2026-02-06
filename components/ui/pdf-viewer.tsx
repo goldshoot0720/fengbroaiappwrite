@@ -14,12 +14,14 @@ const Page = dynamic(
   { ssr: false }
 );
 
-// Configure PDF.js worker
-let pdfjs: any;
+// Configure PDF.js worker - use version matching react-pdf's bundled pdfjs-dist
 if (typeof window !== 'undefined') {
   import('react-pdf').then((module) => {
-    pdfjs = module.pdfjs;
-    pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+    const pdfjs = module.pdfjs;
+    // Use local worker file with version matching react-pdf's pdfjs-dist (5.4.296)
+    pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  }).catch((err) => {
+    console.error('Failed to initialize PDF.js:', err);
   });
 }
 

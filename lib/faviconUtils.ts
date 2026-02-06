@@ -83,12 +83,155 @@ const KNOWN_FAVICON_URLS: Record<string, string> = {
   'substack.com': 'https://substack.com/favicon.ico',
   'www.substack.com': 'https://substack.com/favicon.ico',
   
-  // 銀行網站
+  // 銀行網站 - 台灣主要銀行
+  // 富邦銀行
   'ebank.taipeifubon.com.tw': 'https://ebank.taipeifubon.com.tw/B2C/inc/img/icon/favicon.ico',
+  'www.taipeifubon.com.tw': 'https://www.taipeifubon.com.tw/favicon.ico',
+  'taipeifubon.com.tw': 'https://www.taipeifubon.com.tw/favicon.ico',
+  
+  // 玉山銀行
   'www.esunbank.com.tw': 'https://www.esunbank.com.tw/bank/rwd/images/esun.ico',
   'esunbank.com.tw': 'https://www.esunbank.com.tw/bank/rwd/images/esun.ico',
+  
+  // 國泰世華銀行
   'www.cathaybk.com.tw': 'https://www.cathaybk.com.tw/etc.clientlibs/cub-aem-cs/clientlibs/clientlib-react/resources/favicon.ico',
   'cathaybk.com.tw': 'https://www.cathaybk.com.tw/etc.clientlibs/cub-aem-cs/clientlibs/clientlib-react/resources/favicon.ico',
+  
+  // 中國信託
+  'www.ctbcbank.com': 'https://www.ctbcbank.com/content/dam/cmb-tw/favicon.ico',
+  'ctbcbank.com': 'https://www.ctbcbank.com/content/dam/cmb-tw/favicon.ico',
+  
+  // 台新銀行
+  'www.taishinbank.com.tw': 'https://www.taishinbank.com.tw/TS/Static/favicon.ico',
+  'taishinbank.com.tw': 'https://www.taishinbank.com.tw/TS/Static/favicon.ico',
+  
+  // 永豐銀行
+  'bank.sinopac.com': 'https://bank.sinopac.com/favicon.ico',
+  'www.bank.sinopac.com': 'https://bank.sinopac.com/favicon.ico',
+  
+  // 第一銀行
+  'www.firstbank.com.tw': 'https://www.firstbank.com.tw/sites/default/files/favicon.ico',
+  'firstbank.com.tw': 'https://www.firstbank.com.tw/sites/default/files/favicon.ico',
+  
+  // 華南銀行
+  'www.hncb.com.tw': 'https://www.hncb.com.tw/favicon.ico',
+  'hncb.com.tw': 'https://www.hncb.com.tw/favicon.ico',
+  
+  // 兆豐銀行
+  'www.megabank.com.tw': 'https://www.megabank.com.tw/favicon.ico',
+  'megabank.com.tw': 'https://www.megabank.com.tw/favicon.ico',
+  
+  // 合作金庫
+  'www.tcb-bank.com.tw': 'https://www.tcb-bank.com.tw/favicon.ico',
+  'tcb-bank.com.tw': 'https://www.tcb-bank.com.tw/favicon.ico',
+  
+  // 土地銀行
+  'www.landbank.com.tw': 'https://www.landbank.com.tw/favicon.ico',
+  'landbank.com.tw': 'https://www.landbank.com.tw/favicon.ico',
+  
+  // 彰化銀行
+  'www.bankchb.com': 'https://www.bankchb.com/favicon.ico',
+  'bankchb.com': 'https://www.bankchb.com/favicon.ico',
+  
+  // 台灣企銀
+  'www.tbb.com.tw': 'https://www.tbb.com.tw/favicon.ico',
+  'tbb.com.tw': 'https://www.tbb.com.tw/favicon.ico',
+  
+  // 上海商銀
+  'www.scsb.com.tw': 'https://www.scsb.com.tw/favicon.ico',
+  'scsb.com.tw': 'https://www.scsb.com.tw/favicon.ico',
+  
+  // 渣打銀行
+  'www.sc.com': 'https://www.sc.com/favicon.ico',
+  'sc.com': 'https://www.sc.com/favicon.ico',
+  
+  // 花旗銀行 (台灣已併入星展)
+  'www.citibank.com.tw': 'https://www.citibank.com.tw/favicon.ico',
+  'citibank.com.tw': 'https://www.citibank.com.tw/favicon.ico',
+  
+  // 星展銀行
+  'www.dbs.com.tw': 'https://www.dbs.com.tw/favicon.ico',
+  'dbs.com.tw': 'https://www.dbs.com.tw/favicon.ico',
+  
+  // 滙豐銀行
+  'www.hsbc.com.tw': 'https://www.hsbc.com.tw/favicon.ico',
+  'hsbc.com.tw': 'https://www.hsbc.com.tw/favicon.ico',
+  
+  // 凱基銀行
+  'www.kgibank.com': 'https://www.kgibank.com/favicon.ico',
+  'kgibank.com': 'https://www.kgibank.com/favicon.ico',
+  
+  // 王道銀行
+  'www.Obank.com.tw': 'https://www.obank.com.tw/favicon.ico',
+  'obank.com.tw': 'https://www.obank.com.tw/favicon.ico',
+  
+  // 遠東商銀
+  'www.feib.com.tw': 'https://www.feib.com.tw/favicon.ico',
+  'feib.com.tw': 'https://www.feib.com.tw/favicon.ico',
+  
+  // 元大銀行
+  'www.yuanta.com': 'https://www.yuanta.com/favicon.ico',
+  'yuanta.com': 'https://www.yuanta.com/favicon.ico',
+  
+  // 台灣銀行
+  'www.bot.com.tw': 'https://www.bot.com.tw/favicon.ico',
+  'bot.com.tw': 'https://www.bot.com.tw/favicon.ico',
+  
+  // 高雄銀行
+  'www.bok.com.tw': 'https://www.bok.com.tw/favicon.ico',
+  'bok.com.tw': 'https://www.bok.com.tw/favicon.ico',
+  
+  // 京城銀行
+  'www.kingsbank.com.tw': 'https://www.kingsbank.com.tw/favicon.ico',
+  'kingsbank.com.tw': 'https://www.kingsbank.com.tw/favicon.ico',
+  
+  // 安泰銀行
+  'www.entiebank.com.tw': 'https://www.entiebank.com.tw/favicon.ico',
+  'entiebank.com.tw': 'https://www.entiebank.com.tw/favicon.ico',
+  
+  // 陽信銀行
+  'www.sunnybank.com.tw': 'https://www.sunnybank.com.tw/favicon.ico',
+  'sunnybank.com.tw': 'https://www.sunnybank.com.tw/favicon.ico',
+  
+  // 板信銀行
+  'www.bop.com.tw': 'https://www.bop.com.tw/favicon.ico',
+  'bop.com.tw': 'https://www.bop.com.tw/favicon.ico',
+  
+  // 三信銀行
+  'www.credit.com.tw': 'https://www.credit.com.tw/favicon.ico',
+  'credit.com.tw': 'https://www.credit.com.tw/favicon.ico',
+  
+  // 聯邦銀行
+  'www.ubot.com.tw': 'https://www.ubot.com.tw/favicon.ico',
+  'ubot.com.tw': 'https://www.ubot.com.tw/favicon.ico',
+  
+  // 新光銀行
+  'www.skbank.com.tw': 'https://www.skbank.com.tw/favicon.ico',
+  'skbank.com.tw': 'https://www.skbank.com.tw/favicon.ico',
+  
+  // 日盛銀行 (已併入富邦)
+  'www.jihsunbank.com.tw': 'https://www.jihsunbank.com.tw/favicon.ico',
+  'jihsunbank.com.tw': 'https://www.jihsunbank.com.tw/favicon.ico',
+  
+  // 瑞興銀行
+  'www.taipeistarbank.com.tw': 'https://www.taipeistarbank.com.tw/favicon.ico',
+  'taipeistarbank.com.tw': 'https://www.taipeistarbank.com.tw/favicon.ico',
+  
+  // 華泰銀行
+  'www.entrustbank.com.tw': 'https://www.entrustbank.com.tw/favicon.ico',
+  'entrustbank.com.tw': 'https://www.entrustbank.com.tw/favicon.ico',
+  
+  // 台中銀行
+  'www.tcbbank.com.tw': 'https://www.tcbbank.com.tw/favicon.ico',
+  'tcbbank.com.tw': 'https://www.tcbbank.com.tw/favicon.ico',
+  
+  // 淡水一信
+  'www.tcfcbank.com.tw': 'https://www.tcfcbank.com.tw/favicon.ico',
+  'tcfcbank.com.tw': 'https://www.tcfcbank.com.tw/favicon.ico',
+  
+  // 大台北銀行
+  'www.taipeibank.com.tw': 'https://www.taipeibank.com.tw/favicon.ico',
+  'taipeibank.com.tw': 'https://www.taipeibank.com.tw/favicon.ico',
 };
 
 /**
