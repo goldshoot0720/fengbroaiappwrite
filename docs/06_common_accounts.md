@@ -64,3 +64,11 @@ interface CommonAccount {
 - **API 路徑**：`app/api/commonaccount/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.COMMON_ACCOUNT`
 - **Favicon 工具**：`lib/faviconUtils.ts`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [銀行管理](./12_bank.md) - 銀行帳戶與財務記錄
+- [使用手冊](./USER_GUIDE.md) - 第七章：常用帳號詳細教學

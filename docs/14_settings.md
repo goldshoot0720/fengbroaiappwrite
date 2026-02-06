@@ -94,3 +94,17 @@
 - **元件路徑**：`components/modules/SettingsManagement.tsx`
 - **主題元件**：`components/providers/theme-provider.tsx`、`components/ui/theme-toggle.tsx`
 - **Table Schema 定義**：`app/api/create-table/route.js` → `TABLE_SCHEMAS`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [首頁說明](./01_home.md) - 系統入口介紹
+- [關於系統](./15_about.md) - 系統版本與架構資訊
+- [使用手冊](./USER_GUIDE.md) - 第十五章：系統設定詳細教學
+
+---
+
+> **文件版本**: v1.1.0  
+> **最後更新**: 2026-02-07

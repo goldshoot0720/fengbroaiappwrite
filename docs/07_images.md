@@ -61,3 +61,13 @@
 - **API 路徑**：`app/api/image/`、`app/api/images/`、`app/api/upload-image/`
 - **檔案限制**：50MB
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.IMAGE`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [影片管理](./08_videos.md) - 影片播放與佇列功能
+- [音樂管理](./09_music.md) - 音樂播放與歌詞顯示
+- [系統設定](./14_settings.md) - 快取與儲存空間管理
+- [使用手冊](./USER_GUIDE.md) - 第八章：圖片管理詳細教學

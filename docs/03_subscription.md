@@ -85,3 +85,12 @@ interface Subscription {
 - **元件路徑**：`components/modules/SubscriptionManagement.tsx`
 - **API 路徑**：`app/api/subscription/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.SUBSCRIPTION`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [儀表板說明](./02_dashboard.md) - 查看訂閱統計與財務概覽
+- [銀行管理](./12_bank.md) - 銀行帳戶與存款管理
+- [使用手冊](./USER_GUIDE.md) - 第五章：訂閱管理詳細教學

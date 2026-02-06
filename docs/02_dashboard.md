@@ -73,3 +73,13 @@
 - **元件路徑**：`components/modules/EnhancedDashboard.tsx`
 - **統計類型定義**：`types/index.ts` → `DashboardStats`
 - **門檻常數**：`lib/constants.ts` → `DATE_THRESHOLDS`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [首頁說明](./01_home.md) - 系統入口介紹
+- [食品管理](./04_food.md) - 食品到期追蹤詳情
+- [訂閱管理](./03_subscription.md) - 訂閱續費管理詳情
+- [使用手冊](./USER_GUIDE.md) - 完整操作教學

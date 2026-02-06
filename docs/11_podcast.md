@@ -58,3 +58,13 @@
 - **快取 Hook**：`hooks/usePodcastCache.ts`
 - **API 路徑**：`app/api/podcast/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.PODCAST`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [音樂管理](./09_music.md) - 音樂播放與歌詞顯示
+- [影片管理](./08_videos.md) - 影片串流播放功能
+- [系統設定](./14_settings.md) - 快取與儲存空間管理
+- [使用手冊](./USER_GUIDE.md) - 第十一章：播客管理詳細教學

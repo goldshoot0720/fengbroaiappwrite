@@ -36,3 +36,12 @@
 - **元件路徑**：`app/page.tsx`
 - **佈局元件**：`components/layout/DashboardLayout.tsx`
 - **導航方式**：透過 `currentModule` 狀態切換動態元件渲染
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [儀表板說明](./02_dashboard.md) - 查看詳細數據統計
+- [系統設定](./14_settings.md) - 配置系統參數
+- [使用手冊](./USER_GUIDE.md) - 完整操作教學

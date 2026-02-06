@@ -66,3 +66,13 @@
 - **快取 Hook**：`hooks/useVideoCache.ts`
 - **API 路徑**：`app/api/video/`、`app/api/videos/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.VIDEO`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [音樂管理](./09_music.md) - 音樂播放與佇列功能
+- [播客管理](./11_podcast.md) - 音訊/視訊播客管理
+- [系統設定](./14_settings.md) - 快取與儲存空間管理
+- [使用手冊](./USER_GUIDE.md) - 第九章：影片管理詳細教學

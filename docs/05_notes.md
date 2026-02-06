@@ -91,3 +91,12 @@ interface Article {
 - **元件路徑**：`components/modules/NotesManagement.tsx`
 - **API 路徑**：`app/api/article/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.ARTICLE`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [文件管理](./10_documents.md) - 綜合文件管理
+- [圖片管理](./07_images.md) - 圖片上傳與瀏覽
+- [使用手冊](./USER_GUIDE.md) - 第六章：筆記管理詳細教學

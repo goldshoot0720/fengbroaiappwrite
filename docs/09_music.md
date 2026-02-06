@@ -79,3 +79,13 @@
 - **快取 Hook**：`hooks/useMusicCache.ts`
 - **API 路徑**：`app/api/music/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.MUSIC`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [影片管理](./08_videos.md) - 影片播放與佇列功能
+- [播客管理](./11_podcast.md) - 音訊/視訊播客管理
+- [系統設定](./14_settings.md) - 快取與儲存空間管理
+- [使用手冊](./USER_GUIDE.md) - 第十章：音樂管理詳細教學

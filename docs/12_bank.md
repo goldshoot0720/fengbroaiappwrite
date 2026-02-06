@@ -78,3 +78,13 @@ interface Bank {
 - **元件路徑**：`components/modules/BankManagement.tsx`
 - **API 路徑**：`app/api/bank/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.BANK`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [儀表板說明](./02_dashboard.md) - 查看財務概覽與存款統計
+- [訂閱管理](./03_subscription.md) - 訂閱服務與支出管理
+- [常用帳號](./06_common_accounts.md) - 常用網站與連結管理
+- [使用手冊](./USER_GUIDE.md) - 第十三章：銀行管理詳細教學

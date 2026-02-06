@@ -234,6 +234,13 @@
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-02-04  
-**Status**: ✅ Official Company Introduction
+**文件版本**: v1.1.0  
+**最後更新**: 2026-02-07  
+**狀態**: ✅ 官方公司簡介  
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 完整文件導航
+- [使用手冊](./USER_GUIDE.md) - 詳細操作教學

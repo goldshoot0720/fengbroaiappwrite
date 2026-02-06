@@ -67,3 +67,13 @@
 - **快取 Hook**：`hooks/useDocumentCache.ts`
 - **API 路徑**：`app/api/commondocument/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.COMMONDOCUMENT`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [筆記管理](./05_notes.md) - 多功能筆記系統
+- [圖片管理](./07_images.md) - 圖片上傳與瀏覽
+- [系統設定](./14_settings.md) - 快取與儲存空間管理
+- [使用手冊](./USER_GUIDE.md) - 第十二章：文件管理詳細教學

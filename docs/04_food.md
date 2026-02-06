@@ -75,3 +75,12 @@ interface Food {
 - **元件路徑**：`components/modules/FoodManagement.tsx`
 - **API 路徑**：`app/api/food/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.FOOD`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [儀表板說明](./02_dashboard.md) - 查看食品統計與到期提醒
+- [系統設定](./14_settings.md) - 資料庫表格管理
+- [使用手冊](./USER_GUIDE.md) - 第三章：食品管理詳細教學

@@ -92,3 +92,16 @@ interface Routine {
 - **元件路徑**：`components/modules/RoutineManagement.tsx`
 - **API 路徑**：`app/api/routine/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.ROUTINE`
+
+---
+
+## 相關文件
+
+- [選單索引](./INDEX.md) - 返回文件總覽
+- [系統設定](./14_settings.md) - 資料庫表格管理
+- [使用手冊](./USER_GUIDE.md) - 第十四章：例行管理詳細教學
+
+---
+
+> **文件版本**: v1.1.0  
+> **最後更新**: 2026-02-07
