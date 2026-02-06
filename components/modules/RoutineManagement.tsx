@@ -61,6 +61,10 @@ export default function RoutineManagement() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState<RoutineFormData>(INITIAL_FORM);
+
   // 搜尋過濾
   const filteredRoutines = useMemo(() => {
     if (!searchQuery.trim()) return routines;
@@ -200,6 +204,39 @@ export default function RoutineManagement() {
     if (routine && confirm(`確定要刪除此例行事項嗎？\n\n注意：若包含圖片，將同時從Appwrite儲存空間永久刪除。`)) {
       await remove(id);
     }
+  };
+
+  // 開始行內編輯
+  const handleInlineEdit = (routine: Routine) => {
+    setInlineEditForm({
+      name: routine.name || '',
+      note: routine.note || '',
+      lastdate1: routine.lastdate1 || '',
+      lastdate2: routine.lastdate2 || '',
+      lastdate3: routine.lastdate3 || '',
+      link: routine.link || '',
+      photo: routine.photo || '',
+    });
+    setInlineEditingId(routine.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async (routineId: string) => {
+    if (!inlineEditingId) return;
+    try {
+      await update(routineId, inlineEditForm);
+      setInlineEditingId(null);
+      setInlineEditForm(INITIAL_FORM);
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      alert('更新失敗，請稍後再試');
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm(INITIAL_FORM);
   };
 
   const handleShiftDates = async (routine: Routine) => {
@@ -807,7 +844,7 @@ export default function RoutineManagement() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleEdit(routine)}
+                              onClick={() => handleInlineEdit(routine)}
                             >
                               編輯
                             </Button>
@@ -830,6 +867,62 @@ export default function RoutineManagement() {
               <div className="md:hidden space-y-4">
                 {filteredRoutines.map((routine) => (
                   <DataCard key={routine.$id}>
+                    {inlineEditingId === routine.$id ? (
+                      // 行內編輯模式
+                      <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
+                        <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
+                        <Input
+                          placeholder="例行事項名稱"
+                          value={inlineEditForm.name}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Textarea
+                          placeholder="備註"
+                          value={inlineEditForm.note}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+                          className="rounded-lg text-sm h-16 resize-none"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            placeholder="日期一"
+                            type="date"
+                            value={inlineEditForm.lastdate1}
+                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate1: e.target.value })}
+                            className="h-9 rounded-lg text-sm"
+                          />
+                          <Input
+                            placeholder="日期二"
+                            type="date"
+                            value={inlineEditForm.lastdate2}
+                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate2: e.target.value })}
+                            className="h-9 rounded-lg text-sm"
+                          />
+                        </div>
+                        <Input
+                          placeholder="日期三"
+                          type="date"
+                          value={inlineEditForm.lastdate3}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate3: e.target.value })}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="連結"
+                          value={inlineEditForm.link}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, link: e.target.value })}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handleInlineSave(routine.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                            儲存
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="flex-1 rounded-lg">
+                            取消
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      // 正常顯示模式
                     <div className="space-y-3">
                       <div className="flex items-start gap-3">
                         {routine.photo ? (
@@ -884,7 +977,7 @@ export default function RoutineManagement() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleEdit(routine)}
+                          onClick={() => handleInlineEdit(routine)}
                           className="flex-1"
                         >
                           編輯
@@ -899,6 +992,7 @@ export default function RoutineManagement() {
                         </Button>
                       </div>
                     </div>
+                    )}
                   </DataCard>
                 ))}
               </div>

@@ -52,6 +52,10 @@ export default function BankManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState<BankFormData>(INITIAL_FORM);
   
   // 取得已存在的不重複資料用於下拉選單
   const existingNames = useMemo(() => {
@@ -142,6 +146,41 @@ export default function BankManagement() {
     } catch {
       alert("刪除失敗");
     }
+  };
+
+  // 開始行內編輯
+  const handleInlineEdit = (bank: Bank) => {
+    setInlineEditForm({
+      name: bank.name || '',
+      deposit: bank.deposit || 0,
+      site: bank.site || '',
+      address: bank.address || '',
+      withdrawals: bank.withdrawals || 0,
+      transfer: bank.transfer || 0,
+      activity: bank.activity || '',
+      card: bank.card || '',
+      account: bank.account || '',
+    });
+    setInlineEditingId(bank.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async (bankId: string) => {
+    if (!inlineEditingId) return;
+    try {
+      await updateBank(bankId, inlineEditForm);
+      setInlineEditingId(null);
+      setInlineEditForm(INITIAL_FORM);
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      alert('更新失敗，請稍後再試');
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm(INITIAL_FORM);
   };
 
   // CSV 匯入/匯出功能
@@ -654,6 +693,80 @@ export default function BankManagement() {
           <DataCardList>
             {filteredBanks.map((bank) => (
               <DataCardItem key={bank.$id}>
+                {inlineEditingId === bank.$id ? (
+                  // 行內編輯模式
+                  <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
+                    <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <Input
+                        placeholder="銀行名稱"
+                        value={inlineEditForm.name}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        placeholder="資產餘額"
+                        type="number"
+                        value={inlineEditForm.deposit}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, deposit: Number(e.target.value) })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        placeholder="網站連結"
+                        value={inlineEditForm.site}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, site: e.target.value })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        placeholder="地址"
+                        value={inlineEditForm.address}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, address: e.target.value })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        placeholder="提款額度"
+                        type="number"
+                        value={inlineEditForm.withdrawals}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, withdrawals: Number(e.target.value) })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        placeholder="轉帳額度"
+                        type="number"
+                        value={inlineEditForm.transfer}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, transfer: Number(e.target.value) })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        placeholder="活動連結"
+                        value={inlineEditForm.activity}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, activity: e.target.value })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        placeholder="卡片"
+                        value={inlineEditForm.card}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, card: e.target.value })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        placeholder="帳號"
+                        value={inlineEditForm.account}
+                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
+                        className="h-9 rounded-lg text-sm col-span-full"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => handleInlineSave(bank.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                        儲存
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="flex-1 rounded-lg">
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  // 正常顯示模式
                 <div className="space-y-4">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -739,11 +852,12 @@ export default function BankManagement() {
                   </div>
 
                   <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-                    <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(bank)} className="flex-1 rounded-xl">
-                      編輯詳細資料
+                    <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(bank)} className="flex-1 rounded-xl">
+                      編輯
                     </Button>
                   </div>
                 </div>
+                )}
               </DataCardItem>
             ))}
           </DataCardList>

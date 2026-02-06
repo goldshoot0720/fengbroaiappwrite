@@ -68,6 +68,10 @@ export default function PodcastManagement() {
   const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
   const importZipInputRef = useRef<HTMLInputElement>(null);
 
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState({ name: '', category: '', note: '' });
+
   // 播客快取管理
   const {
     cacheStatus,
@@ -125,6 +129,46 @@ export default function PodcastManagement() {
     } catch (error) {
       alert(error instanceof Error ? error.message : '刪除失敗');
     }
+  };
+
+  // 開始行內編輯
+  const handleInlineEdit = (podcastItem: PodcastData) => {
+    setInlineEditForm({
+      name: podcastItem.name || '',
+      category: podcastItem.category || '',
+      note: podcastItem.note || '',
+    });
+    setInlineEditingId(podcastItem.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async (podcastId: string) => {
+    if (!inlineEditingId) return;
+    try {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.PODCAST}/${podcastId}`);
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineEditForm.name,
+          category: inlineEditForm.category,
+          note: inlineEditForm.note,
+        }),
+      });
+      if (!response.ok) throw new Error('更新失敗');
+      loadPodcast(true);
+      setInlineEditingId(null);
+      setInlineEditForm({ name: '', category: '', note: '' });
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm({ name: '', category: '', note: '' });
   };
 
   const handleFormSuccess = () => {
@@ -293,6 +337,12 @@ export default function PodcastManagement() {
               onDelete={() => handleDelete(podcastItem)}
               cacheStatus={cacheStatus}
               downloadAndCachePodcast={downloadAndCachePodcast}
+              inlineEditingId={inlineEditingId}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={handleInlineEdit}
+              onInlineSave={handleInlineSave}
+              onInlineCancel={cancelInlineEdit}
             />
           ))}
         </div>
@@ -390,12 +440,20 @@ interface MusicCardProps {
   onDelete: () => void;
   cacheStatus: any;
   downloadAndCachePodcast: (podcast: any, onProgress?: (progress: number) => void) => Promise<void>;
+  // Inline editing props
+  inlineEditingId: string | null;
+  inlineEditForm: { name: string; category: string; note: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string }) => void;
+  onInlineEdit: (podcast: PodcastData) => void;
+  onInlineSave: (podcastId: string) => void;
+  onInlineCancel: () => void;
 }
 
-function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, onEdit, onDelete, cacheStatus, downloadAndCachePodcast }: MusicCardProps) {
+function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, onEdit, onDelete, cacheStatus, downloadAndCachePodcast, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: MusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
   const [isCached, setIsCached] = useState(false);
   const { checkPodcastCache } = usePodcastCache();
+  const isInlineEditing = inlineEditingId === podcast.$id;
 
   // 檢查快取狀態
   useEffect(() => {
@@ -407,6 +465,43 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
   }, [podcast.$id, checkPodcastCache]);
 
   const podcastCacheStatus = cacheStatus[podcast.$id];
+
+  // 行內編輯模式
+  if (isInlineEditing) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-orange-500 p-4">
+        <div className="space-y-3">
+          <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
+          <Input
+            placeholder="播客名稱"
+            value={inlineEditForm.name}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
+          <Input
+            placeholder="分類"
+            value={inlineEditForm.category}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
+          <Textarea
+            placeholder="備註"
+            value={inlineEditForm.note}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+            className="rounded-lg text-sm h-16 resize-none"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => onInlineSave(podcast.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+              <Check className="w-4 h-4 mr-1" /> 儲存
+            </Button>
+            <Button size="sm" variant="outline" onClick={onInlineCancel} className="flex-1 rounded-lg">
+              <X className="w-4 h-4 mr-1" /> 取消
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 group border border-gray-200 dark:border-gray-700">
@@ -525,7 +620,7 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
             </>
           )}
           <button
-            onClick={onEdit}
+            onClick={() => onInlineEdit(podcast)}
             className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
             title="編輯"
           >

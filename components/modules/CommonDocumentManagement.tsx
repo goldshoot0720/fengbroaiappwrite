@@ -166,6 +166,10 @@ export default function CommonDocumentManagement() {
   const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
   const importZipInputRef = useRef<HTMLInputElement>(null);
 
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState({ name: '', category: '', note: '' });
+
   // 文件快取管理
   const {
     cacheStatus,
@@ -446,6 +450,46 @@ export default function CommonDocumentManagement() {
     }
   };
 
+  // 開始行內編輯
+  const handleInlineEdit = (doc: CommonDocumentData) => {
+    setInlineEditForm({
+      name: doc.name || '',
+      category: doc.category || '',
+      note: doc.note || '',
+    });
+    setInlineEditingId(doc.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async (docId: string) => {
+    if (!inlineEditingId) return;
+    try {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${docId}`);
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineEditForm.name,
+          category: inlineEditForm.category,
+          note: inlineEditForm.note,
+        }),
+      });
+      if (!response.ok) throw new Error('更新失敗');
+      loadCommonDocument(true);
+      setInlineEditingId(null);
+      setInlineEditForm({ name: '', category: '', note: '' });
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm({ name: '', category: '', note: '' });
+  };
+
   const handleFormSuccess = () => {
     setShowFormModal(false);
     setEditingDocument(null);
@@ -544,6 +588,12 @@ export default function CommonDocumentManagement() {
               onDelete={() => handleDelete(doc)}
               onPreview={() => handlePreview(doc)}
               onEditContent={() => handleEditContent(doc)}
+              inlineEditingId={inlineEditingId}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={handleInlineEdit}
+              onInlineSave={handleInlineSave}
+              onInlineCancel={cancelInlineEdit}
             />
           ))}
         </div>
@@ -738,14 +788,22 @@ interface DocumentCardProps {
   onDelete: () => void;
   onPreview: () => void;
   onEditContent: () => void;
+  // Inline editing props
+  inlineEditingId: string | null;
+  inlineEditForm: { name: string; category: string; note: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string }) => void;
+  onInlineEdit: (doc: CommonDocumentData) => void;
+  onInlineSave: (docId: string) => void;
+  onInlineCancel: () => void;
 }
 
-function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent }: DocumentCardProps) {
+function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: DocumentCardProps) {
   const fileInfo = getFileTypeInfo(document.name || document.file || '', document.filetype);
   const canPreview = document.file && canPreviewFile(document.name || document.file || '', document.filetype);
   const canEditContent = document.file && canEditFile(document.name || document.file || '', document.filetype);
   const { cacheStatus, downloadAndCacheDocument, checkDocumentCache } = useDocumentCache();
   const [isCached, setIsCached] = useState(false);
+  const isInlineEditing = inlineEditingId === document.$id;
 
   // 檢查快取狀態
   useEffect(() => {
@@ -770,6 +828,43 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent }: 
   };
 
   const documentCacheStatus = cacheStatus[document.$id];
+
+  // 行內編輯模式
+  if (isInlineEditing) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-orange-500 p-4">
+        <div className="space-y-3">
+          <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
+          <Input
+            placeholder="文件名稱"
+            value={inlineEditForm.name}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
+          <Input
+            placeholder="分類"
+            value={inlineEditForm.category}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
+          <Textarea
+            placeholder="備註"
+            value={inlineEditForm.note}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+            className="rounded-lg text-sm h-16 resize-none"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => onInlineSave(document.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+              <Check className="w-4 h-4 mr-1" /> 儲存
+            </Button>
+            <Button size="sm" variant="outline" onClick={onInlineCancel} className="flex-1 rounded-lg">
+              <X className="w-4 h-4 mr-1" /> 取消
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 group border border-gray-200 dark:border-gray-700 p-4">
@@ -878,7 +973,7 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent }: 
           </button>
         )}
         <button
-          onClick={onEdit}
+          onClick={() => onInlineEdit(document)}
           className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all duration-200"
           title="編輯資訊"
         >
