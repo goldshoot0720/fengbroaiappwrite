@@ -25,26 +25,26 @@ import JSZip from "jszip";
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
   if (typeof window === 'undefined') return url;
-  
+
   const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT');
   const projectId = localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID');
   const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID');
   const apiKey = localStorage.getItem('APPWRITE_API_KEY');
   const bucketId = localStorage.getItem('APPWRITE_BUCKET_ID');
-  
+
   if (!endpoint && !projectId && !databaseId) {
     return url;
   }
-  
+
   const separator = url.includes('?') ? '&' : '?';
   const params = new URLSearchParams();
-  
+
   if (endpoint) params.set('_endpoint', endpoint);
   if (projectId) params.set('_project', projectId);
   if (databaseId) params.set('_database', databaseId);
   if (apiKey) params.set('_key', apiKey);
   if (bucketId) params.set('_bucket', bucketId);
-  
+
   const paramString = params.toString();
   return paramString ? `${url}${separator}${paramString}` : url;
 }
@@ -60,6 +60,16 @@ export default function MusicManagement() {
   const [importingZip, setImportingZip] = useState(false);
   const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
   const importZipInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState({
+    name: '',
+    category: '',
+    language: '',
+    note: '',
+    ref: '',
+  });
 
   // 音樂快取管理
   const {
@@ -78,9 +88,9 @@ export default function MusicManagement() {
   }, [updateCacheStats]);
 
   // CSV 匯入/匯出功能
-  const [importPreview, setImportPreview] = useState<{data: MusicFormData[], errors: string[]} | null>(null);
-    const [importing, setImporting] = useState(false);
-    const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importPreview, setImportPreview] = useState<{ data: MusicFormData[], errors: string[] } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const CSV_HEADERS = ['name', 'category', 'language', 'lyrics', 'note', 'ref'];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
 
@@ -124,37 +134,37 @@ export default function MusicManagement() {
     const result: string[] = []; let current = ''; let inQuotes = false;
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
-      if (inQuotes) { 
-        if (char === '"') { 
-          if (line[i + 1] === '"') { current += '"'; i++; } 
-          else { inQuotes = false; } 
-        } else { current += char; } 
-      } else { 
-        if (char === '"') { inQuotes = true; } 
-        else if (char === ',') { result.push(current); current = ''; } 
-        else { current += char; } 
+      if (inQuotes) {
+        if (char === '"') {
+          if (line[i + 1] === '"') { current += '"'; i++; }
+          else { inQuotes = false; }
+        } else { current += char; }
+      } else {
+        if (char === '"') { inQuotes = true; }
+        else if (char === ',') { result.push(current); current = ''; }
+        else { current += char; }
       }
     }
-    result.push(current); 
+    result.push(current);
     return result;
   };
 
   // RFC 4180 compliant CSV parser that handles multi-line quoted fields (for lyrics)
-  const parseCSV = (text: string): {data: MusicFormData[], errors: string[]} => {
-    const errors: string[] = []; 
+  const parseCSV = (text: string): { data: MusicFormData[], errors: string[] } => {
+    const errors: string[] = [];
     const data: MusicFormData[] = [];
     const cleanText = text.replace(/^\uFEFF/, '');
-    
+
     // Parse CSV properly handling multi-line quoted fields
     const rows: string[][] = [];
     let currentRow: string[] = [];
     let currentField = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < cleanText.length; i++) {
       const char = cleanText[i];
       const nextChar = cleanText[i + 1];
-      
+
       if (inQuotes) {
         if (char === '"') {
           if (nextChar === '"') {
@@ -195,12 +205,12 @@ export default function MusicManagement() {
         rows.push(currentRow);
       }
     }
-    
-    if (rows.length < 2) { 
-      errors.push('CSV 檔案至少需要表頭和一行資料'); 
-      return { data, errors }; 
+
+    if (rows.length < 2) {
+      errors.push('CSV 檔案至少需要表頭和一行資料');
+      return { data, errors };
     }
-    
+
     const headerValues = rows[0];
     if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
       errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
@@ -213,22 +223,22 @@ export default function MusicManagement() {
       }
     }
     if (errors.length > 0) return { data, errors };
-    
+
     for (let i = 1; i < rows.length; i++) {
-      const values = rows[i]; 
+      const values = rows[i];
       const lineNum = i + 1;
-      if (values.length !== EXPECTED_COLUMN_COUNT) { 
-        errors.push(`第 ${lineNum} 行: 欄位數量錯誤 (預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${values.length} 欄)`); 
-        continue; 
+      if (values.length !== EXPECTED_COLUMN_COUNT) {
+        errors.push(`第 ${lineNum} 行: 欄位數量錯誤 (預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${values.length} 欄)`);
+        continue;
       }
-      if (!values[0]?.trim()) { 
-        errors.push(`第 ${lineNum} 行: name 欄位不能為空`); 
-        continue; 
+      if (!values[0]?.trim()) {
+        errors.push(`第 ${lineNum} 行: name 欄位不能為空`);
+        continue;
       }
-      data.push({ 
-        name: values[0].trim(), 
-        category: values[1]?.trim() || '', 
-        language: values[2]?.trim() || '', 
+      data.push({
+        name: values[0].trim(),
+        category: values[1]?.trim() || '',
+        language: values[2]?.trim() || '',
         lyrics: values[3]?.trim() || '',
         note: values[4]?.trim() || '',
         ref: values[5]?.trim() || ''
@@ -238,26 +248,26 @@ export default function MusicManagement() {
   };
 
   const handleCsvFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; 
+    const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.name.endsWith('.csv')) { 
-      alert('請選擇 CSV 檔案'); 
-      return; 
+    if (!file.name.endsWith('.csv')) {
+      alert('請選擇 CSV 檔案');
+      return;
     }
     const reader = new FileReader();
-    reader.onload = (event) => { 
-      setImportPreview(parseCSV(event.target?.result as string)); 
+    reader.onload = (event) => {
+      setImportPreview(parseCSV(event.target?.result as string));
     };
-    reader.readAsText(file, 'UTF-8'); 
+    reader.readAsText(file, 'UTF-8');
     e.target.value = '';
   };
 
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
-    
+
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
@@ -265,11 +275,11 @@ export default function MusicManagement() {
       try {
         // 查找是否已存在相同 name + language 的記錄
         const existing = music.find(m => m.name === formData.name && m.language === formData.language);
-        const apiUrl = existing 
+        const apiUrl = existing
           ? addAppwriteConfigToUrl(`${API_ENDPOINTS.MUSIC}/${existing.$id}`)
           : addAppwriteConfigToUrl(API_ENDPOINTS.MUSIC);
         const method = existing ? 'PUT' : 'POST';
-        
+
         // 準備資料，不包含 file, cover, hash（因為 Appwrite Storage 綁定帳號）
         const submitData = {
           name: formData.name,
@@ -291,7 +301,7 @@ export default function MusicManagement() {
             hash: `csv_import_${Date.now()}_${Math.random().toString(36).substring(7)}`
           })
         };
-        
+
         const response = await fetch(apiUrl, {
           method,
           headers: {
@@ -300,20 +310,20 @@ export default function MusicManagement() {
           },
           body: JSON.stringify(submitData),
         });
-        
+
         if (response.ok) {
           successCount++;
         } else {
           failCount++;
         }
-      } catch { 
-        failCount++; 
+      } catch {
+        failCount++;
       }
     }
-    
+
     // 匯入完成後統一重新載入一次
     await loadMusic();
-    
+
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
@@ -349,8 +359,8 @@ export default function MusicManagement() {
           const categoryPrefix = item.category ? `[${item.category.replace(/[<>:"\/\\|?*]/g, '_')}]_` : '';
           const languageSuffix = item.language ? `_${item.language.replace(/[<>:"\/\\|?*]/g, '_')}` : '';
           const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
-          const filename = nameHasExtension 
-            ? `${categoryPrefix}${sanitizedName.slice(0, -fileExtension.length - 1)}${languageSuffix}.${fileExtension}` 
+          const filename = nameHasExtension
+            ? `${categoryPrefix}${sanitizedName.slice(0, -fileExtension.length - 1)}${languageSuffix}.${fileExtension}`
             : `${categoryPrefix}${sanitizedName}${languageSuffix}.${fileExtension}`;
           zip.file(filename, blob);
         } catch (err) { console.error(`處理 ${item.name} 時出錯:`, err); }
@@ -397,24 +407,24 @@ export default function MusicManagement() {
       if (item.lyrics) {
         return { ...item, computedLyrics: item.lyrics };
       }
-      
+
       // 如果沒有歌詞，找基礎語言版本（去除括號）
       const baseLanguage = item.language?.replace(/[\(\uff08].*?[\)\uff09]/g, '').trim();
-      const baseVersion = music.find(m => 
-        m.name === item.name && 
+      const baseVersion = music.find(m =>
+        m.name === item.name &&
         m.language === baseLanguage
       );
-      
-      return { 
-        ...item, 
-        computedLyrics: baseVersion?.lyrics || '' 
+
+      return {
+        ...item,
+        computedLyrics: baseVersion?.lyrics || ''
       };
     });
-    
+
     // 然後進行搜尋過濾
     if (!searchQuery.trim()) return musicWithComputedLyrics;
     const query = searchQuery.toLowerCase();
-    return musicWithComputedLyrics.filter(item => 
+    return musicWithComputedLyrics.filter(item =>
       item.name?.toLowerCase().includes(query) ||
       item.lyrics?.toLowerCase().includes(query) ||
       item.computedLyrics?.toLowerCase().includes(query)
@@ -450,7 +460,7 @@ export default function MusicManagement() {
   const handleDelete = async (musicItem: MusicData) => {
     const confirmText = `DELETE ${musicItem.name}`;
     const userInput = prompt(`確定要刪除音樂「${musicItem.name}」嗎？\n\n請輸入以下文字以確認刪除：\n${confirmText}`);
-    
+
     if (userInput !== confirmText) {
       if (userInput !== null) {
         alert('輸入不正確，刪除已取消');
@@ -475,6 +485,50 @@ export default function MusicManagement() {
     setShowFormModal(false);
     setEditingMusic(null);
     loadMusic(true);
+  };
+
+  // 開始行內編輯
+  const handleInlineEdit = (musicItem: MusicData) => {
+    setInlineEditForm({
+      name: musicItem.name || '',
+      category: musicItem.category || '',
+      language: musicItem.language || '',
+      note: musicItem.note || '',
+      ref: musicItem.ref || '',
+    });
+    setInlineEditingId(musicItem.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async (musicId: string) => {
+    if (!inlineEditingId) return;
+    try {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.MUSIC}/${musicId}`);
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineEditForm.name,
+          category: inlineEditForm.category,
+          language: inlineEditForm.language,
+          note: inlineEditForm.note,
+          ref: inlineEditForm.ref,
+        }),
+      });
+      if (!response.ok) throw new Error('更新失敗');
+      loadMusic(true);
+      setInlineEditingId(null);
+      setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '' });
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '' });
   };
 
   if (loading) {
@@ -561,6 +615,12 @@ export default function MusicManagement() {
               onToggleExpand={(id) => setExpandedMusicId(expandedMusicId === id ? null : id)}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              inlineEditingId={inlineEditingId}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={handleInlineEdit}
+              onInlineSave={handleInlineSave}
+              onInlineCancel={cancelInlineEdit}
             />
           ))}
         </div>
@@ -637,7 +697,7 @@ export default function MusicManagement() {
               {importing ? (
                 <div className="flex items-center gap-3">
                   <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     />
@@ -649,8 +709,8 @@ export default function MusicManagement() {
               ) : (
                 <>
                   <Button variant="outline" onClick={() => setImportPreview(null)}>取消</Button>
-                  <Button 
-                    onClick={executeImport} 
+                  <Button
+                    onClick={executeImport}
                     disabled={importPreview.errors.length > 0 || importPreview.data.length === 0}
                     className="bg-blue-500 hover:bg-blue-600"
                   >
@@ -672,9 +732,9 @@ export default function MusicManagement() {
               已使用 {formatFileSize(cacheStats.totalSize)} / {formatFileSize(maxCacheSize)}
             </p>
           </div>
-          <Button 
-            onClick={clearAllCache} 
-            variant="outline" 
+          <Button
+            onClick={clearAllCache}
+            variant="outline"
             className="rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
             disabled={cacheStats.cachedMusic === 0}
           >
@@ -682,8 +742,8 @@ export default function MusicManagement() {
           </Button>
         </div>
         <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600 transition-all duration-300" 
+          <div
+            className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600 transition-all duration-300"
             style={{ width: `${Math.min((cacheStats.totalSize / maxCacheSize) * 100, 100)}%` }}
           />
         </div>
@@ -748,9 +808,16 @@ interface GroupedMusicCardProps {
   onToggleExpand: (id: string) => void;
   onEdit: (music: MusicData) => void;
   onDelete: (music: MusicData) => void;
+  // Inline editing props
+  inlineEditingId: string | null;
+  inlineEditForm: { name: string; category: string; language: string; note: string; ref: string };
+  setInlineEditForm: (form: { name: string; category: string; language: string; note: string; ref: string }) => void;
+  onInlineEdit: (music: MusicData) => void;
+  onInlineSave: (musicId: string) => void;
+  onInlineCancel: () => void;
 }
 
-function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit, onDelete }: GroupedMusicCardProps) {
+function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: GroupedMusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
   const [expandedLyricsId, setExpandedLyricsId] = useState<string | null>(null);
   const [selectedBaseLanguage, setSelectedBaseLanguage] = useState<string | null>(null);
@@ -773,10 +840,10 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
     };
     checkAllCache();
   }, [items, checkMusicCache]);
-  
+
   // 第一層：基礎語言類別
   const BASE_LANGUAGES = ['中文', '英語', '日語', '韓語', '粵語', '其他'];
-  
+
   // 提取基礎語言（例如：從 "中文(女聲)" 提取 "中文"）
   const getBaseLanguage = (language: string | undefined) => {
     if (!language) return '其他';
@@ -792,14 +859,14 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
     }
     return '其他';
   };
-  
+
   // 按基礎語言分組
   const groupedByBaseLanguage = useMemo(() => {
     const groups: { [key: string]: MusicData[] } = {};
     BASE_LANGUAGES.forEach(lang => {
       groups[lang] = [];
     });
-    
+
     items.forEach(item => {
       const baseLang = getBaseLanguage(item.language);
       if (groups[baseLang]) {
@@ -808,10 +875,10 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
         groups['其他'].push(item);
       }
     });
-    
+
     return groups;
   }, [items]);
-  
+
   // 獲取封面（根據語言優先順序：中文 > 英語 > 日語 > 韓語 > 粵語 > 其他）
   const getDefaultCover = () => {
     for (const lang of BASE_LANGUAGES) {
@@ -820,16 +887,16 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
     }
     return null;
   };
-  
+
   // 當前選中的版本
   const selectedItem = selectedVersionId ? items.find(item => item.$id === selectedVersionId) : null;
-  
+
   // 當選中特定版本時，顯示該版本的封面；否則顯示預設封面
   const displayCover = selectedItem?.cover || getDefaultCover();
-  
+
   const category = items[0]?.category;
   const createdAt = items[0]?.$createdAt;
-  
+
   // 單個項目直接顯示原本的卡片樣式
   if (items.length === 1) {
     const music = items[0];
@@ -840,10 +907,16 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
         onToggleExpand={() => onToggleExpand(music.$id)}
         onEdit={() => onEdit(music)}
         onDelete={() => onDelete(music)}
+        inlineEditingId={inlineEditingId}
+        inlineEditForm={inlineEditForm}
+        setInlineEditForm={setInlineEditForm}
+        onInlineEdit={onInlineEdit}
+        onInlineSave={onInlineSave}
+        onInlineCancel={onInlineCancel}
       />
     );
   }
-  
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 border border-gray-200 dark:border-gray-700">
       {/* 標題區 */}
@@ -881,11 +954,10 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
           {/* 循環播放按鈕 */}
           <button
             onClick={() => setIsLooping(!isLooping)}
-            className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 flex-shrink-0 ${
-              isLooping 
-                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' 
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
+            className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 flex-shrink-0 ${isLooping
+              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
             title={isLooping ? '重複播放' : '單次播放'}
           >
             <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -905,7 +977,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
               const versionsInLang = groupedByBaseLanguage[lang] || [];
               const hasVersions = versionsInLang.length > 0;
               const isSelected = selectedBaseLanguage === lang;
-              
+
               return (
                 <button
                   key={lang}
@@ -927,19 +999,17 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                     }
                   }}
                   disabled={!hasVersions}
-                  className={`px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-xs font-medium rounded-lg transition-all text-center ${
-                    isSelected
-                      ? 'bg-purple-600 text-white'
-                      : hasVersions
+                  className={`px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-xs font-medium rounded-lg transition-all text-center ${isSelected
+                    ? 'bg-purple-600 text-white'
+                    : hasVersions
                       ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                       : 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   <div>{lang}</div>
                   {hasVersions && (
-                    <div className={`text-[8px] sm:text-[10px] mt-0.5 ${
-                      isSelected ? 'text-purple-200' : 'text-gray-400 dark:text-gray-500'
-                    }`}>
+                    <div className={`text-[8px] sm:text-[10px] mt-0.5 ${isSelected ? 'text-purple-200' : 'text-gray-400 dark:text-gray-500'
+                      }`}>
                       {versionsInLang.length}個
                     </div>
                   )}
@@ -958,16 +1028,15 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
             <div className="flex flex-wrap gap-1 sm:gap-2">
               {groupedByBaseLanguage[selectedBaseLanguage].map((item) => {
                 const isVersionSelected = selectedVersionId === item.$id;
-                
+
                 return (
                   <button
                     key={item.$id}
                     onClick={() => setSelectedVersionId(isVersionSelected ? null : item.$id)}
-                    className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-lg transition-all ${
-                      isVersionSelected
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 border border-gray-200 dark:border-gray-600'
-                    }`}
+                    className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-lg transition-all ${isVersionSelected
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 border border-gray-200 dark:border-gray-600'
+                      }`}
                   >
                     {item.language || '未指定'}
                     {item.file && <span className="ml-1 opacity-70">♫</span>}
@@ -982,145 +1051,201 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
         {/* 選中版本的播放器和操作 */}
         {selectedItem && (
           <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-600">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
-                {selectedItem.language || '未指定'}
-              </span>
-              <div className="flex items-center gap-1">
-                {selectedItem.computedLyrics && (
-                  <button
-                    onClick={() => setExpandedLyricsId(expandedLyricsId === selectedItem.$id ? null : selectedItem.$id)}
-                    className={`p-1.5 rounded-lg transition-all ${
-                      expandedLyricsId === selectedItem.$id
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200'
-                    }`}
-                    title="歌詞"
-                  >
-                    <FileText className="w-4 h-4" />
-                  </button>
-                )}
-                {selectedItem.file && (
-                  <button
-                    onClick={() => {
-                      const downloadUrl = getAppwriteDownloadUrl(selectedItem.file);
-                      const link = document.createElement('a');
-                      link.href = downloadUrl;
-                      link.download = `${selectedItem.name}-${selectedItem.language}.mp3`;
-                      link.target = '_blank';
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }}
-                    className="p-1.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 transition-all"
-                    title="下載"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                )}
-                {selectedItem.file && (
-                  <button
-                    onClick={async () => {
-                      await downloadAndCacheMusic({
-                        $id: selectedItem.$id,
-                        name: selectedItem.name,
-                        file: getProxiedMediaUrl(selectedItem.file),
-                        cover: selectedItem.cover || displayCover || undefined,
-                        category: selectedItem.category,
-                        language: selectedItem.language
-                      });
-                      setCachedItems(prev => new Set([...prev, selectedItem.$id]));
-                    }}
-                    disabled={cachedItems.has(selectedItem.$id) || cacheStatus[selectedItem.$id]?.downloading}
-                    className={`p-1.5 rounded-lg transition-all relative ${
-                      cachedItems.has(selectedItem.$id) || cacheStatus[selectedItem.$id]?.cached
-                        ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 cursor-default'
-                        : cacheStatus[selectedItem.$id]?.downloading
-                        ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-500 cursor-wait'
-                        : 'bg-gray-100 dark:bg-gray-700 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20'
-                    }`}
-                    title={
-                      cachedItems.has(selectedItem.$id) || cacheStatus[selectedItem.$id]?.cached
-                        ? '已快取'
-                        : cacheStatus[selectedItem.$id]?.downloading
-                        ? `下載中 ${Math.round(cacheStatus[selectedItem.$id].progress)}%`
-                        : '快取到本地'
-                    }
-                  >
-                    {cachedItems.has(selectedItem.$id) || cacheStatus[selectedItem.$id]?.cached ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <HardDrive className="w-4 h-4" />
-                    )}
-                    {cacheStatus[selectedItem.$id]?.downloading && (
-                      <span className="absolute -bottom-1 -right-1 text-[8px] bg-cyan-600 text-white rounded-full px-1">
-                        {Math.round(cacheStatus[selectedItem.$id].progress)}%
-                      </span>
-                    )}
-                  </button>
-                )}
-                {selectedItem.file && (
-                  <button
-                    onClick={async () => {
-                      // Check if music is cached first
-                      const cachedUrl = await loadMusicFromCache(selectedItem.$id);
-                      const fileUrl = cachedUrl || getProxiedMediaUrl(selectedItem.file);
-                                        
-                      const added = addToQueue({
-                        id: selectedItem.$id,
-                        name: selectedItem.name,
-                        language: selectedItem.language,
-                        file: fileUrl,
-                        cover: selectedItem.cover || displayCover || undefined,
-                      });
-                      if (!added) {
-                        alert('該歌曲已在播放佇列中');
-                      } else if (cachedUrl) {
-                        console.log('已加入佇列（使用快取）:', selectedItem.name);
-                      }
-                    }}
-                    disabled={isInQueue(selectedItem.$id)}
-                    className={`p-1.5 rounded-lg transition-all ${
-                      isInQueue(selectedItem.$id)
-                        ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                        : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200'
-                    }`}
-                    title={isInQueue(selectedItem.$id) ? '已在佇列中' : '接下來播放'}
-                  >
-                    <ListPlus className="w-4 h-4" />
-                  </button>
-                )}
-                <button
-                  onClick={() => onEdit(selectedItem)}
-                  className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 transition-all"
-                  title="編輯"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => onDelete(selectedItem)}
-                  className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 transition-all"
-                  title="刪除"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            
-            {selectedItem.file ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-2">
-                <PlyrPlayer 
-                  key={selectedItem.$id}
-                  type="audio"
-                  src={getProxiedMediaUrl(selectedItem.file)}
-                  loop={isLooping}
-                  className="w-full"
+            {inlineEditingId === selectedItem.$id ? (
+              // 行內編輯模式
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-purple-600 dark:text-purple-400 mb-2">
+                  編輯中
+                </div>
+                <Input
+                  placeholder="歌曲名稱"
+                  value={inlineEditForm.name}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                  className="h-9 rounded-lg text-sm"
                 />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="分類"
+                    value={inlineEditForm.category}
+                    onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                  <Input
+                    placeholder="語言"
+                    value={inlineEditForm.language}
+                    onChange={(e) => setInlineEditForm({ ...inlineEditForm, language: e.target.value })}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                </div>
+                <Textarea
+                  placeholder="備註"
+                  value={inlineEditForm.note}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+                  className="rounded-lg text-sm h-16 resize-none"
+                />
+                <Input
+                  placeholder="參考"
+                  value={inlineEditForm.ref}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+                  className="h-9 rounded-lg text-sm"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => onInlineSave(selectedItem.$id)}
+                    className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5"
+                  >
+                    儲存
+                  </Button>
+                  <Button
+                    onClick={onInlineCancel}
+                    variant="outline"
+                    className="flex-1 gap-1 rounded-lg text-xs py-1.5"
+                  >
+                    取消
+                  </Button>
+                </div>
               </div>
             ) : (
-              <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
-                尚未上傳音樂檔案
-              </div>
+              // 正常顯示模式
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                    {selectedItem.language || '未指定'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {selectedItem.computedLyrics && (
+                      <button
+                        onClick={() => setExpandedLyricsId(expandedLyricsId === selectedItem.$id ? null : selectedItem.$id)}
+                        className={`p-1.5 rounded-lg transition-all ${expandedLyricsId === selectedItem.$id
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200'
+                          }`}
+                        title="歌詞"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
+                    )}
+                    {selectedItem.file && (
+                      <button
+                        onClick={() => {
+                          const downloadUrl = getAppwriteDownloadUrl(selectedItem.file);
+                          const link = document.createElement('a');
+                          link.href = downloadUrl;
+                          link.download = `${selectedItem.name}-${selectedItem.language}.mp3`;
+                          link.target = '_blank';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="p-1.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 transition-all"
+                        title="下載"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    )}
+                    {selectedItem.file && (
+                      <button
+                        onClick={async () => {
+                          await downloadAndCacheMusic({
+                            $id: selectedItem.$id,
+                            name: selectedItem.name,
+                            file: getProxiedMediaUrl(selectedItem.file),
+                            cover: selectedItem.cover || displayCover || undefined,
+                            category: selectedItem.category,
+                            language: selectedItem.language
+                          });
+                          setCachedItems(prev => new Set([...prev, selectedItem.$id]));
+                        }}
+                        disabled={cachedItems.has(selectedItem.$id) || cacheStatus[selectedItem.$id]?.downloading}
+                        className={`p-1.5 rounded-lg transition-all relative ${cachedItems.has(selectedItem.$id) || cacheStatus[selectedItem.$id]?.cached
+                          ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 cursor-default'
+                          : cacheStatus[selectedItem.$id]?.downloading
+                            ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-500 cursor-wait'
+                            : 'bg-gray-100 dark:bg-gray-700 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20'
+                          }`}
+                        title={
+                          cachedItems.has(selectedItem.$id) || cacheStatus[selectedItem.$id]?.cached
+                            ? '已快取'
+                            : cacheStatus[selectedItem.$id]?.downloading
+                              ? `下載中 ${Math.round(cacheStatus[selectedItem.$id].progress)}%`
+                              : '快取到本地'
+                        }
+                      >
+                        {cachedItems.has(selectedItem.$id) || cacheStatus[selectedItem.$id]?.cached ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          <HardDrive className="w-4 h-4" />
+                        )}
+                        {cacheStatus[selectedItem.$id]?.downloading && (
+                          <span className="absolute -bottom-1 -right-1 text-[8px] bg-cyan-600 text-white rounded-full px-1">
+                            {Math.round(cacheStatus[selectedItem.$id].progress)}%
+                          </span>
+                        )}
+                      </button>
+                    )}
+                    {selectedItem.file && (
+                      <button
+                        onClick={async () => {
+                          // Check if music is cached first
+                          const cachedUrl = await loadMusicFromCache(selectedItem.$id);
+                          const fileUrl = cachedUrl || getProxiedMediaUrl(selectedItem.file);
+
+                          const added = addToQueue({
+                            id: selectedItem.$id,
+                            name: selectedItem.name,
+                            language: selectedItem.language,
+                            file: fileUrl,
+                            cover: selectedItem.cover || displayCover || undefined,
+                          });
+                          if (!added) {
+                            alert('該歌曲已在播放佇列中');
+                          } else if (cachedUrl) {
+                            console.log('已加入佇列（使用快取）:', selectedItem.name);
+                          }
+                        }}
+                        disabled={isInQueue(selectedItem.$id)}
+                        className={`p-1.5 rounded-lg transition-all ${isInQueue(selectedItem.$id)
+                          ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                          : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200'
+                          }`}
+                        title={isInQueue(selectedItem.$id) ? '已在佇列中' : '接下來播放'}
+                      >
+                        <ListPlus className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onInlineEdit(selectedItem)}
+                      className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 transition-all"
+                      title="編輯"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onDelete(selectedItem)}
+                      className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 transition-all"
+                      title="刪除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {selectedItem.file ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-2">
+                    <PlyrPlayer
+                      key={selectedItem.$id}
+                      type="audio"
+                      src={getProxiedMediaUrl(selectedItem.file)}
+                      loop={isLooping}
+                      className="w-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                    尚未上傳音樂檔案
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -1131,7 +1256,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
             請選擇語言版本
           </div>
         )}
-        
+
         {selectedBaseLanguage && !selectedVersionId && groupedByBaseLanguage[selectedBaseLanguage]?.length > 1 && (
           <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
             請選擇具體版本
@@ -1143,7 +1268,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
       {expandedLyricsId && (() => {
         const lyricsItem = items.find(item => item.$id === expandedLyricsId);
         if (!lyricsItem?.computedLyrics) return null;
-        
+
         return (
           <div className="px-3 sm:px-4 pb-4 border-t border-gray-200 dark:border-gray-700">
             <div className="pt-4">
@@ -1193,9 +1318,16 @@ interface MusicCardProps {
   onToggleExpand: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  // Inline editing props
+  inlineEditingId?: string | null;
+  inlineEditForm?: { name: string; category: string; language: string; note: string; ref: string };
+  setInlineEditForm?: (form: { name: string; category: string; language: string; note: string; ref: string }) => void;
+  onInlineEdit?: (music: MusicData) => void;
+  onInlineSave?: (musicId: string) => void;
+  onInlineCancel?: () => void;
 }
 
-function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete }: MusicCardProps) {
+function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: MusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
   const { addToQueue, isInQueue } = useMusicQueue();
   const { cacheStatus, downloadAndCacheMusic, checkMusicCache, loadMusicFromCache } = useMusicCache();
@@ -1225,268 +1357,332 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete }: Musi
 
   const musicCacheStatus = cacheStatus[music.$id];
 
+  // Check if this music item is being inline edited
+  const isInlineEditing = inlineEditingId === music.$id && inlineEditForm && setInlineEditForm && onInlineSave && onInlineCancel;
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 group border border-gray-200 dark:border-gray-700">
-      {/* 主要內容區 - 手機垂直排列，桌面水平排列 */}
-      <div className="p-3 sm:p-4">
-        {/* 頂部：封面 + 資訊 + 操作按鈕 */}
-        <div className="flex items-start gap-3 sm:gap-4">
-          {/* 封面 - 手機較小 */}
-          <div className="relative w-14 h-14 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
-            {music.cover ? (
-              <img src={music.cover} alt={music.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <MusicIcon className="text-white w-7 h-7 sm:w-10 sm:h-10 drop-shadow-lg" />
-              </div>
-            )}
-          </div>
-
-          {/* 資訊區 */}
-          <div className="flex-1 min-w-0">
-            {/* 標題行：名稱 + 歌詞按鈕 */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <h3 className="font-bold text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate max-w-[120px] sm:max-w-none">{music.name}</h3>
-              {/* 歌詞按鈕 */}
-              {music.computedLyrics && (
-                <button
-                  onClick={onToggleExpand}
-                  className={`px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded transition-all duration-200 flex items-center gap-0.5 sm:gap-1 flex-shrink-0 ${
-                    isExpanded 
-                      ? 'bg-purple-600 text-white' 
-                      : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
-                  }`}
-                  title="顯示歌詞"
-                >
-                  <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                  <span>歌詞</span>
-                </button>
-              )}
-            </div>
-            
-            {/* 標籤 - 手機顯示在標題下方 */}
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              {music.category && (
-                <span className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full">
-                  {music.category}
-                </span>
-              )}
-              {music.language && (
-                <span className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
-                  {music.language}
-                </span>
-              )}
-              <span className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500">
-                {formatLocalDate(music.$createdAt)}
-              </span>
-            </div>
-          </div>
-
-          {/* 操作按鈕 - 手機更緊湊 */}
-          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-            {music.file && (
-              <>
-                <button
-                  onClick={() => setIsLooping(!isLooping)}
-                  className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 ${
-                    isLooping 
-                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' 
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                  title={isLooping ? '重複播放' : '單次播放'}
-                >
-                  <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-                <button
-                  onClick={async () => {
-                    // Check if music is cached first
-                    const cachedUrl = await loadMusicFromCache(music.$id);
-                    const fileUrl = cachedUrl || getProxiedMediaUrl(music.file);
-                    
-                    const added = addToQueue({
-                      id: music.$id,
-                      name: music.name,
-                      language: music.language,
-                      file: fileUrl,
-                      cover: music.cover,
-                    });
-                    if (!added) {
-                      alert('該歌曲已在播放佇列中');
-                    } else if (cachedUrl) {
-                      console.log('已加入佇列（使用快取）:', music.name);
-                    }
-                  }}
-                  disabled={isInQueue(music.$id)}
-                  className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 ${
-                    isInQueue(music.$id)
-                      ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                      : 'bg-gray-100 dark:bg-gray-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
-                  }`}
-                  title={isInQueue(music.$id) ? '已在佇列中' : '接下來播放'}
-                >
-                  <ListPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    const downloadUrl = getAppwriteDownloadUrl(music.file);
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = `${music.name}${music.language ? `-${music.language}` : ''}.mp3`;
-                    link.target = '_blank';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }}
-                  className="p-1.5 sm:p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all duration-200"
-                  title="下載"
-                >
-                  <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-                {/* 快取按鈕 */}
-                <button
-                  onClick={handleCacheDownload}
-                  disabled={isCached || musicCacheStatus?.downloading}
-                  className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 relative ${
-                    isCached || musicCacheStatus?.cached
-                      ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 cursor-default'
-                      : musicCacheStatus?.downloading
-                      ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-500 cursor-wait'
-                      : 'bg-gray-100 dark:bg-gray-700 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20'
-                  }`}
-                  title={
-                    isCached || musicCacheStatus?.cached
-                      ? '已快取'
-                      : musicCacheStatus?.downloading
-                      ? `下載中 ${Math.round(musicCacheStatus.progress)}%`
-                      : '快取到本地'
-                  }
-                >
-                  {isCached || musicCacheStatus?.cached ? (
-                    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  ) : (
-                    <HardDrive className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  )}
-                  {musicCacheStatus?.downloading && (
-                    <span className="absolute -bottom-1 -right-1 text-[8px] bg-cyan-600 text-white rounded-full px-1">
-                      {Math.round(musicCacheStatus.progress)}%
-                    </span>
-                  )}
-                </button>
-              </>
-            )}
-            <button
-              onClick={onEdit}
-              className="p-1.5 sm:p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
-              title="編輯"
-            >
-              <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-            <button
-              onClick={onDelete}
-              className="p-1.5 sm:p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
-              title="刪除"
-            >
-              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* 播放器 - 獨立一行 */}
-        {music.file ? (
-          <div className="mt-2 sm:mt-3">
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-1.5 sm:p-2">
-              <PlyrPlayer 
-                type="audio"
-                src={getProxiedMediaUrl(music.file)}
-                loop={isLooping}
-                className="w-full"
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="mt-2 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500">
-            尚未上傳音樂檔案
-          </div>
-        )}
-      </div>
-
-      {/* 展開的詳細資訊 */}
-      {isExpanded && (
-        <div className="px-4 pb-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
-          {/* 大封面 */}
-          <div className="flex justify-center">
-            <div className="relative w-full max-w-sm aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 shadow-xl">
+      {/* 行內編輯模式 */}
+      {isInlineEditing ? (
+        <div className="p-3 sm:p-4">
+          <div className="flex items-start gap-3 sm:gap-4 mb-3">
+            {/* 封面 */}
+            <div className="relative w-14 h-14 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
               {music.cover ? (
                 <img src={music.cover} alt={music.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <MusicIcon className="text-white w-32 h-32 drop-shadow-2xl" />
+                  <MusicIcon className="text-white w-7 h-7 sm:w-10 sm:h-10 drop-shadow-lg" />
                 </div>
               )}
             </div>
-          </div>
-
-          {/* 標題和標籤 */}
-          <div className="text-center space-y-2">
-            <h3 className="font-bold text-xl text-gray-900 dark:text-gray-100">{music.name}</h3>
-            <div className="flex items-center justify-center gap-2 flex-wrap">
-              {music.category && (
-                <span className="px-3 py-1 text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full">
-                  {music.category}
-                </span>
-              )}
-              {music.language && (
-                <span className="px-3 py-1 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
-                  {music.language}
-                </span>
-              )}
-              <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                <Calendar className="w-3 h-3" />
-                {formatLocalDate(music.$createdAt)}
+            {/* 編輯表單 */}
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="text-sm font-semibold text-purple-600 dark:text-purple-400">編輯中</div>
+              <Input
+                placeholder="歌曲名稱"
+                value={inlineEditForm.name}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                className="h-9 rounded-lg text-sm"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="分類"
+                  value={inlineEditForm.category}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+                  className="h-9 rounded-lg text-sm"
+                />
+                <Input
+                  placeholder="語言"
+                  value={inlineEditForm.language}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, language: e.target.value })}
+                  className="h-9 rounded-lg text-sm"
+                />
+              </div>
+              <Textarea
+                placeholder="備註"
+                value={inlineEditForm.note}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+                className="rounded-lg text-sm h-16 resize-none"
+              />
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => onInlineSave(music.$id)}
+                  className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5"
+                >
+                  儲存
+                </Button>
+                <Button
+                  onClick={onInlineCancel}
+                  variant="outline"
+                  className="flex-1 gap-1 rounded-lg text-xs py-1.5"
+                >
+                  取消
+                </Button>
               </div>
             </div>
           </div>
+        </div>
+      ) : (
+        <>
+          {/* 主要內容區 - 手機垂直排列，桌面水平排列 */}
+          <div className="p-3 sm:p-4">
+            {/* 頂部：封面 + 資訊 + 操作按鈕 */}
+            <div className="flex items-start gap-3 sm:gap-4">
+              {/* 封面 - 手機較小 */}
+              <div className="relative w-14 h-14 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
+                {music.cover ? (
+                  <img src={music.cover} alt={music.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <MusicIcon className="text-white w-7 h-7 sm:w-10 sm:h-10 drop-shadow-lg" />
+                  </div>
+                )}
+              </div>
 
-          {/* 歌詞 */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2">
-              <MusicIcon className="w-4 h-4" />
-              歌詞
-            </h4>
-            {music.computedLyrics ? (
-              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                  {music.computedLyrics}
-                </p>
+              {/* 資訊區 */}
+              <div className="flex-1 min-w-0">
+                {/* 標題行：名稱 + 歌詞按鈕 */}
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <h3 className="font-bold text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate max-w-[120px] sm:max-w-none">{music.name}</h3>
+                  {/* 歌詞按鈕 */}
+                  {music.computedLyrics && (
+                    <button
+                      onClick={onToggleExpand}
+                      className={`px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded transition-all duration-200 flex items-center gap-0.5 sm:gap-1 flex-shrink-0 ${isExpanded
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+                        }`}
+                      title="顯示歌詞"
+                    >
+                      <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      <span>歌詞</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* 標籤 - 手機顯示在標題下方 */}
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  {music.category && (
+                    <span className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full">
+                      {music.category}
+                    </span>
+                  )}
+                  {music.language && (
+                    <span className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
+                      {music.language}
+                    </span>
+                  )}
+                  <span className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500">
+                    {formatLocalDate(music.$createdAt)}
+                  </span>
+                </div>
+              </div>
+
+              {/* 操作按鈕 - 手機更緊湊 */}
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                {music.file && (
+                  <>
+                    <button
+                      onClick={() => setIsLooping(!isLooping)}
+                      className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 ${isLooping
+                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      title={isLooping ? '重複播放' : '單次播放'}
+                    >
+                      <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        // Check if music is cached first
+                        const cachedUrl = await loadMusicFromCache(music.$id);
+                        const fileUrl = cachedUrl || getProxiedMediaUrl(music.file);
+
+                        const added = addToQueue({
+                          id: music.$id,
+                          name: music.name,
+                          language: music.language,
+                          file: fileUrl,
+                          cover: music.cover,
+                        });
+                        if (!added) {
+                          alert('該歌曲已在播放佇列中');
+                        } else if (cachedUrl) {
+                          console.log('已加入佇列（使用快取）:', music.name);
+                        }
+                      }}
+                      disabled={isInQueue(music.$id)}
+                      className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 ${isInQueue(music.$id)
+                        ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-100 dark:bg-gray-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+                        }`}
+                      title={isInQueue(music.$id) ? '已在佇列中' : '接下來播放'}
+                    >
+                      <ListPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const downloadUrl = getAppwriteDownloadUrl(music.file);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = `${music.name}${music.language ? `-${music.language}` : ''}.mp3`;
+                        link.target = '_blank';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="p-1.5 sm:p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all duration-200"
+                      title="下載"
+                    >
+                      <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
+                    {/* 快取按鈕 */}
+                    <button
+                      onClick={handleCacheDownload}
+                      disabled={isCached || musicCacheStatus?.downloading}
+                      className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 relative ${isCached || musicCacheStatus?.cached
+                        ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 cursor-default'
+                        : musicCacheStatus?.downloading
+                          ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-500 cursor-wait'
+                          : 'bg-gray-100 dark:bg-gray-700 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20'
+                        }`}
+                      title={
+                        isCached || musicCacheStatus?.cached
+                          ? '已快取'
+                          : musicCacheStatus?.downloading
+                            ? `下載中 ${Math.round(musicCacheStatus.progress)}%`
+                            : '快取到本地'
+                      }
+                    >
+                      {isCached || musicCacheStatus?.cached ? (
+                        <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      ) : (
+                        <HardDrive className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      )}
+                      {musicCacheStatus?.downloading && (
+                        <span className="absolute -bottom-1 -right-1 text-[8px] bg-cyan-600 text-white rounded-full px-1">
+                          {Math.round(musicCacheStatus.progress)}%
+                        </span>
+                      )}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => onInlineEdit ? onInlineEdit(music) : onEdit()}
+                  className="p-1.5 sm:p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
+                  title="編輯"
+                >
+                  <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+                <button
+                  onClick={onDelete}
+                  className="p-1.5 sm:p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
+                  title="刪除"
+                >
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* 播放器 - 獨立一行 */}
+            {music.file ? (
+              <div className="mt-2 sm:mt-3">
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-1.5 sm:p-2">
+                  <PlyrPlayer
+                    type="audio"
+                    src={getProxiedMediaUrl(music.file)}
+                    loop={isLooping}
+                    className="w-full"
+                  />
+                </div>
               </div>
             ) : (
-              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-8 text-center">
-                <p className="text-sm text-gray-400 dark:text-gray-500">沒有歌詞</p>
+              <div className="mt-2 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500">
+                尚未上傳音樂檔案
               </div>
             )}
           </div>
 
-          {/* 備註 */}
-          {music.note && (
-            <div>
-              <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2">備註</h4>
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                <p className="text-sm text-gray-700 dark:text-gray-300">{music.note}</p>
+          {/* 展開的詳細資訊 */}
+          {isExpanded && (
+            <div className="px-4 pb-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+              {/* 大封面 */}
+              <div className="flex justify-center">
+                <div className="relative w-full max-w-sm aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 shadow-xl">
+                  {music.cover ? (
+                    <img src={music.cover} alt={music.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <MusicIcon className="text-white w-32 h-32 drop-shadow-2xl" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 標題和標籤 */}
+              <div className="text-center space-y-2">
+                <h3 className="font-bold text-xl text-gray-900 dark:text-gray-100">{music.name}</h3>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  {music.category && (
+                    <span className="px-3 py-1 text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full">
+                      {music.category}
+                    </span>
+                  )}
+                  {music.language && (
+                    <span className="px-3 py-1 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
+                      {music.language}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                    <Calendar className="w-3 h-3" />
+                    {formatLocalDate(music.$createdAt)}
+                  </div>
+                </div>
+              </div>
+
+              {/* 歌詞 */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <MusicIcon className="w-4 h-4" />
+                  歌詞
+                </h4>
+                {music.computedLyrics ? (
+                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                      {music.computedLyrics}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-8 text-center">
+                    <p className="text-sm text-gray-400 dark:text-gray-500">沒有歌詞</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 備註 */}
+              {music.note && (
+                <div>
+                  <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2">備註</h4>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">{music.note}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 關閉按鈕 */}
+              <div className="flex justify-center">
+                <button
+                  onClick={onToggleExpand}
+                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors duration-200 flex items-center gap-2"
+                >
+                  <ChevronDown className="w-4 h-4 rotate-180" />
+                  收起
+                </button>
               </div>
             </div>
           )}
-
-          {/* 關閉按鈕 */}
-          <div className="flex justify-center">
-            <button
-              onClick={onToggleExpand}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors duration-200 flex items-center gap-2"
-            >
-              <ChevronDown className="w-4 h-4 rotate-180" />
-              收起
-            </button>
-          </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -1526,7 +1722,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
 
   // 預設語言選項
   const defaultLanguages = ['中文', '英語', '日語', '粵語', '韓語'];
-  
+
   // 獲取所有已存在的語言（包括自訂的）
   const existingLanguages = Array.from(new Set([
     ...defaultLanguages,
@@ -1535,7 +1731,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
 
   // 獲取所有已存在的分類
   const existingCategories = Array.from(new Set(existingMusic.map(m => m.category).filter(Boolean)));
-  
+
   // 獲取所有已存在的音樂名稱
   const existingNames = Array.from(new Set(existingMusic.map(m => m.name).filter(Boolean)));
 
@@ -1578,7 +1774,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     setUploadStatus('idle');
     setUploadProgress(0);
     setDuplicateWarning(''); // 清除之前的警告
-    
+
     // 儲存檔案並產生預覽 URL
     setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
@@ -1594,16 +1790,16 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     const hash = await calculateFileHash(file);
     setFileHash(hash);
     setFormData({ ...formData, name: autoName, hash });
-    
+
     // 檢查是否有重複的 hash
-    const duplicateMusic = existingMusic.find(m => 
+    const duplicateMusic = existingMusic.find(m =>
       m.hash === hash && (!music || m.$id !== music.$id)
     );
-    
+
     if (duplicateMusic) {
       setDuplicateWarning(`警告：此音樂與「${duplicateMusic.name}」相同，請勿重複上傳！`);
     }
-    
+
     // 模擬預覽載入完成
     setTimeout(() => setPreviewLoading(false), 300);
   };
@@ -1649,23 +1845,23 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     setCoverUploadStatus('idle');
     setCoverUploadProgress(0);
     setCoverDuplicateInfo(null);
-    
+
     // 儲存檔案並產生預覽 URL
     setSelectedCoverFile(file);
     const objectUrl = URL.createObjectURL(file);
     setCoverPreviewUrl(objectUrl);
-    
+
     // 計算封面圖 hash
     const hash = await calculateFileHash(file);
     setCoverFileHash(hash);
-    
+
     // 檢查是否有重複的封面圖（從 localStorage 取得已上傳封面圖的 hash map）
-    const coverHashMap = JSON.parse(localStorage.getItem('coverHashMap') || '{}');
+    const coverHashMap = JSON.parse(localStorage.getItem('coverHashMap') || '{ }');
     if (coverHashMap[hash]) {
       // 找到重複的封面圖，先檢查是否可訪問
       const existingUrl = coverHashMap[hash].url;
       const musicName = coverHashMap[hash].musicName || '其他音樂';
-      
+
       try {
         // 使用代理 URL 來檢查圖片是否可訪問
         const proxiedUrl = getProxiedMediaUrl(existingUrl);
@@ -1689,7 +1885,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
         const fileName = file.name.replace(/[^a-zA-Z0-9]/g, '');
         return m.cover.includes(fileName);
       });
-      
+
       if (existingWithSameCover) {
         // 檢查現有封面是否可訪問
         try {
@@ -1698,10 +1894,10 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
           const response = await fetch(proxiedUrl, { method: 'HEAD' });
           if (response.ok) {
             // 圖片可訪問，顯示重複警告
-            setCoverDuplicateInfo({ 
-              found: true, 
-              existingUrl: existingWithSameCover.cover, 
-              musicName: existingWithSameCover.name 
+            setCoverDuplicateInfo({
+              found: true,
+              existingUrl: existingWithSameCover.cover,
+              musicName: existingWithSameCover.name
             });
           } else {
             // 圖片不可訪問，允許重新上傳
@@ -1713,7 +1909,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
         }
       }
     }
-    
+
     setCoverPreviewLoading(false);
   };
 
@@ -1781,10 +1977,10 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
           try {
             const { url } = await uploadCoverFileToAppwrite(selectedCoverFile);
             finalFormData.cover = url;
-            
+
             // 儲存封面圖 hash 到 localStorage
             if (coverFileHash) {
-              const coverHashMap = JSON.parse(localStorage.getItem('coverHashMap') || '{}');
+              const coverHashMap = JSON.parse(localStorage.getItem('coverHashMap') || '{ }');
               coverHashMap[coverFileHash] = { url, musicName: finalFormData.name };
               localStorage.setItem('coverHashMap', JSON.stringify(coverHashMap));
             }
@@ -1794,8 +1990,8 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
         }
       }
 
-      const apiUrl = music 
-        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.MUSIC}/${music.$id}`) 
+      const apiUrl = music
+        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.MUSIC}/${music.$id}`)
         : addAppwriteConfigToUrl(API_ENDPOINTS.MUSIC);
       const method = music ? 'PUT' : 'POST';
 
@@ -2241,9 +2437,9 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
             <Button type="button" onClick={onClose} className="flex-1 bg-gray-500 hover:bg-gray-600 rounded-xl">
               取消
             </Button>
-            <Button 
-              type="submit" 
-              disabled={submitting || !!duplicateWarning} 
+            <Button
+              type="submit"
+              disabled={submitting || !!duplicateWarning}
               className="flex-1 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? '處理中...' : (music ? '更新' : '新增')}

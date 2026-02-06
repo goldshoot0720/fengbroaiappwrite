@@ -31,6 +31,10 @@ export default function SubscriptionManagement() {
   const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState<SubscriptionFormData>(INITIAL_FORM);
+
   // 取得已存在的不重複服務名稱
   const existingNames = useMemo(() => {
     const names = subscriptions.map(s => s.name).filter(Boolean);
@@ -53,7 +57,7 @@ export default function SubscriptionManagement() {
   const filteredSubscriptions = useMemo(() => {
     if (!searchQuery.trim()) return subscriptions;
     const query = searchQuery.toLowerCase();
-    return subscriptions.filter(sub => 
+    return subscriptions.filter(sub =>
       sub.name?.toLowerCase().includes(query) ||
       sub.site?.toLowerCase().includes(query) ||
       sub.account?.toLowerCase().includes(query) ||
@@ -186,7 +190,7 @@ export default function SubscriptionManagement() {
         ...form,
         price: form.price !== undefined && form.price !== null ? form.price : 0
       };
-      
+
       if (editingId) {
         await updateSubscription(editingId, formDataToSend);
       } else {
@@ -212,7 +216,7 @@ export default function SubscriptionManagement() {
   };
 
   const handleEdit = (sub: Subscription) => {
-    setForm({ 
+    setForm({
       name: sub.name,
       site: sub.site,
       price: sub.price !== undefined && sub.price !== null && sub.price !== 0 ? sub.price : 0,
@@ -226,6 +230,45 @@ export default function SubscriptionManagement() {
     setIsFormOpen(true);
     // 滾動到頁面頂部讓用戶看到編輯表單
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // 開始行內編輯
+  const handleInlineEdit = (sub: Subscription) => {
+    setInlineEditForm({
+      name: sub.name,
+      site: sub.site,
+      price: sub.price !== undefined && sub.price !== null && sub.price !== 0 ? sub.price : 0,
+      nextdate: sub.nextdate ? formatDate(sub.nextdate) : "",
+      note: sub.note || "",
+      account: sub.account || "",
+      currency: sub.currency || "TWD",
+      continue: sub.continue !== false
+    });
+    setInlineEditingId(sub.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async () => {
+    if (!inlineEditingId) return;
+    try {
+      const formDataToSend = {
+        ...inlineEditForm,
+        price: inlineEditForm.price !== undefined && inlineEditForm.price !== null ? inlineEditForm.price : 0
+      };
+      await updateSubscription(inlineEditingId, formDataToSend);
+      setInlineEditingId(null);
+      setInlineEditForm(INITIAL_FORM);
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      const errorMessage = error instanceof Error ? error.message : '更新失敗，請稍後再試';
+      alert(errorMessage);
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm(INITIAL_FORM);
   };
 
   const handleCopy = (sub: Subscription) => {
@@ -247,12 +290,12 @@ export default function SubscriptionManagement() {
   const handleExtend30Days = () => {
     if (!editingId) return;
     if (!form.nextdate) return; // 如果沒有日期，不執行操作
-    
+
     // 計算新日期 (+30天)
     const currentDate = new Date(form.nextdate);
     currentDate.setDate(currentDate.getDate() + 30);
     const newDate = currentDate.toISOString().split('T')[0];
-    
+
     // 更新表單中的日期
     setForm(prev => ({ ...prev, nextdate: newDate }));
   };
@@ -260,12 +303,12 @@ export default function SubscriptionManagement() {
   const handleReduce30Days = () => {
     if (!editingId) return;
     if (!form.nextdate) return; // 如果沒有日期，不執行操作
-    
+
     // 計算新日期 (-30天)
     const currentDate = new Date(form.nextdate);
     currentDate.setDate(currentDate.getDate() - 30);
     const newDate = currentDate.toISOString().split('T')[0];
-    
+
     // 更新表單中的日期
     setForm(prev => ({ ...prev, nextdate: newDate }));
   };
@@ -290,7 +333,7 @@ export default function SubscriptionManagement() {
   };
 
   // CSV 匯入/匯出功能
-  const [importPreview, setImportPreview] = useState<{data: SubscriptionFormData[], errors: string[]} | null>(null);
+  const [importPreview, setImportPreview] = useState<{ data: SubscriptionFormData[], errors: string[] } | null>(null);
   const [importFormat, setImportFormat] = useState<'appwrite' | 'supabase' | null>(null);
   const [pendingCSVText, setPendingCSVText] = useState<string>('');
   const [importing, setImporting] = useState(false);
@@ -326,14 +369,14 @@ export default function SubscriptionManagement() {
   const parseFullCSV = (text: string): string[][] => {
     const rows: string[][] = [];
     const cleanText = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    
+
     let currentRow: string[] = [];
     let currentField = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < cleanText.length; i++) {
       const char = cleanText[i];
-      
+
       if (inQuotes) {
         if (char === '"') {
           if (cleanText[i + 1] === '"') {
@@ -369,7 +412,7 @@ export default function SubscriptionManagement() {
         }
       }
     }
-    
+
     // 處理最後一行
     if (currentField || currentRow.length > 0) {
       currentRow.push(currentField);
@@ -377,7 +420,7 @@ export default function SubscriptionManagement() {
         rows.push(currentRow);
       }
     }
-    
+
     return rows;
   };
 
@@ -454,17 +497,17 @@ export default function SubscriptionManagement() {
   };
 
   // 解析 CSV
-  const parseCSV = (text: string): {data: SubscriptionFormData[], errors: string[]} => {
+  const parseCSV = (text: string): { data: SubscriptionFormData[], errors: string[] } => {
     const errors: string[] = [];
     const data: SubscriptionFormData[] = [];
-      
+
     const rows = parseFullCSV(text);
-      
+
     if (rows.length < 2) {
       errors.push('CSV 檔案至少需要表頭和一行資料');
       return { data, errors };
     }
-  
+
     const headerValues = rows[0].map(h => h.trim());
     if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
       errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
@@ -472,7 +515,7 @@ export default function SubscriptionManagement() {
       else errors.push(`→ 少了 ${EXPECTED_COLUMN_COUNT - headerValues.length} 欄`);
       return { data, errors };
     }
-  
+
     for (let i = 0; i < CSV_HEADERS.length; i++) {
       if (headerValues[i] !== CSV_HEADERS[i]) {
         errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${CSV_HEADERS[i]}"，實際 "${headerValues[i]}"`);
@@ -480,7 +523,7 @@ export default function SubscriptionManagement() {
       }
     }
     if (errors.length > 0) return { data, errors };
-  
+
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
       const lineNum = i + 1;
@@ -542,10 +585,10 @@ export default function SubscriptionManagement() {
 
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
-    
+
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
@@ -560,10 +603,10 @@ export default function SubscriptionManagement() {
         successCount++;
       } catch { failCount++; }
     }
-    
+
     // 匯入完成後統一重新載入一次
     await loadSubscriptions();
-    
+
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
@@ -727,7 +770,7 @@ export default function SubscriptionManagement() {
               {importing ? (
                 <div className="flex items-center gap-3">
                   <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     />
@@ -756,12 +799,12 @@ export default function SubscriptionManagement() {
               {/* 服務名稱：可輸入或從下拉選單選擇 */}
               <div className="flex gap-2">
                 <div className="flex-1 space-y-1">
-                  <Input 
-                    placeholder="服務名稱 / Service Name" 
-                    value={form.name} 
-                    onChange={(e) => setForm({ ...form, name: e.target.value })} 
-                    required 
-                    className="h-12 rounded-xl w-full" 
+                  <Input
+                    placeholder="服務名稱 / Service Name"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    required
+                    className="h-12 rounded-xl w-full"
                   />
                   <div className="px-1 h-4">
                     {form.name ? (
@@ -772,8 +815,8 @@ export default function SubscriptionManagement() {
                   </div>
                 </div>
                 {existingNames.length > 0 && (
-                  <Select 
-                    value="" 
+                  <Select
+                    value=""
                     onValueChange={(value) => {
                       if (value) {
                         setForm({ ...form, name: value });
@@ -794,12 +837,12 @@ export default function SubscriptionManagement() {
               {/* 網站 URL：可輸入或從下拉選單選擇 */}
               <div className="flex gap-2">
                 <div className="flex-1 space-y-1">
-                  <Input 
-                    placeholder="網站 URL / Website URL" 
-                    type="url" 
-                    value={form.site || ""} 
-                    onChange={(e) => setForm({ ...form, site: e.target.value })} 
-                    className="h-12 rounded-xl w-full" 
+                  <Input
+                    placeholder="網站 URL / Website URL"
+                    type="url"
+                    value={form.site || ""}
+                    onChange={(e) => setForm({ ...form, site: e.target.value })}
+                    className="h-12 rounded-xl w-full"
                   />
                   <div className="px-1 h-4">
                     {form.site ? (
@@ -810,8 +853,8 @@ export default function SubscriptionManagement() {
                   </div>
                 </div>
                 {existingSites.length > 0 && (
-                  <Select 
-                    value="" 
+                  <Select
+                    value=""
                     onValueChange={(value) => {
                       if (value) {
                         setForm({ ...form, site: value });
@@ -830,14 +873,14 @@ export default function SubscriptionManagement() {
                 )}
               </div>
               <div className="space-y-1">
-                <Input 
-                  placeholder="價錢 / Price" 
-                  type="number" 
-                  min="0" 
+                <Input
+                  placeholder="價錢 / Price"
+                  type="number"
+                  min="0"
                   step="0.01"
-                  value={form.price ?? ""} 
-                  onChange={(e) => setForm({ ...form, price: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0 })} 
-                  className="h-12 rounded-xl" 
+                  value={form.price ?? ""}
+                  onChange={(e) => setForm({ ...form, price: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0 })}
+                  className="h-12 rounded-xl"
                 />
                 <div className="px-1 h-4">
                   {(form.price !== undefined && form.price !== null && form.price > 0) ? (
@@ -862,16 +905,16 @@ export default function SubscriptionManagement() {
               </Select>
               <div className="space-y-1">
                 <div className="flex gap-1 items-center">
-                  <Input 
-                    placeholder="下次付款日期 / Next Payment Date" 
-                    type="date" 
-                    value={form.nextdate || ""} 
-                    onChange={(e) => setForm({ ...form, nextdate: e.target.value })} 
-                    className="h-12 rounded-xl flex-1" 
+                  <Input
+                    placeholder="下次付款日期 / Next Payment Date"
+                    type="date"
+                    value={form.nextdate || ""}
+                    onChange={(e) => setForm({ ...form, nextdate: e.target.value })}
+                    className="h-12 rounded-xl flex-1"
                   />
                   {form.nextdate && (
                     <div className="flex flex-col gap-0.5">
-                      <button 
+                      <button
                         type="button"
                         onClick={() => {
                           if (!form.nextdate) return;
@@ -884,7 +927,7 @@ export default function SubscriptionManagement() {
                       >
                         <Plus size={14} />
                       </button>
-                      <button 
+                      <button
                         type="button"
                         onClick={() => {
                           if (!form.nextdate) return;
@@ -911,11 +954,11 @@ export default function SubscriptionManagement() {
 
               <div className="flex gap-2">
                 <div className="flex-1 space-y-1">
-                  <Input 
-                    placeholder="帳號 / Account" 
-                    value={form.account || ""} 
-                    onChange={(e) => setForm({ ...form, account: e.target.value })} 
-                    className="h-12 rounded-xl w-full" 
+                  <Input
+                    placeholder="帳號 / Account"
+                    value={form.account || ""}
+                    onChange={(e) => setForm({ ...form, account: e.target.value })}
+                    className="h-12 rounded-xl w-full"
                   />
                   <div className="px-1 h-4">
                     {form.account ? (
@@ -926,8 +969,8 @@ export default function SubscriptionManagement() {
                   </div>
                 </div>
                 {existingAccounts.length > 0 && (
-                  <Select 
-                    value="" 
+                  <Select
+                    value=""
                     onValueChange={(value) => {
                       if (value) {
                         setForm({ ...form, account: value });
@@ -946,20 +989,20 @@ export default function SubscriptionManagement() {
                 )}
               </div>
               <label className="flex items-center gap-2 h-12 px-3 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-                <input 
-                  type="checkbox" 
-                  checked={form.continue !== false} 
-                  onChange={(e) => setForm({ ...form, continue: e.target.checked })} 
+                <input
+                  type="checkbox"
+                  checked={form.continue !== false}
+                  onChange={(e) => setForm({ ...form, continue: e.target.checked })}
                   className="w-5 h-5 rounded"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">續訂</span>
               </label>
             </FormGrid>
             <div className="space-y-1">
-              <Textarea 
-                placeholder="備註 / Note" 
-                value={form.note || ""} 
-                onChange={(e) => setForm({ ...form, note: e.target.value })} 
+              <Textarea
+                placeholder="備註 / Note"
+                value={form.note || ""}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
                 className="rounded-xl min-h-[100px] resize-y w-full"
                 rows={3}
               />
@@ -1038,6 +1081,141 @@ export default function SubscriptionManagement() {
                   {filteredSubscriptions.map((sub) => {
                     const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getSubscriptionExpiryInfo(sub);
                     const rowClass = isExpired ? "bg-red-50 dark:bg-red-900/20" : isExpiringSoon ? "bg-yellow-50 dark:bg-yellow-900/20" : "";
+                    const isEditing = inlineEditingId === sub.$id;
+
+                    if (isEditing) {
+                      // 行內編輯模式
+                      return (
+                        <TableRow key={sub.$id} className="bg-blue-50 dark:bg-blue-900/20">
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-14 shrink-0">名稱</span>
+                                <Input
+                                  placeholder="服務名稱"
+                                  value={inlineEditForm.name}
+                                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                                  className="h-9 rounded-lg text-sm"
+                                  required
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-14 shrink-0">網站</span>
+                                <Input
+                                  placeholder="網站 URL"
+                                  type="url"
+                                  value={inlineEditForm.site || ""}
+                                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, site: e.target.value })}
+                                  className="h-9 rounded-lg text-sm"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-14 shrink-0">帳號</span>
+                                <Input
+                                  placeholder="帳號"
+                                  value={inlineEditForm.account || ""}
+                                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
+                                  className="h-9 rounded-lg text-sm"
+                                />
+                              </div>
+                              <div className="flex items-start gap-2">
+                                <span className="text-xs text-gray-500 w-14 shrink-0 pt-2">備註</span>
+                                <Textarea
+                                  placeholder="備註"
+                                  value={inlineEditForm.note || ""}
+                                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+                                  className="rounded-lg text-sm min-h-[60px] resize-y"
+                                  rows={2}
+                                />
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="date"
+                                value={inlineEditForm.nextdate || ""}
+                                onChange={(e) => setInlineEditForm({ ...inlineEditForm, nextdate: e.target.value })}
+                                className="h-9 rounded-lg text-sm"
+                              />
+                              <div className="flex flex-col gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!inlineEditForm.nextdate) return;
+                                    const d = new Date(inlineEditForm.nextdate);
+                                    d.setDate(d.getDate() + 30);
+                                    setInlineEditForm({ ...inlineEditForm, nextdate: d.toISOString().split('T')[0] });
+                                  }}
+                                  className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 rounded transition-colors"
+                                  title="+30天"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!inlineEditForm.nextdate) return;
+                                    const d = new Date(inlineEditForm.nextdate);
+                                    d.setDate(d.getDate() - 30);
+                                    setInlineEditForm({ ...inlineEditForm, nextdate: d.toISOString().split('T')[0] });
+                                  }}
+                                  className="p-1 hover:bg-orange-100 dark:hover:bg-orange-800 text-orange-600 rounded transition-colors"
+                                  title="-30天"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-2">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="價錢"
+                                value={inlineEditForm.price ?? ""}
+                                onChange={(e) => setInlineEditForm({ ...inlineEditForm, price: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0 })}
+                                className="h-9 rounded-lg text-sm w-24"
+                              />
+                              <Select value={inlineEditForm.currency || "TWD"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, currency: value })}>
+                                <SelectTrigger className="h-9 rounded-lg text-sm w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="TWD">TWD</SelectItem>
+                                  <SelectItem value="USD">USD</SelectItem>
+                                  <SelectItem value="EUR">EUR</SelectItem>
+                                  <SelectItem value="JPY">JPY</SelectItem>
+                                  <SelectItem value="CNY">CNY</SelectItem>
+                                  <SelectItem value="HKD">HKD</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={inlineEditForm.continue !== false}
+                                onChange={(e) => setInlineEditForm({ ...inlineEditForm, continue: e.target.checked })}
+                                className="w-4 h-4 rounded"
+                              />
+                              <span className="text-sm">{inlineEditForm.continue !== false ? "續訂" : "不續"}</span>
+                            </label>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button type="button" size="sm" onClick={handleInlineSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">儲存</Button>
+                              <Button type="button" size="sm" variant="outline" onClick={cancelInlineEdit} className="rounded-xl">取消</Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+
+                    // 一般顯示模式
                     return (
                       <TableRow key={sub.$id} className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/50 ${rowClass}`}>
                         <TableCell className="font-medium">
@@ -1098,7 +1276,7 @@ export default function SubscriptionManagement() {
                         <TableCell>
                           <div className="flex gap-2">
                             <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(sub)} className="rounded-xl">編輯</Button>
+                            <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-xl">編輯</Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1113,6 +1291,121 @@ export default function SubscriptionManagement() {
                 {filteredSubscriptions.map((sub) => {
                   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getSubscriptionExpiryInfo(sub);
                   const highlight = isExpired ? "expired" : isExpiringSoon ? "warning" : "normal";
+                  const isEditing = inlineEditingId === sub.$id;
+
+                  if (isEditing) {
+                    // 行內編輯模式 (手機版)
+                    return (
+                      <DataCardItem key={sub.$id} highlight="normal">
+                        <div className="space-y-3">
+                          <Input
+                            placeholder="服務名稱"
+                            value={inlineEditForm.name}
+                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                            className="h-10 rounded-lg"
+                            required
+                          />
+                          <Input
+                            placeholder="網站 URL"
+                            type="url"
+                            value={inlineEditForm.site || ""}
+                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, site: e.target.value })}
+                            className="h-10 rounded-lg"
+                          />
+                          <Input
+                            placeholder="帳號"
+                            value={inlineEditForm.account || ""}
+                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
+                            className="h-10 rounded-lg"
+                          />
+                          <div className="flex gap-2">
+                            <div className="flex-1 flex items-center gap-1">
+                              <Input
+                                type="date"
+                                value={inlineEditForm.nextdate || ""}
+                                onChange={(e) => setInlineEditForm({ ...inlineEditForm, nextdate: e.target.value })}
+                                className="h-10 rounded-lg flex-1"
+                              />
+                              <div className="flex flex-col gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!inlineEditForm.nextdate) return;
+                                    const d = new Date(inlineEditForm.nextdate);
+                                    d.setDate(d.getDate() + 30);
+                                    setInlineEditForm({ ...inlineEditForm, nextdate: d.toISOString().split('T')[0] });
+                                  }}
+                                  className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 rounded transition-colors"
+                                  title="+30天"
+                                >
+                                  <Plus size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!inlineEditForm.nextdate) return;
+                                    const d = new Date(inlineEditForm.nextdate);
+                                    d.setDate(d.getDate() - 30);
+                                    setInlineEditForm({ ...inlineEditForm, nextdate: d.toISOString().split('T')[0] });
+                                  }}
+                                  className="p-1 hover:bg-orange-100 dark:hover:bg-orange-800 text-orange-600 rounded transition-colors"
+                                  title="-30天"
+                                >
+                                  <Minus size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="價錢"
+                              value={inlineEditForm.price ?? ""}
+                              onChange={(e) => setInlineEditForm({ ...inlineEditForm, price: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0 })}
+                              className="h-10 rounded-lg flex-1"
+                            />
+                            <Select value={inlineEditForm.currency || "TWD"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, currency: value })}>
+                              <SelectTrigger className="h-10 rounded-lg w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="TWD">TWD</SelectItem>
+                                <SelectItem value="USD">USD</SelectItem>
+                                <SelectItem value="EUR">EUR</SelectItem>
+                                <SelectItem value="JPY">JPY</SelectItem>
+                                <SelectItem value="CNY">CNY</SelectItem>
+                                <SelectItem value="HKD">HKD</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Textarea
+                            placeholder="備註"
+                            value={inlineEditForm.note || ""}
+                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+                            className="rounded-lg min-h-[60px] resize-y"
+                            rows={2}
+                          />
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={inlineEditForm.continue !== false}
+                              onChange={(e) => setInlineEditForm({ ...inlineEditForm, continue: e.target.checked })}
+                              className="w-4 h-4 rounded"
+                            />
+                            <span className="text-sm">{inlineEditForm.continue !== false ? "續訂" : "不續"}</span>
+                          </label>
+                          <div className="flex gap-2 pt-2">
+                            <Button type="button" size="sm" onClick={handleInlineSave} className="flex-1 rounded-xl bg-green-500 hover:bg-green-600 text-white">儲存</Button>
+                            <Button type="button" size="sm" variant="outline" onClick={cancelInlineEdit} className="flex-1 rounded-xl">取消</Button>
+                          </div>
+                        </div>
+                      </DataCardItem>
+                    );
+                  }
+
+                  // 一般顯示模式
                   return (
                     <DataCardItem key={sub.$id} highlight={highlight}>
                       <div className="space-y-3">
@@ -1166,7 +1459,7 @@ export default function SubscriptionManagement() {
                         </div>
                         <div className="flex gap-2 pt-2">
                           <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(sub)} className="flex-1 rounded-xl">編輯</Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="flex-1 rounded-xl">編輯</Button>
                         </div>
                       </div>
                     </DataCardItem>

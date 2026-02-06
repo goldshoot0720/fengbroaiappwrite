@@ -20,26 +20,26 @@ import JSZip from "jszip";
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
   if (typeof window === 'undefined') return url;
-  
+
   const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT');
   const projectId = localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID');
   const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID');
   const apiKey = localStorage.getItem('APPWRITE_API_KEY');
   const bucketId = localStorage.getItem('APPWRITE_BUCKET_ID');
-  
+
   if (!endpoint && !projectId && !databaseId) {
     return url;
   }
-  
+
   const separator = url.includes('?') ? '&' : '?';
   const params = new URLSearchParams();
-  
+
   if (endpoint) params.set('_endpoint', endpoint);
   if (projectId) params.set('_project', projectId);
   if (databaseId) params.set('_database', databaseId);
   if (apiKey) params.set('_key', apiKey);
   if (bucketId) params.set('_bucket', bucketId);
-  
+
   const paramString = params.toString();
   return paramString ? `${url}${separator}${paramString}` : url;
 }
@@ -56,11 +56,20 @@ export default function ImageGallery() {
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 });
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState({
+    name: '',
+    note: '',
+    category: '',
+    ref: '',
+  });
+
   // 搜尋過濾
   const filteredImages = useMemo(() => {
     if (!searchQuery.trim()) return images;
     const query = searchQuery.toLowerCase();
-    return images.filter(image => 
+    return images.filter(image =>
       image.name?.toLowerCase().includes(query) ||
       image.note?.toLowerCase().includes(query) ||
       image.category?.toLowerCase().includes(query)
@@ -80,6 +89,48 @@ export default function ImageGallery() {
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingImage(null);
+  };
+
+  // 開始行內編輯
+  const handleInlineEdit = (image: ImageData) => {
+    setInlineEditForm({
+      name: image.name || '',
+      note: image.note || '',
+      category: image.category || '',
+      ref: image.ref || '',
+    });
+    setInlineEditingId(image.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async (imageId: string) => {
+    if (!inlineEditingId) return;
+    try {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${imageId}`);
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineEditForm.name,
+          note: inlineEditForm.note,
+          category: inlineEditForm.category,
+          ref: inlineEditForm.ref,
+        }),
+      });
+      if (!response.ok) throw new Error('更新失敗');
+      loadImages(true);
+      setInlineEditingId(null);
+      setInlineEditForm({ name: '', note: '', category: '', ref: '' });
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm({ name: '', note: '', category: '', ref: '' });
   };
 
   // Export all images as ZIP
@@ -117,21 +168,21 @@ export default function ImageGallery() {
           // Fetch image as blob
           const response = await fetch(image.file);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          
+
           const blob = await response.blob();
-          
+
           // Generate filename with category
           // Use filetype field if available, otherwise extract from URL
           const fileExtension = image.filetype || image.file.split('.').pop()?.split('?')[0] || 'jpg';
           const sanitizedName = image.name.replace(/[/\\?%*:|"<>]/g, '-');
           const categoryPrefix = image.category ? `[${image.category}]_` : '';
-          
+
           // Check if name already has the correct extension to avoid double extension
           const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
-          const filename = nameHasExtension 
+          const filename = nameHasExtension
             ? `${categoryPrefix}${sanitizedName}`
             : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
-          
+
           // Add to zip
           imageFolder?.file(filename, blob);
           successCount++;
@@ -144,7 +195,7 @@ export default function ImageGallery() {
       setExportProgress({ current: images.length, total: images.length, status: '正在壓縮...' });
 
       // Generate ZIP file
-      const zipBlob = await zip.generateAsync({ 
+      const zipBlob = await zip.generateAsync({
         type: 'blob',
         compression: 'DEFLATE',
         compressionOptions: { level: 6 }
@@ -201,11 +252,11 @@ export default function ImageGallery() {
 
     try {
       const zip = await JSZip.loadAsync(file);
-      
+
       // Find all image files in ZIP
       const imageFiles: { name: string; file: JSZip.JSZipObject }[] = [];
       const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-      
+
       zip.forEach((relativePath, zipEntry) => {
         if (!zipEntry.dir) {
           const ext = relativePath.split('.').pop()?.toLowerCase() || '';
@@ -234,7 +285,7 @@ export default function ImageGallery() {
       for (let i = 0; i < imageFiles.length; i++) {
         const imageFile = imageFiles[i];
         const fileName = imageFile.name.split('/').pop() || imageFile.name;
-        
+
         setImportProgress({
           current: i + 1,
           total: imageFiles.length,
@@ -250,9 +301,9 @@ export default function ImageGallery() {
 
           // Create blob and file
           const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
-          const mimeType = ext === 'png' ? 'image/png' : 
-                          ext === 'gif' ? 'image/gif' : 
-                          ext === 'webp' ? 'image/webp' : 'image/jpeg';
+          const mimeType = ext === 'png' ? 'image/png' :
+            ext === 'gif' ? 'image/gif' :
+              ext === 'webp' ? 'image/webp' : 'image/jpeg';
           const blob = new Blob([arrayBuffer], { type: mimeType });
           const imageFileObj = new File([blob], fileName, { type: mimeType });
 
@@ -310,7 +361,7 @@ export default function ImageGallery() {
       });
 
       alert(`匯入完成！\n成功: ${successCount} 張\n失敗: ${failedCount} 張`);
-      
+
       if (successCount > 0) {
         loadImages(true);
       }
@@ -337,8 +388,8 @@ export default function ImageGallery() {
         showAccountLabel={true}
         action={
           <div className="flex gap-2 flex-wrap">
-            <Button 
-              onClick={handleExportZip} 
+            <Button
+              onClick={handleExportZip}
               disabled={loading || exporting || importing || images.length === 0}
               className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50"
               title="匯出所有圖片為 ZIP"
@@ -346,8 +397,8 @@ export default function ImageGallery() {
               <Download size={16} className={exporting ? "animate-bounce" : ""} />
               <span className="hidden sm:inline">{exporting ? '匯出中...' : '匯出 ZIP'}</span>
             </Button>
-            <Button 
-              onClick={() => importInputRef.current?.click()} 
+            <Button
+              onClick={() => importInputRef.current?.click()}
               disabled={loading || exporting || importing}
               className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl disabled:opacity-50"
               title="從 ZIP 匯入圖片"
@@ -391,7 +442,7 @@ export default function ImageGallery() {
                   <span>{exportProgress.current} / {exportProgress.total}</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                  <div 
+                  <div
                     className="bg-purple-600 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
                   ></div>
@@ -417,7 +468,7 @@ export default function ImageGallery() {
                   <span>{importProgress.current} / {importProgress.total}</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                  <div 
+                  <div
                     className="bg-orange-600 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
                   ></div>
@@ -458,9 +509,21 @@ export default function ImageGallery() {
       {filteredImages.length === 0 && images.length > 0 ? (
         <EmptyState icon={<Search className="text-gray-400" size={32} />} title="無搜尋結果" description={`找不到「${searchQuery}」相關的圖片`} />
       ) : (
-        <ImageGrid images={filteredImages} loading={loading} onSelectImage={setSelectedImage} onEdit={handleEdit} onRefresh={() => loadImages(true)} />
+        <ImageGrid
+          images={filteredImages}
+          loading={loading}
+          onSelectImage={setSelectedImage}
+          onEdit={handleEdit}
+          onRefresh={() => loadImages(true)}
+          inlineEditingId={inlineEditingId}
+          inlineEditForm={inlineEditForm}
+          setInlineEditForm={setInlineEditForm}
+          onInlineEdit={handleInlineEdit}
+          onInlineSave={handleInlineSave}
+          onInlineCancel={cancelInlineEdit}
+        />
       )}
-      
+
       {selectedImage && (
         <ImagePreviewModal image={selectedImage} onClose={() => setSelectedImage(null)} />
       )}
@@ -485,7 +548,21 @@ function ImageStats({ images }: { images: ImageData[] }) {
 }
 
 // 圖片網格
-function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh }: { images: ImageData[]; loading: boolean; onSelectImage: (img: ImageData) => void; onEdit: (img: ImageData) => void; onRefresh: () => void }) {
+interface ImageGridProps {
+  images: ImageData[];
+  loading: boolean;
+  onSelectImage: (img: ImageData) => void;
+  onEdit: (img: ImageData) => void;
+  onRefresh: () => void;
+  inlineEditingId: string | null;
+  inlineEditForm: { name: string; note: string; category: string; ref: string };
+  setInlineEditForm: (form: { name: string; note: string; category: string; ref: string }) => void;
+  onInlineEdit: (img: ImageData) => void;
+  onInlineSave: (imageId: string) => void;
+  onInlineCancel: () => void;
+}
+
+function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: ImageGridProps) {
   if (loading) return <FullPageLoading text="載入圖片中..." />;
   if (images.length === 0) return <EmptyState icon={<ImageIcon className="text-gray-400" size={32} />} title="沒有找到圖片" />;
 
@@ -493,7 +570,19 @@ function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh }: { imag
     <DataCard className="p-3 sm:p-4 lg:p-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
         {images.map((image) => (
-          <ImageCard key={image.$id} image={image} onSelect={() => onSelectImage(image)} onEdit={() => onEdit(image)} onRefresh={onRefresh} />
+          <ImageCard
+            key={image.$id}
+            image={image}
+            onSelect={() => onSelectImage(image)}
+            onEdit={() => onEdit(image)}
+            onRefresh={onRefresh}
+            isEditing={inlineEditingId === image.$id}
+            inlineEditForm={inlineEditForm}
+            setInlineEditForm={setInlineEditForm}
+            onInlineEdit={onInlineEdit}
+            onInlineSave={onInlineSave}
+            onInlineCancel={onInlineCancel}
+          />
         ))}
       </div>
     </DataCard>
@@ -501,7 +590,20 @@ function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh }: { imag
 }
 
 // 單張圖片卡片
-function ImageCard({ image, onSelect, onEdit, onRefresh }: { image: ImageData; onSelect: () => void; onEdit: () => void; onRefresh: () => void }) {
+interface ImageCardProps {
+  image: ImageData;
+  onSelect: () => void;
+  onEdit: () => void;
+  onRefresh: () => void;
+  isEditing: boolean;
+  inlineEditForm: { name: string; note: string; category: string; ref: string };
+  setInlineEditForm: (form: { name: string; note: string; category: string; ref: string }) => void;
+  onInlineEdit: (img: ImageData) => void;
+  onInlineSave: (imageId: string) => void;
+  onInlineCancel: () => void;
+}
+
+function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: ImageCardProps) {
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -526,16 +628,16 @@ function ImageCard({ image, onSelect, onEdit, onRefresh }: { image: ImageData; o
   return (
     <div className="group relative bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
       {/* 圖片預覽區 */}
-      <div 
-        className="relative aspect-video bg-gray-100 dark:bg-gray-700 overflow-hidden cursor-pointer" 
+      <div
+        className="relative aspect-video bg-gray-100 dark:bg-gray-700 overflow-hidden cursor-pointer"
         onClick={onSelect}
       >
         {image.file ? (
-          <img 
-            src={image.file} 
-            alt={image.name} 
-            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
-            loading="lazy" 
+          <img
+            src={image.file}
+            alt={image.name}
+            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 text-center">
@@ -546,9 +648,9 @@ function ImageCard({ image, onSelect, onEdit, onRefresh }: { image: ImageData; o
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        
+
         {/* 分類標籤 */}
-        {image.category && (
+        {!isEditing && image.category && (
           <div className="absolute top-2 left-2">
             <span className="px-2 py-1 text-xs font-medium bg-blue-500/90 text-white rounded-md backdrop-blur-sm">
               {image.category}
@@ -556,40 +658,88 @@ function ImageCard({ image, onSelect, onEdit, onRefresh }: { image: ImageData; o
           </div>
         )}
       </div>
-      
+
       {/* 資訊區 */}
       <div className="p-3 sm:p-4">
-        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base truncate mb-2" title={image.name}>
-          {image.name}
-        </h3>
-        
-        {image.note && (
-          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">{image.note}</p>
-        )}
-        
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
-          <Calendar className="w-3 h-3" />
-          <span>{formatLocalDate(image.$createdAt)}</span>
-        </div>
+        {isEditing ? (
+          // 行內編輯模式
+          <div className="space-y-2">
+            <Input
+              placeholder="圖片名稱"
+              value={inlineEditForm.name}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+              className="h-8 rounded-lg text-sm"
+            />
+            <Input
+              placeholder="分類"
+              value={inlineEditForm.category}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+              className="h-8 rounded-lg text-sm"
+            />
+            <Input
+              placeholder="參考"
+              value={inlineEditForm.ref}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+              className="h-8 rounded-lg text-sm"
+            />
+            <Textarea
+              placeholder="備註"
+              value={inlineEditForm.note}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+              className="rounded-lg text-sm h-16 resize-none"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={(e) => { e.stopPropagation(); onInlineSave(image.$id); }}
+                className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5"
+              >
+                儲存
+              </Button>
+              <Button
+                onClick={(e) => { e.stopPropagation(); onInlineCancel(); }}
+                variant="outline"
+                className="flex-1 gap-1 rounded-lg text-xs py-1.5"
+              >
+                取消
+              </Button>
+            </div>
+          </div>
+        ) : (
+          // 正常顯示模式
+          <>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base truncate mb-2" title={image.name}>
+              {image.name}
+            </h3>
 
-        {/* 操作按鈕 */}
-        <div className="flex gap-2">
-          <Button
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="flex-1 gap-1 bg-blue-500 hover:bg-blue-600 rounded-lg text-xs py-1.5"
-          >
-            <Edit size={14} />
-            編輯
-          </Button>
-          <Button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="flex-1 gap-1 bg-red-500 hover:bg-red-600 rounded-lg text-xs py-1.5"
-          >
-            <Trash2 size={14} />
-            {deleting ? '刪除中...' : '刪除'}
-          </Button>
-        </div>
+            {image.note && (
+              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">{image.note}</p>
+            )}
+
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
+              <Calendar className="w-3 h-3" />
+              <span>{formatLocalDate(image.$createdAt)}</span>
+            </div>
+
+            {/* 操作按鈕 */}
+            <div className="flex gap-2">
+              <Button
+                onClick={(e) => { e.stopPropagation(); onInlineEdit(image); }}
+                className="flex-1 gap-1 bg-blue-500 hover:bg-blue-600 rounded-lg text-xs py-1.5"
+              >
+                <Edit size={14} />
+                編輯
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 gap-1 bg-red-500 hover:bg-red-600 rounded-lg text-xs py-1.5"
+              >
+                <Trash2 size={14} />
+                {deleting ? '刪除中...' : '刪除'}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -606,15 +756,15 @@ function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () =
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
         {/* 圖片 - 置中顯示 */}
         <div className="flex-1 flex items-center justify-center p-12 sm:p-16">
           {image.file ? (
-            <img 
-              src={image.file} 
-              alt={image.name} 
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" 
-              onClick={(e) => e.stopPropagation()} 
+            <img
+              src={image.file}
+              alt={image.name}
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <div className="text-white text-center">
@@ -623,7 +773,7 @@ function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () =
             </div>
           )}
         </div>
-        
+
         {/* 底部資訊欄 */}
         <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4">
           <div className="bg-black/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-white">
@@ -708,20 +858,20 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
     setUploadStatus('idle');
     setUploadProgress(0);
     setDuplicateWarning(''); // 清除之前的警告
-    
+
     // 儲存檔案並產生預覽 URL
     setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
-    
+
     // 計算檔案 hash
     const hash = await calculateFileHash(file);
     setFileHash(hash);
-    
+
     // 取得檔案類型（副檔名）
     const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
     const filetype = fileExt; // e.g., 'png', 'jpg', 'gif', 'webp'
-    
+
     // 一次性更新 formData（包含名稱、hash 和 filetype）
     // 使用完整檔案名稱（包含副檔名）作為預設名稱
     setFormData(prev => ({
@@ -730,16 +880,16 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
       hash: hash,
       filetype: filetype
     }));
-    
+
     // 檢查是否有重複的 hash
-    const duplicateImage = existingImages.find(img => 
+    const duplicateImage = existingImages.find(img =>
       img.hash === hash && (!image || img.$id !== image.$id)
     );
-    
+
     if (duplicateImage) {
       setDuplicateWarning(`警告：此圖片與「${duplicateImage.name}」相同，請勿重複上傳！`);
     }
-    
+
     // 模擬預覽載入完成
     setTimeout(() => setPreviewLoading(false), 300);
   };
@@ -819,11 +969,11 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
         finalFormData.hash = `no_file_${Date.now()}`;
       }
 
-      const url = image 
-        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${image.$id}`) 
+      const url = image
+        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${image.$id}`)
         : addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE);
       const method = image ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -831,7 +981,7 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
       });
 
       if (!response.ok) throw new Error(image ? '更新失敗' : '新增失敗');
-      
+
       onSuccess();
       onClose();
     } catch (error) {
@@ -1022,9 +1172,9 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
             <Button type="button" onClick={onClose} className="flex-1 bg-gray-500 hover:bg-gray-600 rounded-xl">
               取消
             </Button>
-            <Button 
-              type="submit" 
-              disabled={submitting || !!duplicateWarning} 
+            <Button
+              type="submit"
+              disabled={submitting || !!duplicateWarning}
               className="flex-1 bg-blue-500 hover:bg-blue-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? '處理中...' : (image ? '更新' : '新增')}

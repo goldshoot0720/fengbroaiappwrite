@@ -28,26 +28,26 @@ import JSZip from "jszip";
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
   if (typeof window === 'undefined') return url;
-  
+
   const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT');
   const projectId = localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID');
   const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID');
   const apiKey = localStorage.getItem('APPWRITE_API_KEY');
   const bucketId = localStorage.getItem('APPWRITE_BUCKET_ID');
-  
+
   if (!endpoint && !projectId && !databaseId) {
     return url;
   }
-  
+
   const separator = url.includes('?') ? '&' : '?';
   const params = new URLSearchParams();
-  
+
   if (endpoint) params.set('_endpoint', endpoint);
   if (projectId) params.set('_project', projectId);
   if (databaseId) params.set('_database', databaseId);
   if (apiKey) params.set('_key', apiKey);
   if (bucketId) params.set('_bucket', bucketId);
-  
+
   const paramString = params.toString();
   return paramString ? `${url}${separator}${paramString}` : url;
 }
@@ -62,13 +62,23 @@ export default function VideoIntroduction() {
   const [showPlayer, setShowPlayer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [importPreview, setImportPreview] = useState<{ data: VideoFormData[]; errors: string[] } | null>(null);
-    const [importing, setImporting] = useState(false);
-    const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [exportingZip, setExportingZip] = useState(false);
   const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
   const [importingZip, setImportingZip] = useState(false);
   const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
   const importZipInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState({
+    name: '',
+    category: '',
+    note: '',
+    ref: '',
+  });
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const { addToQueue, isInQueue } = useVideoQueue();
 
@@ -135,7 +145,7 @@ export default function VideoIntroduction() {
     let currentRow: string[] = [];
     let currentField = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < cleanText.length; i++) {
       const char = cleanText[i];
       const nextChar = cleanText[i + 1];
@@ -159,7 +169,7 @@ export default function VideoIntroduction() {
       currentRow.push(currentField);
       if (currentRow.some(f => f.trim())) { rows.push(currentRow); }
     }
-    
+
     if (rows.length < 2) { errors.push('CSV 檔案至少需要表頭和一行資料'); return { data, errors }; }
     const headerValues = rows[0];
     if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
@@ -172,7 +182,7 @@ export default function VideoIntroduction() {
       }
     }
     if (errors.length > 0) return { data, errors };
-    
+
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
       if (values.length !== EXPECTED_COLUMN_COUNT) { errors.push(`第 ${i + 1} 行: 欄位數量錯誤`); continue; }
@@ -194,10 +204,10 @@ export default function VideoIntroduction() {
 
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
-    
+
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
@@ -217,10 +227,10 @@ export default function VideoIntroduction() {
         if (response.ok) { successCount++; } else { failCount++; }
       } catch { failCount++; }
     }
-    
+
     // 匯入完成後統一重新載入一次
     await loadVideos(true);
-    
+
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
@@ -261,17 +271,17 @@ export default function VideoIntroduction() {
         try {
           const response = await fetch(video.file);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          
+
           const blob = await response.blob();
-          
+
           const fileExtension = video.filetype || video.file.split('.').pop()?.split('?')[0] || 'mp4';
           const sanitizedName = video.name.replace(/[/\\?%*:|"<>]/g, '-');
           const categoryPrefix = video.category ? `[${video.category}]_` : '';
           const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
-          const filename = nameHasExtension 
+          const filename = nameHasExtension
             ? `${categoryPrefix}${sanitizedName}`
             : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
-          
+
           videoFolder?.file(filename, blob);
           successCount++;
         } catch (error) {
@@ -282,7 +292,7 @@ export default function VideoIntroduction() {
 
       setExportZipProgress({ current: videos.length, total: videos.length, status: '正在壓縮...' });
 
-      const zipBlob = await zip.generateAsync({ 
+      const zipBlob = await zip.generateAsync({
         type: 'blob',
         compression: 'DEFLATE',
         compressionOptions: { level: 6 }
@@ -324,10 +334,10 @@ export default function VideoIntroduction() {
 
     try {
       const zip = await JSZip.loadAsync(file);
-      
+
       const videoFiles: { name: string; file: JSZip.JSZipObject }[] = [];
       const validExtensions = ['mp4', 'webm', 'ogg', 'mov'];
-      
+
       zip.forEach((relativePath, zipEntry) => {
         if (!zipEntry.dir) {
           const ext = relativePath.split('.').pop()?.toLowerCase() || '';
@@ -355,7 +365,7 @@ export default function VideoIntroduction() {
       for (let i = 0; i < videoFiles.length; i++) {
         const videoFile = videoFiles[i];
         const fileName = videoFile.name.split('/').pop() || videoFile.name;
-        
+
         setImportZipProgress({
           current: i + 1,
           total: videoFiles.length,
@@ -368,14 +378,14 @@ export default function VideoIntroduction() {
           const arrayBuffer = await videoFile.file.async('arraybuffer');
 
           const ext = fileName.split('.').pop()?.toLowerCase() || 'mp4';
-          const mimeType = ext === 'webm' ? 'video/webm' : 
-                          ext === 'ogg' ? 'video/ogg' : 
-                          ext === 'mov' ? 'video/quicktime' : 'video/mp4';
+          const mimeType = ext === 'webm' ? 'video/webm' :
+            ext === 'ogg' ? 'video/ogg' :
+              ext === 'mov' ? 'video/quicktime' : 'video/mp4';
           const blob = new Blob([arrayBuffer], { type: mimeType });
           const fileSizeMB = (blob.size / (1024 * 1024)).toFixed(2);
-          
+
           console.log(`[ZIP Import] Processing: ${fileName}, Size: ${fileSizeMB}MB, Type: ${mimeType}`);
-          
+
           const videoFileObj = new File([blob], fileName, { type: mimeType });
 
           // Upload to Appwrite Storage
@@ -425,7 +435,7 @@ export default function VideoIntroduction() {
       });
 
       alert(`匯入完成！\n成功: ${successCount} 部\n失敗: ${failedCount} 部`);
-      
+
       if (successCount > 0) {
         loadVideos(true);
       }
@@ -442,12 +452,12 @@ export default function VideoIntroduction() {
   const filteredVideos = useMemo(() => {
     if (!searchQuery.trim()) return videos;
     const query = searchQuery.toLowerCase();
-    return videos.filter(video => 
+    return videos.filter(video =>
       video.name?.toLowerCase().includes(query) ||
       video.note?.toLowerCase().includes(query)
     );
   }, [videos, searchQuery]);
-  
+
   const {
     cacheStatus,
     cacheStats,
@@ -477,7 +487,7 @@ export default function VideoIntroduction() {
   const handleDelete = async (video: VideoData) => {
     const confirmText = `DELETE ${video.name}`;
     const userInput = prompt(`確定要刪除影片「${video.name}」嗎？\n\n請輸入以下文字以確認刪除：\n${confirmText}`);
-    
+
     if (userInput !== confirmText) {
       if (userInput !== null) {
         alert('輸入不正確，刪除已取消');
@@ -504,11 +514,53 @@ export default function VideoIntroduction() {
     loadVideos(true);
   };
 
+  // 開始行內編輯
+  const handleInlineEdit = (video: VideoData) => {
+    setInlineEditForm({
+      name: video.name || '',
+      category: video.category || '',
+      note: video.note || '',
+      ref: video.ref || '',
+    });
+    setInlineEditingId(video.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async (videoId: string) => {
+    if (!inlineEditingId) return;
+    try {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${videoId}`);
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineEditForm.name,
+          category: inlineEditForm.category,
+          note: inlineEditForm.note,
+          ref: inlineEditForm.ref,
+        }),
+      });
+      if (!response.ok) throw new Error('更新失敗');
+      loadVideos(true);
+      setInlineEditingId(null);
+      setInlineEditForm({ name: '', category: '', note: '', ref: '' });
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm({ name: '', category: '', note: '', ref: '' });
+  };
+
   const playVideo = useCallback(async (video: VideoData) => {
     setCurrentVideo(video.$id);
     setShowPlayer(true);
     const cachedUrl = await loadVideoFromCache(video.$id);
-    
+
     if (videoRef.current) {
       videoRef.current.src = cachedUrl || video.file || '';
       videoRef.current.load();
@@ -564,8 +616,8 @@ export default function VideoIntroduction() {
         showAccountLabel={true}
         action={
           <div className="flex items-center gap-2 flex-wrap">
-            <Button 
-              onClick={handleExportZip} 
+            <Button
+              onClick={handleExportZip}
               disabled={loading || exportingZip || importingZip || videos.length === 0}
               className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50"
               title="匯出所有影片為 ZIP"
@@ -573,8 +625,8 @@ export default function VideoIntroduction() {
               <Download size={16} className={exportingZip ? "animate-bounce" : ""} />
               <span className="hidden sm:inline">{exportingZip ? '匯出中...' : '匯出 ZIP'}</span>
             </Button>
-            <Button 
-              onClick={() => importZipInputRef.current?.click()} 
+            <Button
+              onClick={() => importZipInputRef.current?.click()}
               disabled={loading || exportingZip || importingZip}
               className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl disabled:opacity-50"
               title="從 ZIP 匯入影片"
@@ -653,6 +705,12 @@ export default function VideoIntroduction() {
               onDeleteCache={() => handleDeleteCache(video.$id)}
               onAddToQueue={() => handleAddToQueue(video)}
               isInQueue={isInQueue(video.$id)}
+              isEditing={inlineEditingId === video.$id}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={handleInlineEdit}
+              onInlineSave={handleInlineSave}
+              onInlineCancel={cancelInlineEdit}
             />
           ))}
         </div>
@@ -695,7 +753,7 @@ export default function VideoIntroduction() {
                   <span>{exportZipProgress.current} / {exportZipProgress.total}</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                  <div 
+                  <div
                     className="bg-purple-600 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${exportZipProgress.total > 0 ? (exportZipProgress.current / exportZipProgress.total) * 100 : 0}%` }}
                   ></div>
@@ -721,7 +779,7 @@ export default function VideoIntroduction() {
                   <span>{importZipProgress.current} / {importZipProgress.total}</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                  <div 
+                  <div
                     className="bg-orange-600 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${importZipProgress.total > 0 ? (importZipProgress.current / importZipProgress.total) * 100 : 0}%` }}
                   ></div>
@@ -798,7 +856,7 @@ export default function VideoIntroduction() {
               {importing ? (
                 <div className="flex items-center gap-3">
                   <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     />
@@ -810,8 +868,8 @@ export default function VideoIntroduction() {
               ) : (
                 <>
                   <Button variant="outline" onClick={() => setImportPreview(null)}>取消</Button>
-                  <Button 
-                    onClick={executeImport} 
+                  <Button
+                    onClick={executeImport}
                     disabled={importPreview.errors.length > 0 || importPreview.data.length === 0}
                     className="bg-blue-500 hover:bg-blue-600"
                   >
@@ -849,7 +907,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
   const recommendedVideos = useMemo(() => {
     const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
     const result: VideoData[] = [];
-    
+
     // 從當前位置往後排序，未播放的先顯示
     for (let i = 1; i < allVideosWithFile.length; i++) {
       const nextIndex = (currentIndex + i) % allVideosWithFile.length;
@@ -858,7 +916,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
         result.push(video);
       }
     }
-    
+
     // 已播放的放後面
     for (let i = 1; i < allVideosWithFile.length; i++) {
       const nextIndex = (currentIndex + i) % allVideosWithFile.length;
@@ -867,7 +925,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
         result.push(video);
       }
     }
-    
+
     return result.slice(0, 10);
   }, [allVideosWithFile, currentVideo.$id, playedIds]);
 
@@ -885,13 +943,13 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
         }
         return;
       }
-      
+
       // 自動播放下一個（順序播放，不重複）
       if (!autoPlay) return;
-      
+
       // 找到當前影片在列表中的位置
       const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-      
+
       // 從當前位置往後找下一個未播放的影片
       let nextVideo: VideoData | null = null;
       for (let i = 1; i < allVideosWithFile.length; i++) {
@@ -902,7 +960,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
           break;
         }
       }
-      
+
       // 如果所有影片都播放過了，重置並從下一個開始
       if (!nextVideo && allVideosWithFile.length > 1) {
         const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
@@ -913,7 +971,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
         setPlayedIds(prev => new Set([...prev, nextVideo!.$id]));
         console.log('自動播放下一個:', nextVideo.name);
       }
-      
+
       if (nextVideo) {
         setCurrentVideo(nextVideo);
       }
@@ -953,13 +1011,13 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
           <X className="w-6 h-6" />
         </button>
         <div className="w-full h-full">
-          <PlyrPlayer 
+          <PlyrPlayer
             key={currentVideo.$id}
-            type="video" 
-            src={getProxiedMediaUrl(currentVideo.file || '')} 
-            poster={currentVideo.cover} 
+            type="video"
+            src={getProxiedMediaUrl(currentVideo.file || '')}
+            poster={currentVideo.cover}
             autoplay={true}
-            className="w-full h-full" 
+            className="w-full h-full"
           />
         </div>
       </div>
@@ -986,7 +1044,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
 
       <main className="max-w-[1700px] mx-auto p-4 lg:p-6 xl:p-8">
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
-          
+
           {/* 左側：主播放區 + 影片資訊 */}
           <div className="flex-1 lg:max-w-[calc(100%-420px)] space-y-4">
             {/* 播放器容器 - 固定 16:9，影片用 contain 完整顯示，確保時間軸可見 */}
@@ -1059,24 +1117,22 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-gray-900 dark:text-white">接下來播放</h3>
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => setRepeatMode(!repeatMode)}
-                  className={`text-xs font-medium cursor-pointer px-3 py-1 rounded-full transition-colors ${
-                    repeatMode 
-                      ? 'bg-purple-600 text-white' 
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}
+                  className={`text-xs font-medium cursor-pointer px-3 py-1 rounded-full transition-colors ${repeatMode
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    }`}
                   title="重複播放同一影片"
                 >
                   重複 {repeatMode ? '開' : '關'}
                 </button>
-                <button 
+                <button
                   onClick={() => setAutoPlay(!autoPlay)}
-                  className={`text-xs font-medium cursor-pointer px-3 py-1 rounded-full transition-colors ${
-                    autoPlay 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}
+                  className={`text-xs font-medium cursor-pointer px-3 py-1 rounded-full transition-colors ${autoPlay
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    }`}
                   disabled={repeatMode}
                   style={{ opacity: repeatMode ? 0.5 : 1 }}
                   title={repeatMode ? '重複模式下自動播放已停用' : '自動播放下一個影片'}
@@ -1144,10 +1200,17 @@ interface VideoManagementCardProps {
   onDeleteCache: () => void;
   onAddToQueue?: () => void;
   isInQueue?: boolean;
+  // Inline editing props
+  isEditing: boolean;
+  inlineEditForm: { name: string; category: string; note: string; ref: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string }) => void;
+  onInlineEdit: (video: VideoData) => void;
+  onInlineSave: (videoId: string) => void;
+  onInlineCancel: () => void;
 }
 
 // 影片管理卡片 (模仿首頁瀑布流)
-function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDeleteCache, onAddToQueue, isInQueue }: VideoManagementCardProps) {
+function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: VideoManagementCardProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -1174,23 +1237,23 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
   return (
     <div className="flex flex-col gap-3 group animate-in zoom-in-95 duration-300">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
-      
+
       {/* 縮圖容器 */}
-      <div 
-        className={`relative aspect-video bg-gray-100 dark:bg-[#1e1e1e] rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all border dark:border-white/5 ${video.file ? 'cursor-pointer' : ''}`} 
+      <div
+        className={`relative aspect-video bg-gray-100 dark:bg-[#1e1e1e] rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all border dark:border-white/5 ${video.file ? 'cursor-pointer' : ''}`}
         onClick={video.file ? onPlay : undefined}
       >
-        <img 
-          src={video.cover || thumbnailUrl || ''} 
-          alt={video.name} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+        <img
+          src={video.cover || thumbnailUrl || ''}
+          alt={video.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
         />
         {!video.cover && !thumbnailUrl && (
           <div className="absolute inset-0 bg-gradient-to-br from-[#2b2b2b] to-[#000] flex items-center justify-center">
             <Play className="w-12 h-12 text-white/10" />
           </div>
         )}
-        
+
         {/* 播放按鈕 Overlay - 只在有影片時顯示 */}
         {video.file ? (
           <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1208,7 +1271,7 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
         )}
 
         {/* 分類標籤 */}
-        {video.category && (
+        {!isEditing && video.category && (
           <div className="absolute top-2 left-2 px-2 py-1 text-[10px] font-bold bg-black/60 text-white rounded backdrop-blur-sm">
             {video.category.toUpperCase()}
           </div>
@@ -1228,77 +1291,124 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
           FX
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          <h3 
-            className={`font-bold text-gray-900 dark:text-white text-sm md:text-base line-clamp-2 leading-snug transition-colors ${video.file ? 'cursor-pointer hover:text-blue-600' : ''}`} 
-            onClick={video.file ? onPlay : undefined}
-          >
-            {video.name}
-          </h3>
-          <div className="flex flex-col text-xs text-gray-500 dark:text-gray-400 font-medium">
-            <span>鋒兄影片 • 管理員</span>
-            <div className="flex items-center gap-1">
-              <span>{formatLocalDate(video.$createdAt)}</span>
-              <span>•</span>
-              {video.file ? (
-                <span className="text-green-600 dark:text-green-400">已發佈</span>
-              ) : (
-                <span className="text-orange-600 dark:text-orange-400">尚未上傳</span>
-              )}
+          {isEditing ? (
+            // 行內編輯模式
+            <div className="space-y-2">
+              <Input
+                placeholder="影片名稱"
+                value={inlineEditForm.name}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                className="h-8 rounded-lg text-sm"
+              />
+              <Input
+                placeholder="分類"
+                value={inlineEditForm.category}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+                className="h-8 rounded-lg text-sm"
+              />
+              <Input
+                placeholder="參考"
+                value={inlineEditForm.ref}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+                className="h-8 rounded-lg text-sm"
+              />
+              <Textarea
+                placeholder="備註"
+                value={inlineEditForm.note}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
+                className="rounded-lg text-sm h-16 resize-none"
+              />
+              <div className="flex gap-2">
+                <Button
+                  onClick={(e) => { e.stopPropagation(); onInlineSave(video.$id); }}
+                  className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5"
+                >
+                  儲存
+                </Button>
+                <Button
+                  onClick={(e) => { e.stopPropagation(); onInlineCancel(); }}
+                  variant="outline"
+                  className="flex-1 gap-1 rounded-lg text-xs py-1.5"
+                >
+                  取消
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : (
+            // 正常顯示模式
+            <>
+              <h3
+                className={`font-bold text-gray-900 dark:text-white text-sm md:text-base line-clamp-2 leading-snug transition-colors ${video.file ? 'cursor-pointer hover:text-blue-600' : ''}`}
+                onClick={video.file ? onPlay : undefined}
+              >
+                {video.name}
+              </h3>
+              <div className="flex flex-col text-xs text-gray-500 dark:text-gray-400 font-medium">
+                <span>鋒兄影片 • 管理員</span>
+                <div className="flex items-center gap-1">
+                  <span>{formatLocalDate(video.$createdAt)}</span>
+                  <span>•</span>
+                  {video.file ? (
+                    <span className="text-green-600 dark:text-green-400">已發佈</span>
+                  ) : (
+                    <span className="text-orange-600 dark:text-orange-400">尚未上傳</span>
+                  )}
+                </div>
+              </div>
 
-          {/* 管理按鈕列 */}
-          <div className="flex items-center gap-2 pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            {/* 接下來播放按鈕 */}
-            {video.file && onAddToQueue && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onAddToQueue(); }}
-                className={`p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors ${
-                  isInQueue ? 'text-green-600 dark:text-green-400' : 'text-purple-600 dark:text-purple-400'
-                }`}
-                title={isInQueue ? '已在佇列中' : '接下來播放'}
-              >
-                <ListPlus className="w-4 h-4" />
-              </button>
-            )}
-            {/* 直接下載按鈕 */}
-            {video.file && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const downloadUrl = getAppwriteDownloadUrl(video.file);
-                  const link = document.createElement('a');
-                  link.href = downloadUrl;
-                  link.download = `${video.name}.mp4`;
-                  link.target = '_blank';
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-green-600 dark:text-green-400"
-                title="下載影片"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-            )}
-            <button onClick={onEdit} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-blue-600 dark:text-blue-400">
-              <Edit className="w-4 h-4" />
-            </button>
-            <button onClick={onDelete} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-red-600 dark:text-red-400">
-              <Trash2 className="w-4 h-4" />
-            </button>
-            {video.file && (
-              cacheStatus?.cached ? (
-                <button onClick={onDeleteCache} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-orange-600">
-                  <HardDrive className="w-4 h-4" />
+              {/* 管理按鈕列 */}
+              <div className="flex items-center gap-2 pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* 接下來播放按鈕 */}
+                {video.file && onAddToQueue && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAddToQueue(); }}
+                    className={`p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors ${isInQueue ? 'text-green-600 dark:text-green-400' : 'text-purple-600 dark:text-purple-400'
+                      }`}
+                    title={isInQueue ? '已在佇列中' : '接下來播放'}
+                  >
+                    <ListPlus className="w-4 h-4" />
+                  </button>
+                )}
+                {/* 直接下載按鈕 */}
+                {video.file && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const downloadUrl = getAppwriteDownloadUrl(video.file);
+                      const link = document.createElement('a');
+                      link.href = downloadUrl;
+                      link.download = `${video.name}.mp4`;
+                      link.target = '_blank';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-green-600 dark:text-green-400"
+                    title="下載影片"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                )}
+                <button onClick={() => onInlineEdit(video)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-blue-600 dark:text-blue-400">
+                  <Edit className="w-4 h-4" />
                 </button>
-              ) : (
-                <button onClick={onDownload} disabled={cacheStatus?.downloading} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-gray-600 dark:text-gray-400" title="快取到本地">
-                  <HardDrive className="w-4 h-4" />
+                <button onClick={onDelete} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-red-600 dark:text-red-400">
+                  <Trash2 className="w-4 h-4" />
                 </button>
-              )
-            )}
-          </div>
+                {video.file && (
+                  cacheStatus?.cached ? (
+                    <button onClick={onDeleteCache} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-orange-600">
+                      <HardDrive className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button onClick={onDownload} disabled={cacheStatus?.downloading} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-gray-600 dark:text-gray-400" title="快取到本地">
+                      <HardDrive className="w-4 h-4" />
+                    </button>
+                  )
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1362,11 +1472,11 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        
+
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          
+
           // 轉換為 Blob
           canvas.toBlob((blob) => {
             if (blob) {
@@ -1374,7 +1484,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
               const baseFileName = videoFileName || 'video';
               const nameWithoutExt = baseFileName.substring(0, baseFileName.lastIndexOf('.')) || baseFileName;
               const thumbnailName = `${nameWithoutExt}-thumbnail.jpg`;
-              
+
               const file = new File([blob], thumbnailName, { type: 'image/jpeg' });
               setSelectedCoverFile(file);
               const thumbnailUrl = URL.createObjectURL(blob);
@@ -1420,7 +1530,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     setUploadStatus('idle');
     setUploadProgress(0);
     setDuplicateWarning(''); // 清除之前的警告
-    
+
     // 儲存檔案並產生預覽 URL
     setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
@@ -1445,16 +1555,16 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     // 檢查是否與現有影片重複
     setFileHash(hash);
     setFormData({ ...formData, name: autoName, hash, filetype });
-    
+
     // 檢查是否有重複的 hash
-    const duplicateVideo = existingVideos.find(vid => 
+    const duplicateVideo = existingVideos.find(vid =>
       vid.hash === hash && (!video || vid.$id !== video.$id)
     );
-    
+
     if (duplicateVideo) {
       setDuplicateWarning(`警告：此影片與「${duplicateVideo.name}」相同，請勿重複上傳！`);
     }
-    
+
     // 模擬預覽載入完成
     setTimeout(() => setPreviewLoading(false), 300);
   };
@@ -1499,12 +1609,12 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     setCoverPreviewLoading(true);
     setCoverUploadStatus('idle');
     setCoverUploadProgress(0);
-    
+
     // 儲存檔案並產生預覽 URL
     setSelectedCoverFile(file);
     const objectUrl = URL.createObjectURL(file);
     setCoverPreviewUrl(objectUrl);
-    
+
     // 模擬預覽載入完成
     setTimeout(() => setCoverPreviewLoading(false), 300);
   };
@@ -1569,11 +1679,11 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         }
       }
 
-      const apiUrl = video 
-        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${video.$id}`) 
+      const apiUrl = video
+        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${video.$id}`)
         : addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
       const method = video ? 'PUT' : 'POST';
-      
+
       const response = await fetch(apiUrl, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -1581,7 +1691,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       });
 
       if (!response.ok) throw new Error(video ? '更新失敗' : '新增失敗');
-      
+
       onSuccess();
       onClose();
     } catch (error) {
@@ -1871,9 +1981,9 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
             <Button type="button" onClick={onClose} className="flex-1 bg-gray-500 hover:bg-gray-600 rounded-xl">
               取消
             </Button>
-            <Button 
-              type="submit" 
-              disabled={submitting || !!duplicateWarning} 
+            <Button
+              type="submit"
+              disabled={submitting || !!duplicateWarning}
               className="flex-1 bg-blue-500 hover:bg-blue-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? '處理中...' : (video ? '更新' : '新增')}
@@ -1932,29 +2042,29 @@ function VideoCard({ video, cacheStatus, onPlay, onDownload, onDeleteCache }: Vi
       {/* 縮圖 */}
       <div className="relative aspect-video bg-gray-100 dark:bg-gray-700 overflow-hidden cursor-pointer" onClick={onPlay}>
         {typeof video.cover === 'string' && video.cover ? (
-          <img 
-            src={video.cover} 
-            alt={video.title} 
-            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
+          <img
+            src={video.cover}
+            alt={video.title}
+            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center group-hover:from-blue-600 group-hover:to-purple-700 transition-all duration-300">
             <Play className="text-white group-hover:scale-110 transition-transform duration-300 w-12 h-12" />
           </div>
         )}
-        
+
         {typeof video.cover === 'string' && video.cover && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <Play className="text-white w-12 h-12 drop-shadow-lg opacity-80" />
           </div>
         )}
-        
+
         {video.duration && (
           <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-white text-xs px-2 py-1 rounded font-medium">
             {video.duration}
           </div>
         )}
-        
+
         <div className="absolute top-2 right-2 flex gap-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-sm">
           {typeof video.cover === 'string' && video.cover && (
             <div className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center">
@@ -1964,19 +2074,19 @@ function VideoCard({ video, cacheStatus, onPlay, onDownload, onDeleteCache }: Vi
           <CacheStatusIcon status={cacheStatus} />
         </div>
       </div>
-      
+
       {/* 資訊 */}
       <div className="p-4">
         <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 line-clamp-1">{video.title}</h3>
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2">{video.description}</p>
-        
+
         <div className="flex gap-2">
           <Button onClick={onPlay} className="flex-1 gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl text-sm">
             <Play size={14} />
             <span className="hidden xs:inline">播放影片</span>
             <span className="xs:hidden">播放</span>
           </Button>
-          
+
           {cacheStatus?.cached ? (
             <Button onClick={onDeleteCache} variant="outline" className="gap-1 text-red-600 hover:bg-red-50 rounded-xl text-sm">
               <Trash2 size={14} />
@@ -1998,7 +2108,7 @@ function VideoCard({ video, cacheStatus, onPlay, onDownload, onDeleteCache }: Vi
             </Button>
           )}
         </div>
-        
+
         {cacheStatus?.error && (
           <div className="mt-2 text-red-600 text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2">
             {cacheStatus.error}
@@ -2039,7 +2149,7 @@ function CacheManager({ cacheStats, maxCacheSize, formatFileSize, onClearAll, vi
           清空快取
         </Button>
       </div>
-      
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <SimpleStatCard title="已快取影片" value={cacheStats.cachedVideos} bgColor="bg-blue-50 dark:bg-blue-900/20" textColor="text-blue-600 dark:text-blue-400" />
         <SimpleStatCard title="下載中" value={cacheStats.downloadingVideos} bgColor="bg-green-50 dark:bg-green-900/20" textColor="text-green-600 dark:text-green-400" />
@@ -2058,7 +2168,7 @@ function CacheManager({ cacheStats, maxCacheSize, formatFileSize, onClearAll, vi
         </div>
         <div className="text-right text-xs text-gray-500 dark:text-gray-400 mt-1">{usagePercent}% 已使用</div>
       </div>
-      
+
       <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
         💡 <span className="font-medium">提示：</span>快取影片到本地可以減少網路流量使用，提升播放體驗。當快取超過限制時，系統會自動清理最舊的影片。
       </div>

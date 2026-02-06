@@ -28,6 +28,10 @@ export default function FoodManagement() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState<FoodFormData>(INITIAL_FORM);
+
   // 取得已存在的不重複商店
   const existingShops = useMemo(() => {
     const shops = foods.map(f => f.shop).filter(Boolean) as string[];
@@ -44,7 +48,7 @@ export default function FoodManagement() {
   const filteredFoods = useMemo(() => {
     if (!searchQuery.trim()) return foods;
     const query = searchQuery.toLowerCase();
-    return foods.filter(food => 
+    return foods.filter(food =>
       food.name?.toLowerCase().includes(query) ||
       food.shop?.toLowerCase().includes(query)
     );
@@ -128,7 +132,7 @@ export default function FoodManagement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       let finalPhoto = form.photo;
 
@@ -166,7 +170,7 @@ export default function FoodManagement() {
   };
 
   const handleEdit = (food: Food) => {
-    setForm({ 
+    setForm({
       name: food.name,
       amount: food.amount,
       todate: formatDate(food.todate),
@@ -190,8 +194,42 @@ export default function FoodManagement() {
     setPhotoPreviewUrl("");
   };
 
+  // 開始行內編輯
+  const handleInlineEdit = (food: Food) => {
+    setInlineEditForm({
+      name: food.name,
+      amount: food.amount,
+      todate: formatDate(food.todate),
+      photo: food.photo || '',
+      price: food.price || 0,
+      shop: food.shop || '',
+      photohash: food.photohash || '',
+    });
+    setInlineEditingId(food.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async () => {
+    if (!inlineEditingId) return;
+    try {
+      await updateFood(inlineEditingId, inlineEditForm);
+      setInlineEditingId(null);
+      setInlineEditForm(INITIAL_FORM);
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      const errorMessage = error instanceof Error ? error.message : '更新失敗，請稍後再試';
+      alert(errorMessage);
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm(INITIAL_FORM);
+  };
+
   // CSV 匯入/匯出功能
-  const [importPreview, setImportPreview] = useState<{data: FoodFormData[], errors: string[]} | null>(null);
+  const [importPreview, setImportPreview] = useState<{ data: FoodFormData[], errors: string[] } | null>(null);
   const [importFormat, setImportFormat] = useState<'appwrite' | 'supabase' | null>(null);
   const [pendingCSVText, setPendingCSVText] = useState<string>('');
   const [importing, setImporting] = useState(false);
@@ -291,7 +329,7 @@ export default function FoodManagement() {
     return 'unknown';
   };
 
-  const parseCSV = (text: string): {data: FoodFormData[], errors: string[]} => {
+  const parseCSV = (text: string): { data: FoodFormData[], errors: string[] } => {
     const errors: string[] = []; const data: FoodFormData[] = [];
     const rows = parseFullCSV(text);
     if (rows.length < 2) { errors.push('CSV 檔案至少需要表頭和一行資料'); return { data, errors }; }
@@ -344,10 +382,10 @@ export default function FoodManagement() {
 
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
-    
+
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
@@ -362,7 +400,7 @@ export default function FoodManagement() {
         successCount++;
       } catch { failCount++; }
     }
-    
+
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
@@ -507,7 +545,7 @@ export default function FoodManagement() {
               {importing ? (
                 <div className="flex items-center gap-3">
                   <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     />
@@ -567,15 +605,25 @@ export default function FoodManagement() {
           <>
             <DesktopTable
               foods={filteredFoods}
-              onEdit={handleEdit}
               onDelete={handleDelete}
               onAmountChange={updateAmount}
+              inlineEditingId={inlineEditingId}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={handleInlineEdit}
+              onInlineSave={handleInlineSave}
+              onInlineCancel={cancelInlineEdit}
             />
             <MobileList
               foods={filteredFoods}
-              onEdit={handleEdit}
               onDelete={handleDelete}
               onAmountChange={updateAmount}
+              inlineEditingId={inlineEditingId}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={handleInlineEdit}
+              onInlineSave={handleInlineSave}
+              onInlineCancel={cancelInlineEdit}
             />
           </>
         )}
@@ -599,18 +647,18 @@ interface FoodFormProps {
   onCancel: () => void;
 }
 
-function FoodForm({ 
-  form, 
-  setForm, 
-  editingId, 
-  photoPreviewUrl, 
-  selectedPhotoFile, 
-  photoUploading, 
-  handlePhotoFileSelect, 
+function FoodForm({
+  form,
+  setForm,
+  editingId,
+  photoPreviewUrl,
+  selectedPhotoFile,
+  photoUploading,
+  handlePhotoFileSelect,
   existingShops,
   existingNames,
-  onSubmit, 
-  onCancel 
+  onSubmit,
+  onCancel
 }: FoodFormProps) {
   return (
     <FormCard title={editingId ? "編輯食品" : "新增食品"} accentColor="from-blue-500 to-blue-600">
@@ -658,7 +706,7 @@ function FoodForm({
               />
               {(form.amount || 0) > 0 && (
                 <div className="flex flex-col gap-0.5">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setForm({ ...form, amount: (form.amount || 0) + 1 })}
                     className="p-1 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 rounded transition-colors"
@@ -666,7 +714,7 @@ function FoodForm({
                   >
                     <Plus size={14} />
                   </button>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setForm({ ...form, amount: Math.max(0, (form.amount || 0) - 1) })}
                     className="p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 rounded transition-colors"
@@ -696,7 +744,7 @@ function FoodForm({
               />
               {form.todate && (
                 <div className="flex flex-col gap-0.5">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       const d = new Date(form.todate);
@@ -708,7 +756,7 @@ function FoodForm({
                   >
                     <Plus size={14} />
                   </button>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       const d = new Date(form.todate);
@@ -723,13 +771,13 @@ function FoodForm({
                 </div>
               )}
             </div>
-                <div className="px-1 h-4">
-                  {form.todate ? (
-                    <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">可以 + 或 - (7天) / Can use + or - (7 Days)</span>
-                  ) : (
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請選擇日期 / (Optional) Please select a date</span>
-                  )}
-                </div>
+            <div className="px-1 h-4">
+              {form.todate ? (
+                <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">可以 + 或 - (7天) / Can use + or - (7 Days)</span>
+              ) : (
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請選擇日期 / (Optional) Please select a date</span>
+              )}
+            </div>
           </div>
           <div className="space-y-1">
             <div className="flex gap-1 items-center">
@@ -743,7 +791,7 @@ function FoodForm({
               />
               {(form.price || 0) > 0 && (
                 <div className="flex flex-col gap-0.5">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setForm({ ...form, price: (form.price || 0) + 10 })}
                     className="p-1 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 rounded transition-colors"
@@ -751,7 +799,7 @@ function FoodForm({
                   >
                     <Plus size={14} />
                   </button>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setForm({ ...form, price: Math.max(0, (form.price || 0) - 10) })}
                     className="p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 rounded transition-colors"
@@ -788,8 +836,8 @@ function FoodForm({
                 </div>
               </div>
               {existingShops.length > 0 && (
-                <Select 
-                  value="" 
+                <Select
+                  value=""
                   onValueChange={(value) => {
                     if (value) {
                       setForm({ ...form, shop: value });
@@ -877,12 +925,17 @@ function FoodForm({
 // 桌面版表格
 interface TableProps {
   foods: Food[];
-  onEdit: (food: Food) => void;
   onDelete: (id: string) => void;
   onAmountChange: (food: Food, delta: number) => void;
+  inlineEditingId: string | null;
+  inlineEditForm: FoodFormData;
+  setInlineEditForm: (form: FoodFormData) => void;
+  onInlineEdit: (food: Food) => void;
+  onInlineSave: () => void;
+  onInlineCancel: () => void;
 }
 
-function DesktopTable({ foods, onEdit, onDelete, onAmountChange }: TableProps) {
+function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="hidden lg:block">
@@ -905,7 +958,18 @@ function DesktopTable({ foods, onEdit, onDelete, onAmountChange }: TableProps) {
         </TableHeader>
         <TableBody>
           {foods.map((food) => (
-            <FoodTableRow key={food.$id} food={food} onEdit={onEdit} onDelete={onDelete} onAmountChange={onAmountChange} />
+            <FoodTableRow
+              key={food.$id}
+              food={food}
+              onDelete={onDelete}
+              onAmountChange={onAmountChange}
+              isEditing={inlineEditingId === food.$id}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={onInlineEdit}
+              onInlineSave={onInlineSave}
+              onInlineCancel={onInlineCancel}
+            />
           ))}
         </TableBody>
       </Table>
@@ -913,9 +977,118 @@ function DesktopTable({ foods, onEdit, onDelete, onAmountChange }: TableProps) {
   );
 }
 
-function FoodTableRow({ food, onEdit, onDelete, onAmountChange }: { food: Food } & Omit<TableProps, "foods">) {
+interface FoodTableRowProps {
+  food: Food;
+  onDelete: (id: string) => void;
+  onAmountChange: (food: Food, delta: number) => void;
+  isEditing: boolean;
+  inlineEditForm: FoodFormData;
+  setInlineEditForm: (form: FoodFormData) => void;
+  onInlineEdit: (food: Food) => void;
+  onInlineSave: () => void;
+  onInlineCancel: () => void;
+}
+
+function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: FoodTableRowProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
   const rowClass = isExpired ? "bg-red-50 dark:bg-red-900/20" : isExpiringSoon ? "bg-yellow-50 dark:bg-yellow-900/20" : "";
+
+  if (isEditing) {
+    return (
+      <TableRow className="bg-blue-50 dark:bg-blue-900/20">
+        <TableCell className="font-medium">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-12 shrink-0">名稱</span>
+              <Input
+                placeholder="食品名稱"
+                value={inlineEditForm.name}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                className="h-9 rounded-lg text-sm"
+                required
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-12 shrink-0">價格</span>
+              <Input
+                type="number"
+                min="0"
+                placeholder="價格"
+                value={inlineEditForm.price || ""}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, price: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+                className="h-9 rounded-lg text-sm w-24"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-12 shrink-0">商店</span>
+              <Input
+                placeholder="商店名稱"
+                value={inlineEditForm.shop || ""}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, shop: e.target.value })}
+                className="h-9 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Input
+              type="date"
+              value={inlineEditForm.todate || ""}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, todate: e.target.value })}
+              className="h-9 rounded-lg text-sm"
+            />
+            <div className="flex flex-col gap-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!inlineEditForm.todate) return;
+                  const d = new Date(inlineEditForm.todate);
+                  d.setDate(d.getDate() + 7);
+                  setInlineEditForm({ ...inlineEditForm, todate: d.toISOString().split('T')[0] });
+                }}
+                className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 rounded transition-colors"
+                title="+7天"
+              >
+                <Plus size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!inlineEditForm.todate) return;
+                  const d = new Date(inlineEditForm.todate);
+                  d.setDate(d.getDate() - 7);
+                  setInlineEditForm({ ...inlineEditForm, todate: d.toISOString().split('T')[0] });
+                }}
+                className="p-1 hover:bg-orange-100 dark:hover:bg-orange-800 text-orange-600 rounded transition-colors"
+                title="-7天"
+              >
+                <Minus size={12} />
+              </button>
+            </div>
+          </div>
+        </TableCell>
+        <TableCell>
+          <Input
+            type="number"
+            min="0"
+            value={inlineEditForm.amount || ""}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, amount: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+            className="h-9 rounded-lg text-sm w-20"
+          />
+        </TableCell>
+        <TableCell>
+          <FoodImage food={food} />
+        </TableCell>
+        <TableCell>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" onClick={onInlineSave} className="rounded-lg bg-green-500 hover:bg-green-600 text-white">儲存</Button>
+            <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} className="rounded-lg">取消</Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
 
   return (
     <TableRow className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/50 ${rowClass}`}>
@@ -936,7 +1109,7 @@ function FoodTableRow({ food, onEdit, onDelete, onAmountChange }: { food: Food }
       </TableCell>
       <TableCell>
         <div className="flex gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => onEdit(food)} className="rounded-lg">編輯</Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg">編輯</Button>
           <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} className="rounded-lg">刪除</Button>
         </div>
       </TableCell>
@@ -945,7 +1118,7 @@ function FoodTableRow({ food, onEdit, onDelete, onAmountChange }: { food: Food }
 }
 
 // 手機版列表
-function MobileList({ foods, onEdit, onDelete, onAmountChange }: TableProps) {
+function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="lg:hidden">
@@ -958,16 +1131,131 @@ function MobileList({ foods, onEdit, onDelete, onAmountChange }: TableProps) {
     <div className="lg:hidden px-1">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {foods.map((food) => (
-          <FoodMobileCard key={food.$id} food={food} onEdit={onEdit} onDelete={onDelete} onAmountChange={onAmountChange} />
+          <FoodMobileCard
+            key={food.$id}
+            food={food}
+            onDelete={onDelete}
+            onAmountChange={onAmountChange}
+            isEditing={inlineEditingId === food.$id}
+            inlineEditForm={inlineEditForm}
+            setInlineEditForm={setInlineEditForm}
+            onInlineEdit={onInlineEdit}
+            onInlineSave={onInlineSave}
+            onInlineCancel={onInlineCancel}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function FoodMobileCard({ food, onEdit, onDelete, onAmountChange }: { food: Food } & Omit<TableProps, "foods">) {
+interface FoodMobileCardProps {
+  food: Food;
+  onDelete: (id: string) => void;
+  onAmountChange: (food: Food, delta: number) => void;
+  isEditing: boolean;
+  inlineEditForm: FoodFormData;
+  setInlineEditForm: (form: FoodFormData) => void;
+  onInlineEdit: (food: Food) => void;
+  onInlineSave: () => void;
+  onInlineCancel: () => void;
+}
+
+function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: FoodMobileCardProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
-  const highlight = isExpired ? "expired" : isExpiringSoon ? "warning" : "normal";
+
+  if (isEditing) {
+    return (
+      <div className="p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 bg-blue-50 dark:bg-blue-900/20">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 w-12 shrink-0">名稱</span>
+            <Input
+              placeholder="食品名稱"
+              value={inlineEditForm.name}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+              className="h-10 rounded-lg flex-1"
+              required
+            />
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1 flex items-center gap-1">
+              <span className="text-xs text-gray-500 w-12 shrink-0">期限</span>
+              <Input
+                type="date"
+                value={inlineEditForm.todate || ""}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, todate: e.target.value })}
+                className="h-10 rounded-lg flex-1"
+              />
+              <div className="flex flex-col gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!inlineEditForm.todate) return;
+                    const d = new Date(inlineEditForm.todate);
+                    d.setDate(d.getDate() + 7);
+                    setInlineEditForm({ ...inlineEditForm, todate: d.toISOString().split('T')[0] });
+                  }}
+                  className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 rounded transition-colors"
+                  title="+7天"
+                >
+                  <Plus size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!inlineEditForm.todate) return;
+                    const d = new Date(inlineEditForm.todate);
+                    d.setDate(d.getDate() - 7);
+                    setInlineEditForm({ ...inlineEditForm, todate: d.toISOString().split('T')[0] });
+                  }}
+                  className="p-1 hover:bg-orange-100 dark:hover:bg-orange-800 text-orange-600 rounded transition-colors"
+                  title="-7天"
+                >
+                  <Minus size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 w-12 shrink-0">數量</span>
+            <Input
+              type="number"
+              min="0"
+              placeholder="數量"
+              value={inlineEditForm.amount || ""}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, amount: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+              className="h-10 rounded-lg flex-1"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 w-12 shrink-0">價格</span>
+            <Input
+              type="number"
+              min="0"
+              placeholder="價格"
+              value={inlineEditForm.price || ""}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, price: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+              className="h-10 rounded-lg flex-1"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 w-12 shrink-0">商店</span>
+            <Input
+              placeholder="商店名稱"
+              value={inlineEditForm.shop || ""}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, shop: e.target.value })}
+              className="h-10 rounded-lg flex-1"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <Button type="button" size="sm" onClick={onInlineSave} className="h-11 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold">儲存</Button>
+            <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} className="h-11 rounded-xl font-bold">取消</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 ${isExpired ? "bg-red-50/50" : isExpiringSoon ? "bg-amber-50/50" : ""}`}>
@@ -1002,7 +1290,7 @@ function FoodMobileCard({ food, onEdit, onDelete, onAmountChange }: { food: Food
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => onEdit(food)}
+            onClick={() => onInlineEdit(food)}
             className="h-11 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 font-bold"
           >
             編輯
@@ -1057,7 +1345,7 @@ function AmountControl({ food, onAmountChange }: { food: Food; onAmountChange: (
 function FoodImage({ food, className }: { food: Food; className?: string }) {
   const baseClass = "object-cover rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-800";
   const sizeClass = className || "w-16 h-16";
-  
+
   if (food.photo) {
     return (
       <img src={food.photo} alt={food.name} className={`${baseClass} ${sizeClass}`} />
