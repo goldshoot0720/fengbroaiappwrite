@@ -69,6 +69,8 @@ export default function MusicManagement() {
     language: '',
     note: '',
     ref: '',
+    lyrics: '',
+    cover: '',
   });
 
   // 音樂快取管理
@@ -495,6 +497,8 @@ export default function MusicManagement() {
       language: musicItem.language || '',
       note: musicItem.note || '',
       ref: musicItem.ref || '',
+      lyrics: musicItem.lyrics || '',
+      cover: musicItem.cover || '',
     });
     setInlineEditingId(musicItem.$id);
   };
@@ -513,12 +517,14 @@ export default function MusicManagement() {
           language: inlineEditForm.language,
           note: inlineEditForm.note,
           ref: inlineEditForm.ref,
+          lyrics: inlineEditForm.lyrics,
+          cover: inlineEditForm.cover,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadMusic(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '' });
+      setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '' });
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
@@ -528,7 +534,7 @@ export default function MusicManagement() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '' });
+    setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '' });
   };
 
   if (loading) {
@@ -810,8 +816,8 @@ interface GroupedMusicCardProps {
   onDelete: (music: MusicData) => void;
   // Inline editing props
   inlineEditingId: string | null;
-  inlineEditForm: { name: string; category: string; language: string; note: string; ref: string };
-  setInlineEditForm: (form: { name: string; category: string; language: string; note: string; ref: string }) => void;
+  inlineEditForm: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string };
+  setInlineEditForm: (form: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string }) => void;
   onInlineEdit: (music: MusicData) => void;
   onInlineSave: (musicId: string) => void;
   onInlineCancel: () => void;
@@ -1078,6 +1084,18 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                   />
                 </div>
                 <Textarea
+                  placeholder="歌詞"
+                  value={inlineEditForm.lyrics}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, lyrics: e.target.value })}
+                  className="rounded-lg text-sm h-24 resize-none"
+                />
+                <Input
+                  placeholder="封面圖 URL"
+                  value={inlineEditForm.cover}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
+                  className="h-9 rounded-lg text-sm"
+                />
+                <Textarea
                   placeholder="備註"
                   value={inlineEditForm.note}
                   onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
@@ -1320,8 +1338,8 @@ interface MusicCardProps {
   onDelete: () => void;
   // Inline editing props
   inlineEditingId?: string | null;
-  inlineEditForm?: { name: string; category: string; language: string; note: string; ref: string };
-  setInlineEditForm?: (form: { name: string; category: string; language: string; note: string; ref: string }) => void;
+  inlineEditForm?: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string };
+  setInlineEditForm?: (form: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string }) => void;
   onInlineEdit?: (music: MusicData) => void;
   onInlineSave?: (musicId: string) => void;
   onInlineCancel?: () => void;
