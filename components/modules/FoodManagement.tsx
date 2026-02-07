@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload } from "lucide-react";
+import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,6 +32,25 @@ export default function FoodManagement() {
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
   const [inlineEditForm, setInlineEditForm] = useState<FoodFormData>(INITIAL_FORM);
 
+  // Inline add state
+  const [isInlineAdding, setIsInlineAdding] = useState(false);
+  const [inlineAddForm, setInlineAddForm] = useState<FoodFormData>(INITIAL_FORM);
+
+  // Edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
   // 取得已存在的不重複商店
   const existingShops = useMemo(() => {
     const shops = foods.map(f => f.shop).filter(Boolean) as string[];
@@ -53,6 +72,48 @@ export default function FoodManagement() {
       food.shop?.toLowerCase().includes(query)
     );
   }, [foods, searchQuery]);
+
+  // Selection helpers (after filteredFoods)
+  const isAllSelected = filteredFoods.length > 0 && selectedIds.size === filteredFoods.length;
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredFoods.map(food => food.$id)));
+    }
+  };
+
+  // 批量刪除選中的項目
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+
+    // 如果是全選刪除，需要輸入確認文字
+    if (isAllSelected) {
+      const confirmText = prompt(
+        `⚠️ 警告：您正在刪除所有 ${selectedIds.size} 個食品！\n\n請輸入「DELETE Food」確認刪除：`
+      );
+      if (confirmText !== 'DELETE Food') {
+        if (confirmText !== null) {
+          alert('輸入錯誤，刪除已取消');
+        }
+        return;
+      }
+    } else {
+      // 部分選擇，使用一般確認
+      if (!confirm(`確定要刪除選中的 ${selectedIds.size} 個食品嗎？`)) return;
+    }
+
+    try {
+      for (const id of selectedIds) {
+        await deleteFood(id);
+      }
+      setSelectedIds(new Set());
+    } catch (error) {
+      console.error('Batch delete failed:', error);
+      const errorMessage = error instanceof Error ? error.message : '批量刪除失敗，請稍後再試';
+      alert(errorMessage);
+    }
+  };
 
   useEffect(() => {
     // Clean up object URLs on unmount
@@ -226,6 +287,38 @@ export default function FoodManagement() {
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
     setInlineEditForm(INITIAL_FORM);
+  };
+
+  // 開始行內新增
+  const startInlineAdd = () => {
+    setIsInlineAdding(true);
+    setInlineAddForm(INITIAL_FORM);
+    // 關閉其他編輯狀態
+    setInlineEditingId(null);
+    setInlineEditForm(INITIAL_FORM);
+  };
+
+  // 儲存行內新增
+  const handleInlineAddSave = async () => {
+    if (!inlineAddForm.name.trim()) {
+      alert('請輸入食品名稱');
+      return;
+    }
+    try {
+      await createFood(inlineAddForm);
+      setIsInlineAdding(false);
+      setInlineAddForm(INITIAL_FORM);
+    } catch (error) {
+      console.error('Inline add failed:', error);
+      const errorMessage = error instanceof Error ? error.message : '新增失敗，請稍後再試';
+      alert(errorMessage);
+    }
+  };
+
+  // 取消行內新增
+  const cancelInlineAdd = () => {
+    setIsInlineAdding(false);
+    setInlineAddForm(INITIAL_FORM);
   };
 
   // CSV 匯入/匯出功能
@@ -613,6 +706,19 @@ export default function FoodManagement() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
+              isEditMode={isEditMode}
+              setIsEditMode={setIsEditMode}
+              selectedIds={selectedIds}
+              toggleSelect={toggleSelect}
+              isAllSelected={isAllSelected}
+              toggleSelectAll={toggleSelectAll}
+              deleteSelected={deleteSelected}
+              isInlineAdding={isInlineAdding}
+              inlineAddForm={inlineAddForm}
+              setInlineAddForm={setInlineAddForm}
+              onInlineAddSave={handleInlineAddSave}
+              onInlineAddCancel={cancelInlineAdd}
+              startInlineAdd={startInlineAdd}
             />
             <MobileList
               foods={filteredFoods}
@@ -624,6 +730,19 @@ export default function FoodManagement() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
+              isEditMode={isEditMode}
+              setIsEditMode={setIsEditMode}
+              selectedIds={selectedIds}
+              toggleSelect={toggleSelect}
+              isAllSelected={isAllSelected}
+              toggleSelectAll={toggleSelectAll}
+              deleteSelected={deleteSelected}
+              isInlineAdding={isInlineAdding}
+              inlineAddForm={inlineAddForm}
+              setInlineAddForm={setInlineAddForm}
+              onInlineAddSave={handleInlineAddSave}
+              onInlineAddCancel={cancelInlineAdd}
+              startInlineAdd={startInlineAdd}
             />
           </>
         )}
@@ -933,9 +1052,23 @@ interface TableProps {
   onInlineEdit: (food: Food) => void;
   onInlineSave: () => void;
   onInlineCancel: () => void;
+  isEditMode: boolean;
+  setIsEditMode: (value: boolean) => void;
+  selectedIds: Set<string>;
+  toggleSelect: (id: string) => void;
+  isAllSelected: boolean;
+  toggleSelectAll: () => void;
+  deleteSelected: () => void;
+  // Inline add props
+  isInlineAdding: boolean;
+  inlineAddForm: FoodFormData;
+  setInlineAddForm: (form: FoodFormData) => void;
+  onInlineAddSave: () => void;
+  onInlineAddCancel: () => void;
+  startInlineAdd: () => void;
 }
 
-function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: TableProps) {
+function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="hidden lg:block">
@@ -949,14 +1082,173 @@ function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inline
       <Table>
         <TableHeader>
           <TableRow className="bg-gray-50/50 dark:bg-gray-700/50">
-            <TableHead className="font-semibold">名稱</TableHead>
+            <TableHead className="font-semibold">
+              <div className="flex items-center gap-2">
+                名稱
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    if (isInlineAdding) {
+                      onInlineAddCancel();
+                    } else {
+                      startInlineAdd();
+                    }
+                  }}
+                  variant="outline"
+                  className="rounded-lg flex items-center gap-1 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 h-7 px-2 text-xs"
+                >
+                  {isInlineAdding ? <X size={14} /> : <Plus size={14} />}
+                  {isInlineAdding ? "取消" : "新增"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setIsEditMode(!isEditMode);
+                    if (isEditMode) {
+                      onInlineCancel();
+                    }
+                  }}
+                  variant="outline"
+                  className={`rounded-lg flex items-center gap-1 h-7 px-2 text-xs ${isEditMode ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <Pencil size={14} />
+                  {isEditMode ? "取消編輯" : "編輯"}
+                </Button>
+                {isEditMode && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={toggleSelectAll}
+                    variant="outline"
+                    className={`rounded-lg flex items-center gap-1 h-7 px-2 text-xs ${isAllSelected ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {isAllSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+                    {isAllSelected ? "取消全選" : "全選"}
+                    {selectedIds.size > 0 && ` (${selectedIds.size})`}
+                  </Button>
+                )}
+                {isEditMode && selectedIds.size > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={deleteSelected}
+                    variant="outline"
+                    className="rounded-lg flex items-center gap-1 h-7 px-2 text-xs border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2 size={14} />
+                    刪除選中 ({selectedIds.size})
+                  </Button>
+                )}
+              </div>
+            </TableHead>
             <TableHead className="font-semibold">有效期限</TableHead>
             <TableHead className="font-semibold">數量</TableHead>
             <TableHead className="font-semibold">圖片</TableHead>
-            <TableHead className="font-semibold">操作</TableHead>
+            {!isEditMode && <TableHead className="font-semibold">操作</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
+          {/* 行內新增列 (桌面版) */}
+          {isInlineAdding && (
+            <TableRow className="bg-green-50 dark:bg-green-900/20">
+              <TableCell className="font-medium">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 w-12 shrink-0">名稱</span>
+                    <Input
+                      placeholder="食品名稱"
+                      value={inlineAddForm.name}
+                      onChange={(e) => setInlineAddForm({ ...inlineAddForm, name: e.target.value })}
+                      className="h-9 rounded-lg text-sm"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 w-12 shrink-0">價格</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="價格"
+                      value={inlineAddForm.price || ""}
+                      onChange={(e) => setInlineAddForm({ ...inlineAddForm, price: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+                      className="h-9 rounded-lg text-sm w-24"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 w-12 shrink-0">商店</span>
+                    <Input
+                      placeholder="商店名稱"
+                      value={inlineAddForm.shop || ""}
+                      onChange={(e) => setInlineAddForm({ ...inlineAddForm, shop: e.target.value })}
+                      className="h-9 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-2">
+                    <Button type="button" size="sm" onClick={onInlineAddSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">新增</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={onInlineAddCancel} className="rounded-xl">取消</Button>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="date"
+                    value={inlineAddForm.todate || ""}
+                    onChange={(e) => setInlineAddForm({ ...inlineAddForm, todate: e.target.value })}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                  {inlineAddForm.todate && (
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!inlineAddForm.todate) return;
+                          const d = new Date(inlineAddForm.todate);
+                          d.setDate(d.getDate() + 7);
+                          setInlineAddForm({ ...inlineAddForm, todate: d.toISOString().split('T')[0] });
+                        }}
+                        className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 rounded transition-colors"
+                        title="+7天"
+                      >
+                        <Plus size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!inlineAddForm.todate) return;
+                          const d = new Date(inlineAddForm.todate);
+                          d.setDate(d.getDate() - 7);
+                          setInlineAddForm({ ...inlineAddForm, todate: d.toISOString().split('T')[0] });
+                        }}
+                        className="p-1 hover:bg-orange-100 dark:hover:bg-orange-800 text-orange-600 rounded transition-colors"
+                        title="-7天"
+                      >
+                        <Minus size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="數量"
+                  value={inlineAddForm.amount || ""}
+                  onChange={(e) => setInlineAddForm({ ...inlineAddForm, amount: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+                  className="h-9 rounded-lg text-sm w-20"
+                />
+              </TableCell>
+              <TableCell>
+                <div className="w-16 h-16 flex items-center justify-center text-gray-400 border border-dashed border-gray-300 rounded-xl text-xs">
+                  NO IMAGE
+                </div>
+              </TableCell>
+            </TableRow>
+          )}
           {foods.map((food) => (
             <FoodTableRow
               key={food.$id}
@@ -969,6 +1261,9 @@ function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inline
               onInlineEdit={onInlineEdit}
               onInlineSave={onInlineSave}
               onInlineCancel={onInlineCancel}
+              isEditMode={isEditMode}
+              isSelected={selectedIds.has(food.$id)}
+              toggleSelect={toggleSelect}
             />
           ))}
         </TableBody>
@@ -987,9 +1282,12 @@ interface FoodTableRowProps {
   onInlineEdit: (food: Food) => void;
   onInlineSave: () => void;
   onInlineCancel: () => void;
+  isEditMode: boolean;
+  isSelected: boolean;
+  toggleSelect: (id: string) => void;
 }
 
-function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: FoodTableRowProps) {
+function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
   const rowClass = isExpired ? "bg-red-50 dark:bg-red-900/20" : isExpiringSoon ? "bg-yellow-50 dark:bg-yellow-900/20" : "";
 
@@ -1027,6 +1325,11 @@ function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditFor
                 onChange={(e) => setInlineEditForm({ ...inlineEditForm, shop: e.target.value })}
                 className="h-9 rounded-lg text-sm"
               />
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <Button type="button" size="sm" onClick={onInlineSave} className="rounded-lg bg-green-500 hover:bg-green-600 text-white h-8 w-8 p-0" title="儲存"><Check size={16} /></Button>
+              <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} className="rounded-lg h-8 w-8 p-0" title="取消"><X size={16} /></Button>
+              <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} className="rounded-lg h-8 w-8 p-0" title="刪除"><Trash2 size={16} /></Button>
             </div>
           </div>
         </TableCell>
@@ -1080,19 +1383,29 @@ function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditFor
         <TableCell>
           <FoodImage food={food} />
         </TableCell>
-        <TableCell>
-          <div className="flex gap-2">
-            <Button type="button" size="sm" onClick={onInlineSave} className="rounded-lg bg-green-500 hover:bg-green-600 text-white">儲存</Button>
-            <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} className="rounded-lg">取消</Button>
-          </div>
-        </TableCell>
       </TableRow>
     );
   }
 
   return (
     <TableRow className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/50 ${rowClass}`}>
-      <TableCell className="font-medium">{food.name}</TableCell>
+      <TableCell className="font-medium">
+        <div className="flex items-center gap-2">
+          {isEditMode && (
+            <button
+              type="button"
+              onClick={() => toggleSelect(food.$id)}
+              className="text-gray-400 hover:text-purple-600 transition-colors"
+            >
+              {isSelected ? <CheckSquare size={18} className="text-purple-600" /> : <Square size={18} />}
+            </button>
+          )}
+          <span>{food.name}</span>
+          {isEditMode && (
+            <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg h-7 px-2" title="編輯"><Pencil size={14} /></Button>
+          )}
+        </div>
+      </TableCell>
       <TableCell>
         <div className="flex flex-col gap-1">
           <span>{formattedDate}</span>
@@ -1107,18 +1420,20 @@ function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditFor
       <TableCell>
         <FoodImage food={food} />
       </TableCell>
-      <TableCell>
-        <div className="flex gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg">編輯</Button>
-          <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} className="rounded-lg">刪除</Button>
-        </div>
-      </TableCell>
+      {!isEditMode && (
+        <TableCell>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg">編輯</Button>
+            <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} className="rounded-lg">刪除</Button>
+          </div>
+        </TableCell>
+      )}
     </TableRow>
   );
 }
 
 // 手機版列表
-function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: TableProps) {
+function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="lg:hidden">
@@ -1129,7 +1444,160 @@ function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEd
 
   return (
     <div className="lg:hidden px-1">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="font-semibold text-gray-700 dark:text-gray-300">食品列表</span>
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => {
+            if (isInlineAdding) {
+              onInlineAddCancel();
+            } else {
+              startInlineAdd();
+            }
+          }}
+          variant="outline"
+          className="rounded-lg flex items-center gap-1 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 h-7 px-2 text-xs"
+        >
+          {isInlineAdding ? <X size={14} /> : <Plus size={14} />}
+          {isInlineAdding ? "取消" : "新增"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => {
+            setIsEditMode(!isEditMode);
+            if (isEditMode) {
+              onInlineCancel();
+            }
+          }}
+          variant="outline"
+          className={`rounded-lg flex items-center gap-1 h-7 px-2 text-xs ${isEditMode ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+        >
+          <Pencil size={14} />
+          {isEditMode ? "取消編輯" : "編輯"}
+        </Button>
+        {isEditMode && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={toggleSelectAll}
+            variant="outline"
+            className={`rounded-lg flex items-center gap-1 h-7 px-2 text-xs ${isAllSelected ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+          >
+            {isAllSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+            {isAllSelected ? "取消全選" : "全選"}
+            {selectedIds.size > 0 && ` (${selectedIds.size})`}
+          </Button>
+        )}
+        {isEditMode && selectedIds.size > 0 && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={deleteSelected}
+            variant="outline"
+            className="rounded-lg flex items-center gap-1 h-7 px-2 text-xs border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            <Trash2 size={14} />
+            刪除選中 ({selectedIds.size})
+          </Button>
+        )}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* 行內新增卡片 (手機版) */}
+        {isInlineAdding && (
+          <div className="p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/20 rounded-xl">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-12 shrink-0">名稱</span>
+                <Input
+                  placeholder="食品名稱"
+                  value={inlineAddForm.name}
+                  onChange={(e) => setInlineAddForm({ ...inlineAddForm, name: e.target.value })}
+                  className="h-10 rounded-lg flex-1"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1 flex items-center gap-1">
+                  <span className="text-xs text-gray-500 w-12 shrink-0">期限</span>
+                  <Input
+                    type="date"
+                    value={inlineAddForm.todate || ""}
+                    onChange={(e) => setInlineAddForm({ ...inlineAddForm, todate: e.target.value })}
+                    className="h-10 rounded-lg flex-1"
+                  />
+                  {inlineAddForm.todate && (
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!inlineAddForm.todate) return;
+                          const d = new Date(inlineAddForm.todate);
+                          d.setDate(d.getDate() + 7);
+                          setInlineAddForm({ ...inlineAddForm, todate: d.toISOString().split('T')[0] });
+                        }}
+                        className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 rounded transition-colors"
+                        title="+7天"
+                      >
+                        <Plus size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!inlineAddForm.todate) return;
+                          const d = new Date(inlineAddForm.todate);
+                          d.setDate(d.getDate() - 7);
+                          setInlineAddForm({ ...inlineAddForm, todate: d.toISOString().split('T')[0] });
+                        }}
+                        className="p-1 hover:bg-orange-100 dark:hover:bg-orange-800 text-orange-600 rounded transition-colors"
+                        title="-7天"
+                      >
+                        <Minus size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-12 shrink-0">數量</span>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="數量"
+                  value={inlineAddForm.amount || ""}
+                  onChange={(e) => setInlineAddForm({ ...inlineAddForm, amount: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+                  className="h-10 rounded-lg flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-12 shrink-0">價格</span>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="價格"
+                  value={inlineAddForm.price || ""}
+                  onChange={(e) => setInlineAddForm({ ...inlineAddForm, price: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+                  className="h-10 rounded-lg flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-12 shrink-0">商店</span>
+                <Input
+                  placeholder="商店名稱"
+                  value={inlineAddForm.shop || ""}
+                  onChange={(e) => setInlineAddForm({ ...inlineAddForm, shop: e.target.value })}
+                  className="h-10 rounded-lg flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <Button type="button" size="sm" onClick={onInlineAddSave} className="rounded-lg bg-green-500 hover:bg-green-600 text-white h-10 px-4 flex items-center gap-1 font-bold"><Check size={16} /> 新增</Button>
+                <Button type="button" size="sm" variant="outline" onClick={onInlineAddCancel} className="rounded-lg h-10 px-4 flex items-center gap-1 font-bold"><X size={16} /> 取消</Button>
+              </div>
+            </div>
+          </div>
+        )}
         {foods.map((food) => (
           <FoodMobileCard
             key={food.$id}
@@ -1142,6 +1610,9 @@ function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEd
             onInlineEdit={onInlineEdit}
             onInlineSave={onInlineSave}
             onInlineCancel={onInlineCancel}
+            isEditMode={isEditMode}
+            isSelected={selectedIds.has(food.$id)}
+            toggleSelect={toggleSelect}
           />
         ))}
       </div>
@@ -1159,9 +1630,12 @@ interface FoodMobileCardProps {
   onInlineEdit: (food: Food) => void;
   onInlineSave: () => void;
   onInlineCancel: () => void;
+  isEditMode: boolean;
+  isSelected: boolean;
+  toggleSelect: (id: string) => void;
 }
 
-function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel }: FoodMobileCardProps) {
+function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
 
   if (isEditing) {
@@ -1248,9 +1722,10 @@ function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditF
               className="h-10 rounded-lg flex-1"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            <Button type="button" size="sm" onClick={onInlineSave} className="h-11 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold">儲存</Button>
-            <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} className="h-11 rounded-xl font-bold">取消</Button>
+          <div className="flex items-center gap-2 pt-2">
+            <Button type="button" size="sm" onClick={onInlineSave} className="rounded-lg bg-green-500 hover:bg-green-600 text-white h-10 px-4 flex items-center gap-1 font-bold"><Check size={16} /> 儲存</Button>
+            <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} className="rounded-lg h-10 px-4 flex items-center gap-1 font-bold"><X size={16} /> 取消</Button>
+            <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} className="rounded-lg h-10 px-4 flex items-center gap-1 font-bold"><Trash2 size={16} /> 刪除</Button>
           </div>
         </div>
       </div>
@@ -1260,12 +1735,24 @@ function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditF
   return (
     <div className={`p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 ${isExpired ? "bg-red-50/50" : isExpiringSoon ? "bg-amber-50/50" : ""}`}>
       <div className="flex gap-4 items-start">
+        {isEditMode && (
+          <button
+            type="button"
+            onClick={() => toggleSelect(food.$id)}
+            className="text-gray-400 hover:text-purple-600 transition-colors mt-1"
+          >
+            {isSelected ? <CheckSquare size={22} className="text-purple-600" /> : <Square size={22} />}
+          </button>
+        )}
         <FoodImage food={food} className="w-20 h-20 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-start gap-2">
             <h3 className="font-bold text-gray-900 dark:text-gray-100 text-lg leading-snug break-words line-clamp-2">
               {food.name}
             </h3>
+            {isEditMode && (
+              <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg h-8 px-2 shrink-0" title="編輯"><Pencil size={14} /></Button>
+            )}
           </div>
           <div className="mt-1 space-y-1">
             <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
@@ -1285,26 +1772,28 @@ function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditF
         <div className="w-full">
           <AmountControl food={food} onAmountChange={onAmountChange} />
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => onInlineEdit(food)}
-            className="h-11 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 font-bold"
-          >
-            編輯
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            onClick={() => onDelete(food.$id)}
-            className="h-11 rounded-xl font-bold"
-          >
-            刪除
-          </Button>
-        </div>
+        {!isEditMode && (
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onInlineEdit(food)}
+              className="h-11 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 font-bold"
+            >
+              編輯
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={() => onDelete(food.$id)}
+              className="h-11 rounded-xl font-bold"
+            >
+              刪除
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
