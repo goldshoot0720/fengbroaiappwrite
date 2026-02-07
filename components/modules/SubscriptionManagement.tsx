@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Minus, Search, Download, Upload, X, Copy } from "lucide-react";
+import { Plus, Minus, Search, Download, Upload, X, Copy, Trash2, Pencil, Check, Square, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,6 +36,21 @@ export default function SubscriptionManagement() {
   const [isInlineAdding, setIsInlineAdding] = useState(false);
   const [inlineAddForm, setInlineAddForm] = useState<SubscriptionFormData>(INITIAL_FORM);
 
+  // Edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
   // 搜尋過濾
   const filteredSubscriptions = useMemo(() => {
     if (!searchQuery.trim()) return subscriptions;
@@ -47,6 +62,48 @@ export default function SubscriptionManagement() {
       sub.note?.toLowerCase().includes(query)
     );
   }, [subscriptions, searchQuery]);
+
+  // Selection helpers (after filteredSubscriptions)
+  const isAllSelected = filteredSubscriptions.length > 0 && selectedIds.size === filteredSubscriptions.length;
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredSubscriptions.map(sub => sub.$id)));
+    }
+  };
+
+  // 批量刪除選中的項目
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+
+    // 如果是全選刪除，需要輸入確認文字
+    if (isAllSelected) {
+      const confirmText = prompt(
+        `⚠️ 警告：您正在刪除所有 ${selectedIds.size} 個訂閱！\n\n請輸入「DELETE Subscription」確認刪除：`
+      );
+      if (confirmText !== 'DELETE Subscription') {
+        if (confirmText !== null) {
+          alert('輸入錯誤，刪除已取消');
+        }
+        return;
+      }
+    } else {
+      // 部分選擇，使用一般確認
+      if (!confirm(`確定要刪除選中的 ${selectedIds.size} 個訂閱嗎？`)) return;
+    }
+
+    try {
+      for (const id of selectedIds) {
+        await deleteSubscription(id);
+      }
+      setSelectedIds(new Set());
+    } catch (error) {
+      console.error('Batch delete failed:', error);
+      const errorMessage = error instanceof Error ? error.message : '批量刪除失敗，請稍後再試';
+      alert(errorMessage);
+    }
+  };
 
   const truncateName = (name: string, id: string) => {
     const isExpanded = expandedNames.has(id);
@@ -772,12 +829,53 @@ export default function SubscriptionManagement() {
                           {isInlineAdding ? <X size={14} /> : <Plus size={14} />}
                           {isInlineAdding ? "取消" : "新增"}
                         </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            setIsEditMode(!isEditMode);
+                            if (isEditMode) {
+                              // 關閉編輯模式時，取消正在編輯的項目
+                              setInlineEditingId(null);
+                              setInlineEditForm(INITIAL_FORM);
+                            }
+                          }}
+                          variant="outline"
+                          className={`rounded-lg flex items-center gap-1 h-7 px-2 text-xs ${isEditMode ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                        >
+                          <Pencil size={14} />
+                          {isEditMode ? "取消編輯" : "編輯"}
+                        </Button>
+                        {isEditMode && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={toggleSelectAll}
+                            variant="outline"
+                            className={`rounded-lg flex items-center gap-1 h-7 px-2 text-xs ${isAllSelected ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            {isAllSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+                            {isAllSelected ? "取消全選" : "全選"}
+                            {selectedIds.size > 0 && ` (${selectedIds.size})`}
+                          </Button>
+                        )}
+                        {isEditMode && selectedIds.size > 0 && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={deleteSelected}
+                            variant="outline"
+                            className="rounded-lg flex items-center gap-1 h-7 px-2 text-xs border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 size={14} />
+                            刪除選中 ({selectedIds.size})
+                          </Button>
+                        )}
                       </div>
                     </TableHead>
                     <TableHead className="font-semibold">下次付款日期</TableHead>
                     <TableHead className="font-semibold">月費</TableHead>
                     <TableHead className="font-semibold">續訂</TableHead>
-                    <TableHead className="font-semibold">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -825,6 +923,10 @@ export default function SubscriptionManagement() {
                               className="rounded-lg text-sm min-h-[60px] resize-y"
                               rows={2}
                             />
+                          </div>
+                          <div className="flex items-center gap-2 pt-2">
+                            <Button type="button" size="sm" onClick={handleInlineAddSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">新增</Button>
+                            <Button type="button" size="sm" variant="outline" onClick={cancelInlineAdd} className="rounded-xl">取消</Button>
                           </div>
                         </div>
                       </TableCell>
@@ -905,12 +1007,6 @@ export default function SubscriptionManagement() {
                           <span className="text-sm">{inlineAddForm.continue !== false ? "續訂" : "不續"}</span>
                         </label>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button type="button" size="sm" onClick={handleInlineAddSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">新增</Button>
-                          <Button type="button" size="sm" variant="outline" onClick={cancelInlineAdd} className="rounded-xl">取消</Button>
-                        </div>
-                      </TableCell>
                     </TableRow>
                   )}
                   {filteredSubscriptions.map((sub) => {
@@ -962,6 +1058,12 @@ export default function SubscriptionManagement() {
                                   className="rounded-lg text-sm min-h-[60px] resize-y"
                                   rows={2}
                                 />
+                              </div>
+                              <div className="flex items-center gap-2 pt-2">
+                                <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
+                                <Button type="button" size="sm" onClick={handleInlineSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white" title="儲存"><Check size={14} /></Button>
+                                <Button type="button" size="sm" variant="outline" onClick={cancelInlineEdit} className="rounded-xl" title="取消"><X size={14} /></Button>
+                                <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50" title="刪除"><Trash2 size={14} /></Button>
                               </div>
                             </div>
                           </TableCell>
@@ -1040,12 +1142,6 @@ export default function SubscriptionManagement() {
                               <span className="text-sm">{inlineEditForm.continue !== false ? "續訂" : "不續"}</span>
                             </label>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button type="button" size="sm" onClick={handleInlineSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">儲存</Button>
-                              <Button type="button" size="sm" variant="outline" onClick={cancelInlineEdit} className="rounded-xl">取消</Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       );
                     }
@@ -1055,8 +1151,17 @@ export default function SubscriptionManagement() {
                       <TableRow key={sub.$id} className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/50 ${rowClass}`}>
                         <TableCell className="font-medium">
                           <div className="flex items-start gap-2">
+                            {isEditMode && (
+                              <button
+                                type="button"
+                                onClick={() => toggleSelect(sub.$id)}
+                                className="mt-0.5 text-gray-400 hover:text-purple-600 transition-colors"
+                              >
+                                {selectedIds.has(sub.$id) ? <CheckSquare size={18} className="text-purple-600" /> : <Square size={18} />}
+                              </button>
+                            )}
                             {sub.site && <FaviconImage siteUrl={sub.site} siteName={sub.name} size={20} />}
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1 flex-1">
                               <div className="flex items-center gap-2">
                                 {sub.site ? (
                                   <a href={sub.site} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline">
@@ -1064,6 +1169,9 @@ export default function SubscriptionManagement() {
                                   </a>
                                 ) : (
                                   <span className="text-gray-900 dark:text-gray-100">{truncateName(sub.name, sub.$id)}</span>
+                                )}
+                                {isEditMode && (
+                                  <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg h-7 px-2" title="編輯"><Pencil size={14} /></Button>
                                 )}
                                 {sub.name.length > 37 && (
                                   <Button
@@ -1108,12 +1216,6 @@ export default function SubscriptionManagement() {
                             <span className="text-gray-400 dark:text-gray-500">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-xl">編輯</Button>
-                          </div>
-                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -1140,6 +1242,47 @@ export default function SubscriptionManagement() {
                   {isInlineAdding ? <X size={14} /> : <Plus size={14} />}
                   {isInlineAdding ? "取消" : "新增"}
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setIsEditMode(!isEditMode);
+                    if (isEditMode) {
+                      setInlineEditingId(null);
+                      setInlineEditForm(INITIAL_FORM);
+                    }
+                  }}
+                  variant="outline"
+                  className={`rounded-lg flex items-center gap-1 h-7 px-2 text-xs ${isEditMode ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <Pencil size={14} />
+                  {isEditMode ? "取消編輯" : "編輯"}
+                </Button>
+                {isEditMode && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={toggleSelectAll}
+                    variant="outline"
+                    className={`rounded-lg flex items-center gap-1 h-7 px-2 text-xs ${isAllSelected ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {isAllSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+                    {isAllSelected ? "取消全選" : "全選"}
+                    {selectedIds.size > 0 && ` (${selectedIds.size})`}
+                  </Button>
+                )}
+                {isEditMode && selectedIds.size > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={deleteSelected}
+                    variant="outline"
+                    className="rounded-lg flex items-center gap-1 h-7 px-2 text-xs border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2 size={14} />
+                    刪除選中 ({selectedIds.size})
+                  </Button>
+                )}
               </div>
               <DataCardList>
                 {/* 行內新增卡片 (手機版) */}
@@ -1364,8 +1507,10 @@ export default function SubscriptionManagement() {
                             <span className="text-sm">{inlineEditForm.continue !== false ? "續訂" : "不續"}</span>
                           </label>
                           <div className="flex gap-2 pt-2">
-                            <Button type="button" size="sm" onClick={handleInlineSave} className="flex-1 rounded-xl bg-green-500 hover:bg-green-600 text-white">儲存</Button>
-                            <Button type="button" size="sm" variant="outline" onClick={cancelInlineEdit} className="flex-1 rounded-xl">取消</Button>
+                            <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
+                            <Button type="button" size="sm" onClick={handleInlineSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white" title="儲存"><Check size={14} /></Button>
+                            <Button type="button" size="sm" variant="outline" onClick={cancelInlineEdit} className="rounded-xl" title="取消"><X size={14} /></Button>
+                            <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50" title="刪除"><Trash2 size={14} /></Button>
                           </div>
                         </div>
                       </DataCardItem>
@@ -1378,15 +1523,26 @@ export default function SubscriptionManagement() {
                       <div className="space-y-3">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2 flex-1">
+                            {isEditMode && (
+                              <button
+                                type="button"
+                                onClick={() => toggleSelect(sub.$id)}
+                                className="text-gray-400 hover:text-purple-600 transition-colors"
+                              >
+                                {selectedIds.has(sub.$id) ? <CheckSquare size={18} className="text-purple-600" /> : <Square size={18} />}
+                              </button>
+                            )}
                             {sub.site && <FaviconImage siteUrl={sub.site} siteName={sub.name} size={20} />}
                             <div className="flex flex-col gap-1 flex-1">
-                              {sub.site ? (
-                                <a href={sub.site} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-semibold">
-                                  {truncateName(sub.name, sub.$id)}
-                                </a>
-                              ) : (
-                                <span className="text-gray-900 dark:text-gray-100 font-semibold">{truncateName(sub.name, sub.$id)}</span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {sub.site ? (
+                                  <a href={sub.site} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-semibold">
+                                    {truncateName(sub.name, sub.$id)}
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-900 dark:text-gray-100 font-semibold">{truncateName(sub.name, sub.$id)}</span>
+                                )}
+                              </div>
                               {sub.account && (
                                 <span className="text-sm text-gray-500 dark:text-gray-400">{sub.account}</span>
                               )}
@@ -1424,10 +1580,11 @@ export default function SubscriptionManagement() {
                             </div>
                           )}
                         </div>
-                        <div className="flex gap-2 pt-2">
-                          <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="flex-1 rounded-xl">編輯</Button>
-                        </div>
+                        {isEditMode && (
+                          <div className="flex gap-2 pt-2">
+                            <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-xl" title="編輯"><Pencil size={14} /></Button>
+                          </div>
+                        )}
                       </div>
                     </DataCardItem>
                   );
