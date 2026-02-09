@@ -849,11 +849,11 @@ export default function NotesManagement() {
           
           <div className="space-y-1">
             <Textarea
-              placeholder="筆記內容 (上限 1000 字) / Note Content (Max 1000 chars)"
+              placeholder="筆記內容 (上限 3377 字) / Note Content (Max 3377 chars)"
               value={form.content}
               onChange={(e) => setForm({ ...form, content: e.target.value })}
               className="min-h-[200px] rounded-xl w-full"
-              maxLength={1000}
+              maxLength={3377}
             />
             <div className="px-1 h-4">
               {form.content ? (
@@ -1141,11 +1141,11 @@ export default function NotesManagement() {
                       </FormGrid>
                       
                       <Textarea
-                        placeholder="筆記內容 (上限 1000 字)"
+                        placeholder="筆記內容 (上限 3377 字)"
                         value={editForm.content}
                         onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
                         className="min-h-[150px] rounded-lg text-sm"
-                        maxLength={1000}
+                        maxLength={3377}
                       />
 
                       <div className="grid grid-cols-1 gap-2">
