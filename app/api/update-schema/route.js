@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 const TABLE_SCHEMAS = {
   article: [
     { key: 'title', type: 'string', size: 100 },
-    { key: 'content', type: 'string', size: 1000 },
+    { key: 'content', type: 'string', size: 3377 },
     { key: 'newDate', type: 'datetime' },
     { key: 'url1', type: 'url' },
     { key: 'url2', type: 'url' },

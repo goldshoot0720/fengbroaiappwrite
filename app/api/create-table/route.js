@@ -42,7 +42,7 @@ const TABLE_SCHEMAS = {
     name: "article",
     attributes: [
       { key: 'title', type: 'string', size: 100, required: false },
-      { key: 'content', type: 'string', size: 1000, required: false },
+      { key: 'content', type: 'string', size: 3377, required: false },
       { key: 'category', type: 'string', size: 100, required: false },
       { key: 'ref', type: 'string', size: 100, required: false },
       { key: 'newDate', type: 'datetime', required: false },

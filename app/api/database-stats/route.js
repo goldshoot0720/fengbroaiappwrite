@@ -29,7 +29,7 @@ function createAppwrite(searchParams) {
 const TABLE_DEFINITIONS = {
   article: [
     { key: 'title', type: 'string', size: 100 },
-    { key: 'content', type: 'string', size: 1000 },
+    { key: 'content', type: 'string', size: 3377 },
     { key: 'category', type: 'string', size: 100 },
     { key: 'ref', type: 'string', size: 100 },
     { key: 'newDate', type: 'datetime' },
