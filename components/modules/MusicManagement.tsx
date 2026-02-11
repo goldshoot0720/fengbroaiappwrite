@@ -65,6 +65,7 @@ export default function MusicManagement() {
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
   const [inlineEditForm, setInlineEditForm] = useState({
     name: '',
+    file: '',
     category: '',
     language: '',
     note: '',
@@ -76,6 +77,10 @@ export default function MusicManagement() {
   const [inlineCoverFile, setInlineCoverFile] = useState<File | null>(null);
   const [inlineCoverPreview, setInlineCoverPreview] = useState<string>('');
   const [inlineCoverUploading, setInlineCoverUploading] = useState(false);
+  const [inlineAudioFile, setInlineAudioFile] = useState<File | null>(null);
+  const [inlineAudioPreview, setInlineAudioPreview] = useState<string>('');
+  const [inlineAudioUploading, setInlineAudioUploading] = useState(false);
+  const inlineAudioInputRef = useRef<HTMLInputElement>(null);
 
   // 音樂快取管理
   const {
@@ -497,6 +502,7 @@ export default function MusicManagement() {
   const handleInlineEdit = (musicItem: MusicData) => {
     setInlineEditForm({
       name: musicItem.name || '',
+      file: musicItem.file || '',
       category: musicItem.category || '',
       language: musicItem.language || '',
       note: musicItem.note || '',
@@ -507,6 +513,8 @@ export default function MusicManagement() {
     });
     setInlineCoverFile(null);
     setInlineCoverPreview('');
+    setInlineAudioFile(null);
+    setInlineAudioPreview('');
     setInlineEditingId(musicItem.$id);
   };
 
@@ -515,7 +523,25 @@ export default function MusicManagement() {
     if (!inlineEditingId) return;
     try {
       let coverUrl = inlineEditForm.cover;
-      
+      let fileUrl = inlineEditForm.file;
+      let filetype = inlineEditForm.filetype;
+
+      // 如果有選擇音樂檔案，先上傳
+      if (inlineAudioFile) {
+        setInlineAudioUploading(true);
+        try {
+          const result = await uploadToAppwriteStorage(inlineAudioFile);
+          fileUrl = result.url;
+          filetype = inlineAudioFile.name.split('.').pop()?.toLowerCase() || filetype;
+        } catch (uploadError) {
+          console.error('音樂檔案上傳失敗:', uploadError);
+          alert('音樂檔案上傳失敗，請稍後再試');
+          setInlineAudioUploading(false);
+          return;
+        }
+        setInlineAudioUploading(false);
+      }
+
       // 如果有選擇封面檔案，先上傳
       if (inlineCoverFile) {
         setInlineCoverUploading(true);
@@ -530,28 +556,31 @@ export default function MusicManagement() {
         }
         setInlineCoverUploading(false);
       }
-      
+
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.MUSIC}/${musicId}`);
       const response = await fetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: inlineEditForm.name,
+          file: fileUrl,
           category: inlineEditForm.category,
           language: inlineEditForm.language,
           note: inlineEditForm.note,
           ref: inlineEditForm.ref,
           lyrics: inlineEditForm.lyrics,
           cover: coverUrl,
-          filetype: inlineEditForm.filetype,
+          filetype: filetype,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadMusic(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
+      setInlineEditForm({ name: '', file: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
       setInlineCoverFile(null);
       setInlineCoverPreview('');
+      setInlineAudioFile(null);
+      setInlineAudioPreview('');
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
@@ -561,9 +590,11 @@ export default function MusicManagement() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
+    setInlineEditForm({ name: '', file: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
     setInlineCoverFile(null);
     setInlineCoverPreview('');
+    setInlineAudioFile(null);
+    setInlineAudioPreview('');
   };
 
   if (loading) {
@@ -661,6 +692,12 @@ export default function MusicManagement() {
               inlineCoverPreview={inlineCoverPreview}
               setInlineCoverPreview={setInlineCoverPreview}
               inlineCoverUploading={inlineCoverUploading}
+              inlineAudioFile={inlineAudioFile}
+              setInlineAudioFile={setInlineAudioFile}
+              inlineAudioPreview={inlineAudioPreview}
+              setInlineAudioPreview={setInlineAudioPreview}
+              inlineAudioUploading={inlineAudioUploading}
+              inlineAudioInputRef={inlineAudioInputRef}
             />
           ))}
         </div>
@@ -850,8 +887,8 @@ interface GroupedMusicCardProps {
   onDelete: (music: MusicData) => void;
   // Inline editing props
   inlineEditingId: string | null;
-  inlineEditForm: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string };
-  setInlineEditForm: (form: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string }) => void;
+  inlineEditForm: { name: string; file: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string };
+  setInlineEditForm: (form: { name: string; file: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string }) => void;
   onInlineEdit: (music: MusicData) => void;
   onInlineSave: (musicId: string) => void;
   onInlineCancel: () => void;
@@ -861,9 +898,16 @@ interface GroupedMusicCardProps {
   inlineCoverPreview: string;
   setInlineCoverPreview: (preview: string) => void;
   inlineCoverUploading: boolean;
+  // Inline audio upload props
+  inlineAudioFile: File | null;
+  setInlineAudioFile: (file: File | null) => void;
+  inlineAudioPreview: string;
+  setInlineAudioPreview: (preview: string) => void;
+  inlineAudioUploading: boolean;
+  inlineAudioInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
-function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: GroupedMusicCardProps) {
+function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading, inlineAudioFile, setInlineAudioFile, inlineAudioPreview, setInlineAudioPreview, inlineAudioUploading, inlineAudioInputRef }: GroupedMusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
   const inlineCoverInputRef = useRef<HTMLInputElement>(null);
 
@@ -989,6 +1033,12 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
         inlineCoverPreview={inlineCoverPreview}
         setInlineCoverPreview={setInlineCoverPreview}
         inlineCoverUploading={inlineCoverUploading}
+        inlineAudioFile={inlineAudioFile}
+        setInlineAudioFile={setInlineAudioFile}
+        inlineAudioPreview={inlineAudioPreview}
+        setInlineAudioPreview={setInlineAudioPreview}
+        inlineAudioUploading={inlineAudioUploading}
+        inlineAudioInputRef={inlineAudioInputRef}
       />
     );
   }
@@ -1139,6 +1189,41 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                   onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
                   className="h-9 rounded-lg text-sm"
                 />
+                {/* 音樂檔案 */}
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400">音樂檔案</label>
+                  <Input
+                    placeholder="音樂檔案 URL"
+                    value={inlineEditForm.file}
+                    onChange={(e) => setInlineEditForm({ ...inlineEditForm, file: e.target.value })}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                  {(inlineAudioPreview || inlineEditForm.file) && (
+                    <audio src={inlineAudioPreview || getProxiedMediaUrl(inlineEditForm.file)} controls className="w-full h-8" />
+                  )}
+                  <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+                    <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                      {inlineAudioUploading ? '上傳中...' : inlineAudioFile ? inlineAudioFile.name : '上傳音樂檔案'}
+                    </span>
+                    <input
+                      ref={inlineAudioInputRef}
+                      type="file"
+                      accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/aac,audio/flac,audio/m4a"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 50 * 1024 * 1024) { alert('音樂檔案大小不能超過 50MB'); return; }
+                        setInlineAudioFile(file);
+                        setInlineAudioPreview(URL.createObjectURL(file));
+                        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                        setInlineEditForm({ ...inlineEditForm, filetype: ext });
+                      }}
+                      disabled={inlineAudioUploading}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     placeholder="分類"
@@ -1205,7 +1290,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                       type="file"
                       accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                       onChange={handleInlineCoverSelect}
-                      disabled={inlineCoverUploading}
+                      disabled={inlineCoverUploading || inlineAudioUploading}
                       className="hidden"
                     />
                   </label>
@@ -1234,15 +1319,15 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                 <div className="flex gap-2">
                   <Button
                     onClick={() => onInlineSave(selectedItem.$id)}
-                    disabled={inlineCoverUploading}
+                    disabled={inlineCoverUploading || inlineAudioUploading}
                     className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50"
                   >
-                    {inlineCoverUploading ? '上傳中...' : '儲存'}
+                    {inlineCoverUploading || inlineAudioUploading ? '上傳中...' : '儲存'}
                   </Button>
                   <Button
                     onClick={onInlineCancel}
                     variant="outline"
-                    disabled={inlineCoverUploading}
+                    disabled={inlineCoverUploading || inlineAudioUploading}
                     className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50"
                   >
                     取消
@@ -1464,8 +1549,8 @@ interface MusicCardProps {
   onDelete: () => void;
   // Inline editing props
   inlineEditingId?: string | null;
-  inlineEditForm?: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string };
-  setInlineEditForm?: (form: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string }) => void;
+  inlineEditForm?: { name: string; file: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string };
+  setInlineEditForm?: (form: { name: string; file: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string }) => void;
   onInlineEdit?: (music: MusicData) => void;
   onInlineSave?: (musicId: string) => void;
   onInlineCancel?: () => void;
@@ -1475,9 +1560,16 @@ interface MusicCardProps {
   inlineCoverPreview?: string;
   setInlineCoverPreview?: (preview: string) => void;
   inlineCoverUploading?: boolean;
+  // Inline audio upload props
+  inlineAudioFile?: File | null;
+  setInlineAudioFile?: (file: File | null) => void;
+  inlineAudioPreview?: string;
+  setInlineAudioPreview?: (preview: string) => void;
+  inlineAudioUploading?: boolean;
+  inlineAudioInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
-function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: MusicCardProps) {
+function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading, inlineAudioFile, setInlineAudioFile, inlineAudioPreview, setInlineAudioPreview, inlineAudioUploading, inlineAudioInputRef }: MusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
   const { addToQueue, isInQueue } = useMusicQueue();
   const { cacheStatus, downloadAndCacheMusic, checkMusicCache, loadMusicFromCache } = useMusicCache();
@@ -1548,6 +1640,41 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
               onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
               className="h-9 rounded-lg text-sm"
             />
+            {/* 音樂檔案 */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">音樂檔案</label>
+              <Input
+                placeholder="音樂檔案 URL"
+                value={inlineEditForm.file}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, file: e.target.value })}
+                className="h-9 rounded-lg text-sm"
+              />
+              {(inlineAudioPreview || inlineEditForm.file) && (
+                <audio src={inlineAudioPreview || getProxiedMediaUrl(inlineEditForm.file)} controls className="w-full h-8" />
+              )}
+              <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+                <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                  {inlineAudioUploading ? '上傳中...' : inlineAudioFile ? inlineAudioFile.name : '上傳音樂檔案'}
+                </span>
+                <input
+                  ref={inlineAudioInputRef}
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/aac,audio/flac,audio/m4a"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 50 * 1024 * 1024) { alert('音樂檔案大小不能超過 50MB'); return; }
+                    setInlineAudioFile?.(file);
+                    setInlineAudioPreview?.(URL.createObjectURL(file));
+                    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                    setInlineEditForm({ ...inlineEditForm, filetype: ext });
+                  }}
+                  disabled={inlineAudioUploading}
+                  className="hidden"
+                />
+              </label>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <Input
                 placeholder="分類"
@@ -1614,7 +1741,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                   type="file"
                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                   onChange={handleInlineCoverSelect}
-                  disabled={inlineCoverUploading}
+                  disabled={inlineCoverUploading || inlineAudioUploading}
                   className="hidden"
                 />
               </label>
@@ -1643,15 +1770,15 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
             <div className="flex gap-2">
               <Button
                 onClick={() => onInlineSave(music.$id)}
-                disabled={inlineCoverUploading}
+                disabled={inlineCoverUploading || inlineAudioUploading}
                 className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50"
               >
-                {inlineCoverUploading ? '上傳中...' : '儲存'}
+                {inlineCoverUploading || inlineAudioUploading ? '上傳中...' : '儲存'}
               </Button>
               <Button
                 onClick={onInlineCancel}
                 variant="outline"
-                disabled={inlineCoverUploading}
+                disabled={inlineCoverUploading || inlineAudioUploading}
                 className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50"
               >
                 取消
