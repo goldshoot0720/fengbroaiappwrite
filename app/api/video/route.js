@@ -25,6 +25,13 @@ function createAppwrite(searchParams) {
   return { databases, databaseId };
 }
 
+async function getCollectionId(databases, databaseId, name) {
+  const allCollections = await databases.listCollections(databaseId);
+  const col = allCollections.collections.find(c => c.name === name);
+  if (!col) throw new Error(`Collection ${name} not found`);
+  return col.$id;
+}
+
 // GET /api/video - List all videos
 export async function GET(request) {
   try {
@@ -32,14 +39,21 @@ export async function GET(request) {
     const { databases, databaseId } = createAppwrite(searchParams);
     
     // Get collection ID by name
-    const allCollections = await databases.listCollections(databaseId);
-    const videoCollection = allCollections.collections.find(col => col.name === 'video');
-    
-    if (!videoCollection) {
-      return NextResponse.json({ error: "Table video 不存在，請至「鋒兄設定」中初始化。" }, { status: 404 });
+    let collectionId;
+    try {
+      collectionId = await getCollectionId(databases, databaseId, "video");
+    } catch (collectionErr) {
+      const errMsg = collectionErr.message || '';
+      if (errMsg.includes('Bandwidth') || errMsg.includes('bandwidth') || errMsg.includes('exceeded')) {
+        return NextResponse.json({ error: errMsg }, { status: 500 });
+      }
+      console.error("Collection not found:", collectionErr.message);
+      return NextResponse.json(
+        { error: "Table video 不存在，請至「鋒兄設定」中初始化。" },
+        { status: 404 }
+      );
     }
     
-    const collectionId = videoCollection.$id;
     const response = await databases.listDocuments(databaseId, collectionId, [
       sdk.Query.limit(500),
       sdk.Query.orderDesc('$createdAt'),
@@ -64,6 +78,22 @@ export async function POST(request) {
       return NextResponse.json({ error: "影片名稱為必填欄位" }, { status: 400 });
     }
 
+    // Get collection ID by name
+    let collectionId;
+    try {
+      collectionId = await getCollectionId(databases, databaseId, "video");
+    } catch (collectionErr) {
+      const errMsg = collectionErr.message || '';
+      if (errMsg.includes('Bandwidth') || errMsg.includes('bandwidth') || errMsg.includes('exceeded')) {
+        return NextResponse.json({ error: errMsg }, { status: 500 });
+      }
+      console.error("Collection not found:", collectionErr.message);
+      return NextResponse.json(
+        { error: "Table video 不存在，請至「鋒兄設定」中初始化。" },
+        { status: 404 }
+      );
+    }
+
     // Truncate fields to schema limits to prevent Appwrite validation errors
     const data = {
       name: (body.name || '').substring(0, 100),
@@ -75,16 +105,6 @@ export async function POST(request) {
       hash: (body.hash || '').substring(0, 300),
       cover: (body.cover || '').substring(0, 500),
     };
-
-    // Get collection ID by name
-    const allCollections = await databases.listCollections(databaseId);
-    const videoCollection = allCollections.collections.find(col => col.name === 'video');
-
-    if (!videoCollection) {
-      return NextResponse.json({ error: "Table video 不存在，請至「鋒兄設定」中初始化。" }, { status: 404 });
-    }
-
-    const collectionId = videoCollection.$id;
 
     const document = await databases.createDocument(
       databaseId,

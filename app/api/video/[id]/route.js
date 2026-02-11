@@ -27,6 +27,13 @@ function createAppwrite(searchParams) {
   return { databases, storage, databaseId, bucketId };
 }
 
+async function getCollectionId(databases, databaseId, name) {
+  const allCollections = await databases.listCollections(databaseId);
+  const col = allCollections.collections.find(c => c.name === name);
+  if (!col) throw new Error(`Collection ${name} not found`);
+  return col.$id;
+}
+
 // Extract file ID from Appwrite storage URL
 function extractFileIdFromUrl(fileUrl) {
   if (!fileUrl) return null;
@@ -43,14 +50,21 @@ export async function GET(request, { params }) {
     const { id } = await params;
     
     // Get collection ID by name
-    const allCollections = await databases.listCollections(databaseId);
-    const videoCollection = allCollections.collections.find(col => col.name === 'video');
-    
-    if (!videoCollection) {
-      return NextResponse.json({ error: "Video collection not found" }, { status: 404 });
+    let collectionId;
+    try {
+      collectionId = await getCollectionId(databases, databaseId, "video");
+    } catch (collectionErr) {
+      const errMsg = collectionErr.message || '';
+      if (errMsg.includes('Bandwidth') || errMsg.includes('bandwidth') || errMsg.includes('exceeded')) {
+        return NextResponse.json({ error: errMsg }, { status: 500 });
+      }
+      console.error("Collection not found:", collectionErr.message);
+      return NextResponse.json(
+        { error: "Table video 不存在，請至「鋒兄設定」中初始化。" },
+        { status: 404 }
+      );
     }
     
-    const collectionId = videoCollection.$id;
     const document = await databases.getDocument(databaseId, collectionId, id);
     
     return NextResponse.json(document);
@@ -64,9 +78,28 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const { searchParams } = new URL(request.url);
-    const { databases, databaseId } = createAppwrite(searchParams);
+    const { databases, storage, databaseId, bucketId } = createAppwrite(searchParams);
     const { id } = await params;
     const body = await request.json();
+
+    // Get collection ID by name
+    let collectionId;
+    try {
+      collectionId = await getCollectionId(databases, databaseId, "video");
+    } catch (collectionErr) {
+      const errMsg = collectionErr.message || '';
+      if (errMsg.includes('Bandwidth') || errMsg.includes('bandwidth') || errMsg.includes('exceeded')) {
+        return NextResponse.json({ error: errMsg }, { status: 500 });
+      }
+      console.error("Collection not found:", collectionErr.message);
+      return NextResponse.json(
+        { error: "Table video 不存在，請至「鋒兄設定」中初始化。" },
+        { status: 404 }
+      );
+    }
+
+    // Get current document to compare old and new values
+    const currentDoc = await databases.getDocument(databaseId, collectionId, id);
 
     // Truncate fields to schema limits to prevent Appwrite validation errors
     const data = {
@@ -80,22 +113,60 @@ export async function PUT(request, { params }) {
       cover: (body.cover || '').substring(0, 500),
     };
 
-    // Get collection ID by name
-    const allCollections = await databases.listCollections(databaseId);
-    const videoCollection = allCollections.collections.find(col => col.name === 'video');
-
-    if (!videoCollection) {
-      return NextResponse.json({ error: "Video collection not found" }, { status: 404 });
-    }
-
-    const collectionId = videoCollection.$id;
-
     const document = await databases.updateDocument(
       databaseId,
       collectionId,
       id,
       data
     );
+
+    // Handle file deletion if file was removed or changed
+    if (currentDoc.file && bucketId) {
+      const oldFileId = extractFileIdFromUrl(currentDoc.file);
+      const newFileId = extractFileIdFromUrl(body.file);
+      
+      if (oldFileId && oldFileId !== newFileId) {
+        try {
+          // Count how many documents reference the old file
+          const allDocs = await databases.listDocuments(databaseId, collectionId);
+          const fileRefCount = allDocs.documents.filter(d => d.$id !== id && d.file === currentDoc.file).length;
+          
+          // Only delete from storage if no other documents reference it
+          if (fileRefCount === 0) {
+            await storage.deleteFile(bucketId, oldFileId);
+            console.log(`Deleted old video file: ${oldFileId}`);
+          } else {
+            console.log(`Skipped deleting old video file ${oldFileId} - referenced by ${fileRefCount} other documents`);
+          }
+        } catch (fileErr) {
+          console.warn(`Failed to delete old video file ${oldFileId}:`, fileErr.message);
+        }
+      }
+    }
+
+    // Handle cover deletion if cover was removed or changed
+    if (currentDoc.cover && bucketId) {
+      const oldCoverId = extractFileIdFromUrl(currentDoc.cover);
+      const newCoverId = extractFileIdFromUrl(body.cover);
+      
+      if (oldCoverId && oldCoverId !== newCoverId) {
+        try {
+          // Count how many documents reference the old cover
+          const allDocs = await databases.listDocuments(databaseId, collectionId);
+          const coverRefCount = allDocs.documents.filter(d => d.$id !== id && d.cover === currentDoc.cover).length;
+          
+          // Only delete from storage if no other documents reference it
+          if (coverRefCount === 0) {
+            await storage.deleteFile(bucketId, oldCoverId);
+            console.log(`Deleted old cover image: ${oldCoverId}`);
+          } else {
+            console.log(`Skipped deleting old cover image ${oldCoverId} - referenced by ${coverRefCount} other documents`);
+          }
+        } catch (coverErr) {
+          console.warn(`Failed to delete old cover image ${oldCoverId}:`, coverErr.message);
+        }
+      }
+    }
 
     return NextResponse.json(document);
   } catch (err) {
@@ -112,38 +183,62 @@ export async function DELETE(request, { params }) {
     const { id } = await params;
     
     // Get collection ID by name
-    const allCollections = await databases.listCollections(databaseId);
-    const videoCollection = allCollections.collections.find(col => col.name === 'video');
-    
-    if (!videoCollection) {
-      return NextResponse.json({ error: "Video collection not found" }, { status: 404 });
+    let collectionId;
+    try {
+      collectionId = await getCollectionId(databases, databaseId, "video");
+    } catch (collectionErr) {
+      const errMsg = collectionErr.message || '';
+      if (errMsg.includes('Bandwidth') || errMsg.includes('bandwidth') || errMsg.includes('exceeded')) {
+        return NextResponse.json({ error: errMsg }, { status: 500 });
+      }
+      console.error("Collection not found:", collectionErr.message);
+      return NextResponse.json(
+        { error: "Table video 不存在，請至「鋒兄設定」中初始化。" },
+        { status: 404 }
+      );
     }
-    
-    const collectionId = videoCollection.$id;
     
     // First, get the document to retrieve file URLs
     const doc = await databases.getDocument(databaseId, collectionId, id);
     
-    // Delete video file from storage if exists
+    // Check if video file is referenced by other documents
     if (doc.file && bucketId) {
       const fileId = extractFileIdFromUrl(doc.file);
       if (fileId) {
         try {
-          await storage.deleteFile(bucketId, fileId);
-          console.log(`Deleted video file: ${fileId}`);
+          // Count how many documents reference this file
+          const allDocs = await databases.listDocuments(databaseId, collectionId);
+          const fileRefCount = allDocs.documents.filter(d => d.$id !== id && d.file === doc.file).length;
+          
+          // Only delete from storage if no other documents reference it
+          if (fileRefCount === 0) {
+            await storage.deleteFile(bucketId, fileId);
+            console.log(`Deleted video file: ${fileId}`);
+          } else {
+            console.log(`Skipped deleting video file ${fileId} - referenced by ${fileRefCount} other documents`);
+          }
         } catch (fileErr) {
           console.warn(`Failed to delete video file ${fileId}:`, fileErr.message);
         }
       }
     }
     
-    // Delete cover image from storage if exists
+    // Check if cover image is referenced by other documents
     if (doc.cover && bucketId) {
       const coverId = extractFileIdFromUrl(doc.cover);
       if (coverId) {
         try {
-          await storage.deleteFile(bucketId, coverId);
-          console.log(`Deleted cover image: ${coverId}`);
+          // Count how many documents reference this cover
+          const allDocs = await databases.listDocuments(databaseId, collectionId);
+          const coverRefCount = allDocs.documents.filter(d => d.$id !== id && d.cover === doc.cover).length;
+          
+          // Only delete from storage if no other documents reference it
+          if (coverRefCount === 0) {
+            await storage.deleteFile(bucketId, coverId);
+            console.log(`Deleted cover image: ${coverId}`);
+          } else {
+            console.log(`Skipped deleting cover image ${coverId} - referenced by ${coverRefCount} other documents`);
+          }
         } catch (coverErr) {
           console.warn(`Failed to delete cover image ${coverId}:`, coverErr.message);
         }
