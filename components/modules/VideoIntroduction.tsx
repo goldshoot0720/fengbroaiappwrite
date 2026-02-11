@@ -1843,6 +1843,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="請輸入影片名稱 / Video Name"
               required
+              maxLength={100}
               className="h-12 rounded-xl"
             />
             <div className="px-1 h-4">
@@ -1936,6 +1937,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
               onChange={(e) => setFormData({ ...formData, note: e.target.value })}
               placeholder="影片備註說明 / Video Note"
               rows={3}
+              maxLength={500}
               className="rounded-xl"
             />
             <div className="px-1 h-4">
@@ -2014,6 +2016,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
                 value={formData.ref}
                 onChange={(e) => setFormData({ ...formData, ref: e.target.value })}
                 placeholder="參考資訊 / Reference Info"
+                maxLength={300}
                 className="h-12 rounded-xl"
               />
               <div className="px-1 h-4">
@@ -2048,7 +2051,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
                 onChange={(e) => setFormData({ ...formData, cover: e.target.value })}
                 placeholder="https://example.com/cover.jpg"
                 disabled={submitting}
-                maxLength={150}
+                maxLength={500}
               />
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500 dark:text-gray-400">或</span>

@@ -40,8 +40,11 @@ export async function GET(request) {
     }
     
     const collectionId = videoCollection.$id;
-    const response = await databases.listDocuments(databaseId, collectionId);
-    
+    const response = await databases.listDocuments(databaseId, collectionId, [
+      sdk.Query.limit(500),
+      sdk.Query.orderDesc('$createdAt'),
+    ]);
+
     return NextResponse.json(response.documents);
   } catch (err) {
     console.error("GET /api/video error:", err);
@@ -55,33 +58,41 @@ export async function POST(request) {
     const { searchParams } = new URL(request.url);
     const { databases, databaseId } = createAppwrite(searchParams);
     const body = await request.json();
-    
+
+    // Validate required fields
+    if (!body.name || !body.name.trim()) {
+      return NextResponse.json({ error: "影片名稱為必填欄位" }, { status: 400 });
+    }
+
+    // Truncate fields to schema limits to prevent Appwrite validation errors
+    const data = {
+      name: (body.name || '').substring(0, 100),
+      file: (body.file || '').substring(0, 500),
+      filetype: (body.filetype || '').substring(0, 20),
+      note: (body.note || '').substring(0, 500),
+      ref: (body.ref || '').substring(0, 300),
+      category: (body.category || '').substring(0, 100),
+      hash: (body.hash || '').substring(0, 300),
+      cover: (body.cover || '').substring(0, 500),
+    };
+
     // Get collection ID by name
     const allCollections = await databases.listCollections(databaseId);
     const videoCollection = allCollections.collections.find(col => col.name === 'video');
-    
+
     if (!videoCollection) {
       return NextResponse.json({ error: "Table video 不存在，請至「鋒兄設定」中初始化。" }, { status: 404 });
     }
-    
+
     const collectionId = videoCollection.$id;
-    
+
     const document = await databases.createDocument(
       databaseId,
       collectionId,
       sdk.ID.unique(),
-      {
-        name: body.name,
-        file: body.file || '',
-        filetype: body.filetype || '',
-        note: body.note || '',
-        ref: body.ref || '',
-        category: body.category || '',
-        hash: body.hash || '',
-        cover: body.cover || ''
-      }
+      data
     );
-    
+
     return NextResponse.json(document);
   } catch (err) {
     console.error("POST /api/video error:", err);

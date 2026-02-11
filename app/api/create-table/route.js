@@ -89,10 +89,10 @@ const TABLE_SCHEMAS = {
     name: "image",
     attributes: [
       { key: 'name', type: 'string', size: 100, required: true },
-      { key: 'file', type: 'string', size: 150, required: false },
+      { key: 'file', type: 'string', size: 500, required: false },
       { key: 'filetype', type: 'string', size: 20, required: false },
-      { key: 'note', type: 'string', size: 100, required: false },
-      { key: 'ref', type: 'string', size: 100, required: false },
+      { key: 'note', type: 'string', size: 500, required: false },
+      { key: 'ref', type: 'string', size: 300, required: false },
       { key: 'category', type: 'string', size: 100, required: false },
       { key: 'hash', type: 'string', size: 300, required: false },
       { key: 'cover', type: 'boolean', required: false, default: false }
@@ -102,54 +102,54 @@ const TABLE_SCHEMAS = {
     name: "video",
     attributes: [
       { key: 'name', type: 'string', size: 100, required: true },
-      { key: 'file', type: 'string', size: 150, required: false },
+      { key: 'file', type: 'string', size: 500, required: false },
       { key: 'filetype', type: 'string', size: 20, required: false },
-      { key: 'note', type: 'string', size: 100, required: false },
-      { key: 'ref', type: 'string', size: 100, required: false },
+      { key: 'note', type: 'string', size: 500, required: false },
+      { key: 'ref', type: 'string', size: 300, required: false },
       { key: 'category', type: 'string', size: 100, required: false },
       { key: 'hash', type: 'string', size: 300, required: false },
-      { key: 'cover', type: 'string', size: 150, required: false }
+      { key: 'cover', type: 'string', size: 500, required: false }
     ]
   },
   music: {
     name: "music",
     attributes: [
       { key: 'name', type: 'string', size: 100, required: true },
-      { key: 'file', type: 'string', size: 150, required: false },
+      { key: 'file', type: 'string', size: 500, required: false },
       { key: 'filetype', type: 'string', size: 20, required: false },
       { key: 'lyrics', type: 'string', size: 3337, required: false },
-      { key: 'note', type: 'string', size: 100, required: false },
-      { key: 'ref', type: 'string', size: 100, required: false },
+      { key: 'note', type: 'string', size: 500, required: false },
+      { key: 'ref', type: 'string', size: 300, required: false },
       { key: 'category', type: 'string', size: 100, required: false },
       { key: 'hash', type: 'string', size: 300, required: false },
       { key: 'language', type: 'string', size: 100, required: false },
-      { key: 'cover', type: 'string', size: 150, required: false }
+      { key: 'cover', type: 'string', size: 500, required: false }
     ]
   },
   podcast: {
     name: "podcast",
     attributes: [
       { key: 'name', type: 'string', size: 100, required: true },
-      { key: 'file', type: 'string', size: 150, required: false },
+      { key: 'file', type: 'string', size: 500, required: false },
       { key: 'filetype', type: 'string', size: 20, required: false },
-      { key: 'note', type: 'string', size: 100, required: false },
-      { key: 'ref', type: 'string', size: 100, required: false },
+      { key: 'note', type: 'string', size: 500, required: false },
+      { key: 'ref', type: 'string', size: 300, required: false },
       { key: 'category', type: 'string', size: 100, required: false },
       { key: 'hash', type: 'string', size: 300, required: false },
-      { key: 'cover', type: 'string', size: 150, required: false }
+      { key: 'cover', type: 'string', size: 500, required: false }
     ]
   },
   commondocument: {
     name: "commondocument",
     attributes: [
       { key: 'name', type: 'string', size: 100, required: true },
-      { key: 'file', type: 'string', size: 150, required: false },
+      { key: 'file', type: 'string', size: 500, required: false },
       { key: 'filetype', type: 'string', size: 20, required: false },
-      { key: 'note', type: 'string', size: 100, required: false },
-      { key: 'ref', type: 'string', size: 100, required: false },
+      { key: 'note', type: 'string', size: 500, required: false },
+      { key: 'ref', type: 'string', size: 300, required: false },
       { key: 'category', type: 'string', size: 100, required: false },
       { key: 'hash', type: 'string', size: 300, required: false },
-      { key: 'cover', type: 'string', size: 150, required: false }
+      { key: 'cover', type: 'string', size: 500, required: false }
     ]
   },
   routine: {

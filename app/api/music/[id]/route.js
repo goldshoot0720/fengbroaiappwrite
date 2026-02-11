@@ -79,22 +79,25 @@ export async function PUT(request, { params }) {
     // Get current document to compare old and new values
     const currentDoc = await databases.getDocument(databaseId, collectionId, id);
     
+    // Truncate fields to schema limits to prevent Appwrite validation errors
+    const data = {
+      name: (body.name || '').substring(0, 100),
+      file: (body.file || '').substring(0, 500),
+      filetype: (body.filetype || '').substring(0, 20),
+      lyrics: (body.lyrics || '').substring(0, 3337),
+      note: (body.note || '').substring(0, 500),
+      ref: (body.ref || '').substring(0, 300),
+      category: (body.category || '').substring(0, 100),
+      hash: (body.hash || '').substring(0, 300),
+      language: (body.language || '').substring(0, 100),
+      cover: (body.cover || '').substring(0, 500),
+    };
+
     const document = await databases.updateDocument(
       databaseId,
       collectionId,
       id,
-      {
-        name: body.name,
-        file: body.file || '',
-        filetype: body.filetype || '',
-        lyrics: body.lyrics || '',
-        note: body.note || '',
-        ref: body.ref || '',
-        category: body.category || '',
-        hash: body.hash || '',
-        language: body.language || '',
-        cover: body.cover || ''
-      }
+      data
     );
     
     // Handle file deletion if file was removed or changed

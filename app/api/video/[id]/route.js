@@ -67,33 +67,36 @@ export async function PUT(request, { params }) {
     const { databases, databaseId } = createAppwrite(searchParams);
     const { id } = await params;
     const body = await request.json();
-    
+
+    // Truncate fields to schema limits to prevent Appwrite validation errors
+    const data = {
+      name: (body.name || '').substring(0, 100),
+      file: (body.file || '').substring(0, 500),
+      filetype: (body.filetype || '').substring(0, 20),
+      note: (body.note || '').substring(0, 500),
+      ref: (body.ref || '').substring(0, 300),
+      category: (body.category || '').substring(0, 100),
+      hash: (body.hash || '').substring(0, 300),
+      cover: (body.cover || '').substring(0, 500),
+    };
+
     // Get collection ID by name
     const allCollections = await databases.listCollections(databaseId);
     const videoCollection = allCollections.collections.find(col => col.name === 'video');
-    
+
     if (!videoCollection) {
       return NextResponse.json({ error: "Video collection not found" }, { status: 404 });
     }
-    
+
     const collectionId = videoCollection.$id;
-    
+
     const document = await databases.updateDocument(
       databaseId,
       collectionId,
       id,
-      {
-        name: body.name,
-        file: body.file || '',
-        filetype: body.filetype || '',
-        note: body.note || '',
-        ref: body.ref || '',
-        category: body.category || '',
-        hash: body.hash || '',
-        cover: body.cover || ''
-      }
+      data
     );
-    
+
     return NextResponse.json(document);
   } catch (err) {
     console.error("PUT /api/video/[id] error:", err);

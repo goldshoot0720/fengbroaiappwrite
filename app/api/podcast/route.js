@@ -54,8 +54,11 @@ export async function GET(request) {
       );
     }
     
-    const response = await databases.listDocuments(databaseId, collectionId);
-    
+    const response = await databases.listDocuments(databaseId, collectionId, [
+      sdk.Query.limit(500),
+      sdk.Query.orderDesc('$createdAt'),
+    ]);
+
     return NextResponse.json(response.documents);
   } catch (err) {
     console.error("GET /api/podcast error:", err);
@@ -86,20 +89,23 @@ export async function POST(request) {
       );
     }
     
+    // Truncate fields to schema limits to prevent Appwrite validation errors
+    const data = {
+      name: (body.name || '').substring(0, 100),
+      file: (body.file || '').substring(0, 500),
+      filetype: (body.filetype || '').substring(0, 20),
+      note: (body.note || '').substring(0, 500),
+      ref: (body.ref || '').substring(0, 300),
+      category: (body.category || '').substring(0, 100),
+      hash: (body.hash || '').substring(0, 300),
+      cover: (body.cover || '').substring(0, 500),
+    };
+
     const document = await databases.createDocument(
       databaseId,
       collectionId,
       sdk.ID.unique(),
-      {
-        name: body.name,
-        file: body.file || '',
-        filetype: body.filetype || '',
-        note: body.note || '',
-        ref: body.ref || '',
-        category: body.category || '',
-        hash: body.hash || '',
-        cover: body.cover || ''
-      }
+      data
     );
     
     return NextResponse.json(document);
