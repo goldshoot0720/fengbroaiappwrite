@@ -71,6 +71,7 @@ export default function MusicManagement() {
     ref: '',
     lyrics: '',
     cover: '',
+    filetype: '',
   });
   const [inlineCoverFile, setInlineCoverFile] = useState<File | null>(null);
   const [inlineCoverPreview, setInlineCoverPreview] = useState<string>('');
@@ -502,6 +503,7 @@ export default function MusicManagement() {
       ref: musicItem.ref || '',
       lyrics: musicItem.lyrics || '',
       cover: musicItem.cover || '',
+      filetype: musicItem.filetype || '',
     });
     setInlineCoverFile(null);
     setInlineCoverPreview('');
@@ -541,12 +543,13 @@ export default function MusicManagement() {
           ref: inlineEditForm.ref,
           lyrics: inlineEditForm.lyrics,
           cover: coverUrl,
+          filetype: inlineEditForm.filetype,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadMusic(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '' });
+      setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
       setInlineCoverFile(null);
       setInlineCoverPreview('');
     } catch (error) {
@@ -558,7 +561,7 @@ export default function MusicManagement() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '' });
+    setInlineEditForm({ name: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
     setInlineCoverFile(null);
     setInlineCoverPreview('');
   };
@@ -847,8 +850,8 @@ interface GroupedMusicCardProps {
   onDelete: (music: MusicData) => void;
   // Inline editing props
   inlineEditingId: string | null;
-  inlineEditForm: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string };
-  setInlineEditForm: (form: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string }) => void;
+  inlineEditForm: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string };
+  setInlineEditForm: (form: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string }) => void;
   onInlineEdit: (music: MusicData) => void;
   onInlineSave: (musicId: string) => void;
   onInlineCancel: () => void;
@@ -1214,12 +1217,20 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                   onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
                   className="rounded-lg text-sm h-16 resize-none"
                 />
-                <Input
-                  placeholder="參考"
-                  value={inlineEditForm.ref}
-                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
-                  className="h-9 rounded-lg text-sm"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="參考"
+                    value={inlineEditForm.ref}
+                    onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                  <Input
+                    placeholder="檔案類型 (mp3, wav...)"
+                    value={inlineEditForm.filetype}
+                    onChange={(e) => setInlineEditForm({ ...inlineEditForm, filetype: e.target.value })}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => onInlineSave(selectedItem.$id)}
@@ -1453,8 +1464,8 @@ interface MusicCardProps {
   onDelete: () => void;
   // Inline editing props
   inlineEditingId?: string | null;
-  inlineEditForm?: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string };
-  setInlineEditForm?: (form: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string }) => void;
+  inlineEditForm?: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string };
+  setInlineEditForm?: (form: { name: string; category: string; language: string; note: string; ref: string; lyrics: string; cover: string; filetype: string }) => void;
   onInlineEdit?: (music: MusicData) => void;
   onInlineSave?: (musicId: string) => void;
   onInlineCancel?: () => void;
@@ -1615,12 +1626,20 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
               onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
               className="rounded-lg text-sm h-16 resize-none"
             />
-            <Input
-              placeholder="參考"
-              value={inlineEditForm.ref}
-              onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
-              className="h-9 rounded-lg text-sm"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="參考"
+                value={inlineEditForm.ref}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+                className="h-9 rounded-lg text-sm"
+              />
+              <Input
+                placeholder="檔案類型 (mp3, wav...)"
+                value={inlineEditForm.filetype}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, filetype: e.target.value })}
+                className="h-9 rounded-lg text-sm"
+              />
+            </div>
             <div className="flex gap-2">
               <Button
                 onClick={() => onInlineSave(music.$id)}
@@ -1910,6 +1929,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
   const [formData, setFormData] = useState({
     name: music?.name || '',
     file: music?.file || '',
+    filetype: music?.filetype || '',
     lyrics: music?.lyrics || '',
     note: music?.note || '',
     ref: music?.ref || '',
@@ -2003,10 +2023,13 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
       setUseNameSelect(false); // 切換到文字輸入模式讓使用者編輯
     }
 
+    // 取得檔案類型
+    const filetype = file.name.split('.').pop()?.toLowerCase() || '';
+
     // 計算檔案 hash
     const hash = await calculateFileHash(file);
     setFileHash(hash);
-    setFormData({ ...formData, name: autoName, hash });
+    setFormData({ ...formData, name: autoName, hash, filetype });
 
     // 檢查是否有重複的 hash
     const duplicateMusic = existingMusic.find(m =>
@@ -2637,16 +2660,23 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
               </div>
             </div>
 
-            <div>
+            <div className="space-y-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Hash (程式自動生成)
+                檔案類型 / File Type
               </label>
               <Input
-                value={formData.hash}
-                disabled
-                placeholder="上傳檔案後自動生成"
-                className="bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
+                value={formData.filetype}
+                onChange={(e) => setFormData({ ...formData, filetype: e.target.value })}
+                placeholder="mp3, wav, ogg..."
+                className="h-12 rounded-xl"
               />
+              <div className="px-1 h-4">
+                {formData.filetype ? (
+                  <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
+                ) : (
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 上傳時自動偵測 / (Optional) Auto-detected on upload</span>
+                )}
+              </div>
             </div>
           </div>
 
