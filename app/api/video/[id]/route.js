@@ -101,17 +101,19 @@ export async function PUT(request, { params }) {
     // Get current document to compare old and new values
     const currentDoc = await databases.getDocument(databaseId, collectionId, id);
 
-    // Truncate fields to schema limits to prevent Appwrite validation errors
+    // Build data object dynamically, only including fields that have values
     const data = {
       name: (body.name || '').substring(0, 100),
-      file: (body.file || '').substring(0, 500),
-      filetype: (body.filetype || '').substring(0, 20),
-      note: (body.note || '').substring(0, 500),
-      ref: (body.ref || '').substring(0, 300),
-      category: (body.category || '').substring(0, 100),
-      hash: (body.hash || '').substring(0, 300),
-      cover: (body.cover || '').substring(0, 500),
     };
+    
+    // Only add optional fields if they have values
+    if (body.file !== undefined && body.file !== null) data.file = String(body.file).substring(0, 500);
+    if (body.filetype !== undefined && body.filetype !== null) data.filetype = String(body.filetype).substring(0, 20);
+    if (body.note !== undefined && body.note !== null) data.note = String(body.note).substring(0, 500);
+    if (body.ref !== undefined && body.ref !== null) data.ref = String(body.ref).substring(0, 300);
+    if (body.category !== undefined && body.category !== null) data.category = String(body.category).substring(0, 100);
+    if (body.hash !== undefined && body.hash !== null) data.hash = String(body.hash).substring(0, 300);
+    if (body.cover !== undefined && body.cover !== null) data.cover = String(body.cover).substring(0, 500);
 
     const document = await databases.updateDocument(
       databaseId,
