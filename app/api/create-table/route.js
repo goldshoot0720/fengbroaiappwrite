@@ -255,43 +255,54 @@ export async function GET(request) {
         const collectionId = collection.$id;
         send({ type: 'progress', step: 'collection', message: `Collection created (ID: ${collectionId})`, collectionId });
 
-        // Create attributes
+        // Create attributes (longer delay for large collections to avoid rate limits)
         const total = schema.attributes.length;
+        const delay = total > 30 ? 500 : 200;
         for (let i = 0; i < total; i++) {
           const attr = schema.attributes[i];
-          try {
-            switch (attr.type) {
-              case 'string':
-                await databases.createStringAttribute(databaseId, collectionId, attr.key, attr.size, attr.required);
-                break;
-              case 'integer':
-                await databases.createIntegerAttribute(databaseId, collectionId, attr.key, attr.required);
-                break;
-              case 'url':
-                await databases.createUrlAttribute(databaseId, collectionId, attr.key, attr.required);
-                break;
-            case 'datetime':
-                await databases.createDatetimeAttribute(databaseId, collectionId, attr.key, attr.required);
-                break;
-            case 'boolean':
-                await databases.createBooleanAttribute(databaseId, collectionId, attr.key, attr.required, attr.default);
-                break;
-            }
-            send({ 
-              type: 'progress', 
-              step: 'attribute', 
-              current: i + 1, 
-              total, 
-              percent: Math.round(((i + 1) / total) * 100),
-              attribute: attr.key,
-              message: `Creating ${attr.key} (${i + 1}/${total})`
-            });
-            await new Promise(resolve => setTimeout(resolve, 150));
-          } catch (err) {
-            if (err.code !== 409) {
-              send({ type: 'warning', attribute: attr.key, message: err.message });
+          let success = false;
+          for (let attempt = 0; attempt < 3 && !success; attempt++) {
+            try {
+              switch (attr.type) {
+                case 'string':
+                  await databases.createStringAttribute(databaseId, collectionId, attr.key, attr.size, attr.required);
+                  break;
+                case 'integer':
+                  await databases.createIntegerAttribute(databaseId, collectionId, attr.key, attr.required);
+                  break;
+                case 'url':
+                  await databases.createUrlAttribute(databaseId, collectionId, attr.key, attr.required);
+                  break;
+                case 'datetime':
+                  await databases.createDatetimeAttribute(databaseId, collectionId, attr.key, attr.required);
+                  break;
+                case 'boolean':
+                  await databases.createBooleanAttribute(databaseId, collectionId, attr.key, attr.required, attr.default);
+                  break;
+              }
+              success = true;
+            } catch (err) {
+              if (err.code === 409) {
+                success = true;
+              } else if (attempt < 2 && (err.code === 429 || err.message?.includes('rate'))) {
+                send({ type: 'progress', step: 'attribute', current: i + 1, total, percent: Math.round(((i + 1) / total) * 100), attribute: attr.key, message: `${attr.key} rate limited, retrying... (${attempt + 1}/3)` });
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              } else {
+                send({ type: 'warning', attribute: attr.key, message: err.message });
+                success = true;
+              }
             }
           }
+          send({
+            type: 'progress',
+            step: 'attribute',
+            current: i + 1,
+            total,
+            percent: Math.round(((i + 1) / total) * 100),
+            attribute: attr.key,
+            message: `Creating ${attr.key} (${i + 1}/${total})`
+          });
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
 
         // Complete
@@ -389,31 +400,41 @@ export async function POST(request) {
 
     const collectionId = collection.$id;
 
+    const postDelay = schema.attributes.length > 30 ? 500 : 200;
     for (const attr of schema.attributes) {
-      try {
-        switch (attr.type) {
-          case 'string':
-            await databases.createStringAttribute(databaseId, collectionId, attr.key, attr.size, attr.required);
-            break;
-          case 'integer':
-            await databases.createIntegerAttribute(databaseId, collectionId, attr.key, attr.required);
-            break;
-          case 'url':
-            await databases.createUrlAttribute(databaseId, collectionId, attr.key, attr.required);
-            break;
-          case 'datetime':
-            await databases.createDatetimeAttribute(databaseId, collectionId, attr.key, attr.required);
-            break;
-          case 'boolean':
-            await databases.createBooleanAttribute(databaseId, collectionId, attr.key, attr.required, attr.default);
-            break;
-        }
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (err) {
-        if (err.code !== 409) {
-          console.error(`Failed to create ${attr.key}:`, err.message);
+      let success = false;
+      for (let attempt = 0; attempt < 3 && !success; attempt++) {
+        try {
+          switch (attr.type) {
+            case 'string':
+              await databases.createStringAttribute(databaseId, collectionId, attr.key, attr.size, attr.required);
+              break;
+            case 'integer':
+              await databases.createIntegerAttribute(databaseId, collectionId, attr.key, attr.required);
+              break;
+            case 'url':
+              await databases.createUrlAttribute(databaseId, collectionId, attr.key, attr.required);
+              break;
+            case 'datetime':
+              await databases.createDatetimeAttribute(databaseId, collectionId, attr.key, attr.required);
+              break;
+            case 'boolean':
+              await databases.createBooleanAttribute(databaseId, collectionId, attr.key, attr.required, attr.default);
+              break;
+          }
+          success = true;
+        } catch (err) {
+          if (err.code === 409) {
+            success = true;
+          } else if (attempt < 2 && (err.code === 429 || err.message?.includes('rate'))) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            console.error(`Failed to create ${attr.key}:`, err.message);
+            success = true;
+          }
         }
       }
+      await new Promise(resolve => setTimeout(resolve, postDelay));
     }
 
     return NextResponse.json({
