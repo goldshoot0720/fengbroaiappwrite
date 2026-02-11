@@ -35,6 +35,8 @@ import { useBanks } from "@/hooks/useBanks";
 import { BankFormData, Bank } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatCurrency } from "@/lib/formatters";
+import { fetchApi } from "@/hooks/useApi";
+import { API_ENDPOINTS } from "@/lib/constants";
 
 const INITIAL_FORM: BankFormData = { 
   name: "", 
@@ -293,28 +295,37 @@ export default function BankManagement() {
 
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
-    
+
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
       setImportProgress({ current: i + 1, total: importPreview.data.length });
       try {
         const existing = banks.find(b => b.name === formData.name);
+        // 直接呼叫 API，避免每筆都觸發 loadBanks 導致頁面重新整理
         if (existing) {
-          await updateBank(existing.$id, formData);
+          const sanitizedData = { ...formData };
+          if (sanitizedData.activity && sanitizedData.activity.trim() === '') sanitizedData.activity = '';
+          if (sanitizedData.site === undefined || sanitizedData.site === null) sanitizedData.site = '';
+          await fetchApi(`${API_ENDPOINTS.BANK}/${existing.$id}`, { method: "PUT", body: JSON.stringify(sanitizedData) });
         } else {
-          await createBank(formData);
+          const sanitizedData = { ...formData };
+          if (!sanitizedData.activity || sanitizedData.activity.trim() === '') delete (sanitizedData as any).activity;
+          if (!sanitizedData.site || sanitizedData.site.trim() === '') delete (sanitizedData as any).site;
+          await fetchApi(API_ENDPOINTS.BANK, { method: "POST", body: JSON.stringify(sanitizedData) });
         }
         successCount++;
       } catch { failCount++; }
     }
-    
+
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
+    // 匯入完成後才重新載入一次
+    await loadBanks();
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
