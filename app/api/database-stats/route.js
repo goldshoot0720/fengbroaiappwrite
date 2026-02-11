@@ -90,13 +90,13 @@ const TABLE_DEFINITIONS = {
   ],
   video: [
     { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 150 },
+    { key: 'file', type: 'string', size: 500 },
     { key: 'filetype', type: 'string', size: 20 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
+    { key: 'note', type: 'string', size: 500 },
+    { key: 'ref', type: 'string', size: 300 },
     { key: 'category', type: 'string', size: 100 },
     { key: 'hash', type: 'string', size: 300 },
-    { key: 'cover', type: 'string', size: 150 }
+    { key: 'cover', type: 'string', size: 500 }
   ],
   music: [
     { key: 'name', type: 'string', size: 100 },
