@@ -7,7 +7,20 @@
       "Bash(npx next build:*)",
       "Bash(git commit:*)",
       "Bash(find:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout:*)",
+      "Bash(findstr:*)",
+      "Bash(ping:*)",
+      "Bash(taskkill:*)",
+      "Bash(powershell -Command \"Stop-Process -Name node -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item ''D:\\\\qodercode\\\\fengbroaiappwrite-main\\\\.next\\\\dev\\\\lock'' -Force -ErrorAction SilentlyContinue\")",
+      "Bash(powershell \"Stop-Process -Name node -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item ''D:\\\\qodercode\\\\fengbroaiappwrite-main\\\\.next\\\\dev\\\\lock'' -Force -ErrorAction SilentlyContinue\")",
+      "Bash(npx next dev:*)",
+      "Bash(npx cloc:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(tasklist:*)",
+      "Bash(Select-String \"node\")",
+      "Bash(TASKLIST)"
     ]
   }
 }
