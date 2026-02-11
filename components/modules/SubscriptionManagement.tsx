@@ -27,6 +27,8 @@ export default function SubscriptionManagement() {
   const [notificationEnabled, setNotificationEnabled] = useState(false);
   const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [continueFilter, setContinueFilter] = useState<"all" | "yes" | "no">("all");
+  const [monthFilter, setMonthFilter] = useState<string>("all");
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -51,17 +53,57 @@ export default function SubscriptionManagement() {
     setSelectedIds(newSet);
   };
 
-  // 搜尋過濾
+  // 從訂閱資料中取得可用的年月選項
+  const monthOptions = useMemo(() => {
+    const months = new Set<string>();
+    subscriptions.forEach(sub => {
+      if (sub.nextdate) {
+        const d = new Date(sub.nextdate);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        months.add(ym);
+      }
+    });
+    return Array.from(months).sort();
+  }, [subscriptions]);
+
+  // 搜尋過濾 + 續訂篩選 + 年月篩選
   const filteredSubscriptions = useMemo(() => {
-    if (!searchQuery.trim()) return subscriptions;
-    const query = searchQuery.toLowerCase();
-    return subscriptions.filter(sub =>
-      sub.name?.toLowerCase().includes(query) ||
-      sub.site?.toLowerCase().includes(query) ||
-      sub.account?.toLowerCase().includes(query) ||
-      sub.note?.toLowerCase().includes(query)
-    );
-  }, [subscriptions, searchQuery]);
+    let result = subscriptions;
+
+    // 續訂篩選
+    if (continueFilter === "yes") {
+      result = result.filter(sub => sub.continue !== false);
+    } else if (continueFilter === "no") {
+      result = result.filter(sub => sub.continue === false);
+    }
+
+    // 年月篩選
+    if (monthFilter !== "all") {
+      if (monthFilter === "none") {
+        result = result.filter(sub => !sub.nextdate);
+      } else {
+        result = result.filter(sub => {
+          if (!sub.nextdate) return false;
+          const d = new Date(sub.nextdate);
+          const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          return ym === monthFilter;
+        });
+      }
+    }
+
+    // 搜尋過濾
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(sub =>
+        sub.name?.toLowerCase().includes(query) ||
+        sub.site?.toLowerCase().includes(query) ||
+        sub.account?.toLowerCase().includes(query) ||
+        sub.note?.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [subscriptions, searchQuery, continueFilter, monthFilter]);
 
   // Selection helpers (after filteredSubscriptions)
   const isAllSelected = filteredSubscriptions.length > 0 && selectedIds.size === filteredSubscriptions.length;
@@ -776,16 +818,40 @@ export default function SubscriptionManagement() {
         </div>
       )}
 
-      {/* 搜尋欄位 */}
+      {/* 搜尋欄位 + 續訂篩選 */}
       {subscriptions.length > 0 && (
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="搜尋服務名稱、網站、帳號、備註..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 rounded-xl"
-          />
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              placeholder="搜尋服務名稱、網站、帳號、備註..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 rounded-xl"
+            />
+          </div>
+          <Select value={monthFilter} onValueChange={setMonthFilter}>
+            <SelectTrigger className="h-12 rounded-xl w-32 shrink-0">
+              <SelectValue placeholder="年月" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部月份</SelectItem>
+              {monthOptions.map(ym => (
+                <SelectItem key={ym} value={ym}>{ym}</SelectItem>
+              ))}
+              <SelectItem value="none">無日期</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={continueFilter} onValueChange={(value: "all" | "yes" | "no") => setContinueFilter(value)}>
+            <SelectTrigger className="h-12 rounded-xl w-28 shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="yes">續訂</SelectItem>
+              <SelectItem value="no">不續</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       )}
 
