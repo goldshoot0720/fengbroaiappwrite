@@ -51,7 +51,7 @@ const INITIAL_FORM: BankFormData = {
 };
 
 export default function BankManagement() {
-  const { banks, loading, error, stats, createBank, updateBank, deleteBank } = useBanks();
+  const { banks, loading, error, stats, loadBanks, createBank, updateBank, deleteBank } = useBanks();
   const [form, setForm] = useState<BankFormData>(INITIAL_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);

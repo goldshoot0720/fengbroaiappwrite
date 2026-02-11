@@ -119,7 +119,6 @@ export async function POST(request) {
     return NextResponse.json(res);
   } catch (err) {
     console.error("POST /api/routine error:", err);
-    console.error("Error details:", JSON.stringify(err, null, 2));
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
   }
 }
