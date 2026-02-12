@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Plus, Minus, Search, Download, Upload, X, Copy, Trash2, Pencil, Check, Square, CheckSquare } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Plus, Minus, Search, Download, Upload, X, Copy, Trash2, Pencil, Check, Square, CheckSquare, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,68 @@ import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscrip
 import { SubscriptionFormData, Subscription } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatDate, formatDaysRemaining, formatCurrency, formatCurrencyWithExchange, convertToTWD } from "@/lib/formatters";
+
+// 帳號下拉選單組件：可選擇已有帳號或自行輸入
+function AccountComboBox({ value, onChange, accounts, className = "" }: {
+  value: string;
+  onChange: (value: string) => void;
+  accounts: string[];
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 同步外部 value
+  useEffect(() => { setInputValue(value); }, [value]);
+
+  // 點擊外部關閉
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = accounts.filter(a => a.toLowerCase().includes(inputValue.toLowerCase()));
+
+  return (
+    <div ref={containerRef} className={`relative flex-1 ${className}`}>
+      <div className="relative">
+        <Input
+          placeholder="帳號（選擇或輸入）"
+          value={inputValue}
+          onChange={(e) => { setInputValue(e.target.value); onChange(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          className="pr-8"
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setOpen(!open)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full max-h-40 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+          {filtered.map(a => (
+            <button
+              key={a}
+              type="button"
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 ${a === value ? "bg-blue-50 dark:bg-gray-700 font-medium" : ""}`}
+              onMouseDown={(e) => { e.preventDefault(); setInputValue(a); onChange(a); setOpen(false); }}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const INITIAL_FORM: SubscriptionFormData = { name: "", site: "", price: 0, nextdate: "", note: "", account: "", currency: "TWD", continue: true };
 
@@ -981,16 +1043,12 @@ export default function SubscriptionManagement() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-500 w-14 shrink-0">帳號</span>
-                            <Input
-                              placeholder="帳號（選擇或輸入）"
-                              list="account-list-desktop-add"
+                            <AccountComboBox
                               value={inlineAddForm.account || ""}
-                              onChange={(e) => setInlineAddForm({ ...inlineAddForm, account: e.target.value })}
-                              className="h-9 rounded-lg text-sm"
+                              onChange={(v) => setInlineAddForm({ ...inlineAddForm, account: v })}
+                              accounts={existingAccounts}
+                              className="[&_input]:h-9 [&_input]:rounded-lg [&_input]:text-sm"
                             />
-                            <datalist id="account-list-desktop-add">
-                              {existingAccounts.map(a => <option key={a} value={a} />)}
-                            </datalist>
                           </div>
                           <div className="flex items-start gap-2">
                             <span className="text-xs text-gray-500 w-14 shrink-0 pt-2">備註</span>
@@ -1120,16 +1178,12 @@ export default function SubscriptionManagement() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-500 w-14 shrink-0">帳號</span>
-                                <Input
-                                  placeholder="帳號（選擇或輸入）"
-                                  list="account-list-desktop-edit"
+                                <AccountComboBox
                                   value={inlineEditForm.account || ""}
-                                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
-                                  className="h-9 rounded-lg text-sm"
+                                  onChange={(v) => setInlineEditForm({ ...inlineEditForm, account: v })}
+                                  accounts={existingAccounts}
+                                  className="[&_input]:h-9 [&_input]:rounded-lg [&_input]:text-sm"
                                 />
-                                <datalist id="account-list-desktop-edit">
-                                  {existingAccounts.map(a => <option key={a} value={a} />)}
-                                </datalist>
                               </div>
                               <div className="flex items-start gap-2">
                                 <span className="text-xs text-gray-500 w-14 shrink-0 pt-2">備註</span>
@@ -1387,16 +1441,12 @@ export default function SubscriptionManagement() {
                         onChange={(e) => setInlineAddForm({ ...inlineAddForm, site: e.target.value })}
                         className="h-10 rounded-lg"
                       />
-                      <Input
-                        placeholder="帳號（選擇或輸入）"
-                        list="account-list-mobile-add"
+                      <AccountComboBox
                         value={inlineAddForm.account || ""}
-                        onChange={(e) => setInlineAddForm({ ...inlineAddForm, account: e.target.value })}
-                        className="h-10 rounded-lg"
+                        onChange={(v) => setInlineAddForm({ ...inlineAddForm, account: v })}
+                        accounts={existingAccounts}
+                        className="[&_input]:h-10 [&_input]:rounded-lg"
                       />
-                      <datalist id="account-list-mobile-add">
-                        {existingAccounts.map(a => <option key={a} value={a} />)}
-                      </datalist>
                       <div className="flex gap-2">
                         <div className="flex-1 flex items-center gap-1">
                           <Input
@@ -1508,16 +1558,12 @@ export default function SubscriptionManagement() {
                             onChange={(e) => setInlineEditForm({ ...inlineEditForm, site: e.target.value })}
                             className="h-10 rounded-lg"
                           />
-                          <Input
-                            placeholder="帳號（選擇或輸入）"
-                            list="account-list-mobile-edit"
+                          <AccountComboBox
                             value={inlineEditForm.account || ""}
-                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
-                            className="h-10 rounded-lg"
+                            onChange={(v) => setInlineEditForm({ ...inlineEditForm, account: v })}
+                            accounts={existingAccounts}
+                            className="[&_input]:h-10 [&_input]:rounded-lg"
                           />
-                          <datalist id="account-list-mobile-edit">
-                            {existingAccounts.map(a => <option key={a} value={a} />)}
-                          </datalist>
                           <div className="flex gap-2">
                             <div className="flex-1 flex items-center gap-1">
                               <Input
