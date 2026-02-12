@@ -31,6 +31,7 @@ function AccountComboBox({ value, onChange, accounts, className = "" }: {
   const [inputValue, setInputValue] = useState(value);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   // 同步外部 value
@@ -51,17 +52,16 @@ function AccountComboBox({ value, onChange, accounts, className = "" }: {
 
   // 點擊外部關閉
   useEffect(() => {
+    if (!open) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (containerRef.current && !containerRef.current.contains(target)) {
-        const dropdown = document.getElementById("account-dropdown-portal");
-        if (dropdown && dropdown.contains(target)) return;
-        setOpen(false);
-      }
+      if (containerRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
+  }, [open]);
 
   // 滾動或 resize 時更新位置
   useEffect(() => {
@@ -80,6 +80,12 @@ function AccountComboBox({ value, onChange, accounts, className = "" }: {
   const handleOpen = () => {
     updatePosition();
     setOpen(true);
+  };
+
+  const handleSelect = (a: string) => {
+    setInputValue(a);
+    onChange(a);
+    setOpen(false);
   };
 
   return (
@@ -105,19 +111,21 @@ function AccountComboBox({ value, onChange, accounts, className = "" }: {
       {open && filtered.length > 0 && typeof document !== "undefined" &&
         ReactDOM.createPortal(
           <div
-            id="account-dropdown-portal"
+            ref={dropdownRef}
             style={dropdownStyle}
             className="max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             {filtered.map(a => (
-              <button
+              <div
                 key={a}
-                type="button"
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 ${a === value ? "bg-blue-50 dark:bg-gray-700 font-medium" : ""}`}
-                onMouseDown={(e) => { e.preventDefault(); setInputValue(a); onChange(a); setOpen(false); }}
+                role="option"
+                aria-selected={a === value}
+                className={`w-full text-left px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 ${a === value ? "bg-blue-50 dark:bg-gray-700 font-medium" : ""}`}
+                onClick={() => handleSelect(a)}
+                onTouchEnd={(e) => { e.preventDefault(); handleSelect(a); }}
               >
                 {a}
-              </button>
+              </div>
             ))}
           </div>,
           document.body
