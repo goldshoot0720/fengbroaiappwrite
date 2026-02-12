@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Repeat, FileText, Download, ListPlus, HardDrive, Check, FolderUp } from "lucide-react";
+import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Repeat, FileText, Download, ListPlus, HardDrive, Check, FolderUp, Copy } from "lucide-react";
 import { useMusic, MusicData } from "@/hooks/useMusic";
 import { useMusicQueue, QueueItem } from "@/hooks/useMusicQueue";
 import { useMusicCache } from "@/hooks/useMusicCache";
@@ -935,6 +935,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
     setInlineCoverPreview(objectUrl);
   };
   const [expandedLyricsId, setExpandedLyricsId] = useState<string | null>(null);
+  const [copiedLyricsId, setCopiedLyricsId] = useState<string | null>(null);
   const [selectedBaseLanguage, setSelectedBaseLanguage] = useState<string | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const { addToQueue, isInQueue } = useMusicQueue();
@@ -1343,16 +1344,33 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                   </span>
                   <div className="flex items-center gap-1">
                     {selectedItem.computedLyrics && (
-                      <button
-                        onClick={() => setExpandedLyricsId(expandedLyricsId === selectedItem.$id ? null : selectedItem.$id)}
-                        className={`p-1.5 rounded-lg transition-all ${expandedLyricsId === selectedItem.$id
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200'
+                      <>
+                        <button
+                          onClick={() => setExpandedLyricsId(expandedLyricsId === selectedItem.$id ? null : selectedItem.$id)}
+                          className={`p-1.5 rounded-lg transition-all ${expandedLyricsId === selectedItem.$id
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200'
+                            }`}
+                          title="歌詞"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedItem.computedLyrics!);
+                            setCopiedLyricsId(selectedItem.$id);
+                            setTimeout(() => setCopiedLyricsId(null), 2000);
+                          }}
+                          className={`p-1.5 rounded-lg transition-all ${
+                            copiedLyricsId === selectedItem.$id
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                              : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200'
                           }`}
-                        title="歌詞"
-                      >
-                        <FileText className="w-4 h-4" />
-                      </button>
+                          title="複製歌詞"
+                        >
+                          {copiedLyricsId === selectedItem.$id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </>
                     )}
                     {selectedItem.file && (
                       <button
@@ -1523,7 +1541,23 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                   {lyricsItem.computedLyrics}
                 </pre>
               </div>
-              <div className="flex justify-center mt-4">
+              <div className="flex justify-center mt-4 gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(lyricsItem.computedLyrics!);
+                    setCopiedLyricsId(lyricsItem.$id);
+                    setTimeout(() => setCopiedLyricsId(null), 2000);
+                  }}
+                  className={`px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2 ${
+                    copiedLyricsId === lyricsItem.$id
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                      : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+                  }`}
+                  title="複製歌詞"
+                >
+                  {copiedLyricsId === lyricsItem.$id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copiedLyricsId === lyricsItem.$id ? '已複製' : '複製歌詞'}
+                </button>
                 <button
                   onClick={() => setExpandedLyricsId(null)}
                   className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors duration-200 flex items-center gap-2"
@@ -1571,6 +1605,7 @@ interface MusicCardProps {
 
 function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading, inlineAudioFile, setInlineAudioFile, inlineAudioPreview, setInlineAudioPreview, inlineAudioUploading, inlineAudioInputRef }: MusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
+  const [copiedLyrics, setCopiedLyrics] = useState(false);
   const { addToQueue, isInQueue } = useMusicQueue();
   const { cacheStatus, downloadAndCacheMusic, checkMusicCache, loadMusicFromCache } = useMusicCache();
   const [isCached, setIsCached] = useState(false);
@@ -2006,10 +2041,30 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
 
               {/* 歌詞 */}
               <div className="space-y-3">
-                <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <MusicIcon className="w-4 h-4" />
-                  歌詞
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <MusicIcon className="w-4 h-4" />
+                    歌詞
+                  </h4>
+                  {music.computedLyrics && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(music.computedLyrics!);
+                        setCopiedLyrics(true);
+                        setTimeout(() => setCopiedLyrics(false), 2000);
+                      }}
+                      className={`px-2.5 py-1 text-xs rounded-lg transition-colors duration-200 flex items-center gap-1 ${
+                        copiedLyrics
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+                      }`}
+                      title="複製歌詞"
+                    >
+                      {copiedLyrics ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedLyrics ? '已複製' : '複製'}
+                    </button>
+                  )}
+                </div>
                 {music.computedLyrics ? (
                   <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 max-h-96 overflow-y-auto">
                     <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
