@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import ReactDOM from "react-dom";
 import { Plus, Minus, Search, Download, Upload, X, Copy, Trash2, Pencil, Check, Square, CheckSquare, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import { SubscriptionFormData, Subscription } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatDate, formatDaysRemaining, formatCurrency, formatCurrencyWithExchange, convertToTWD } from "@/lib/formatters";
 
-// 帳號下拉選單組件：可選擇已有帳號或自行輸入
+// 帳號下拉選單組件：可選擇已有帳號或自行輸入（使用 Portal 避免被父層裁切）
 function AccountComboBox({ value, onChange, accounts, className = "" }: {
   value: string;
   onChange: (value: string) => void;
@@ -29,54 +30,99 @@ function AccountComboBox({ value, onChange, accounts, className = "" }: {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   // 同步外部 value
   useEffect(() => { setInputValue(value); }, [value]);
 
+  // 計算下拉選單位置
+  const updatePosition = () => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+    });
+  };
+
   // 點擊外部關閉
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (containerRef.current && !containerRef.current.contains(target)) {
+        const dropdown = document.getElementById("account-dropdown-portal");
+        if (dropdown && dropdown.contains(target)) return;
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // 滾動或 resize 時更新位置
+  useEffect(() => {
+    if (!open) return;
+    const onScrollOrResize = () => updatePosition();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open]);
+
   const filtered = accounts.filter(a => a.toLowerCase().includes(inputValue.toLowerCase()));
+
+  const handleOpen = () => {
+    updatePosition();
+    setOpen(true);
+  };
 
   return (
     <div ref={containerRef} className={`relative flex-1 ${className}`}>
       <div className="relative">
         <Input
+          ref={inputRef}
           placeholder="帳號（選擇或輸入）"
           value={inputValue}
-          onChange={(e) => { setInputValue(e.target.value); onChange(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onChange={(e) => { setInputValue(e.target.value); onChange(e.target.value); handleOpen(); }}
+          onFocus={handleOpen}
           className="pr-8"
         />
         <button
           type="button"
           tabIndex={-1}
-          onClick={() => setOpen(!open)}
+          onClick={() => { if (open) { setOpen(false); } else { handleOpen(); } }}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
         >
           <ChevronDown className="h-4 w-4" />
         </button>
       </div>
-      {open && filtered.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full max-h-40 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
-          {filtered.map(a => (
-            <button
-              key={a}
-              type="button"
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 ${a === value ? "bg-blue-50 dark:bg-gray-700 font-medium" : ""}`}
-              onMouseDown={(e) => { e.preventDefault(); setInputValue(a); onChange(a); setOpen(false); }}
-            >
-              {a}
-            </button>
-          ))}
-        </div>
-      )}
+      {open && filtered.length > 0 && typeof document !== "undefined" &&
+        ReactDOM.createPortal(
+          <div
+            id="account-dropdown-portal"
+            style={dropdownStyle}
+            className="max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+          >
+            {filtered.map(a => (
+              <button
+                key={a}
+                type="button"
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 ${a === value ? "bg-blue-50 dark:bg-gray-700 font-medium" : ""}`}
+                onMouseDown={(e) => { e.preventDefault(); setInputValue(a); onChange(a); setOpen(false); }}
+              >
+                {a}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )
+      }
     </div>
   );
 }
