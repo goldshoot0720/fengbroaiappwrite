@@ -105,6 +105,14 @@ export default function SubscriptionManagement() {
     return result;
   }, [subscriptions, searchQuery, continueFilter, monthFilter]);
 
+  // 取得所有已存在的帳號（去重）
+  const existingAccounts = useMemo(() => {
+    const accounts = subscriptions
+      .map(sub => sub.account)
+      .filter((a): a is string => !!a && a.trim() !== "");
+    return [...new Set(accounts)].sort();
+  }, [subscriptions]);
+
   // Selection helpers (after filteredSubscriptions)
   const isAllSelected = filteredSubscriptions.length > 0 && selectedIds.size === filteredSubscriptions.length;
   const toggleSelectAll = () => {
@@ -974,11 +982,15 @@ export default function SubscriptionManagement() {
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-500 w-14 shrink-0">帳號</span>
                             <Input
-                              placeholder="帳號"
+                              placeholder="帳號（選擇或輸入）"
+                              list="account-list-desktop-add"
                               value={inlineAddForm.account || ""}
                               onChange={(e) => setInlineAddForm({ ...inlineAddForm, account: e.target.value })}
                               className="h-9 rounded-lg text-sm"
                             />
+                            <datalist id="account-list-desktop-add">
+                              {existingAccounts.map(a => <option key={a} value={a} />)}
+                            </datalist>
                           </div>
                           <div className="flex items-start gap-2">
                             <span className="text-xs text-gray-500 w-14 shrink-0 pt-2">備註</span>
@@ -1109,11 +1121,15 @@ export default function SubscriptionManagement() {
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-500 w-14 shrink-0">帳號</span>
                                 <Input
-                                  placeholder="帳號"
+                                  placeholder="帳號（選擇或輸入）"
+                                  list="account-list-desktop-edit"
                                   value={inlineEditForm.account || ""}
                                   onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
                                   className="h-9 rounded-lg text-sm"
                                 />
+                                <datalist id="account-list-desktop-edit">
+                                  {existingAccounts.map(a => <option key={a} value={a} />)}
+                                </datalist>
                               </div>
                               <div className="flex items-start gap-2">
                                 <span className="text-xs text-gray-500 w-14 shrink-0 pt-2">備註</span>
@@ -1372,11 +1388,15 @@ export default function SubscriptionManagement() {
                         className="h-10 rounded-lg"
                       />
                       <Input
-                        placeholder="帳號"
+                        placeholder="帳號（選擇或輸入）"
+                        list="account-list-mobile-add"
                         value={inlineAddForm.account || ""}
                         onChange={(e) => setInlineAddForm({ ...inlineAddForm, account: e.target.value })}
                         className="h-10 rounded-lg"
                       />
+                      <datalist id="account-list-mobile-add">
+                        {existingAccounts.map(a => <option key={a} value={a} />)}
+                      </datalist>
                       <div className="flex gap-2">
                         <div className="flex-1 flex items-center gap-1">
                           <Input
@@ -1489,11 +1509,15 @@ export default function SubscriptionManagement() {
                             className="h-10 rounded-lg"
                           />
                           <Input
-                            placeholder="帳號"
+                            placeholder="帳號（選擇或輸入）"
+                            list="account-list-mobile-edit"
                             value={inlineEditForm.account || ""}
                             onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
                             className="h-10 rounded-lg"
                           />
+                          <datalist id="account-list-mobile-edit">
+                            {existingAccounts.map(a => <option key={a} value={a} />)}
+                          </datalist>
                           <div className="flex gap-2">
                             <div className="flex-1 flex items-center gap-1">
                               <Input
