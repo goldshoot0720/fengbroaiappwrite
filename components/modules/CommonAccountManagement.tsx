@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, Search, AlertTriangle, Copy, Download, Upload } from "lucide-react";
+import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, Search, AlertTriangle, Copy, CopyPlus, Download, Upload } from "lucide-react";
 import { CommonAccount, CommonAccountFormData } from "@/types";
 import { Input, Textarea, DataCard, Button, SectionHeader, FormCard, FormActions } from "@/components/ui";
 import { 
@@ -237,6 +237,20 @@ export default function CommonAccountManagement() {
       console.error("Save failed:", err);
       alert("儲存失敗");
     }
+  };
+
+  const handleDuplicate = (account: CommonAccount) => {
+    const formData = { ...INITIAL_FORM };
+    Object.keys(formData).forEach(key => {
+      if (key in account && key !== 'name') {
+        (formData as any)[key] = (account as any)[key] || "";
+      }
+    });
+    formData.name = "";
+    setForm(formData);
+    setEditingId(null);
+    setIsFormOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleEdit = (account: CommonAccount) => {
@@ -1017,14 +1031,23 @@ export default function CommonAccountManagement() {
                   <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100 truncate">
                     {account.name}
                   </h3>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     onClick={() => handleCopyNote(account.name, account.$id)}
                     className="h-7 w-7 p-0 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                     title="複製帳號名稱"
                   >
                     <Copy size={14} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDuplicate(account)}
+                    className="h-7 w-7 p-0 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                    title="複製帳號組合"
+                  >
+                    <CopyPlus size={14} />
                   </Button>
                   {copySuccess === account.$id && (
                     <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-fade-in">
