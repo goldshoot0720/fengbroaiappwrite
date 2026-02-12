@@ -281,7 +281,7 @@ export default function CommonAccountManagement() {
       
       // Check if it looks like an email (simple check)
       const isEmail = text.includes('@') && text.includes('.');
-      const message = isEmail ? '✅ 已複製帳號！' : '✅ 已複製備註！';
+      const message = isEmail ? '✅ 已複製帳號名稱！' : '✅ 已複製備註！';
       
       // Show message temporarily
       if (accountId) {
@@ -1022,13 +1022,13 @@ export default function CommonAccountManagement() {
                     variant="ghost" 
                     onClick={() => handleCopyNote(account.name, account.$id)}
                     className="h-7 w-7 p-0 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                    title="複製帳號"
+                    title="複製帳號名稱"
                   >
                     <Copy size={14} />
                   </Button>
                   {copySuccess === account.$id && (
                     <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-fade-in">
-                      ✅ 已複製帳號！
+                      ✅ 已複製帳號名稱！
                     </span>
                   )}
                 </div>
