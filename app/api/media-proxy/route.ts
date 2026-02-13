@@ -6,21 +6,21 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const url = searchParams.get('url');
-    
+
     if (!url) {
       return NextResponse.json({ error: 'Missing URL parameter' }, { status: 400 });
     }
 
     // Parse Appwrite config from query params to add to headers if needed
     const apiKey = searchParams.get('_key');
-    
+
     const range = request.headers.get('range');
     const fetchHeaders: Record<string, string> = {};
-    
+
     if (range) {
       fetchHeaders['range'] = range;
     }
-    
+
     if (apiKey && apiKey !== 'undefined' && apiKey !== 'null') {
       fetchHeaders['x-appwrite-key'] = apiKey;
     }
@@ -39,29 +39,29 @@ export async function GET(request: NextRequest) {
     // Check if the request was successful (including partial content)
     if (response.status >= 400) {
       console.error('Media proxy fetch failed:', response.status, response.statusText, 'URL:', url);
-      
+
       // If it's an auth error and we sent a key, try again without the key (fallback for public files)
       if ((response.status === 401 || response.status === 403) && fetchHeaders['x-appwrite-key']) {
         const retryHeaders = { ...fetchHeaders };
         delete retryHeaders['x-appwrite-key'];
-        
+
         // Ensure URL has project parameter for public access
         let publicUrl = url;
         if (url.includes('/storage/buckets/') && !url.includes('project=')) {
-          const projectId = searchParams.get('_project') || 
-                           request.headers.get('x-appwrite-project');
+          const projectId = searchParams.get('_project') ||
+            request.headers.get('x-appwrite-project');
           if (projectId) {
             const separator = url.includes('?') ? '&' : '?';
             publicUrl = `${url}${separator}project=${projectId}`;
           }
         }
-        
+
         const retryResponse = await fetch(publicUrl, { headers: retryHeaders, cache: 'no-store', redirect: 'follow' });
         if (retryResponse.status < 400) {
           return createProxiedResponse(retryResponse, publicUrl);
         }
       }
-      
+
       return new NextResponse(`Media fetch failed with status ${response.status}`, { status: response.status });
     }
 
@@ -77,16 +77,16 @@ export async function HEAD(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const url = searchParams.get('url');
-    
+
     if (!url) {
       return NextResponse.json({ error: 'Missing URL parameter' }, { status: 400 });
     }
 
     // Parse Appwrite config from query params to add to headers if needed
     const apiKey = searchParams.get('_key');
-    
+
     const fetchHeaders: Record<string, string> = {};
-    
+
     if (apiKey && apiKey !== 'undefined' && apiKey !== 'null') {
       fetchHeaders['x-appwrite-key'] = apiKey;
     }
@@ -104,7 +104,7 @@ export async function HEAD(request: NextRequest) {
 
     // Return the response with same status code and headers
     const responseHeaders = new Headers();
-    
+
     // Copy essential headers
     const headersToCopy = [
       'content-type',
@@ -136,7 +136,7 @@ export async function HEAD(request: NextRequest) {
 
 function createProxiedResponse(response: Response, url: string) {
   const responseHeaders = new Headers();
-  
+
   // Essential headers for streaming and playback
   const headersToCopy = [
     'content-type',
@@ -180,8 +180,14 @@ function createProxiedResponse(response: Response, url: string) {
     else if (ext === 'flac') contentType = 'audio/flac';
     else if (ext === 'aac') contentType = 'audio/aac';
     else if (ext === 'pdf') contentType = 'application/pdf';
-    
+
     if (contentType) responseHeaders.set('content-type', contentType);
+  }
+
+  // 為圖片設定快取標頭（1小時），減少重複載入
+  const finalContentType = responseHeaders.get('content-type') || '';
+  if (finalContentType.startsWith('image/')) {
+    responseHeaders.set('cache-control', 'public, max-age=3600, stale-while-revalidate=86400');
   }
 
   // Use the standard Response constructor which works better for streaming in some cases

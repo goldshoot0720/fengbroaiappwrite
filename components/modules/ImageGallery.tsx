@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useImages, ImageData } from "@/hooks";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
-import { getAppwriteHeaders } from "@/lib/utils";
+import { getAppwriteHeaders, getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
+import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import JSZip from "jszip";
 
 // Helper function to add Appwrite config to URL
@@ -150,67 +151,70 @@ export default function ImageGallery() {
 
     try {
       const zip = new JSZip();
-      const imageFolder = zip.folder('images');
-      let successCount = 0;
-      let failCount = 0;
+      zip.folder('images');
+
+      const csvRows: string[][] = [];
+      const csvHeaders = ['name', 'file', 'filetype', 'category', 'note', 'ref', 'hash'];
+      csvRows.push(csvHeaders);
 
       for (let i = 0; i < images.length; i++) {
         const image = images[i];
+        const seq = String(i + 1).padStart(3, '0');
+        const sanitizedName = image.name.replace(/[<>:"\/\\|?*]/g, '_');
+        const baseName = `${seq}_${sanitizedName}`;
+
         setExportProgress({ current: i + 1, total: images.length, status: `正在下載: ${image.name}` });
 
-        if (!image.file) {
-          console.warn(`跳過無圖片 URL: ${image.name}`);
-          failCount++;
-          continue;
+        // Detect file extension
+        const fileExtension = image.filetype || image.file?.split('.').pop()?.split('?')[0] || 'jpg';
+
+        // Download and add image file
+        let imagePath = '';
+        if (image.file) {
+          try {
+            const response = await fetch(getAppwriteDownloadUrl(image.file));
+            if (response.ok) {
+              const blob = await response.blob();
+              imagePath = `images/${baseName}.${fileExtension}`;
+              zip.file(imagePath, blob);
+            }
+          } catch (err) { console.error(`下載圖片 ${image.name} 時出錯:`, err); }
         }
 
-        try {
-          // Fetch image as blob
-          const response = await fetch(image.file);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-          const blob = await response.blob();
-
-          // Generate filename with category
-          // Use filetype field if available, otherwise extract from URL
-          const fileExtension = image.filetype || image.file.split('.').pop()?.split('?')[0] || 'jpg';
-          const sanitizedName = image.name.replace(/[/\\?%*:|"<>]/g, '-');
-          const categoryPrefix = image.category ? `[${image.category}]_` : '';
-
-          // Check if name already has the correct extension to avoid double extension
-          const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
-          const filename = nameHasExtension
-            ? `${categoryPrefix}${sanitizedName}`
-            : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
-
-          // Add to zip
-          imageFolder?.file(filename, blob);
-          successCount++;
-        } catch (error) {
-          console.error(`下載失敗: ${image.name}`, error);
-          failCount++;
-        }
+        // Build CSV row
+        const escapeCsv = (val: string) => {
+          if (!val) return '';
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        };
+        csvRows.push([
+          escapeCsv(image.name || ''),
+          escapeCsv(imagePath),
+          escapeCsv(image.filetype || ''),
+          escapeCsv(image.category || ''),
+          escapeCsv(image.note || ''),
+          escapeCsv(image.ref || ''),
+          escapeCsv(image.hash || ''),
+        ]);
       }
+
+      // Generate CSV and add to ZIP
+      const csvContent = csvRows.map(row => row.join(',')).join('\n');
+      zip.file('image.csv', csvContent);
 
       setExportProgress({ current: images.length, total: images.length, status: '正在壓縮...' });
 
-      // Generate ZIP file
-      const zipBlob = await zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      });
-
-      // Download ZIP
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(zipBlob);
-      const timestamp = new Date().toISOString().split('T')[0];
       link.download = `appwrite-image.zip`;
       link.click();
       URL.revokeObjectURL(link.href);
 
-      setExportProgress({ current: 0, total: 0, status: '' });
-      alert(`匯出完成！\n成功: ${successCount} 張\n失敗: ${failCount} 張`);
+      setExportProgress({ current: images.length, total: images.length, status: '完成！' });
+      setTimeout(() => setExporting(false), 1500);
     } catch (error) {
       console.error('ZIP export error:', error);
       alert('匯出失敗，請再試一次');
@@ -253,117 +257,182 @@ export default function ImageGallery() {
     try {
       const zip = await JSZip.loadAsync(file);
 
-      // Find all image files in ZIP
-      const imageFiles: { name: string; file: JSZip.JSZipObject }[] = [];
-      const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      // Check if this is a new-format ZIP with image.csv
+      const csvFile = zip.files['image.csv'];
+      if (csvFile) {
+        // New format: parse CSV and restore full data
+        const csvText = await csvFile.async('string');
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) { alert('CSV 檔案沒有資料'); setImporting(false); return; }
 
-      zip.forEach((relativePath, zipEntry) => {
-        if (!zipEntry.dir) {
-          const ext = relativePath.split('.').pop()?.toLowerCase() || '';
-          if (validExtensions.includes(ext)) {
-            imageFiles.push({ name: relativePath, file: zipEntry });
+        // Parse CSV header and rows
+        const parseCsvLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let c = 0; c < line.length; c++) {
+            const ch = line[c];
+            if (inQuotes) {
+              if (ch === '"' && line[c + 1] === '"') { current += '"'; c++; }
+              else if (ch === '"') { inQuotes = false; }
+              else { current += ch; }
+            } else {
+              if (ch === '"') { inQuotes = true; }
+              else if (ch === ',') { result.push(current); current = ''; }
+              else { current += ch; }
+            }
           }
-        }
-      });
+          result.push(current);
+          return result;
+        };
 
-      if (imageFiles.length === 0) {
-        alert('ZIP 檔案中沒有找到圖片檔案 (JPG, PNG, GIF, WEBP)');
-        setImporting(false);
-        return;
-      }
-
-      const confirmImport = window.confirm(`找到 ${imageFiles.length} 張圖片，是否開始匯入？`);
-      if (!confirmImport) {
-        setImporting(false);
-        return;
-      }
-
-      let successCount = 0;
-      let skippedCount = 0;
-      let failedCount = 0;
-
-      for (let i = 0; i < imageFiles.length; i++) {
-        const imageFile = imageFiles[i];
-        const fileName = imageFile.name.split('/').pop() || imageFile.name;
-
-        setImportProgress({
-          current: i + 1,
-          total: imageFiles.length,
-          status: `正在處理: ${fileName}`,
-          success: successCount,
-          skipped: skippedCount,
-          failed: failedCount
+        const headers = parseCsvLine(lines[0]);
+        const dataRows = lines.slice(1).map(line => {
+          const values = parseCsvLine(line);
+          const obj: Record<string, string> = {};
+          headers.forEach((h, idx) => { obj[h] = values[idx] || ''; });
+          return obj;
         });
 
-        try {
-          // Extract image data
-          const arrayBuffer = await imageFile.file.async('arraybuffer');
+        const total = dataRows.length;
+        setImportProgress({ current: 0, total, status: `找到 ${total} 筆圖片記錄`, success: 0, skipped: 0, failed: 0 });
+        let successCount = 0, failedCount = 0;
 
-          // Create blob and file
-          const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
-          const mimeType = ext === 'png' ? 'image/png' :
-            ext === 'gif' ? 'image/gif' :
-              ext === 'webp' ? 'image/webp' : 'image/jpeg';
-          const blob = new Blob([arrayBuffer], { type: mimeType });
-          const imageFileObj = new File([blob], fileName, { type: mimeType });
+        for (let i = 0; i < dataRows.length; i++) {
+          const row = dataRows[i];
+          setImportProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, skipped: 0, failed: failedCount });
 
-          // Upload to Appwrite Storage
-          const formDataUpload = new FormData();
-          formDataUpload.append('file', imageFileObj);
+          try {
+            // Upload image file from ZIP
+            let remoteFileUrl = '';
+            if (row.file && zip.files[row.file]) {
+              const imageBlob = await zip.files[row.file].async('blob');
+              const fileName = row.file.split('/').pop() || 'image.jpg';
+              const imageFileObj = new File([imageBlob], fileName, { type: 'application/octet-stream' });
+              const uploadResult = await uploadToAppwriteStorage(imageFileObj);
+              remoteFileUrl = uploadResult.url;
+            }
 
-          const uploadResponse = await fetch('/api/upload-image', {
-            method: 'POST',
-            headers: getAppwriteHeaders(),
-            body: formDataUpload,
-          });
+            // Check if record already exists (same name)
+            const existing = images.find(m => m.name === row.name);
+            const apiUrl = existing
+              ? addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${existing.$id}`)
+              : addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE);
+            const method = existing ? 'PUT' : 'POST';
 
-          if (!uploadResponse.ok) {
-            throw new Error('上傳失敗');
-          }
+            const submitData: Record<string, string | boolean> = {
+              name: row.name || '',
+              file: remoteFileUrl || (existing ? existing.file : ''),
+              filetype: row.filetype || '',
+              category: row.category || '',
+              note: row.note || '',
+              ref: row.ref || '',
+              hash: row.hash || (existing ? existing.hash : `zip_import_${Date.now()}_${Math.random().toString(36).substring(7)}`),
+              cover: false,
+            };
 
-          const uploadData = await uploadResponse.json();
+            const response = await fetch(apiUrl, {
+              method,
+              headers: { 'Content-Type': 'application/json', ...getAppwriteHeaders() },
+              body: JSON.stringify(submitData),
+            });
 
-          // Create database record with simple fields
-          const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE);
-          const createResponse = await fetch(createUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: fileName,        // 完整檔名（包含副檔名）
-              file: uploadData.url,  // Appwrite Storage URL
-              filetype: ext,         // 檔案格式
-              note: '',              // 空
-              ref: '',               // 空
-              category: '',          // 空
-              hash: '',              // 空
-              cover: false           // false
-            }),
-          });
-
-          if (!createResponse.ok) {
-            throw new Error('建立記錄失敗');
-          }
-
-          successCount++;
-        } catch (error) {
-          console.error(`匯入失敗: ${fileName}`, error);
-          failedCount++;
+            if (response.ok) successCount++; else failedCount++;
+          } catch (err) { console.error(`處理 ${row.name} 時出錯:`, err); failedCount++; }
+          setImportProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, skipped: 0, failed: failedCount });
         }
-      }
 
-      setImportProgress({
-        current: imageFiles.length,
-        total: imageFiles.length,
-        status: '完成',
-        success: successCount,
-        skipped: skippedCount,
-        failed: failedCount
-      });
+        setImportProgress({ current: total, total, status: '完成！', success: successCount, skipped: 0, failed: failedCount });
+        setTimeout(() => { setImporting(false); setImportProgress({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 }); loadImages(true); }, 2000);
+      } else {
+        // Legacy format: plain image files in ZIP (backwards compatible)
+        const imageFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+        const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
-      alert(`匯入完成！\n成功: ${successCount} 張\n失敗: ${failedCount} 張`);
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            const ext = relativePath.split('.').pop()?.toLowerCase() || '';
+            if (validExtensions.includes(ext)) {
+              imageFiles.push({ name: relativePath, file: zipEntry });
+            }
+          }
+        });
 
-      if (successCount > 0) {
-        loadImages(true);
+        if (imageFiles.length === 0) {
+          alert('ZIP 檔案中沒有找到圖片檔案 (JPG, PNG, GIF, WEBP)');
+          setImporting(false);
+          return;
+        }
+
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (let i = 0; i < imageFiles.length; i++) {
+          const imageFile = imageFiles[i];
+          const fileName = imageFile.name.split('/').pop() || imageFile.name;
+
+          setImportProgress({
+            current: i + 1,
+            total: imageFiles.length,
+            status: `正在處理: ${fileName}`,
+            success: successCount,
+            skipped: 0,
+            failed: failedCount
+          });
+
+          try {
+            const arrayBuffer = await imageFile.file.async('arraybuffer');
+            const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+            const mimeType = ext === 'png' ? 'image/png' :
+              ext === 'gif' ? 'image/gif' :
+                ext === 'webp' ? 'image/webp' : 'image/jpeg';
+            const blob = new Blob([arrayBuffer], { type: mimeType });
+            const imageFileObj = new File([blob], fileName, { type: mimeType });
+
+            const formDataUpload = new FormData();
+            formDataUpload.append('file', imageFileObj);
+
+            const uploadResponse = await fetch('/api/upload-image', {
+              method: 'POST',
+              headers: getAppwriteHeaders(),
+              body: formDataUpload,
+            });
+
+            if (!uploadResponse.ok) throw new Error('上傳失敗');
+            const uploadData = await uploadResponse.json();
+
+            const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE);
+            const createResponse = await fetch(createUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: fileName,
+                file: uploadData.url,
+                filetype: ext,
+                note: '',
+                ref: '',
+                category: '',
+                hash: '',
+                cover: false
+              }),
+            });
+
+            if (createResponse.ok) successCount++; else failedCount++;
+          } catch (error) {
+            console.error(`匯入失敗: ${fileName}`, error);
+            failedCount++;
+          }
+        }
+
+        setImportProgress({
+          current: imageFiles.length,
+          total: imageFiles.length,
+          status: '完成！',
+          success: successCount,
+          skipped: 0,
+          failed: failedCount
+        });
+        setTimeout(() => { setImporting(false); setImportProgress({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 }); loadImages(true); }, 2000);
       }
     } catch (error) {
       console.error('ZIP import error:', error);
@@ -634,7 +703,7 @@ function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditFo
       >
         {image.file ? (
           <img
-            src={image.file}
+            src={getProxiedMediaUrl(image.file)}
             alt={image.name}
             className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
             loading="lazy"
@@ -761,7 +830,7 @@ function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () =
         <div className="flex-1 flex items-center justify-center p-12 sm:p-16">
           {image.file ? (
             <img
-              src={image.file}
+              src={getProxiedMediaUrl(image.file)}
               alt={image.name}
               className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
               onClick={(e) => e.stopPropagation()}
