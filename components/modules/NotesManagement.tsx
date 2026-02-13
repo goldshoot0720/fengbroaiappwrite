@@ -18,7 +18,8 @@ import { formatDate } from "@/lib/formatters";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon, Download, Upload } from "lucide-react";
+import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive } from "lucide-react";
 import JSZip from "jszip";
 
 const INITIAL_FORM: ArticleFormData = {
@@ -98,7 +99,7 @@ function ZipPreview({ url, title }: { url: string; title: string }) {
         if (!response.ok) throw new Error('無法讀取檔案');
         const blob = await response.blob();
         const zip = await JSZip.loadAsync(blob);
-        
+
         const fileEntries: ZipEntry[] = [];
         zip.forEach((relativePath, file) => {
           fileEntries.push({
@@ -107,14 +108,14 @@ function ZipPreview({ url, title }: { url: string; title: string }) {
             size: (file as any)._data?.uncompressedSize || 0,
           });
         });
-        
+
         // 排序：資料夾在前，然後按名稱排序
         fileEntries.sort((a, b) => {
           if (a.isDir && !b.isDir) return -1;
           if (!a.isDir && b.isDir) return 1;
           return a.name.localeCompare(b.name);
         });
-        
+
         setEntries(fileEntries);
         setError(null);
       } catch (err) {
@@ -173,21 +174,23 @@ export default function NotesManagement() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // CSV 匯入/匯出功能
-  const [importPreview, setImportPreview] = useState<{data: ArticleFormData[], errors: string[]} | null>(null);
+
+  // ZIP/CSV 匯入/匯出功能
+  const [importPreview, setImportPreview] = useState<{ data: ArticleFormData[], zipFile?: JSZip | null, errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
-  const CSV_HEADERS = ['title', 'content', 'newDate', 'url1', 'url2', 'url3'];
-  const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
-  
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: '' });
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const ZIP_CSV_HEADERS = ['title', 'content', 'newDate', 'url1', 'url2', 'url3', 'file1', 'file1name', 'file1type', 'file2', 'file2name', 'file2type', 'file3', 'file3name', 'file3type'];
+  const ZIP_CSV_COLUMN_COUNT = ZIP_CSV_HEADERS.length;
+
   // File upload states
   const [selectedFile1, setSelectedFile1] = useState<File | null>(null);
   const [selectedFile2, setSelectedFile2] = useState<File | null>(null);
   const [selectedFile3, setSelectedFile3] = useState<File | null>(null);
   const [uploadingFile, setUploadingFile] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
-  
+
   // Edit mode file upload states
   const [editSelectedFile1, setEditSelectedFile1] = useState<File | null>(null);
   const [editSelectedFile2, setEditSelectedFile2] = useState<File | null>(null);
@@ -205,7 +208,7 @@ export default function NotesManagement() {
   const filteredArticles = useMemo(() => {
     if (!searchQuery.trim()) return articles;
     const query = searchQuery.toLowerCase();
-    return articles.filter(article => 
+    return articles.filter(article =>
       article.title?.toLowerCase().includes(query) ||
       article.content?.toLowerCase().includes(query)
     );
@@ -214,12 +217,12 @@ export default function NotesManagement() {
   // File upload handlers
   const handleFileSelect = (fileNumber: 1 | 2 | 3, file: File | null) => {
     if (!file) return;
-    
+
     // Determine file type by MIME type and extension
     const fileName = file.name.toLowerCase();
     const ext = fileName.substring(fileName.lastIndexOf('.'));
     let fileType = 'other';
-    
+
     if (file.type.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
       fileType = 'jpg';
     } else if (file.type.startsWith('video/') || ['.mp4', '.webm', '.mov', '.avi'].includes(ext)) {
@@ -239,7 +242,7 @@ export default function NotesManagement() {
     } else if (file.type === 'application/zip' || file.type === 'application/x-zip-compressed' || ext === '.zip') {
       fileType = 'zip';
     }
-    
+
     if (fileNumber === 1) {
       setSelectedFile1(file);
       setForm({ ...form, file1name: file.name, [`file${fileNumber}type`]: fileType });
@@ -254,12 +257,12 @@ export default function NotesManagement() {
 
   const handleEditFileSelect = (fileNumber: 1 | 2 | 3, file: File | null) => {
     if (!file) return;
-    
+
     // Determine file type by MIME type and extension
     const fileName = file.name.toLowerCase();
     const ext = fileName.substring(fileName.lastIndexOf('.'));
     let fileType = 'other';
-    
+
     if (file.type.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
       fileType = 'jpg';
     } else if (file.type.startsWith('video/') || ['.mp4', '.webm', '.mov', '.avi'].includes(ext)) {
@@ -279,7 +282,7 @@ export default function NotesManagement() {
     } else if (file.type === 'application/zip' || file.type === 'application/x-zip-compressed' || ext === '.zip') {
       fileType = 'zip';
     }
-    
+
     if (fileNumber === 1) {
       setEditSelectedFile1(file);
       setEditForm({ ...editForm, file1name: file.name, [`file${fileNumber}type`]: fileType });
@@ -322,20 +325,20 @@ export default function NotesManagement() {
       });
 
       clearInterval(progressInterval);
-      
+
       if (!response.ok) {
         throw new Error('上傳失敗');
       }
 
       const data = await response.json();
-      
+
       // Complete progress
       if (isEdit) {
         setEditUploadProgress(100);
       } else {
         setUploadProgress(100);
       }
-      
+
       return data.url;
     } catch (error) {
       clearInterval(progressInterval);
@@ -352,25 +355,25 @@ export default function NotesManagement() {
       if (selectedFile1) {
         setUploadingFile(1);
         setUploadProgress(0);
-        const endpoint = ['jpg', 'image'].includes(form.file1type || '') ? '/api/upload-image' : 
-                        ['mp4', 'video'].includes(form.file1type || '') ? '/api/upload-video' : 
-                        '/api/upload-music'; // Use music endpoint for audio and documents
+        const endpoint = ['jpg', 'image'].includes(form.file1type || '') ? '/api/upload-image' :
+          ['mp4', 'video'].includes(form.file1type || '') ? '/api/upload-video' :
+            '/api/upload-music'; // Use music endpoint for audio and documents
         formDataToSubmit.file1 = await uploadFile(selectedFile1, endpoint, false);
       }
       if (selectedFile2) {
         setUploadingFile(2);
         setUploadProgress(0);
-        const endpoint = ['jpg', 'image'].includes(form.file2type || '') ? '/api/upload-image' : 
-                        ['mp4', 'video'].includes(form.file2type || '') ? '/api/upload-video' : 
-                        '/api/upload-music'; // Use music endpoint for audio and documents
+        const endpoint = ['jpg', 'image'].includes(form.file2type || '') ? '/api/upload-image' :
+          ['mp4', 'video'].includes(form.file2type || '') ? '/api/upload-video' :
+            '/api/upload-music'; // Use music endpoint for audio and documents
         formDataToSubmit.file2 = await uploadFile(selectedFile2, endpoint, false);
       }
       if (selectedFile3) {
         setUploadingFile(3);
         setUploadProgress(0);
-        const endpoint = ['jpg', 'image'].includes(form.file3type || '') ? '/api/upload-image' : 
-                        ['mp4', 'video'].includes(form.file3type || '') ? '/api/upload-video' : 
-                        '/api/upload-music'; // Use music endpoint for audio and documents
+        const endpoint = ['jpg', 'image'].includes(form.file3type || '') ? '/api/upload-image' :
+          ['mp4', 'video'].includes(form.file3type || '') ? '/api/upload-video' :
+            '/api/upload-music'; // Use music endpoint for audio and documents
         formDataToSubmit.file3 = await uploadFile(selectedFile3, endpoint, false);
       }
 
@@ -397,25 +400,25 @@ export default function NotesManagement() {
       if (editSelectedFile1) {
         setEditUploadingFile(1);
         setEditUploadProgress(0);
-        const endpoint = ['jpg', 'image'].includes(editForm.file1type || '') ? '/api/upload-image' : 
-                        ['mp4', 'video'].includes(editForm.file1type || '') ? '/api/upload-video' : 
-                        '/api/upload-music';
+        const endpoint = ['jpg', 'image'].includes(editForm.file1type || '') ? '/api/upload-image' :
+          ['mp4', 'video'].includes(editForm.file1type || '') ? '/api/upload-video' :
+            '/api/upload-music';
         formDataToSubmit.file1 = await uploadFile(editSelectedFile1, endpoint, true);
       }
       if (editSelectedFile2) {
         setEditUploadingFile(2);
         setEditUploadProgress(0);
-        const endpoint = ['jpg', 'image'].includes(editForm.file2type || '') ? '/api/upload-image' : 
-                        ['mp4', 'video'].includes(editForm.file2type || '') ? '/api/upload-video' : 
-                        '/api/upload-music';
+        const endpoint = ['jpg', 'image'].includes(editForm.file2type || '') ? '/api/upload-image' :
+          ['mp4', 'video'].includes(editForm.file2type || '') ? '/api/upload-video' :
+            '/api/upload-music';
         formDataToSubmit.file2 = await uploadFile(editSelectedFile2, endpoint, true);
       }
       if (editSelectedFile3) {
         setEditUploadingFile(3);
         setEditUploadProgress(0);
-        const endpoint = ['jpg', 'image'].includes(editForm.file3type || '') ? '/api/upload-image' : 
-                        ['mp4', 'video'].includes(editForm.file3type || '') ? '/api/upload-video' : 
-                        '/api/upload-music';
+        const endpoint = ['jpg', 'image'].includes(editForm.file3type || '') ? '/api/upload-image' :
+          ['mp4', 'video'].includes(editForm.file3type || '') ? '/api/upload-video' :
+            '/api/upload-music';
         formDataToSubmit.file3 = await uploadFile(editSelectedFile3, endpoint, true);
       }
 
@@ -515,50 +518,135 @@ export default function NotesManagement() {
     }
   };
 
-  // CSV Export function
-  const exportToCSV = () => {
+  // ZIP Export function - 匯出 ZIP（含附件檔案 + CSV）
+  const exportToZIP = async () => {
     const escapeCSV = (val: any) => {
       if (val === null || val === undefined) return '';
       const str = String(val);
       if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
       return str;
     };
-    const rows = [CSV_HEADERS.join(',')];
-    articles.forEach(item => {
-      rows.push([
-        escapeCSV(item.title),
-        escapeCSV(item.content || ''),
-        escapeCSV(formatDate(item.newDate) || ''),
-        escapeCSV(item.url1 || ''),
-        escapeCSV(item.url2 || ''),
-        escapeCSV(item.url3 || '')
-      ].join(','));
-    });
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'appwrite-article.csv';
-    link.click();
-    URL.revokeObjectURL(link.href);
+
+    setExporting(true);
+    setExportProgress({ current: 0, total: articles.length });
+
+    try {
+      const zip = new JSZip();
+      const filesFolder = zip.folder('files')!;
+      const rows = [ZIP_CSV_HEADERS.join(',')];
+
+      for (let i = 0; i < articles.length; i++) {
+        const item = articles[i];
+        setExportProgress({ current: i + 1, total: articles.length });
+
+        let file1Path = '';
+        let file2Path = '';
+        let file3Path = '';
+
+        // 下載 file1
+        if (item.file1) {
+          try {
+            const fileName = item.file1name || `file1.${item.file1type || 'bin'}`;
+            const localName = `${i}_1_${fileName}`;
+            const response = await fetch(getAppwriteDownloadUrl(item.file1));
+            if (response.ok) {
+              const blob = await response.blob();
+              filesFolder.file(localName, blob);
+              file1Path = `files/${localName}`;
+            }
+          } catch (err) {
+            console.warn(`下載 file1 失敗 (${item.title}):`, err);
+          }
+        }
+
+        // 下載 file2
+        if (item.file2) {
+          try {
+            const fileName = item.file2name || `file2.${item.file2type || 'bin'}`;
+            const localName = `${i}_2_${fileName}`;
+            const response = await fetch(getAppwriteDownloadUrl(item.file2));
+            if (response.ok) {
+              const blob = await response.blob();
+              filesFolder.file(localName, blob);
+              file2Path = `files/${localName}`;
+            }
+          } catch (err) {
+            console.warn(`下載 file2 失敗 (${item.title}):`, err);
+          }
+        }
+
+        // 下載 file3
+        if (item.file3) {
+          try {
+            const fileName = item.file3name || `file3.${item.file3type || 'bin'}`;
+            const localName = `${i}_3_${fileName}`;
+            const response = await fetch(getAppwriteDownloadUrl(item.file3));
+            if (response.ok) {
+              const blob = await response.blob();
+              filesFolder.file(localName, blob);
+              file3Path = `files/${localName}`;
+            }
+          } catch (err) {
+            console.warn(`下載 file3 失敗 (${item.title}):`, err);
+          }
+        }
+
+        rows.push([
+          escapeCSV(item.title),
+          escapeCSV(item.content || ''),
+          escapeCSV(formatDate(item.newDate) || ''),
+          escapeCSV(item.url1 || ''),
+          escapeCSV(item.url2 || ''),
+          escapeCSV(item.url3 || ''),
+          escapeCSV(file1Path),
+          escapeCSV(item.file1name || ''),
+          escapeCSV(item.file1type || ''),
+          escapeCSV(file2Path),
+          escapeCSV(item.file2name || ''),
+          escapeCSV(item.file2type || ''),
+          escapeCSV(file3Path),
+          escapeCSV(item.file3name || ''),
+          escapeCSV(item.file3type || '')
+        ].join(','));
+      }
+
+      // 將 CSV 加入 ZIP
+      const BOM = '\uFEFF';
+      const csvContent = BOM + rows.join('\n');
+      zip.file('appwrite-article.csv', csvContent);
+
+      // 產生 ZIP 並下載
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'appwrite-article.zip';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error('匯出 ZIP 失敗:', err);
+      alert('匯出 ZIP 失敗，請稍後再試');
+    } finally {
+      setExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+    }
   };
 
-  // RFC 4180 compliant CSV parser
-  const parseCSV = (text: string): {data: ArticleFormData[], errors: string[]} => {
+  // RFC 4180 compliant CSV parser - 支援 15 欄（ZIP 格式）和 6 欄（舊 CSV 格式）
+  const parseCSV = (text: string): { data: ArticleFormData[], errors: string[] } => {
     const errors: string[] = [];
     const data: ArticleFormData[] = [];
     const cleanText = text.replace(/^\uFEFF/, '');
-    
+
     // Parse CSV properly handling multi-line quoted fields
     const rows: string[][] = [];
     let currentRow: string[] = [];
     let currentField = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < cleanText.length; i++) {
       const char = cleanText[i];
       const nextChar = cleanText[i + 1];
-      
+
       if (inQuotes) {
         if (char === '"') {
           if (nextChar === '"') {
@@ -595,30 +683,35 @@ export default function NotesManagement() {
         rows.push(currentRow);
       }
     }
-    
+
     if (rows.length < 2) {
       errors.push('CSV 檔案至少需要表頭和一行資料');
       return { data, errors };
     }
-    
+
     const headerValues = rows[0];
-    if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
-      errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
+    const columnCount = headerValues.length;
+
+    // 支援 15 欄（ZIP 格式）或 6 欄（舊 CSV 格式）
+    if (columnCount !== ZIP_CSV_COLUMN_COUNT && columnCount !== 6) {
+      errors.push(`表頭欄位數量錯誤: 預期 ${ZIP_CSV_COLUMN_COUNT} 欄或 6 欄，實際 ${columnCount} 欄`);
       return { data, errors };
     }
-    for (let i = 0; i < CSV_HEADERS.length; i++) {
-      if (headerValues[i]?.trim() !== CSV_HEADERS[i]) {
-        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${CSV_HEADERS[i]}"，實際 "${headerValues[i]?.trim()}"`);
+
+    const expectedHeaders = columnCount === ZIP_CSV_COLUMN_COUNT ? ZIP_CSV_HEADERS : ['title', 'content', 'newDate', 'url1', 'url2', 'url3'];
+    for (let i = 0; i < expectedHeaders.length; i++) {
+      if (headerValues[i]?.trim() !== expectedHeaders[i]) {
+        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${expectedHeaders[i]}"，實際 "${headerValues[i]?.trim()}"`);
         if (errors.length >= 5) { errors.push('...更多錯誤已省略'); break; }
       }
     }
     if (errors.length > 0) return { data, errors };
-    
+
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
       const lineNum = i + 1;
-      if (values.length !== EXPECTED_COLUMN_COUNT) {
-        errors.push(`第 ${lineNum} 行: 欄位數量錯誤 (預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${values.length} 欄)`);
+      if (values.length !== columnCount) {
+        errors.push(`第 ${lineNum} 行: 欄位數量錯誤 (預期 ${columnCount} 欄，實際 ${values.length} 欄)`);
         continue;
       }
       if (!values[0]?.trim()) {
@@ -632,36 +725,59 @@ export default function NotesManagement() {
         url1: values[3]?.trim() || '',
         url2: values[4]?.trim() || '',
         url3: values[5]?.trim() || '',
-        file1: '',
-        file1name: '',
-        file1type: '',
-        file2: '',
-        file2name: '',
-        file2type: '',
-        file3: '',
-        file3name: '',
-        file3type: ''
+        file1: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[6]?.trim() || '') : '',
+        file1name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[7]?.trim() || '') : '',
+        file1type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[8]?.trim() || '') : '',
+        file2: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[9]?.trim() || '') : '',
+        file2name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[10]?.trim() || '') : '',
+        file2type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[11]?.trim() || '') : '',
+        file3: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[12]?.trim() || '') : '',
+        file3name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[13]?.trim() || '') : '',
+        file3type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[14]?.trim() || '') : ''
       });
     }
     return { data, errors };
   };
 
-  const handleCsvFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ZIP 匯入 - 選擇 ZIP 檔案
+  const handleZipFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.name.endsWith('.csv')) {
-      alert('請選擇 CSV 檔案');
+
+    if (!file.name.endsWith('.zip')) {
+      alert('請選擇 ZIP 檔案');
+      e.target.value = '';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setImportPreview(parseCSV(event.target?.result as string));
-    };
-    reader.readAsText(file, 'UTF-8');
+
+    try {
+      const zip = await JSZip.loadAsync(file);
+
+      // 找到 CSV 檔案
+      let csvFile: JSZip.JSZipObject | null = null;
+      zip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir && relativePath.endsWith('.csv')) {
+          csvFile = zipEntry;
+        }
+      });
+
+      if (!csvFile) {
+        alert('ZIP 中找不到 CSV 檔案');
+        e.target.value = '';
+        return;
+      }
+
+      const csvText = await (csvFile as JSZip.JSZipObject).async('string');
+      const result = parseCSV(csvText);
+      setImportPreview({ ...result, zipFile: zip });
+    } catch (err) {
+      console.error('讀取 ZIP 失敗:', err);
+      alert('讀取 ZIP 檔案失敗，請確認檔案格式正確');
+    }
     e.target.value = '';
   };
 
-  // 準備匯入用的 API 資料（與 useArticles 中相同邏輯）
+  // 準備匯入用的 API 資料（包含檔案欄位）
   const prepareArticleData = (formData: ArticleFormData) => {
     const dateTime = new Date(formData.newDate).toISOString();
     const dataToSend: any = {
@@ -672,20 +788,60 @@ export default function NotesManagement() {
     if (formData.url1 && formData.url1.trim()) dataToSend.url1 = formData.url1;
     if (formData.url2 && formData.url2.trim()) dataToSend.url2 = formData.url2;
     if (formData.url3 && formData.url3.trim()) dataToSend.url3 = formData.url3;
+    if (formData.file1 && formData.file1.trim()) dataToSend.file1 = formData.file1;
+    if (formData.file1name && formData.file1name.trim()) dataToSend.file1name = formData.file1name;
+    if (formData.file1type && formData.file1type.trim()) dataToSend.file1type = formData.file1type;
+    if (formData.file2 && formData.file2.trim()) dataToSend.file2 = formData.file2;
+    if (formData.file2name && formData.file2name.trim()) dataToSend.file2name = formData.file2name;
+    if (formData.file2type && formData.file2type.trim()) dataToSend.file2type = formData.file2type;
+    if (formData.file3 && formData.file3.trim()) dataToSend.file3 = formData.file3;
+    if (formData.file3name && formData.file3name.trim()) dataToSend.file3name = formData.file3name;
+    if (formData.file3type && formData.file3type.trim()) dataToSend.file3type = formData.file3type;
     return dataToSend;
   };
 
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
 
+    const zipFile = importPreview.zipFile;
     setImporting(true);
-    setImportProgress({ current: 0, total: importPreview.data.length });
+    setImportProgress({ current: 0, total: importPreview.data.length, status: '準備匯入...' });
 
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
-      const formData = importPreview.data[i];
-      setImportProgress({ current: i + 1, total: importPreview.data.length });
+      const formData = { ...importPreview.data[i] };
+      setImportProgress({ current: i + 1, total: importPreview.data.length, status: `處理: ${formData.title}` });
+
       try {
+        // 如果有 ZIP 檔且 file 欄位指向 ZIP 內路徑，上傳檔案到 Appwrite
+        if (zipFile) {
+          for (const fileNum of [1, 2, 3] as const) {
+            const fileKey = `file${fileNum}` as keyof ArticleFormData;
+            const nameKey = `file${fileNum}name` as keyof ArticleFormData;
+            const localPath = formData[fileKey] as string;
+
+            if (localPath && localPath.startsWith('files/')) {
+              const zipEntry = zipFile.file(localPath);
+              if (zipEntry) {
+                setImportProgress({ current: i + 1, total: importPreview.data.length, status: `上傳檔案: ${formData[nameKey] || localPath}` });
+                const fileBlob = await zipEntry.async('blob');
+                const fileName = (formData[nameKey] as string) || localPath.split('/').pop() || `file${fileNum}`;
+                const fileObj = new window.File([fileBlob], fileName, { type: fileBlob.type || 'application/octet-stream' });
+
+                try {
+                  const { url } = await uploadToAppwriteStorage(fileObj);
+                  (formData as any)[fileKey] = url;
+                } catch (uploadErr) {
+                  console.warn(`上傳 ${fileKey} 失敗 (${formData.title}):`, uploadErr);
+                  (formData as any)[fileKey] = ''; // 清空失敗的檔案路徑
+                }
+              } else {
+                (formData as any)[fileKey] = ''; // ZIP 中找不到檔案
+              }
+            }
+          }
+        }
+
         const existing = articles.find(a => a.title === formData.title);
         const dataToSend = prepareArticleData(formData);
 
@@ -710,13 +866,9 @@ export default function NotesManagement() {
     await loadArticles(true);
 
     setImporting(false);
-    setImportProgress({ current: 0, total: 0 });
+    setImportProgress({ current: 0, total: 0, status: '' });
     setImportPreview(null);
-    alert(`匯入完成！
-成功: ${successCount} 筆
-失敗: ${failCount} 筆
-
-注意：檔案附件需要另行上傳`);
+    alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
   if (loading) return <FullPageLoading text="載入筆記資料中..." />;
@@ -735,19 +887,23 @@ export default function NotesManagement() {
         showAccountLabel={true}
         action={
           <div className="flex items-center gap-2 flex-wrap">
-            <Button onClick={() => document.getElementById('csv-import-notes')?.click()} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯入 CSV">
-              <Upload size={18} /> 匯入
+            <Button onClick={() => document.getElementById('zip-import-notes')?.click()} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯入 ZIP">
+              <Upload size={18} /> 匯入 ZIP
             </Button>
-            <input id="csv-import-notes" type="file" accept=".csv" className="hidden" onChange={handleCsvFileSelect} />
-            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯出 CSV">
-              <Download size={18} /> 匯出
+            <input id="zip-import-notes" type="file" accept=".zip" className="hidden" onChange={handleZipFileSelect} />
+            <Button onClick={exportToZIP} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯出 ZIP" disabled={exporting}>
+              {exporting ? (
+                <><Archive size={18} className="animate-pulse" /> 匯出中 ({exportProgress.current}/{exportProgress.total})...</>
+              ) : (
+                <><Download size={18} /> 匯出 ZIP</>
+              )}
             </Button>
             <StatCard title="筆記總數" value={stats.total} gradient="from-blue-500 to-blue-600" className="min-w-[160px]" />
           </div>
         }
       />
 
-      <FormCard 
+      <FormCard
         title={
           <div className="flex items-center justify-between w-full border-l-4 border-purple-500 pl-4 py-2">
             <h2 className="text-lg font-bold bg-gradient-to-r from-purple-500 to-purple-600 bg-clip-text text-transparent">
@@ -768,243 +924,243 @@ export default function NotesManagement() {
       >
         {!isFormCollapsed && (
           <form onSubmit={handleSubmit} className="space-y-4">
-          <FormGrid>
-            <div className="space-y-1 col-span-2">
-              <div className="flex gap-2">
-                <div className="flex-1 space-y-1">
+            <FormGrid>
+              <div className="space-y-1 col-span-2">
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Input
+                      placeholder="筆記標題 / Note Title"
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      required
+                      className="h-12 rounded-xl w-full"
+                    />
+                    <div className="px-1 h-4">
+                      {form.title ? (
+                        <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
+                      ) : (
+                        <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">請輸入標題 / Please enter title</span>
+                      )}
+                    </div>
+                  </div>
+                  {existingTitles.length > 0 && (
+                    <Select value="" onValueChange={(val) => val && setForm({ ...form, title: val })}>
+                      <SelectTrigger className="h-12 w-12 rounded-xl px-0 justify-center">
+                        <ChevronDown className="h-4 w-4" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {existingTitles.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex gap-1 items-center">
                   <Input
-                    placeholder="筆記標題 / Note Title"
-                    value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
-                    required
+                    placeholder="日期 / Date"
+                    type="date"
+                    value={form.newDate}
+                    onChange={(e) => setForm({ ...form, newDate: e.target.value })}
+                    className="h-12 rounded-xl flex-1"
+                  />
+                  {form.newDate && (
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date(form.newDate);
+                          d.setDate(d.getDate() + 7);
+                          setForm({ ...form, newDate: d.toISOString().split('T')[0] });
+                        }}
+                        className="p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 rounded transition-colors"
+                        title="+7天"
+                      >
+                        <Plus size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date(form.newDate);
+                          d.setDate(d.getDate() - 7);
+                          setForm({ ...form, newDate: d.toISOString().split('T')[0] });
+                        }}
+                        className="p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 rounded transition-colors"
+                        title="-7天"
+                      >
+                        <Minus size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="px-1 h-4">
+                  {form.newDate ? (
+                    <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">可以 + 或 - (7天) / Can use + or - (7 Days)</span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請選擇日期 / (Optional) Please select a date</span>
+                  )}
+                </div>
+              </div>
+            </FormGrid>
+
+            <div className="space-y-1">
+              <Textarea
+                placeholder="筆記內容 (上限 3377 字) / Note Content (Max 3377 chars)"
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
+                className="min-h-[200px] rounded-xl w-full"
+                maxLength={3377}
+              />
+              <div className="px-1 h-4">
+                {form.content ? (
+                  <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
+                ) : (
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入內容 / (Optional) Please enter content</span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">相關連結（選填） / Related Links (Optional)</label>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Input
+                    placeholder="URL 1"
+                    type="url"
+                    value={form.url1}
+                    onChange={(e) => setForm({ ...form, url1: e.target.value })}
                     className="h-12 rounded-xl w-full"
                   />
                   <div className="px-1 h-4">
-                    {form.title ? (
+                    {form.url1 ? (
                       <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
                     ) : (
-                      <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">請輸入標題 / Please enter title</span>
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入 URL / (Optional) Please enter URL</span>
                     )}
                   </div>
                 </div>
-                {existingTitles.length > 0 && (
-                  <Select value="" onValueChange={(val) => val && setForm({ ...form, title: val })}>
-                    <SelectTrigger className="h-12 w-12 rounded-xl px-0 justify-center">
-                      <ChevronDown className="h-4 w-4" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {existingTitles.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex gap-1 items-center">
-                <Input
-                  placeholder="日期 / Date"
-                  type="date"
-                  value={form.newDate}
-                  onChange={(e) => setForm({ ...form, newDate: e.target.value })}
-                  className="h-12 rounded-xl flex-1"
-                />
-                {form.newDate && (
-                  <div className="flex flex-col gap-0.5">
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        const d = new Date(form.newDate);
-                        d.setDate(d.getDate() + 7);
-                        setForm({ ...form, newDate: d.toISOString().split('T')[0] });
-                      }}
-                      className="p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 rounded transition-colors"
-                      title="+7天"
-                    >
-                      <Plus size={14} />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        const d = new Date(form.newDate);
-                        d.setDate(d.getDate() - 7);
-                        setForm({ ...form, newDate: d.toISOString().split('T')[0] });
-                      }}
-                      className="p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 rounded transition-colors"
-                      title="-7天"
-                    >
-                      <Minus size={14} />
-                    </button>
+                <div className="space-y-1">
+                  <Input
+                    placeholder="URL 2"
+                    type="url"
+                    value={form.url2}
+                    onChange={(e) => setForm({ ...form, url2: e.target.value })}
+                    className="h-12 rounded-xl w-full"
+                  />
+                  <div className="px-1 h-4">
+                    {form.url2 ? (
+                      <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入 URL / (Optional) Please enter URL</span>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="px-1 h-4">
-                {form.newDate ? (
-                  <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">可以 + 或 - (7天) / Can use + or - (7 Days)</span>
-                ) : (
-                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請選擇日期 / (Optional) Please select a date</span>
-                )}
+                </div>
+                <div className="space-y-1">
+                  <Input
+                    placeholder="URL 3"
+                    type="url"
+                    value={form.url3}
+                    onChange={(e) => setForm({ ...form, url3: e.target.value })}
+                    className="h-12 rounded-xl w-full"
+                  />
+                  <div className="px-1 h-4">
+                    {form.url3 ? (
+                      <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
+                    ) : (
+                      <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">請輸入 URL / Please enter URL</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </FormGrid>
-          
-          <div className="space-y-1">
-            <Textarea
-              placeholder="筆記內容 (上限 3377 字) / Note Content (Max 3377 chars)"
-              value={form.content}
-              onChange={(e) => setForm({ ...form, content: e.target.value })}
-              className="min-h-[200px] rounded-xl w-full"
-              maxLength={3377}
-            />
-            <div className="px-1 h-4">
-              {form.content ? (
-                <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-              ) : (
-                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入內容 / (Optional) Please enter content</span>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">上傳檔案（選填）</label>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Input
+                    type="file"
+                    accept="image/*,video/*,audio/*,.pdf,.txt,.docx,.xlsx,.pptx,.zip"
+                    onChange={(e) => handleFileSelect(1, e.target.files?.[0] || null)}
+                    disabled={uploadingFile !== null}
+                    className="h-12 rounded-xl"
+                  />
+                  {selectedFile1 && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">已選擇: {selectedFile1.name}</p>}
+                  <Input
+                    placeholder="檔案名稱 / File name (選填)"
+                    value={form.file1name || ""}
+                    onChange={(e) => setForm({ ...form, file1name: e.target.value })}
+                    className="h-10 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Input
+                    type="file"
+                    accept="image/*,video/*,audio/*,.pdf,.txt,.docx,.xlsx,.pptx,.zip"
+                    onChange={(e) => handleFileSelect(2, e.target.files?.[0] || null)}
+                    disabled={uploadingFile !== null}
+                    className="h-12 rounded-xl"
+                  />
+                  {selectedFile2 && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">已選擇: {selectedFile2.name}</p>}
+                  <Input
+                    placeholder="檔案名稱 / File name (選填)"
+                    value={form.file2name || ""}
+                    onChange={(e) => setForm({ ...form, file2name: e.target.value })}
+                    className="h-10 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Input
+                    type="file"
+                    accept="image/*,video/*,audio/*,.pdf,.txt,.docx,.xlsx,.pptx,.zip"
+                    onChange={(e) => handleFileSelect(3, e.target.files?.[0] || null)}
+                    disabled={uploadingFile !== null}
+                    className="h-12 rounded-xl"
+                  />
+                  {selectedFile3 && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">已選擇: {selectedFile3.name}</p>}
+                  <Input
+                    placeholder="檔案名稱 / File name (選填)"
+                    value={form.file3name || ""}
+                    onChange={(e) => setForm({ ...form, file3name: e.target.value })}
+                    className="h-10 rounded-xl"
+                  />
+                </div>
+              </div>
+              {uploadingFile && (
+                <div className="space-y-2">
+                  <p className="text-sm text-purple-600 dark:text-purple-400">正在上傳檔案 {uploadingFile}...</p>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div
+                      className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{uploadProgress}%</p>
+                </div>
               )}
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">相關連結（選填） / Related Links (Optional)</label>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Input
-                  placeholder="URL 1"
-                  type="url"
-                  value={form.url1}
-                  onChange={(e) => setForm({ ...form, url1: e.target.value })}
-                  className="h-12 rounded-xl w-full"
-                />
-                <div className="px-1 h-4">
-                  {form.url1 ? (
-                    <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-                  ) : (
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入 URL / (Optional) Please enter URL</span>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Input
-                  placeholder="URL 2"
-                  type="url"
-                  value={form.url2}
-                  onChange={(e) => setForm({ ...form, url2: e.target.value })}
-                  className="h-12 rounded-xl w-full"
-                />
-                <div className="px-1 h-4">
-                  {form.url2 ? (
-                    <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-                  ) : (
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入 URL / (Optional) Please enter URL</span>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Input
-                  placeholder="URL 3"
-                  type="url"
-                  value={form.url3}
-                  onChange={(e) => setForm({ ...form, url3: e.target.value })}
-                  className="h-12 rounded-xl w-full"
-                />
-                <div className="px-1 h-4">
-                  {form.url3 ? (
-                    <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-                  ) : (
-                    <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">請輸入 URL / Please enter URL</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">上傳檔案（選填）</label>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Input
-                  type="file"
-                  accept="image/*,video/*,audio/*,.pdf,.txt,.docx,.xlsx,.pptx,.zip"
-                  onChange={(e) => handleFileSelect(1, e.target.files?.[0] || null)}
-                  disabled={uploadingFile !== null}
-                  className="h-12 rounded-xl"
-                />
-                {selectedFile1 && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">已選擇: {selectedFile1.name}</p>}
-                <Input
-                  placeholder="檔案名稱 / File name (選填)"
-                  value={form.file1name || ""}
-                  onChange={(e) => setForm({ ...form, file1name: e.target.value })}
-                  className="h-10 rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Input
-                  type="file"
-                  accept="image/*,video/*,audio/*,.pdf,.txt,.docx,.xlsx,.pptx,.zip"
-                  onChange={(e) => handleFileSelect(2, e.target.files?.[0] || null)}
-                  disabled={uploadingFile !== null}
-                  className="h-12 rounded-xl"
-                />
-                {selectedFile2 && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">已選擇: {selectedFile2.name}</p>}
-                <Input
-                  placeholder="檔案名稱 / File name (選填)"
-                  value={form.file2name || ""}
-                  onChange={(e) => setForm({ ...form, file2name: e.target.value })}
-                  className="h-10 rounded-xl"
-                />
-              </div>
-              <div className="space-y-1">
-                <Input
-                  type="file"
-                  accept="image/*,video/*,audio/*,.pdf,.txt,.docx,.xlsx,.pptx,.zip"
-                  onChange={(e) => handleFileSelect(3, e.target.files?.[0] || null)}
-                  disabled={uploadingFile !== null}
-                  className="h-12 rounded-xl"
-                />
-                {selectedFile3 && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">已選擇: {selectedFile3.name}</p>}
-                <Input
-                  placeholder="檔案名稱 / File name (選填)"
-                  value={form.file3name || ""}
-                  onChange={(e) => setForm({ ...form, file3name: e.target.value })}
-                  className="h-10 rounded-xl"
-                />
-              </div>
-            </div>
-            {uploadingFile && (
-              <div className="space-y-2">
-                <p className="text-sm text-purple-600 dark:text-purple-400">正在上傳檔案 {uploadingFile}...</p>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                  <div 
-                    className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" 
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{uploadProgress}%</p>
-              </div>
-            )}
-          </div>
-
-          <FormActions>
-            <Button type="submit" className="h-12 px-6 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 rounded-xl font-medium shadow-lg shadow-purple-500/25">
-              新增筆記
-            </Button>
-            {!isFormCollapsed && <Button type="button" variant="outline" onClick={() => setIsFormCollapsed(true)} className="h-12 px-6 rounded-xl">關閉</Button>}
-          </FormActions>
-        </form>
+            <FormActions>
+              <Button type="submit" className="h-12 px-6 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 rounded-xl font-medium shadow-lg shadow-purple-500/25">
+                新增筆記
+              </Button>
+              {!isFormCollapsed && <Button type="button" variant="outline" onClick={() => setIsFormCollapsed(true)} className="h-12 px-6 rounded-xl">關閉</Button>}
+            </FormActions>
+          </form>
         )}
       </FormCard>
 
-      {/* CSV 匯入預覽對話框 */}
+      {/* ZIP 匯入預覽對話框 */}
       {importPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">CSV 匯入預覽</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">ZIP 匯入預覽</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {importPreview.errors.length > 0 ? '發現錯誤，請修正後重試' : `準備匯入 ${importPreview.data.length} 筆資料`}
+                {importPreview.errors.length > 0 ? '發現錯誤，請修正後重試' : `準備匯入 ${importPreview.data.length} 筆資料${importPreview.zipFile ? '（含附件檔案）' : ''}`}
               </p>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-6">
               {importPreview.errors.length > 0 ? (
                 <div className="space-y-2">
@@ -1020,7 +1176,7 @@ export default function NotesManagement() {
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     <p>• 如果標題已存在，將會更新該筆記</p>
                     <p>• 如果標題不存在，將會建立新筆記</p>
-                    <p>• 檔案附件需要在匯入後另行上傳</p>
+                    {importPreview.zipFile && <p>• 附件檔案將自動上傳到 Appwrite Storage</p>}
                   </div>
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                     <div className="max-h-96 overflow-y-auto">
@@ -1031,6 +1187,7 @@ export default function NotesManagement() {
                             <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">標題</th>
                             <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">內容</th>
                             <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">日期</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">附件</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -1040,6 +1197,11 @@ export default function NotesManagement() {
                               <td className="px-3 py-2 text-gray-900 dark:text-gray-100 font-medium">{item.title}</td>
                               <td className="px-3 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">{item.content || '-'}</td>
                               <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{item.newDate}</td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                                {[item.file1, item.file2, item.file3].filter(Boolean).length > 0
+                                  ? `${[item.file1, item.file2, item.file3].filter(Boolean).length} 個檔案`
+                                  : '-'}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -1048,32 +1210,33 @@ export default function NotesManagement() {
                   </div>
                 </div>
               )}
-              
+
               {importing && (
                 <div className="mt-4 space-y-2">
                   <p className="text-sm text-purple-600 dark:text-purple-400">正在匯入中... ({importProgress.current}/{importProgress.total})</p>
+                  {importProgress.status && <p className="text-xs text-gray-500 dark:text-gray-400">{importProgress.status}</p>}
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                    <div 
-                      className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" 
+                    <div
+                      className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     ></div>
                   </div>
                 </div>
               )}
             </div>
-            
+
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-              <Button 
-                onClick={() => setImportPreview(null)} 
-                variant="outline" 
+              <Button
+                onClick={() => setImportPreview(null)}
+                variant="outline"
                 className="rounded-xl"
                 disabled={importing}
               >
                 取消
               </Button>
               {importPreview.errors.length === 0 && (
-                <Button 
-                  onClick={executeImport} 
+                <Button
+                  onClick={executeImport}
                   className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
                   disabled={importing}
                 >
@@ -1109,7 +1272,7 @@ export default function NotesManagement() {
               const isEditing = editingId === article.$id;
               const isExpanded = expandedArticles.has(article.$id);
               const hasUrls = article.url1 || article.url2 || article.url3;
-              
+
               return (
                 <div key={article.$id} className={cn(
                   "bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm",
@@ -1121,7 +1284,7 @@ export default function NotesManagement() {
                         <FileText className="text-purple-600" size={20} />
                         <h3 className="font-bold text-gray-900 dark:text-gray-100">編輯筆記</h3>
                       </div>
-                      
+
                       <FormGrid columns={2}>
                         <Input
                           placeholder="筆記標題"
@@ -1139,7 +1302,7 @@ export default function NotesManagement() {
                           className="h-10 rounded-lg"
                         />
                       </FormGrid>
-                      
+
                       <Textarea
                         placeholder="筆記內容 (上限 3377 字)"
                         value={editForm.content}
@@ -1222,8 +1385,8 @@ export default function NotesManagement() {
                           <div className="space-y-1">
                             <p className="text-xs text-purple-600 dark:text-purple-400">正在上傳檔案 {editUploadingFile}...</p>
                             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                              <div 
-                                className="bg-purple-600 h-2 rounded-full transition-all duration-300" 
+                              <div
+                                className="bg-purple-600 h-2 rounded-full transition-all duration-300"
                                 style={{ width: `${editUploadProgress}%` }}
                               ></div>
                             </div>
@@ -1263,7 +1426,7 @@ export default function NotesManagement() {
                           <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(article.newDate)}</span>
                         </div>
                       </div>
-                      
+
                       <div className="text-sm text-gray-600 dark:text-gray-300">
                         {isExpanded ? (
                           <p className="whitespace-pre-wrap">{article.content}</p>
@@ -1315,153 +1478,153 @@ export default function NotesManagement() {
                             <span>附件</span>
                           </div>
                           <div className="flex gap-4 flex-wrap items-start">
-                          {article.file1 && (
-                            <div className="space-y-1 flex-shrink-0">
-                              <div className="flex items-center gap-2">
-                                <a 
-                                  href={getAppwriteDownloadUrl(article.file1)} 
-                                  download={article.file1name || "download"}
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="text-sm text-green-600 dark:text-green-400 hover:underline"
-                                >
-                                  {article.file1type === 'jpg' ? '🖼️' : article.file1type === 'mp4' ? '🎥' : article.file1type === 'mp3' ? '🎵' : article.file1type === 'pdf' ? '📄' : article.file1type === 'txt' ? '📄' : article.file1type === 'docx' ? '📄' : article.file1type === 'xlsx' ? '📊' : article.file1type === 'pptx' ? '📽️' : article.file1type === 'zip' ? '🗂️' : '📄'} {article.file1name || '檔案 1'}
-                                </a>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => togglePreview(`${article.$id}-file1`)}
-                                  className="h-6 px-2 text-xs"
-                                >
-                                  {previewFiles.has(`${article.$id}-file1`) ? '收起' : '預覽'}
-                                </Button>
+                            {article.file1 && (
+                              <div className="space-y-1 flex-shrink-0">
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    href={getAppwriteDownloadUrl(article.file1)}
+                                    download={article.file1name || "download"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sm text-green-600 dark:text-green-400 hover:underline"
+                                  >
+                                    {article.file1type === 'jpg' ? '🖼️' : article.file1type === 'mp4' ? '🎥' : article.file1type === 'mp3' ? '🎵' : article.file1type === 'pdf' ? '📄' : article.file1type === 'txt' ? '📄' : article.file1type === 'docx' ? '📄' : article.file1type === 'xlsx' ? '📊' : article.file1type === 'pptx' ? '📽️' : article.file1type === 'zip' ? '🗂️' : '📄'} {article.file1name || '檔案 1'}
+                                  </a>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => togglePreview(`${article.$id}-file1`)}
+                                    className="h-6 px-2 text-xs"
+                                  >
+                                    {previewFiles.has(`${article.$id}-file1`) ? '收起' : '預覽'}
+                                  </Button>
+                                </div>
+                                {previewFiles.has(`${article.$id}-file1`) && (
+                                  <>
+                                    {article.file1type === 'jpg' && (
+                                      <img src={article.file1} alt={article.file1name || '檔案 1'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
+                                    )}
+                                    {article.file1type === 'mp4' && (
+                                      <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file1)} className="max-w-[300px] rounded-lg" />
+                                    )}
+                                    {article.file1type === 'mp3' && (
+                                      <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file1)} className="max-w-[300px]" />
+                                    )}
+                                    {article.file1type === 'pdf' && (
+                                      <iframe src={article.file1} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file1name || '檔案 1'}></iframe>
+                                    )}
+                                    {article.file1type === 'txt' && (
+                                      <TxtPreview url={article.file1} title={article.file1name || '檔案 1'} />
+                                    )}
+                                    {(article.file1type === 'xlsx' || article.file1type === 'pptx' || article.file1type === 'docx') && (
+                                      <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file1)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file1name || '檔案 1'}></iframe>
+                                    )}
+                                    {article.file1type === 'zip' && (
+                                      <ZipPreview url={article.file1} title={article.file1name || '檔案 1'} />
+                                    )}
+                                  </>
+                                )}
                               </div>
-                              {previewFiles.has(`${article.$id}-file1`) && (
-                                <>
-                                  {article.file1type === 'jpg' && (
-                                    <img src={article.file1} alt={article.file1name || '檔案 1'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
-                                  )}
-                                  {article.file1type === 'mp4' && (
-                                    <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file1)} className="max-w-[300px] rounded-lg" />
-                                  )}
-                                  {article.file1type === 'mp3' && (
-                                    <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file1)} className="max-w-[300px]" />
-                                  )}
-                                  {article.file1type === 'pdf' && (
-                                    <iframe src={article.file1} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file1name || '檔案 1'}></iframe>
-                                  )}
-                                  {article.file1type === 'txt' && (
-                                    <TxtPreview url={article.file1} title={article.file1name || '檔案 1'} />
-                                  )}
-                                  {(article.file1type === 'xlsx' || article.file1type === 'pptx' || article.file1type === 'docx') && (
-                                    <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file1)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file1name || '檔案 1'}></iframe>
-                                  )}
-                                  {article.file1type === 'zip' && (
-                                    <ZipPreview url={article.file1} title={article.file1name || '檔案 1'} />
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )}
-                          {article.file2 && (
-                            <div className="space-y-1 flex-shrink-0">
-                              <div className="flex items-center gap-2">
-                                <a 
-                                  href={getAppwriteDownloadUrl(article.file2)} 
-                                  download={article.file2name || "download"}
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="text-sm text-green-600 dark:text-green-400 hover:underline"
-                                >
-                                  {article.file2type === 'jpg' ? '🖼️' : article.file2type === 'mp4' ? '🎥' : article.file2type === 'mp3' ? '🎵' : article.file2type === 'pdf' ? '📄' : article.file2type === 'txt' ? '📄' : article.file2type === 'docx' ? '📄' : article.file2type === 'xlsx' ? '📊' : article.file2type === 'pptx' ? '📽️' : article.file2type === 'zip' ? '🗂️' : '📄'} {article.file2name || '檔案 2'}
-                                </a>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => togglePreview(`${article.$id}-file2`)}
-                                  className="h-6 px-2 text-xs"
-                                >
-                                  {previewFiles.has(`${article.$id}-file2`) ? '收起' : '預覽'}
-                                </Button>
+                            )}
+                            {article.file2 && (
+                              <div className="space-y-1 flex-shrink-0">
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    href={getAppwriteDownloadUrl(article.file2)}
+                                    download={article.file2name || "download"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sm text-green-600 dark:text-green-400 hover:underline"
+                                  >
+                                    {article.file2type === 'jpg' ? '🖼️' : article.file2type === 'mp4' ? '🎥' : article.file2type === 'mp3' ? '🎵' : article.file2type === 'pdf' ? '📄' : article.file2type === 'txt' ? '📄' : article.file2type === 'docx' ? '📄' : article.file2type === 'xlsx' ? '📊' : article.file2type === 'pptx' ? '📽️' : article.file2type === 'zip' ? '🗂️' : '📄'} {article.file2name || '檔案 2'}
+                                  </a>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => togglePreview(`${article.$id}-file2`)}
+                                    className="h-6 px-2 text-xs"
+                                  >
+                                    {previewFiles.has(`${article.$id}-file2`) ? '收起' : '預覽'}
+                                  </Button>
+                                </div>
+                                {previewFiles.has(`${article.$id}-file2`) && (
+                                  <>
+                                    {article.file2type === 'jpg' && (
+                                      <img src={article.file2} alt={article.file2name || '檔案 2'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
+                                    )}
+                                    {article.file2type === 'mp4' && (
+                                      <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file2)} className="max-w-[300px] rounded-lg" />
+                                    )}
+                                    {article.file2type === 'mp3' && (
+                                      <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file2)} className="max-w-[300px]" />
+                                    )}
+                                    {article.file2type === 'pdf' && (
+                                      <iframe src={article.file2} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file2name || '檔案 2'}></iframe>
+                                    )}
+                                    {article.file2type === 'txt' && (
+                                      <TxtPreview url={article.file2} title={article.file2name || '檔案 2'} />
+                                    )}
+                                    {(article.file2type === 'xlsx' || article.file2type === 'pptx' || article.file2type === 'docx') && (
+                                      <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file2)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file2name || '檔案 2'}></iframe>
+                                    )}
+                                    {article.file2type === 'zip' && (
+                                      <ZipPreview url={article.file2} title={article.file2name || '檔案 2'} />
+                                    )}
+                                  </>
+                                )}
                               </div>
-                              {previewFiles.has(`${article.$id}-file2`) && (
-                                <>
-                                  {article.file2type === 'jpg' && (
-                                    <img src={article.file2} alt={article.file2name || '檔案 2'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
-                                  )}
-                                  {article.file2type === 'mp4' && (
-                                    <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file2)} className="max-w-[300px] rounded-lg" />
-                                  )}
-                                  {article.file2type === 'mp3' && (
-                                    <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file2)} className="max-w-[300px]" />
-                                  )}
-                                  {article.file2type === 'pdf' && (
-                                    <iframe src={article.file2} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file2name || '檔案 2'}></iframe>
-                                  )}
-                                  {article.file2type === 'txt' && (
-                                    <TxtPreview url={article.file2} title={article.file2name || '檔案 2'} />
-                                  )}
-                                  {(article.file2type === 'xlsx' || article.file2type === 'pptx' || article.file2type === 'docx') && (
-                                    <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file2)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file2name || '檔案 2'}></iframe>
-                                  )}
-                                  {article.file2type === 'zip' && (
-                                    <ZipPreview url={article.file2} title={article.file2name || '檔案 2'} />
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )}
-                          {article.file3 && (
-                            <div className="space-y-1 flex-shrink-0">
-                              <div className="flex items-center gap-2">
-                                <a 
-                                  href={getAppwriteDownloadUrl(article.file3)} 
-                                  download={article.file3name || "download"}
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="text-sm text-green-600 dark:text-green-400 hover:underline"
-                                >
-                                  {article.file3type === 'jpg' ? '🖼️' : article.file3type === 'mp4' ? '🎥' : article.file3type === 'mp3' ? '🎵' : article.file3type === 'pdf' ? '📄' : article.file3type === 'txt' ? '📄' : article.file3type === 'docx' ? '📄' : article.file3type === 'xlsx' ? '📊' : article.file3type === 'pptx' ? '📽️' : article.file3type === 'zip' ? '🗂️' : '📄'} {article.file3name || '檔案 3'}
-                                </a>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => togglePreview(`${article.$id}-file3`)}
-                                  className="h-6 px-2 text-xs"
-                                >
-                                  {previewFiles.has(`${article.$id}-file3`) ? '收起' : '預覽'}
-                                </Button>
+                            )}
+                            {article.file3 && (
+                              <div className="space-y-1 flex-shrink-0">
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    href={getAppwriteDownloadUrl(article.file3)}
+                                    download={article.file3name || "download"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sm text-green-600 dark:text-green-400 hover:underline"
+                                  >
+                                    {article.file3type === 'jpg' ? '🖼️' : article.file3type === 'mp4' ? '🎥' : article.file3type === 'mp3' ? '🎵' : article.file3type === 'pdf' ? '📄' : article.file3type === 'txt' ? '📄' : article.file3type === 'docx' ? '📄' : article.file3type === 'xlsx' ? '📊' : article.file3type === 'pptx' ? '📽️' : article.file3type === 'zip' ? '🗂️' : '📄'} {article.file3name || '檔案 3'}
+                                  </a>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => togglePreview(`${article.$id}-file3`)}
+                                    className="h-6 px-2 text-xs"
+                                  >
+                                    {previewFiles.has(`${article.$id}-file3`) ? '收起' : '預覽'}
+                                  </Button>
+                                </div>
+                                {previewFiles.has(`${article.$id}-file3`) && (
+                                  <>
+                                    {article.file3type === 'jpg' && (
+                                      <img src={article.file3} alt={article.file3name || '檔案 3'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
+                                    )}
+                                    {article.file3type === 'mp4' && (
+                                      <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file3)} className="max-w-[300px] rounded-lg" />
+                                    )}
+                                    {article.file3type === 'mp3' && (
+                                      <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file3)} className="max-w-[300px]" />
+                                    )}
+                                    {article.file3type === 'pdf' && (
+                                      <iframe src={article.file3} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file3name || '檔案 3'}></iframe>
+                                    )}
+                                    {article.file3type === 'txt' && (
+                                      <TxtPreview url={article.file3} title={article.file3name || '檔案 3'} />
+                                    )}
+                                    {(article.file3type === 'xlsx' || article.file3type === 'pptx' || article.file3type === 'docx') && (
+                                      <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file3)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file3name || '檔案 3'}></iframe>
+                                    )}
+                                    {article.file3type === 'zip' && (
+                                      <ZipPreview url={article.file3} title={article.file3name || '檔案 3'} />
+                                    )}
+                                  </>
+                                )}
                               </div>
-                              {previewFiles.has(`${article.$id}-file3`) && (
-                                <>
-                                  {article.file3type === 'jpg' && (
-                                    <img src={article.file3} alt={article.file3name || '檔案 3'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
-                                  )}
-                                  {article.file3type === 'mp4' && (
-                                    <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file3)} className="max-w-[300px] rounded-lg" />
-                                  )}
-                                  {article.file3type === 'mp3' && (
-                                    <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file3)} className="max-w-[300px]" />
-                                  )}
-                                  {article.file3type === 'pdf' && (
-                                    <iframe src={article.file3} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file3name || '檔案 3'}></iframe>
-                                  )}
-                                  {article.file3type === 'txt' && (
-                                    <TxtPreview url={article.file3} title={article.file3name || '檔案 3'} />
-                                  )}
-                                  {(article.file3type === 'xlsx' || article.file3type === 'pptx' || article.file3type === 'docx') && (
-                                    <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file3)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file3name || '檔案 3'}></iframe>
-                                  )}
-                                  {article.file3type === 'zip' && (
-                                    <ZipPreview url={article.file3} title={article.file3name || '檔案 3'} />
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )}
+                            )}
                           </div>
                         </div>
                       )}
