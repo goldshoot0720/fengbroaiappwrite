@@ -1052,7 +1052,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
           {/* 封面 */}
           <div className="relative w-14 h-14 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
             {displayCover ? (
-              <img src={displayCover} alt={name} className="w-full h-full object-cover" />
+              <img src={displayCover} alt={name} className="w-full h-full object-contain" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <MusicIcon className="text-white w-7 h-7 sm:w-10 sm:h-10 drop-shadow-lg" />
@@ -1254,9 +1254,9 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                   {(inlineCoverPreview || inlineEditForm.cover) && (
                     <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
                       <img 
-                        src={inlineCoverPreview || inlineEditForm.cover} 
-                        alt="封面預覽" 
-                        className="w-full h-full object-cover"
+                        src={inlineCoverPreview || inlineEditForm.cover}
+                        alt="封面預覽"
+                        className="w-full h-full object-contain"
                       />
                       <button
                         onClick={() => { 
@@ -1522,7 +1522,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
               <div className="flex justify-center mb-4">
                 <div className="relative w-full max-w-sm aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 shadow-xl">
                   {lyricsItem.cover || displayCover ? (
-                    <img src={lyricsItem.cover || displayCover!} alt={lyricsItem.name} className="w-full h-full object-cover" />
+                    <img src={lyricsItem.cover || displayCover!} alt={lyricsItem.name} className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <MusicIcon className="text-white w-32 h-32 drop-shadow-2xl" />
@@ -1739,9 +1739,9 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
               {(inlineCoverPreview || inlineEditForm.cover) && (
                 <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
                   <img 
-                    src={inlineCoverPreview || inlineEditForm.cover} 
-                    alt="封面預覽" 
-                    className="w-full h-full object-cover"
+                    src={inlineCoverPreview || inlineEditForm.cover}
+                    alt="封面預覽"
+                    className="w-full h-full object-contain"
                   />
                   <button
                     onClick={() => { 
@@ -1830,7 +1830,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
               {/* 封面 - 手機較小 */}
               <div className="relative w-14 h-14 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
                 {music.cover ? (
-                  <img src={music.cover} alt={music.name} className="w-full h-full object-cover" />
+                  <img src={music.cover} alt={music.name} className="w-full h-full object-contain" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <MusicIcon className="text-white w-7 h-7 sm:w-10 sm:h-10 drop-shadow-lg" />
@@ -2009,7 +2009,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
               <div className="flex justify-center">
                 <div className="relative w-full max-w-sm aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 shadow-xl">
                   {music.cover ? (
-                    <img src={music.cover} alt={music.name} className="w-full h-full object-cover" />
+                    <img src={music.cover} alt={music.name} className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <MusicIcon className="text-white w-32 h-32 drop-shadow-2xl" />

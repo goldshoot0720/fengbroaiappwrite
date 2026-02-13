@@ -134,7 +134,7 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
                 {/* 封面 */}
                 <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 to-pink-600">
                   {currentItem.cover ? (
-                    <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-cover" />
+                    <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Music className="w-6 h-6 text-white" />
@@ -241,7 +241,7 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
                 {/* 封面 */}
                 <div className="w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 to-pink-600 shadow-md">
                   {currentItem.cover ? (
-                    <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-cover" />
+                    <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Music className="w-7 h-7 text-white" />
@@ -320,7 +320,7 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
                 {/* 封面 */}
                 <div className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 to-pink-600">
                   {item.cover ? (
-                    <img src={item.cover} alt={item.name} className="w-full h-full object-cover" />
+                    <img src={item.cover} alt={item.name} className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Music className="w-5 h-5 text-white" />
