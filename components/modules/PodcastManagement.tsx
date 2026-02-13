@@ -70,7 +70,7 @@ export default function PodcastManagement() {
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
-  const [inlineEditForm, setInlineEditForm] = useState({ name: '', category: '', note: '' });
+  const [inlineEditForm, setInlineEditForm] = useState({ name: '', category: '', note: '', ref: '', cover: '' });
   // Inline cover upload state
   const [inlineCoverFile, setInlineCoverFile] = useState<File | null>(null);
   const [inlineCoverPreview, setInlineCoverPreview] = useState<string>('');
@@ -141,6 +141,8 @@ export default function PodcastManagement() {
       name: podcastItem.name || '',
       category: podcastItem.category || '',
       note: podcastItem.note || '',
+      ref: podcastItem.ref || '',
+      cover: podcastItem.cover || '',
     });
     setInlineCoverFile(null);
     setInlineCoverPreview('');
@@ -179,13 +181,14 @@ export default function PodcastManagement() {
           name: inlineEditForm.name,
           category: inlineEditForm.category,
           note: inlineEditForm.note,
-          ...(coverUrl && { cover: coverUrl }),
+          ref: inlineEditForm.ref,
+          cover: coverUrl || inlineEditForm.cover, // Use new URL if uploaded, otherwise existing from form
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadPodcast(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', category: '', note: '' });
+      setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
       setInlineCoverFile(null);
       setInlineCoverPreview('');
     } catch (error) {
@@ -199,7 +202,7 @@ export default function PodcastManagement() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', category: '', note: '' });
+    setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
     setInlineCoverFile(null);
     setInlineCoverPreview('');
     setInlineCoverUploading(false);
@@ -645,8 +648,8 @@ interface MusicCardProps {
   downloadAndCachePodcast: (podcast: any, onProgress?: (progress: number) => void) => Promise<void>;
   // Inline editing props
   inlineEditingId: string | null;
-  inlineEditForm: { name: string; category: string; note: string };
-  setInlineEditForm: (form: { name: string; category: string; note: string }) => void;
+  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
   onInlineEdit: (podcast: PodcastData) => void;
   onInlineSave: (podcastId: string) => void;
   onInlineCancel: () => void;
@@ -705,46 +708,49 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
         <div className="space-y-3">
           <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
 
-          {/* 封面圖上傳區域 - 只在沒有封面時顯示 */}
-          {!podcast.cover && (
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
-              {inlineCoverPreview ? (
-                <div className="relative">
-                  <img
-                    src={inlineCoverPreview}
-                    alt="封面預覽"
-                    className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInlineCoverFile(null);
-                      setInlineCoverPreview('');
-                    }}
-                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <label className="block">
-                  <div className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-lg cursor-pointer transition-colors">
-                    <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
-                      上傳封面圖 (最大 5MB)
-                    </span>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                    onChange={handleInlineCoverSelect}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </div>
-          )}
+          {/* 封面圖編輯區域 */}
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
+            {(inlineCoverPreview || inlineEditForm.cover) && (
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                <img
+                  src={inlineCoverPreview || inlineEditForm.cover}
+                  alt="封面預覽"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInlineCoverFile(null);
+                    setInlineCoverPreview('');
+                    setInlineEditForm({ ...inlineEditForm, cover: '' });
+                  }}
+                  className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            <Input
+              placeholder="封面圖 URL"
+              value={inlineEditForm.cover}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
+              className="h-9 rounded-lg text-sm"
+            />
+            <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+              <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                {inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖 (最大 5MB)'}
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                onChange={handleInlineCoverSelect}
+                disabled={inlineCoverUploading}
+                className="hidden"
+              />
+            </label>
+          </div>
 
           <Input
             placeholder="播客名稱"
@@ -756,6 +762,12 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
             placeholder="分類"
             value={inlineEditForm.category}
             onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
+          <Input
+            placeholder="參考 / Reference"
+            value={inlineEditForm.ref}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
             className="h-9 rounded-lg text-sm"
           />
           <Textarea
