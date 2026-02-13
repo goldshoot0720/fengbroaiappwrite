@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp } from "lucide-react";
+import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize } from "lucide-react";
 import SimpleVideoPlayer from "@/components/ui/simple-video-player";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
@@ -61,6 +61,12 @@ export default function VideoIntroduction() {
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<'youtube' | 'bilibili'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('video-view-mode') as 'youtube' | 'bilibili') || 'youtube';
+    }
+    return 'youtube';
+  });
   const [importPreview, setImportPreview] = useState<{ data: VideoFormData[]; errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
@@ -241,16 +247,12 @@ export default function VideoIntroduction() {
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
-  // ZIP 匯出
+  // ZIP 匯出（含影片、封面圖、CSV 元資料）
   const handleExportZip = async () => {
-    if (videos.length === 0) {
-      alert('沒有影片可以匯出');
-      return;
-    }
-
+    if (videos.length === 0) { alert('沒有影片可以匯出'); return; }
     if (exportingZip) return;
 
-    const confirm = window.confirm(`準備匯出 ${videos.length} 部影片至 ZIP 檔案，是否繼續？`);
+    const confirm = window.confirm(`準備匯出 ${videos.length} 部影片至 ZIP 檔案（含封面圖和元資料），是否繼續？`);
     if (!confirm) return;
 
     setExportingZip(true);
@@ -258,68 +260,107 @@ export default function VideoIntroduction() {
 
     try {
       const zip = new JSZip();
-      const videoFolder = zip.folder('videos');
-      let successCount = 0;
-      let failCount = 0;
+      zip.folder('videos');
+      zip.folder('covers');
+
+      const csvRows: string[][] = [];
+      const csvHeaders = ['name', 'file', 'cover', 'filetype', 'category', 'note', 'ref', 'hash'];
+      csvRows.push(csvHeaders);
 
       for (let i = 0; i < videos.length; i++) {
         const video = videos[i];
-        setExportZipProgress({ current: i + 1, total: videos.length, status: `正在下載: ${video.name}` });
+        const seq = String(i + 1).padStart(3, '0');
+        const sanitizedName = video.name.replace(/[<>:"\/\\|?*]/g, '_');
+        const baseName = `${seq}_${sanitizedName}`;
 
-        if (!video.file) {
-          console.warn(`跳過無影片 URL: ${video.name}`);
-          failCount++;
-          continue;
+        setExportZipProgress({ current: i + 1, total: videos.length, status: `正在處理: ${video.name}` });
+
+        // Detect video file extension
+        let fileExtension = 'mp4';
+        if (video.file) {
+          const urlLower = video.file.toLowerCase();
+          if (urlLower.includes('.webm') || urlLower.includes('video%2Fwebm')) fileExtension = 'webm';
+          else if (urlLower.includes('.ogg') || urlLower.includes('video%2Fogg')) fileExtension = 'ogg';
+          else if (urlLower.includes('.mov') || urlLower.includes('video%2Fmov')) fileExtension = 'mov';
+        }
+        if (video.filetype) fileExtension = video.filetype;
+
+        // Download and add video file
+        let videoPath = '';
+        if (video.file) {
+          try {
+            const proxyUrl = getProxiedMediaUrl(video.file);
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+              const blob = await response.blob();
+              videoPath = `videos/${baseName}.${fileExtension}`;
+              zip.file(videoPath, blob);
+            }
+          } catch (err) { console.error(`下載影片 ${video.name} 時出錯:`, err); }
         }
 
-        try {
-          const response = await fetch(video.file);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-          const blob = await response.blob();
-
-          const fileExtension = video.filetype || video.file.split('.').pop()?.split('?')[0] || 'mp4';
-          const sanitizedName = video.name.replace(/[/\\?%*:|"<>]/g, '-');
-          const categoryPrefix = video.category ? `[${video.category}]_` : '';
-          const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
-          const filename = nameHasExtension
-            ? `${categoryPrefix}${sanitizedName}`
-            : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
-
-          videoFolder?.file(filename, blob);
-          successCount++;
-        } catch (error) {
-          console.error(`下載失敗: ${video.name}`, error);
-          failCount++;
+        // Download and add cover image
+        let coverPath = '';
+        if (video.cover) {
+          try {
+            const coverProxyUrl = getProxiedMediaUrl(video.cover);
+            const coverResponse = await fetch(coverProxyUrl);
+            if (coverResponse.ok) {
+              const coverBlob = await coverResponse.blob();
+              let imgExt = 'png';
+              const contentType = coverResponse.headers.get('content-type') || '';
+              if (contentType.includes('jpeg') || contentType.includes('jpg')) imgExt = 'jpg';
+              else if (contentType.includes('webp')) imgExt = 'webp';
+              else if (contentType.includes('gif')) imgExt = 'gif';
+              coverPath = `covers/${baseName}.${imgExt}`;
+              zip.file(coverPath, coverBlob);
+            }
+          } catch (err) { console.error(`下載封面 ${video.name} 時出錯:`, err); }
         }
+
+        // Build CSV row
+        const escapeCsv = (val: string) => {
+          if (!val) return '';
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        };
+        csvRows.push([
+          escapeCsv(video.name || ''),
+          escapeCsv(videoPath),
+          escapeCsv(coverPath),
+          escapeCsv(video.filetype || ''),
+          escapeCsv(video.category || ''),
+          escapeCsv(video.note || ''),
+          escapeCsv(video.ref || ''),
+          escapeCsv(video.hash || ''),
+        ]);
       }
+
+      // Generate CSV and add to ZIP
+      const csvContent = csvRows.map(row => row.join(',')).join('\n');
+      zip.file('video.csv', csvContent);
 
       setExportZipProgress({ current: videos.length, total: videos.length, status: '正在壓縮...' });
 
-      const zipBlob = await zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      });
-
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(zipBlob);
-      link.download = `appwrite-video.zip`;
+      link.download = 'appwrite-video.zip';
       link.click();
       URL.revokeObjectURL(link.href);
 
-      setExportZipProgress({ current: 0, total: 0, status: '' });
-      alert(`匯出完成！\n成功: ${successCount} 部\n失敗: ${failCount} 部`);
+      setExportZipProgress({ current: videos.length, total: videos.length, status: '完成！' });
+      setTimeout(() => setExportingZip(false), 1500);
     } catch (error) {
       console.error('ZIP export error:', error);
       alert('匯出失敗，請再試一次');
-    } finally {
       setExportingZip(false);
-      setExportZipProgress({ current: 0, total: 0, status: '' });
     }
   };
 
-  // ZIP 匯入
+  // ZIP 匯入（支援新格式含 CSV 和舊格式純影片檔）
   const handleImportZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -334,114 +375,198 @@ export default function VideoIntroduction() {
     }
 
     setImportingZip(true);
-    setImportZipProgress({ current: 0, total: 0, status: '正在解壓縮 ZIP...', success: 0, failed: 0 });
+    setImportZipProgress({ current: 0, total: 0, status: '讀取 ZIP 檔案...', success: 0, failed: 0 });
 
     try {
       const zip = await JSZip.loadAsync(file);
 
-      const videoFiles: { name: string; file: JSZip.JSZipObject }[] = [];
-      const validExtensions = ['mp4', 'webm', 'ogg', 'mov'];
+      // Check if this is a new-format ZIP with video.csv
+      const csvFile = zip.files['video.csv'];
+      if (csvFile) {
+        // New format: parse CSV and restore full data
+        const csvText = await csvFile.async('string');
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) { alert('CSV 檔案沒有資料'); setImportingZip(false); return; }
 
-      zip.forEach((relativePath, zipEntry) => {
-        if (!zipEntry.dir) {
-          const ext = relativePath.split('.').pop()?.toLowerCase() || '';
-          if (validExtensions.includes(ext)) {
-            videoFiles.push({ name: relativePath, file: zipEntry });
+        // Parse CSV header and rows
+        const parseCsvLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let c = 0; c < line.length; c++) {
+            const ch = line[c];
+            if (inQuotes) {
+              if (ch === '"' && line[c + 1] === '"') { current += '"'; c++; }
+              else if (ch === '"') { inQuotes = false; }
+              else { current += ch; }
+            } else {
+              if (ch === '"') { inQuotes = true; }
+              else if (ch === ',') { result.push(current); current = ''; }
+              else { current += ch; }
+            }
+          }
+          result.push(current);
+          return result;
+        };
+
+        const headers = parseCsvLine(lines[0]);
+        const dataRows = lines.slice(1).map(line => {
+          const values = parseCsvLine(line);
+          const obj: Record<string, string> = {};
+          headers.forEach((h, idx) => { obj[h] = values[idx] || ''; });
+          return obj;
+        });
+
+        const total = dataRows.length;
+        setImportZipProgress({ current: 0, total, status: `找到 ${total} 筆影片記錄`, success: 0, failed: 0 });
+        let successCount = 0, failedCount = 0;
+
+        for (let i = 0; i < dataRows.length; i++) {
+          const row = dataRows[i];
+          setImportZipProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, failed: failedCount });
+
+          try {
+            // Upload video file from ZIP
+            let remoteFileUrl = '';
+            if (row.file && zip.files[row.file]) {
+              const videoBlob = await zip.files[row.file].async('blob');
+              const fileName = row.file.split('/').pop() || 'video.mp4';
+              const videoFileObj = new File([videoBlob], fileName, { type: 'application/octet-stream' });
+              const uploadResult = await uploadToAppwriteStorage(videoFileObj);
+              remoteFileUrl = uploadResult.url;
+            }
+
+            // Upload cover image from ZIP
+            let remoteCoverUrl = '';
+            if (row.cover && zip.files[row.cover]) {
+              const coverBlob = await zip.files[row.cover].async('blob');
+              const coverName = row.cover.split('/').pop() || 'cover.png';
+              const coverFileObj = new File([coverBlob], coverName, { type: 'application/octet-stream' });
+              const coverUpload = await uploadToAppwriteStorage(coverFileObj);
+              remoteCoverUrl = coverUpload.url;
+            }
+
+            // Check if record already exists (same name)
+            const existing = videos.find(v => v.name === row.name);
+            const apiUrl = existing
+              ? addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${existing.$id}`)
+              : addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
+            const method = existing ? 'PUT' : 'POST';
+
+            const submitData: Record<string, string> = {
+              name: row.name || '',
+              file: remoteFileUrl || (existing ? existing.file : ''),
+              cover: remoteCoverUrl || (existing ? (typeof existing.cover === 'string' ? existing.cover : '') : ''),
+              filetype: row.filetype || '',
+              category: row.category || '',
+              note: row.note || '',
+              ref: row.ref || '',
+              hash: row.hash || (existing ? existing.hash : `zip_import_${Date.now()}_${Math.random().toString(36).substring(7)}`),
+            };
+
+            const response = await fetch(apiUrl, {
+              method,
+              headers: { 'Content-Type': 'application/json', ...getAppwriteHeaders() },
+              body: JSON.stringify(submitData),
+            });
+
+            if (response.ok) successCount++; else failedCount++;
+          } catch (err) { console.error(`處理 ${row.name} 時出錯:`, err); failedCount++; }
+          setImportZipProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, failed: failedCount });
+        }
+
+        setImportZipProgress({ current: total, total, status: '完成', success: successCount, failed: failedCount });
+        alert(`匯入完成！\n成功: ${successCount} 部\n失敗: ${failedCount} 部`);
+        if (successCount > 0) loadVideos(true);
+
+      } else {
+        // Old format: import video files only (backward compatible)
+        const videoFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+        const validExtensions = ['mp4', 'webm', 'ogg', 'mov'];
+
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            const ext = relativePath.split('.').pop()?.toLowerCase() || '';
+            if (validExtensions.includes(ext)) {
+              videoFiles.push({ name: relativePath, file: zipEntry });
+            }
+          }
+        });
+
+        if (videoFiles.length === 0) {
+          alert('ZIP 檔案中沒有找到影片檔案 (MP4, WebM, OGG, MOV)');
+          setImportingZip(false);
+          return;
+        }
+
+        const confirmImport = window.confirm(`找到 ${videoFiles.length} 部影片，是否開始匯入？`);
+        if (!confirmImport) {
+          setImportingZip(false);
+          return;
+        }
+
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (let i = 0; i < videoFiles.length; i++) {
+          const videoFile = videoFiles[i];
+          const fileName = videoFile.name.split('/').pop() || videoFile.name;
+
+          setImportZipProgress({
+            current: i + 1,
+            total: videoFiles.length,
+            status: `正在處理: ${fileName}`,
+            success: successCount,
+            failed: failedCount
+          });
+
+          try {
+            const arrayBuffer = await videoFile.file.async('arraybuffer');
+            const ext = fileName.split('.').pop()?.toLowerCase() || 'mp4';
+            const mimeType = ext === 'webm' ? 'video/webm' :
+              ext === 'ogg' ? 'video/ogg' :
+                ext === 'mov' ? 'video/quicktime' : 'video/mp4';
+            const blob = new Blob([arrayBuffer], { type: mimeType });
+            const videoFileObj = new File([blob], fileName, { type: mimeType });
+
+            const uploadResult = await uploadToAppwriteStorage(videoFileObj, (progress) => {
+              setImportZipProgress(prev => ({ ...prev, status: `上傳中: ${fileName} (${progress}%)` }));
+            });
+
+            const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
+            const createResponse = await fetch(createUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: fileName,
+                file: uploadResult.url,
+                filetype: ext,
+                note: '',
+                ref: '',
+                category: '',
+                hash: '',
+                cover: ''
+              }),
+            });
+
+            if (!createResponse.ok) throw new Error(`HTTP ${createResponse.status}`);
+            successCount++;
+          } catch (error) {
+            console.error(`[ZIP Import] Failed: ${fileName}`, error);
+            failedCount++;
           }
         }
-      });
-
-      if (videoFiles.length === 0) {
-        alert('ZIP 檔案中沒有找到影片檔案 (MP4, WebM, OGG, MOV)');
-        setImportingZip(false);
-        return;
-      }
-
-      const confirmImport = window.confirm(`找到 ${videoFiles.length} 部影片，是否開始匯入？`);
-      if (!confirmImport) {
-        setImportingZip(false);
-        return;
-      }
-
-      let successCount = 0;
-      let failedCount = 0;
-
-      for (let i = 0; i < videoFiles.length; i++) {
-        const videoFile = videoFiles[i];
-        const fileName = videoFile.name.split('/').pop() || videoFile.name;
 
         setImportZipProgress({
-          current: i + 1,
+          current: videoFiles.length,
           total: videoFiles.length,
-          status: `正在處理: ${fileName}`,
+          status: '完成',
           success: successCount,
           failed: failedCount
         });
 
-        try {
-          const arrayBuffer = await videoFile.file.async('arraybuffer');
-
-          const ext = fileName.split('.').pop()?.toLowerCase() || 'mp4';
-          const mimeType = ext === 'webm' ? 'video/webm' :
-            ext === 'ogg' ? 'video/ogg' :
-              ext === 'mov' ? 'video/quicktime' : 'video/mp4';
-          const blob = new Blob([arrayBuffer], { type: mimeType });
-          const fileSizeMB = (blob.size / (1024 * 1024)).toFixed(2);
-
-          console.log(`[ZIP Import] Processing: ${fileName}, Size: ${fileSizeMB}MB, Type: ${mimeType}`);
-
-          const videoFileObj = new File([blob], fileName, { type: mimeType });
-
-          // Upload to Appwrite Storage
-          const uploadResult = await uploadToAppwriteStorage(videoFileObj, (progress) => {
-            setImportZipProgress(prev => ({ ...prev, status: `上傳中: ${fileName} (${progress}%)` }));
-          });
-
-          console.log(`[ZIP Import] Upload success: ${fileName}, URL: ${uploadResult.url}`);
-
-          // Create database record
-          const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
-          const createResponse = await fetch(createUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: fileName,
-              file: uploadResult.url,
-              filetype: ext,
-              note: '',
-              ref: '',
-              category: '',
-              hash: '',
-              cover: ''
-            }),
-          });
-
-          if (!createResponse.ok) {
-            const errorData = await createResponse.json().catch(() => ({}));
-            console.error(`[ZIP Import] DB create failed: ${fileName}`, errorData);
-            throw new Error(errorData.error || `HTTP ${createResponse.status}`);
-          }
-
-          console.log(`[ZIP Import] Success: ${fileName}`);
-          successCount++;
-        } catch (error) {
-          console.error(`[ZIP Import] Failed: ${fileName}`, error);
-          failedCount++;
-        }
-      }
-
-      setImportZipProgress({
-        current: videoFiles.length,
-        total: videoFiles.length,
-        status: '完成',
-        success: successCount,
-        failed: failedCount
-      });
-
-      alert(`匯入完成！\n成功: ${successCount} 部\n失敗: ${failedCount} 部`);
-
-      if (successCount > 0) {
-        loadVideos(true);
+        alert(`匯入完成！\n成功: ${successCount} 部\n失敗: ${failedCount} 部`);
+        if (successCount > 0) loadVideos(true);
       }
     } catch (error) {
       console.error('ZIP import error:', error);
@@ -477,6 +602,11 @@ export default function VideoIntroduction() {
   useEffect(() => {
     updateCacheStats();
   }, [updateCacheStats]);
+
+  // 記住 viewMode 偏好
+  useEffect(() => {
+    localStorage.setItem('video-view-mode', viewMode);
+  }, [viewMode]);
 
   const handleAdd = () => {
     setEditingVideo(null);
@@ -687,23 +817,60 @@ export default function VideoIntroduction() {
 
       {/* 影片播放器 */}
       {showPlayer && currentVideo && currentVideoData && (
-        <VideoPlayerModal
-          video={currentVideoData}
-          videoRef={videoRef}
-          onClose={() => setShowPlayer(false)}
-        />
+        viewMode === 'bilibili' ? (
+          <BilibiliPlayerModal
+            video={currentVideoData}
+            videoRef={videoRef}
+            onClose={() => setShowPlayer(false)}
+          />
+        ) : (
+          <VideoPlayerModal
+            video={currentVideoData}
+            videoRef={videoRef}
+            onClose={() => setShowPlayer(false)}
+          />
+        )
       )}
 
-      {/* 搜尋欄位 */}
+      {/* 搜尋欄位 + 模式切換 */}
       {videos.length > 0 && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="搜尋影片名稱、備註..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 rounded-xl"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              placeholder="搜尋影片名稱、備註..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 rounded-xl"
+            />
+          </div>
+          {/* 介面風格切換 */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1">
+            <button
+              onClick={() => setViewMode('youtube')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                viewMode === 'youtube'
+                  ? 'bg-red-500 text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              title="YouTube 風格"
+            >
+              <Tv className="w-4 h-4" />
+              <span className="hidden sm:inline">YouTube</span>
+            </button>
+            <button
+              onClick={() => setViewMode('bilibili')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                viewMode === 'bilibili'
+                  ? 'bg-[#00a1d6] text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              title="Bilibili 風格"
+            >
+              <Monitor className="w-4 h-4" />
+              <span className="hidden sm:inline">Bilibili</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -721,31 +888,60 @@ export default function VideoIntroduction() {
           description={`找不到「${searchQuery}」相關的影片`}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+        <div className={viewMode === 'bilibili'
+          ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 lg:gap-4"
+          : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-6"
+        }>
           {filteredVideos.map((video) => (
-            <VideoManagementCard
-              key={video.$id}
-              video={video}
-              cacheStatus={cacheStatus[video.$id]}
-              onPlay={() => playVideo(video)}
-              onEdit={() => handleEdit(video)}
-              onDelete={() => handleDelete(video)}
-              onDownload={() => handleDownload(video)}
-              onDeleteCache={() => handleDeleteCache(video.$id)}
-              onAddToQueue={() => handleAddToQueue(video)}
-              isInQueue={isInQueue(video.$id)}
-              isEditing={inlineEditingId === video.$id}
-              inlineEditForm={inlineEditForm}
-              setInlineEditForm={setInlineEditForm}
-              onInlineEdit={handleInlineEdit}
-              onInlineSave={handleInlineSave}
-              onInlineCancel={cancelInlineEdit}
-              inlineCoverFile={inlineCoverFile}
-              setInlineCoverFile={setInlineCoverFile}
-              inlineCoverPreview={inlineCoverPreview}
-              setInlineCoverPreview={setInlineCoverPreview}
-              inlineCoverUploading={inlineCoverUploading}
-            />
+            viewMode === 'bilibili' ? (
+              <BilibiliVideoCard
+                key={video.$id}
+                video={video}
+                cacheStatus={cacheStatus[video.$id]}
+                onPlay={() => playVideo(video)}
+                onEdit={() => handleEdit(video)}
+                onDelete={() => handleDelete(video)}
+                onDownload={() => handleDownload(video)}
+                onDeleteCache={() => handleDeleteCache(video.$id)}
+                onAddToQueue={() => handleAddToQueue(video)}
+                isInQueue={isInQueue(video.$id)}
+                isEditing={inlineEditingId === video.$id}
+                inlineEditForm={inlineEditForm}
+                setInlineEditForm={setInlineEditForm}
+                onInlineEdit={handleInlineEdit}
+                onInlineSave={handleInlineSave}
+                onInlineCancel={cancelInlineEdit}
+                inlineCoverFile={inlineCoverFile}
+                setInlineCoverFile={setInlineCoverFile}
+                inlineCoverPreview={inlineCoverPreview}
+                setInlineCoverPreview={setInlineCoverPreview}
+                inlineCoverUploading={inlineCoverUploading}
+              />
+            ) : (
+              <VideoManagementCard
+                key={video.$id}
+                video={video}
+                cacheStatus={cacheStatus[video.$id]}
+                onPlay={() => playVideo(video)}
+                onEdit={() => handleEdit(video)}
+                onDelete={() => handleDelete(video)}
+                onDownload={() => handleDownload(video)}
+                onDeleteCache={() => handleDeleteCache(video.$id)}
+                onAddToQueue={() => handleAddToQueue(video)}
+                isInQueue={isInQueue(video.$id)}
+                isEditing={inlineEditingId === video.$id}
+                inlineEditForm={inlineEditForm}
+                setInlineEditForm={setInlineEditForm}
+                onInlineEdit={handleInlineEdit}
+                onInlineSave={handleInlineSave}
+                onInlineCancel={cancelInlineEdit}
+                inlineCoverFile={inlineCoverFile}
+                setInlineCoverFile={setInlineCoverFile}
+                inlineCoverPreview={inlineCoverPreview}
+                setInlineCoverPreview={setInlineCoverPreview}
+                inlineCoverUploading={inlineCoverUploading}
+              />
+            )
           ))}
         </div>
       )}
@@ -1058,31 +1254,49 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
     );
   }
 
-  // 統一橫式影片布局（標準 YouTube 風格）
+  const [showDescription, setShowDescription] = useState(false);
+
+  // 統一橫式影片布局（YouTube 2024 風格）
   return (
-    <div className="fixed inset-0 bg-white dark:bg-[#0f0f0f] z-50 overflow-y-auto animate-in fade-in duration-200">
-      {/* 頂部極簡導航 */}
-      <div className="sticky top-0 z-20 bg-white/80 dark:bg-[#0f0f0f]/80 backdrop-blur-md border-b dark:border-gray-800">
+    <div className="fixed inset-0 bg-[#f1f1f1] dark:bg-[#0f0f0f] z-50 overflow-y-auto animate-in fade-in duration-200">
+      {/* 頂部導航 - YouTube 2024 風格 */}
+      <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10">
         <div className="max-w-[1800px] mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-              <Play className="w-5 h-5 text-white fill-current" />
+          <div className="flex items-center gap-3">
+            {/* YouTube 風格紅色 play icon */}
+            <div className="flex items-center gap-1">
+              <div className="w-8 h-6 bg-red-600 rounded-[4px] flex items-center justify-center">
+                <Play className="w-4 h-4 text-white fill-current" />
+              </div>
+              <span className="font-bold text-lg tracking-tight hidden sm:block dark:text-white">鋒兄影片</span>
             </div>
-            <span className="font-bold text-lg hidden sm:block dark:text-white">鋒兄影片</span>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors dark:text-white">
+
+          {/* 中間搜尋列（視覺用） */}
+          <div className="hidden md:flex flex-1 max-w-[540px] mx-8">
+            <div className="flex w-full">
+              <div className="flex-1 flex items-center bg-white dark:bg-[#121212] border border-gray-300 dark:border-[#303030] rounded-l-full px-4 h-10">
+                <span className="text-sm text-gray-400 dark:text-gray-500">搜尋影片</span>
+              </div>
+              <button className="px-5 h-10 bg-gray-100 dark:bg-[#222222] border border-l-0 border-gray-300 dark:border-[#303030] rounded-r-full">
+                <Search className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              </button>
+            </div>
+          </div>
+
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors dark:text-white">
             <X className="w-6 h-6" />
           </button>
         </div>
       </div>
 
       <main className="max-w-[1700px] mx-auto p-4 lg:p-6 xl:p-8">
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        <div className="flex flex-col lg:flex-row gap-6">
 
           {/* 左側：主播放區 + 影片資訊 */}
-          <div className="flex-1 lg:max-w-[calc(100%-420px)] space-y-4">
-            {/* 播放器容器 - 固定 16:9，影片用 contain 完整顯示，確保時間軸可見 */}
-            <div className="bg-black rounded-xl shadow-2xl aspect-video ring-1 dark:ring-white/10 [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-xl">
+          <div className="flex-1 lg:max-w-[calc(100%-426px)] space-y-3">
+            {/* 播放器容器 */}
+            <div className="bg-black rounded-xl overflow-hidden aspect-video [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-xl">
               <PlyrPlayer
                 key={currentVideo.$id}
                 type="video"
@@ -1094,68 +1308,84 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
             </div>
 
             {/* 影片標題 */}
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-snug">
               {currentVideo.name}
             </h1>
 
             {/* 作者與互動區 */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-b dark:border-gray-800 pb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
                   FX
                 </div>
                 <div>
-                  <div className="font-bold dark:text-white">鋒兄 (Feng Xiong)</div>
+                  <div className="font-medium text-sm dark:text-white">鋒兄 (Feng Xiong)</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">系統管理員</div>
                 </div>
-                <button className="ml-4 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-full text-sm font-medium hover:opacity-90 transition-opacity">
+                <button className="ml-3 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-full text-sm font-medium hover:opacity-90 transition-opacity">
                   訂閱
                 </button>
               </div>
 
+              {/* 互動列 - YouTube 2024 pill 按鈕 */}
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <Button variant="secondary" className="rounded-full gap-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 border-none dark:text-white">
-                  <Play className="w-4 h-4" /> 點讚
-                </Button>
+                <button className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full text-sm font-medium text-gray-800 dark:text-white transition-colors">
+                  <ThumbsUp className="w-4 h-4" /> 點讚
+                </button>
                 <VideoScreenshotButton videoTitle={currentVideo.name} />
-                <Button variant="secondary" onClick={toggleFullscreen} className="rounded-full gap-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 border-none dark:text-white">
-                  <Plus className="w-4 h-4" /> 全螢幕
-                </Button>
-                <Button variant="secondary" className="rounded-full gap-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 border-none dark:text-white">
-                  <Download className="w-4 h-4" /> 分享
-                </Button>
+                <button onClick={toggleFullscreen} className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full text-sm font-medium text-gray-800 dark:text-white transition-colors">
+                  <Maximize className="w-4 h-4" /> 全螢幕
+                </button>
+                <button className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full text-sm font-medium text-gray-800 dark:text-white transition-colors">
+                  <Share2 className="w-4 h-4" /> 分享
+                </button>
+                <button className="flex items-center justify-center w-9 h-9 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full transition-colors">
+                  <MoreVertical className="w-4 h-4 text-gray-800 dark:text-white" />
+                </button>
               </div>
             </div>
 
-            {/* 影片描述區 (YouTube 樣式) */}
-            <div className="bg-gray-100 dark:bg-white/5 rounded-xl p-4 space-y-2 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
-              <div className="flex gap-3 text-sm font-bold dark:text-white">
+            {/* 影片描述區 (YouTube 2024 樣式) - 可展開收合 */}
+            <div
+              className={`bg-gray-100 dark:bg-white/5 rounded-xl p-3 space-y-1.5 cursor-pointer transition-colors ${showDescription ? '' : 'hover:bg-gray-200 dark:hover:bg-white/10'}`}
+              onClick={() => setShowDescription(!showDescription)}
+            >
+              <div className="flex items-center gap-2 text-sm font-medium dark:text-white">
                 <span>{formatLocalDate(currentVideo.$createdAt)}</span>
                 {currentVideo.category && <span className="text-blue-600 dark:text-blue-400">#{currentVideo.category}</span>}
               </div>
-              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                {currentVideo.note || "暫無詳細描述。"}
-              </p>
-              {currentVideo.ref && (
-                <div className="pt-2">
-                  <a href={currentVideo.ref} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all">
-                    {currentVideo.ref}
-                  </a>
-                </div>
+              {showDescription ? (
+                <>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                    {currentVideo.note || "暫無詳細描述。"}
+                  </p>
+                  {currentVideo.ref && (
+                    <div className="pt-1">
+                      <a href={currentVideo.ref} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all">
+                        {currentVideo.ref}
+                      </a>
+                    </div>
+                  )}
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 pt-1">顯示較少</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-1">
+                  {currentVideo.note || "暫無詳細描述。"}
+                </p>
               )}
             </div>
           </div>
 
           {/* 右側：推薦影片側邊欄 */}
-          <aside className="w-full lg:w-[400px] space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-gray-900 dark:text-white">接下來播放</h3>
+          <aside className="w-full lg:w-[402px] space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-gray-900 dark:text-white text-sm">接下來播放</h3>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setRepeatMode(!repeatMode)}
                   className={`text-xs font-medium cursor-pointer px-3 py-1 rounded-full transition-colors ${repeatMode
                     ? 'bg-purple-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400'
                     }`}
                   title="重複播放同一影片"
                 >
@@ -1165,7 +1395,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
                   onClick={() => setAutoPlay(!autoPlay)}
                   className={`text-xs font-medium cursor-pointer px-3 py-1 rounded-full transition-colors ${autoPlay
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400'
                     }`}
                   disabled={repeatMode}
                   style={{ opacity: repeatMode ? 0.5 : 1 }}
@@ -1175,7 +1405,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
                 </button>
               </div>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {recommendedVideos.map((recVideo) => (
                 <RecommendedVideoCard
                   key={recVideo.$id}
@@ -1194,28 +1424,31 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
   );
 }
 
-// 推薦影片卡片 (極簡 YouTube 風格)
+// 推薦影片卡片 (YouTube 2024 側邊欄橫排風格)
 function RecommendedVideoCard({ video, onClick }: { video: VideoData; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="w-full flex gap-3 group text-left transition-colors">
-      <div className="relative w-[168px] aspect-video flex-shrink-0 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden">
+    <button onClick={onClick} className="w-full flex gap-2 group/rec text-left rounded-lg hover:bg-gray-200/60 dark:hover:bg-white/5 p-1 transition-colors">
+      <div className="relative w-[168px] aspect-video flex-shrink-0 bg-gray-200 dark:bg-[#272727] rounded-lg overflow-hidden">
         {video.cover ? (
-          <img src={video.cover} alt={video.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          <img src={video.cover} alt={video.name} className="w-full h-full object-cover group-hover/rec:scale-105 transition-transform duration-300" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
-            <Play className="w-6 h-6 text-white/20" />
+          <div className="w-full h-full bg-gradient-to-br from-[#383838] to-[#181818] flex items-center justify-center">
+            <Play className="w-5 h-5 text-white/15" />
           </div>
         )}
-        <div className="absolute bottom-1 right-1 bg-black/80 text-[10px] text-white px-1 rounded font-bold">
-          4:05
-        </div>
+        {/* 分類標籤 */}
+        {video.category && (
+          <div className="absolute bottom-1 left-1 px-1 py-0.5 text-[9px] font-medium bg-black/80 text-white rounded">
+            {video.category}
+          </div>
+        )}
       </div>
       <div className="flex-1 min-w-0 py-0.5">
-        <h4 className="font-bold text-gray-900 dark:text-white text-sm line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
+        <h4 className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 leading-5 group-hover/rec:text-blue-600 dark:group-hover/rec:text-blue-400 transition-colors">
           {video.name}
         </h4>
-        <div className="mt-1 flex flex-col text-[12px] text-gray-500 dark:text-gray-400">
-          <span>鋒兄 (Feng Xiong)</span>
+        <div className="mt-1 flex flex-col text-xs text-gray-600 dark:text-gray-400">
+          <span>鋒兄影片</span>
           <span>{formatLocalDate(video.$createdAt)}</span>
         </div>
       </div>
@@ -1249,35 +1482,34 @@ interface VideoManagementCardProps {
   inlineCoverUploading: boolean;
 }
 
-// 影片管理卡片 (模仿首頁瀑布流)
+// 影片管理卡片 (YouTube 2024 首頁風格)
 function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showHoverActions, setShowHoverActions] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const inlineCoverInputRef = useRef<HTMLInputElement>(null);
 
   // 處理行內編輯封面上傳
   const handleInlineCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // 檢查檔案類型
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
-      return;
-    }
-
-    // 檢查檔案大小 (10MB)
-    const maxSize = 10 * 1024 * 1024;
-    if (file.size > maxSize) {
-      alert('封面圖大小不能超過 10MB');
-      return;
-    }
-
+    if (!validTypes.includes(file.type)) { alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片'); return; }
+    if (file.size > 10 * 1024 * 1024) { alert('封面圖大小不能超過 10MB'); return; }
     setInlineCoverFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setInlineCoverPreview(objectUrl);
+    setInlineCoverPreview(URL.createObjectURL(file));
   };
+
+  // 點擊外部關閉選單
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
+    };
+    if (showMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMenu]);
 
   useEffect(() => {
     if (!video.cover && video.file) {
@@ -1300,237 +1532,607 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
   }, [video.cover, video.file]);
 
   return (
-    <div className="flex flex-col gap-3 group animate-in zoom-in-95 duration-300">
+    <div className="flex flex-col gap-2.5 group animate-in zoom-in-95 duration-300">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* 縮圖容器 */}
+      {/* 縮圖容器 - YouTube 2024 rounded-xl */}
       <div
-        className={`relative aspect-video bg-gray-100 dark:bg-[#1e1e1e] rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-all border dark:border-white/5 ${video.file ? 'cursor-pointer' : ''}`}
+        className={`relative aspect-video bg-gray-100 dark:bg-[#272727] rounded-xl overflow-hidden ${video.file ? 'cursor-pointer' : ''}`}
         onClick={video.file ? onPlay : undefined}
+        onMouseEnter={() => setShowHoverActions(true)}
+        onMouseLeave={() => setShowHoverActions(false)}
       >
         <img
           src={video.cover || thumbnailUrl || ''}
           alt={video.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+          className="w-full h-full object-cover"
         />
         {!video.cover && !thumbnailUrl && (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#2b2b2b] to-[#000] flex items-center justify-center">
-            <Play className="w-12 h-12 text-white/10" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#383838] to-[#181818] flex items-center justify-center">
+            <Play className="w-10 h-10 text-white/10" />
           </div>
         )}
 
-        {/* 播放按鈕 Overlay - 只在有影片時顯示 */}
-        {video.file ? (
-          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center scale-90 group-hover:scale-100 transition-transform">
-              <Play className="w-6 h-6 text-white fill-current" />
-            </div>
-          </div>
-        ) : (
+        {/* 無影片遮罩 */}
+        {!video.file && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <div className="text-center space-y-2">
-              <Upload className="w-8 h-8 text-white/60 mx-auto" />
-              <p className="text-white/80 text-sm font-medium">尚未上傳影片</p>
+            <div className="text-center space-y-1.5">
+              <Upload className="w-7 h-7 text-white/60 mx-auto" />
+              <p className="text-white/80 text-xs font-medium">尚未上傳影片</p>
             </div>
           </div>
         )}
 
-        {/* 分類標籤 */}
-        {!isEditing && video.category && (
-          <div className="absolute top-2 left-2 px-2 py-1 text-[10px] font-bold bg-black/60 text-white rounded backdrop-blur-sm">
-            {video.category.toUpperCase()}
+        {/* 懸停進度條效果 (底部紅色條) */}
+        {video.file && showHoverActions && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-600 animate-in fade-in duration-200" />
+        )}
+
+        {/* 快取狀態 - 左上 */}
+        {video.file && (
+          <div className="absolute top-2 left-2">
+            <CacheStatusIcon status={cacheStatus} />
           </div>
         )}
 
-        {/* 快取狀態 - 只在有影片時顯示 */}
-        {video.file && (
-          <div className="absolute top-2 right-2">
-            <CacheStatusIcon status={cacheStatus} />
+        {/* 懸停右下角快速操作按鈕 */}
+        {video.file && showHoverActions && (
+          <div className="absolute bottom-2 right-2 flex items-center gap-1 animate-in fade-in slide-in-from-bottom-1 duration-200" onClick={(e) => e.stopPropagation()}>
+            {onAddToQueue && (
+              <button
+                onClick={onAddToQueue}
+                className={`p-1.5 rounded text-white text-[10px] font-medium transition-colors ${isInQueue ? 'bg-green-600/90' : 'bg-black/80 hover:bg-black/95'}`}
+                title={isInQueue ? '已在佇列中' : '加入佇列'}
+              >
+                <ListPlus className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={() => {
+                const downloadUrl = getAppwriteDownloadUrl(video.file);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = `${video.name}.mp4`;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="p-1.5 bg-black/80 hover:bg-black/95 rounded text-white transition-colors"
+              title="下載影片"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* 分類標籤 - 左下 */}
+        {!isEditing && video.category && !showHoverActions && (
+          <div className="absolute bottom-2 left-2 px-1.5 py-0.5 text-[11px] font-medium bg-black/80 text-white rounded">
+            {video.category}
           </div>
         )}
       </div>
 
-      {/* 影片資訊 */}
-      <div className="flex gap-3 px-1">
-        <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-white/10 flex-shrink-0 flex items-center justify-center font-bold text-xs dark:text-white">
+      {/* 影片資訊 - YouTube 2024 佈局 */}
+      <div className="flex gap-3">
+        {/* 圓形頭像 - gradient 背景 */}
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex-shrink-0 flex items-center justify-center text-white font-bold text-xs mt-0.5">
           FX
         </div>
-        <div className="flex-1 min-w-0 space-y-1">
+        <div className="flex-1 min-w-0">
           {isEditing ? (
             // 行內編輯模式
             <div className="space-y-2">
-              <Input
-                placeholder="影片名稱"
-                value={inlineEditForm.name}
-                onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
-                className="h-8 rounded-lg text-sm"
-              />
-              <Input
-                placeholder="分類"
-                value={inlineEditForm.category}
-                onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
-                className="h-8 rounded-lg text-sm"
-              />
-              <Input
-                placeholder="參考"
-                value={inlineEditForm.ref}
-                onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
-                className="h-8 rounded-lg text-sm"
-              />
-              <Textarea
-                placeholder="備註"
-                value={inlineEditForm.note}
-                onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
-                className="rounded-lg text-sm h-16 resize-none"
-              />
-              
-              {/* 封面圖上傳 */}
+              <Input placeholder="影片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-8 rounded-lg text-sm" />
+              <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-8 rounded-lg text-sm" />
+              <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-8 rounded-lg text-sm" />
+              <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-16 resize-none" />
               <div className="space-y-2">
                 <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
-                
-                {/* 顯示當前封面或預覽 */}
                 {(inlineCoverPreview || inlineEditForm.cover) && (
                   <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                    <img 
-                      src={inlineCoverPreview || inlineEditForm.cover} 
-                      alt="封面預覽" 
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setInlineCoverFile(null); 
-                        setInlineCoverPreview(''); 
-                        setInlineEditForm({ ...inlineEditForm, cover: '' });
-                        if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = '';
-                      }}
-                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    <img src={inlineCoverPreview || inlineEditForm.cover} alt="封面預覽" className="w-full h-full object-cover" />
+                    <button onClick={(e) => { e.stopPropagation(); setInlineCoverFile(null); setInlineCoverPreview(''); setInlineEditForm({ ...inlineEditForm, cover: '' }); if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = ''; }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
                   </div>
                 )}
-                
-                {/* 封面 URL 輸入 */}
-                <Input
-                  placeholder="封面圖 URL"
-                  value={inlineEditForm.cover}
-                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
-                  className="h-8 rounded-lg text-sm"
-                />
-                
-                {/* 上傳按鈕 */}
+                <Input placeholder="封面圖 URL" value={inlineEditForm.cover} onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })} className="h-8 rounded-lg text-sm" />
                 <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
                   <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
-                    {inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖'}
-                  </span>
-                  <input
-                    ref={inlineCoverInputRef}
-                    type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                    onChange={handleInlineCoverSelect}
-                    disabled={inlineCoverUploading}
-                    className="hidden"
-                  />
+                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">{inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖'}</span>
+                  <input ref={inlineCoverInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onChange={handleInlineCoverSelect} disabled={inlineCoverUploading} className="hidden" />
                 </label>
               </div>
-              
               <div className="flex gap-2 pt-2">
-                <Button
-                  onClick={(e) => { e.stopPropagation(); onInlineSave(video.$id); }}
-                  disabled={inlineCoverUploading}
-                  className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50"
-                >
-                  {inlineCoverUploading ? '上傳中...' : '儲存'}
-                </Button>
-                <Button
-                  onClick={(e) => { e.stopPropagation(); onInlineCancel(); }}
-                  variant="outline"
-                  disabled={inlineCoverUploading}
-                  className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50"
-                >
-                  取消
-                </Button>
+                <Button onClick={(e) => { e.stopPropagation(); onInlineSave(video.$id); }} disabled={inlineCoverUploading} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">{inlineCoverUploading ? '上傳中...' : '儲存'}</Button>
+                <Button onClick={(e) => { e.stopPropagation(); onInlineCancel(); }} variant="outline" disabled={inlineCoverUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50">取消</Button>
               </div>
             </div>
           ) : (
-            // 正常顯示模式
-            <>
-              <h3
-                className={`font-bold text-gray-900 dark:text-white text-sm md:text-base line-clamp-2 leading-snug transition-colors ${video.file ? 'cursor-pointer hover:text-blue-600' : ''}`}
-                onClick={video.file ? onPlay : undefined}
-              >
-                {video.name}
-              </h3>
-              <div className="flex flex-col text-xs text-gray-500 dark:text-gray-400 font-medium">
-                <span>鋒兄影片 • 管理員</span>
-                <div className="flex items-center gap-1">
+            // YouTube 2024 正常顯示模式
+            <div className="flex items-start gap-1">
+              <div className="flex-1 min-w-0">
+                <h3
+                  className={`text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-5 transition-colors ${video.file ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : ''}`}
+                  onClick={video.file ? onPlay : undefined}
+                >
+                  {video.name}
+                </h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">鋒兄影片</p>
+                <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                   <span>{formatLocalDate(video.$createdAt)}</span>
                   <span>•</span>
                   {video.file ? (
-                    <span className="text-green-600 dark:text-green-400">已發佈</span>
+                    <span className="text-gray-600 dark:text-gray-400">已發佈</span>
                   ) : (
                     <span className="text-orange-600 dark:text-orange-400">尚未上傳</span>
                   )}
                 </div>
               </div>
 
-              {/* 管理按鈕列 */}
-              <div className="flex items-center gap-2 pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                {/* 接下來播放按鈕 */}
-                {video.file && onAddToQueue && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onAddToQueue(); }}
-                    className={`p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors ${isInQueue ? 'text-green-600 dark:text-green-400' : 'text-purple-600 dark:text-purple-400'
-                      }`}
-                    title={isInQueue ? '已在佇列中' : '接下來播放'}
-                  >
-                    <ListPlus className="w-4 h-4" />
-                  </button>
-                )}
-                {/* 直接下載按鈕 */}
-                {video.file && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const downloadUrl = getAppwriteDownloadUrl(video.file);
-                      const link = document.createElement('a');
-                      link.href = downloadUrl;
-                      link.download = `${video.name}.mp4`;
-                      link.target = '_blank';
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }}
-                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-green-600 dark:text-green-400"
-                    title="下載影片"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                )}
-                <button onClick={() => onInlineEdit(video)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-blue-600 dark:text-blue-400">
-                  <Edit className="w-4 h-4" />
+              {/* 垂直三點選單按鈕 */}
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <MoreVertical className="w-5 h-5 text-gray-700 dark:text-gray-300" />
                 </button>
-                <button onClick={onDelete} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-red-600 dark:text-red-400">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                {video.file && (
-                  cacheStatus?.cached ? (
-                    <button onClick={onDeleteCache} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-orange-600">
-                      <HardDrive className="w-4 h-4" />
+
+                {/* 下拉選單 */}
+                {showMenu && (
+                  <div className="absolute right-0 top-8 z-20 w-48 bg-white dark:bg-[#282828] rounded-xl shadow-xl border dark:border-white/10 py-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onInlineEdit(video); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                    >
+                      <Edit className="w-4 h-4" /> 編輯
                     </button>
-                  ) : (
-                    <button onClick={onDownload} disabled={cacheStatus?.downloading} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors text-gray-600 dark:text-gray-400" title="快取到本地">
-                      <HardDrive className="w-4 h-4" />
+                    {video.file && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); setShowMenu(false);
+                          const downloadUrl = getAppwriteDownloadUrl(video.file);
+                          const link = document.createElement('a'); link.href = downloadUrl; link.download = `${video.name}.mp4`; link.target = '_blank';
+                          document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                      >
+                        <Download className="w-4 h-4" /> 下載
+                      </button>
+                    )}
+                    {video.file && onAddToQueue && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShowMenu(false); onAddToQueue(); }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-white/10 transition-colors ${isInQueue ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-200'}`}
+                      >
+                        <ListPlus className="w-4 h-4" /> {isInQueue ? '已在佇列中' : '加入佇列'}
+                      </button>
+                    )}
+                    {video.file && (
+                      cacheStatus?.cached ? (
+                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDeleteCache(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-orange-600 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+                          <HardDrive className="w-4 h-4" /> 刪除快取
+                        </button>
+                      ) : (
+                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDownload(); }} disabled={cacheStatus?.downloading} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+                          <HardDrive className="w-4 h-4" /> 快取到本地
+                        </button>
+                      )
+                    )}
+                    <div className="border-t dark:border-white/10 my-1" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDelete(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" /> 刪除
                     </button>
-                  )
+                  </div>
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Bilibili 風格影片卡片
+function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
+  const [showActions, setShowActions] = useState(false);
+  const inlineCoverInputRef = useRef<HTMLInputElement>(null);
+
+  const handleInlineCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) { alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片'); return; }
+    if (file.size > 10 * 1024 * 1024) { alert('封面圖大小不能超過 10MB'); return; }
+    setInlineCoverFile(file);
+    setInlineCoverPreview(URL.createObjectURL(file));
+  };
+
+  if (isEditing) {
+    return (
+      <div className="bg-white dark:bg-[#1d1d1d] rounded-lg overflow-hidden shadow-sm border dark:border-white/5 p-3 space-y-2">
+        <Input placeholder="影片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-8 rounded-lg text-sm" />
+        <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-8 rounded-lg text-sm" />
+        <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-8 rounded-lg text-sm" />
+        <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-16 resize-none" />
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
+          {(inlineCoverPreview || inlineEditForm.cover) && (
+            <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+              <img src={inlineCoverPreview || inlineEditForm.cover} alt="封面預覽" className="w-full h-full object-cover" />
+              <button onClick={() => { setInlineCoverFile(null); setInlineCoverPreview(''); setInlineEditForm({ ...inlineEditForm, cover: '' }); }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"><X className="w-3 h-3" /></button>
+            </div>
+          )}
+          <Input placeholder="封面圖 URL" value={inlineEditForm.cover} onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })} className="h-8 rounded-lg text-sm" />
+          <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+            <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span className="text-sm font-medium text-purple-600 dark:text-purple-400">{inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖'}</span>
+            <input ref={inlineCoverInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onChange={handleInlineCoverSelect} disabled={inlineCoverUploading} className="hidden" />
+          </label>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <Button onClick={() => onInlineSave(video.$id)} disabled={inlineCoverUploading} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">{inlineCoverUploading ? '上傳中...' : '儲存'}</Button>
+          <Button onClick={onInlineCancel} variant="outline" disabled={inlineCoverUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5">取消</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="group relative bg-white dark:bg-[#1d1d1d] rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer border dark:border-white/5"
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+    >
+      {/* 封面圖 */}
+      <div
+        className="relative aspect-[16/10] bg-gray-100 dark:bg-[#2b2b2b] overflow-hidden"
+        onClick={video.file ? onPlay : undefined}
+      >
+        {video.cover ? (
+          <img
+            src={video.cover}
+            alt={video.name}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-gray-600 to-gray-900 flex items-center justify-center">
+            <Play className="w-8 h-8 text-white/15" />
+          </div>
+        )}
+
+        {/* 底部漸變 */}
+        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 to-transparent" />
+
+        {/* 分類標籤 - 左下角 */}
+        {video.category && (
+          <div className="absolute bottom-2 left-2 px-1.5 py-0.5 text-[10px] font-bold bg-[#00a1d6] text-white rounded">
+            {video.category}
+          </div>
+        )}
+
+        {/* 日期 - 右下角 */}
+        <div className="absolute bottom-2 right-2 text-[10px] text-white/90 font-medium">
+          {formatLocalDate(video.$createdAt)}
+        </div>
+
+        {/* 快取狀態 - 左上角 */}
+        {video.file && (
+          <div className="absolute top-2 left-2">
+            <CacheStatusIcon status={cacheStatus} />
+          </div>
+        )}
+
+        {/* 無影片遮罩 */}
+        {!video.file && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+            <div className="text-center space-y-1">
+              <Upload className="w-6 h-6 text-white/60 mx-auto" />
+              <p className="text-white/80 text-xs font-medium">尚未上傳</p>
+            </div>
+          </div>
+        )}
+
+        {/* 播放按鈕 Overlay */}
+        {video.file && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+            <div className="w-10 h-10 bg-white/25 backdrop-blur-sm rounded-full flex items-center justify-center">
+              <Play className="w-5 h-5 text-white fill-current" />
+            </div>
+          </div>
+        )}
+
+        {/* 操作按鈕 - 右上角懸停顯示 */}
+        {showActions && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 animate-in fade-in duration-150" onClick={(e) => e.stopPropagation()}>
+            {video.file && onAddToQueue && (
+              <button onClick={onAddToQueue} className={`p-1.5 rounded-md backdrop-blur-sm transition-colors ${isInQueue ? 'bg-green-500/80 text-white' : 'bg-black/50 text-white hover:bg-black/70'}`} title={isInQueue ? '已在佇列中' : '接下來播放'}>
+                <ListPlus className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {video.file && (
+              <button onClick={() => { const downloadUrl = getAppwriteDownloadUrl(video.file); const link = document.createElement('a'); link.href = downloadUrl; link.download = `${video.name}.mp4`; link.target = '_blank'; document.body.appendChild(link); link.click(); document.body.removeChild(link); }} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-black/70 transition-colors" title="下載影片">
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button onClick={() => onInlineEdit(video)} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-black/70 transition-colors" title="編輯">
+              <Edit className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={onDelete} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-red-600/80 transition-colors" title="刪除">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+            {video.file && (
+              cacheStatus?.cached ? (
+                <button onClick={onDeleteCache} className="p-1.5 bg-orange-500/80 text-white rounded-md backdrop-blur-sm hover:bg-orange-600/80 transition-colors" title="刪除快取">
+                  <HardDrive className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button onClick={onDownload} disabled={cacheStatus?.downloading} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-black/70 transition-colors" title="快取到本地">
+                  <HardDrive className="w-3.5 h-3.5" />
+                </button>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 影片資訊 - 底部 */}
+      <div className="p-2.5 space-y-1">
+        <h3
+          className="font-bold text-gray-900 dark:text-white text-sm line-clamp-2 leading-snug group-hover:text-[#00a1d6] transition-colors"
+          onClick={video.file ? onPlay : undefined}
+        >
+          {video.name}
+        </h3>
+        <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+          <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-[#00a1d6] to-[#00b5e5] flex-shrink-0 flex items-center justify-center text-white text-[8px] font-bold">F</div>
+          <span>鋒兄影片</span>
+          <span>•</span>
+          <span>{formatLocalDate(video.$createdAt)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Bilibili 風格播放器模態框
+function BilibiliPlayerModal({ video, videoRef, onClose }: { video: VideoData; videoRef: React.RefObject<HTMLVideoElement | null>; onClose: () => void }) {
+  const { videos } = useVideos();
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [repeatMode, setRepeatMode] = useState(false);
+  const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
+  const [playedIds, setPlayedIds] = useState<Set<string>>(new Set([video.$id]));
+  const [showDescription, setShowDescription] = useState(false);
+
+  const allVideosWithFile = useMemo(() => videos.filter(v => v.file), [videos]);
+
+  const recommendedVideos = useMemo(() => {
+    const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+    const result: VideoData[] = [];
+    for (let i = 1; i < allVideosWithFile.length; i++) {
+      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
+      const v = allVideosWithFile[nextIndex];
+      if (!playedIds.has(v.$id)) result.push(v);
+    }
+    for (let i = 1; i < allVideosWithFile.length; i++) {
+      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
+      const v = allVideosWithFile[nextIndex];
+      if (playedIds.has(v.$id)) result.push(v);
+    }
+    return result.slice(0, 12);
+  }, [allVideosWithFile, currentVideo.$id, playedIds]);
+
+  // 自動播放下一個
+  useEffect(() => {
+    const handleVideoEnded = () => {
+      if (repeatMode) {
+        const plyrVideo = document.querySelector('.plyr video') as HTMLVideoElement;
+        if (plyrVideo) { plyrVideo.currentTime = 0; plyrVideo.play(); }
+        return;
+      }
+      if (!autoPlay) return;
+      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+      let nextVideo: VideoData | null = null;
+      for (let i = 1; i < allVideosWithFile.length; i++) {
+        const nextIndex = (currentIndex + i) % allVideosWithFile.length;
+        const candidate = allVideosWithFile[nextIndex];
+        if (!playedIds.has(candidate.$id)) { nextVideo = candidate; break; }
+      }
+      if (!nextVideo && allVideosWithFile.length > 1) {
+        const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
+        nextVideo = allVideosWithFile[nextIndex];
+        setPlayedIds(new Set([nextVideo.$id]));
+      } else if (nextVideo) {
+        setPlayedIds(prev => new Set([...prev, nextVideo!.$id]));
+      }
+      if (nextVideo) setCurrentVideo(nextVideo);
+    };
+
+    const checkForPlyr = () => {
+      const plyrVideo = document.querySelector('.plyr video') as HTMLVideoElement;
+      if (plyrVideo) {
+        plyrVideo.addEventListener('ended', handleVideoEnded);
+        return () => plyrVideo.removeEventListener('ended', handleVideoEnded);
+      }
+    };
+    const timer = setTimeout(checkForPlyr, 500);
+    const cleanup = checkForPlyr();
+    return () => { clearTimeout(timer); if (cleanup) cleanup(); };
+  }, [autoPlay, repeatMode, allVideosWithFile, currentVideo, playedIds]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 bg-[#f4f4f4] dark:bg-[#17181a] z-50 overflow-y-auto animate-in fade-in duration-200">
+      {/* 頂部導航 - Bilibili 風格 */}
+      <div className="sticky top-0 z-20 bg-white/90 dark:bg-[#1f2022]/90 backdrop-blur-md border-b border-gray-200 dark:border-[#2c2c2e]">
+        <div className="max-w-[1400px] mx-auto px-4 h-12 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-[#00a1d6] rounded-md flex items-center justify-center">
+              <Play className="w-4 h-4 text-white fill-current" />
+            </div>
+            <span className="font-bold text-base hidden sm:block dark:text-white">鋒兄影片</span>
+            <span className="text-xs text-[#00a1d6] hidden sm:block">bilibili</span>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 dark:hover:bg-[#2c2c2e] rounded-md transition-colors dark:text-white">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      <main className="max-w-[1400px] mx-auto p-4 lg:p-6">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-5">
+          {/* 左側：播放器 + 影片資訊 (70%) */}
+          <div className="flex-1 lg:max-w-[calc(100%-340px)] space-y-3">
+            {/* 播放器 */}
+            <div className="bg-black rounded-lg shadow-lg aspect-video ring-1 ring-black/10 dark:ring-white/5 [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-lg">
+              <PlyrPlayer
+                key={currentVideo.$id}
+                type="video"
+                src={getProxiedMediaUrl(currentVideo.file || '')}
+                poster={currentVideo.cover}
+                autoplay={true}
+                className="w-full h-full"
+              />
+            </div>
+
+            {/* 影片標題 */}
+            <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white leading-tight">
+              {currentVideo.name}
+            </h1>
+
+            {/* 影片資訊列 */}
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+              <span>{formatLocalDate(currentVideo.$createdAt)}</span>
+              {currentVideo.category && (
+                <span className="px-2 py-0.5 bg-[#00a1d6]/10 text-[#00a1d6] rounded text-xs font-medium">{currentVideo.category}</span>
+              )}
+            </div>
+
+            {/* UP 主資訊 + 互動按鈕 */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-t border-b border-gray-200 dark:border-[#2c2c2e]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#00a1d6] to-[#00b5e5] flex items-center justify-center text-white font-bold text-sm">
+                  FX
+                </div>
+                <div>
+                  <div className="font-bold text-sm dark:text-white">鋒兄 (Feng Xiong)</div>
+                  <div className="text-xs text-gray-400">系統管理員</div>
+                </div>
+                <button className="ml-2 px-4 py-1.5 bg-[#00a1d6] text-white rounded text-xs font-medium hover:bg-[#0091c2] transition-colors">
+                  + 關注
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2c2c2e] rounded text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#3c3c3e] transition-colors">
+                  <ThumbsUp className="w-3.5 h-3.5" /> 點讚
+                </button>
+                <button className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2c2c2e] rounded text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#3c3c3e] transition-colors">
+                  <Star className="w-3.5 h-3.5" /> 收藏
+                </button>
+                <button className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2c2c2e] rounded text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#3c3c3e] transition-colors">
+                  <Share2 className="w-3.5 h-3.5" /> 分享
+                </button>
+                <VideoScreenshotButton videoTitle={currentVideo.name} />
+              </div>
+            </div>
+
+            {/* 描述區 - 可展開收合 */}
+            <div className="bg-white dark:bg-[#1f2022] rounded-lg p-3 border border-gray-200 dark:border-[#2c2c2e]">
+              <button
+                onClick={() => setShowDescription(!showDescription)}
+                className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                <span>影片簡介</span>
+                {showDescription ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              {showDescription && (
+                <div className="mt-2 pt-2 border-t border-gray-100 dark:border-[#2c2c2e]">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
+                    {currentVideo.note || "暫無詳細描述。"}
+                  </p>
+                  {currentVideo.ref && (
+                    <div className="mt-2">
+                      <a href={currentVideo.ref} target="_blank" rel="noopener noreferrer" className="text-sm text-[#00a1d6] hover:underline break-all">
+                        {currentVideo.ref}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 播放控制 */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setRepeatMode(!repeatMode)}
+                className={`text-xs font-medium px-3 py-1 rounded transition-colors ${repeatMode ? 'bg-[#00a1d6] text-white' : 'bg-gray-200 dark:bg-[#2c2c2e] text-gray-600 dark:text-gray-400'}`}
+              >
+                重複 {repeatMode ? '開' : '關'}
+              </button>
+              <button
+                onClick={() => setAutoPlay(!autoPlay)}
+                className={`text-xs font-medium px-3 py-1 rounded transition-colors ${autoPlay ? 'bg-[#00a1d6] text-white' : 'bg-gray-200 dark:bg-[#2c2c2e] text-gray-600 dark:text-gray-400'}`}
+                disabled={repeatMode}
+                style={{ opacity: repeatMode ? 0.5 : 1 }}
+              >
+                自動播放 {autoPlay ? '開' : '關'}
+              </button>
+            </div>
+          </div>
+
+          {/* 右側：推薦影片 (30%) */}
+          <aside className="w-full lg:w-[320px] space-y-3">
+            <h3 className="font-bold text-sm text-gray-900 dark:text-white">推薦影片</h3>
+            <div className="space-y-2">
+              {recommendedVideos.map((recVideo) => (
+                <button
+                  key={recVideo.$id}
+                  onClick={() => { setPlayedIds(prev => new Set([...prev, recVideo.$id])); setCurrentVideo(recVideo); }}
+                  className="w-full flex gap-2 group/rec text-left rounded-md hover:bg-white dark:hover:bg-[#1f2022] p-1.5 transition-colors"
+                >
+                  <div className="relative w-[140px] aspect-[16/10] flex-shrink-0 bg-gray-200 dark:bg-[#2b2b2b] rounded overflow-hidden">
+                    {recVideo.cover ? (
+                      <img src={recVideo.cover} alt={recVideo.name} className="w-full h-full object-cover group-hover/rec:scale-105 transition-transform duration-300" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-gray-600 to-gray-900 flex items-center justify-center">
+                        <Play className="w-4 h-4 text-white/20" />
+                      </div>
+                    )}
+                    {recVideo.category && (
+                      <div className="absolute bottom-1 left-1 px-1 py-0.5 text-[8px] font-bold bg-[#00a1d6] text-white rounded">
+                        {recVideo.category}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 py-0.5">
+                    <h4 className="font-bold text-gray-900 dark:text-white text-xs line-clamp-2 leading-snug group-hover/rec:text-[#00a1d6] transition-colors">
+                      {recVideo.name}
+                    </h4>
+                    <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-[#00a1d6] to-[#00b5e5] flex-shrink-0 flex items-center justify-center text-white text-[6px] font-bold">F</div>
+                        <span>鋒兄影片</span>
+                      </div>
+                      <div>{formatLocalDate(recVideo.$createdAt)}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+        </div>
+      </main>
     </div>
   );
 }
