@@ -321,7 +321,8 @@ export default function CommonAccountManagement() {
         return name?.trim() === siteName.trim();
       })
     );
-    const names = matchedAccounts.map(a => a.name).join('\n');
+    const header = `${siteName} (${matchedAccounts.length})`;
+    const names = header + '\n' + matchedAccounts.map(a => a.name).join('\n');
     try {
       try {
         await navigator.clipboard.writeText(names);
