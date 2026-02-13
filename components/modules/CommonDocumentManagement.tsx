@@ -193,42 +193,20 @@ export default function CommonDocumentManagement() {
   }, [updateCacheStats]);
 
   // CSV 匯出/匯入
-  const CSV_HEADERS = ['name', 'category', 'note', 'ref', 'cover'];
+  const CSV_HEADERS = ['name', 'file', 'cover', 'filetype', 'category', 'note', 'ref', 'hash'];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
 
   interface DocumentFormData {
     name: string;
+    file: string;
+    cover: string;
+    filetype: string;
     category: string;
     note: string;
     ref: string;
-    cover: string;
+    hash: string;
   }
 
-  const exportToCSV = () => {
-    const escapeCSV = (val: any) => {
-      if (val === null || val === undefined) return '';
-      const str = String(val);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
-      return str;
-    };
-    const rows = [CSV_HEADERS.join(',')];
-    commondocument.forEach(item => {
-      rows.push([
-        escapeCSV(item.name),
-        escapeCSV(item.category || ''),
-        escapeCSV(item.note || ''),
-        escapeCSV(item.ref || ''),
-        escapeCSV(item.cover || '')
-      ].join(','));
-    });
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'appwrite-CommonDocument.csv';
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
 
   const parseCSV = (text: string): { data: DocumentFormData[]; errors: string[] } => {
     const errors: string[] = [];
@@ -280,7 +258,7 @@ export default function CommonDocumentManagement() {
       const values = rows[i];
       if (values.length !== EXPECTED_COLUMN_COUNT) { errors.push(`第 ${i + 1} 行: 欄位數量錯誤`); continue; }
       if (!values[0]?.trim()) { errors.push(`第 ${i + 1} 行: name 欄位不能為空`); continue; }
-      data.push({ name: values[0].trim(), category: values[1]?.trim() || '', note: values[2]?.trim() || '', ref: values[3]?.trim() || '', cover: values[4]?.trim() || '' });
+      data.push({ name: values[0].trim(), file: values[1]?.trim() || '', cover: values[2]?.trim() || '', filetype: values[3]?.trim() || '', category: values[4]?.trim() || '', note: values[5]?.trim() || '', ref: values[6]?.trim() || '', hash: values[7]?.trim() || '' });
     }
     return { data, errors };
   };
@@ -312,9 +290,10 @@ export default function CommonDocumentManagement() {
           : addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT);
         const method = existing ? 'PUT' : 'POST';
         const submitData = {
-          name: formData.name, category: formData.category, note: formData.note, ref: formData.ref, cover: formData.cover,
-          ...(existing && { file: existing.file, hash: existing.hash }),
-          ...(!existing && { file: '', hash: `csv_import_${Date.now()}_${Math.random().toString(36).substring(7)}` })
+          name: formData.name, category: formData.category, note: formData.note, ref: formData.ref, cover: formData.cover || (existing ? existing.cover : ''),
+          file: formData.file || (existing ? existing.file : ''),
+          filetype: formData.filetype || (existing ? existing.filetype : ''),
+          hash: formData.hash || (existing ? existing.hash : `csv_import_${Date.now()}_${Math.random().toString(36).substring(7)}`),
         };
         const response = await fetch(apiUrl, { method, headers: { 'Content-Type': 'application/json', ...getAppwriteHeaders() }, body: JSON.stringify(submitData) });
         if (response.ok) { successCount++; } else { failCount++; }
@@ -330,34 +309,96 @@ export default function CommonDocumentManagement() {
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
-  // ZIP Export (simplified for document management)
+  // ZIP Export (full backup with files, covers, and CSV metadata)
   const handleExportZip = async () => {
     if (commondocument.length === 0) { alert('沒有文件可以匯出'); return; }
     if (exportingZip) return;
-    const confirm = window.confirm(`準備匯出 ${commondocument.length} 份文件至 ZIP，是否繼續？`);
+    const confirm = window.confirm(`準備匯出 ${commondocument.length} 份文件至 ZIP（含封面圖和元資料），是否繼續？`);
     if (!confirm) return;
     setExportingZip(true);
     setExportZipProgress({ current: 0, total: commondocument.length, status: '準備中...' });
     try {
       const zip = new JSZip();
-      let successCount = 0, failCount = 0;
+      zip.folder('files');
+      zip.folder('covers');
+
+      const csvRows: string[][] = [];
+      const csvHeaders = ['name', 'file', 'cover', 'filetype', 'category', 'note', 'ref', 'hash'];
+      csvRows.push(csvHeaders);
+
       for (let i = 0; i < commondocument.length; i++) {
         const doc = commondocument[i];
-        setExportZipProgress({ current: i + 1, total: commondocument.length, status: `正在下載: ${doc.name}` });
-        if (!doc.file) { failCount++; continue; }
-        try {
-          const response = await fetch(doc.file);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const blob = await response.blob();
-          const fileExtension = doc.filetype || doc.file.split('.').pop()?.split('?')[0] || 'pdf';
-          const sanitizedName = doc.name.replace(/[/\\?%*:|"<>]/g, '-');
-          const categoryPrefix = doc.category ? `[${doc.category}]_` : '';
-          const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
-          const filename = nameHasExtension ? `${categoryPrefix}${sanitizedName}` : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
-          zip.file(filename, blob);
-          successCount++;
-        } catch (error) { console.error(`下載失敗: ${doc.name}`, error); failCount++; }
+        const seq = String(i + 1).padStart(3, '0');
+        const sanitizedName = doc.name.replace(/[<>:"\/\\|?*]/g, '_');
+        const baseName = `${seq}_${sanitizedName}`;
+
+        setExportZipProgress({ current: i + 1, total: commondocument.length, status: `正在處理: ${doc.name}` });
+
+        // Detect file extension
+        let fileExtension = doc.filetype || '';
+        if (!fileExtension && doc.file) {
+          const urlPath = doc.file.split('?')[0];
+          fileExtension = urlPath.split('.').pop()?.toLowerCase() || 'pdf';
+        }
+        if (!fileExtension) fileExtension = 'pdf';
+
+        // Download and add document file
+        let filePath = '';
+        if (doc.file) {
+          try {
+            const proxyUrl = getProxiedMediaUrl(doc.file);
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+              const blob = await response.blob();
+              filePath = `files/${baseName}.${fileExtension}`;
+              zip.file(filePath, blob);
+            }
+          } catch (err) { console.error(`下載文件 ${doc.name} 時出錯:`, err); }
+        }
+
+        // Download and add cover image
+        let coverPath = '';
+        if (doc.cover) {
+          try {
+            const coverProxyUrl = getProxiedMediaUrl(doc.cover);
+            const coverResponse = await fetch(coverProxyUrl);
+            if (coverResponse.ok) {
+              const coverBlob = await coverResponse.blob();
+              let imgExt = 'png';
+              const contentType = coverResponse.headers.get('content-type') || '';
+              if (contentType.includes('jpeg') || contentType.includes('jpg')) imgExt = 'jpg';
+              else if (contentType.includes('webp')) imgExt = 'webp';
+              else if (contentType.includes('gif')) imgExt = 'gif';
+              coverPath = `covers/${baseName}.${imgExt}`;
+              zip.file(coverPath, coverBlob);
+            }
+          } catch (err) { console.error(`下載封面 ${doc.name} 時出錯:`, err); }
+        }
+
+        // Build CSV row
+        const escapeCsv = (val: string) => {
+          if (!val) return '';
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        };
+        csvRows.push([
+          escapeCsv(doc.name || ''),
+          escapeCsv(filePath),
+          escapeCsv(coverPath),
+          escapeCsv(doc.filetype || fileExtension),
+          escapeCsv(doc.category || ''),
+          escapeCsv(doc.note || ''),
+          escapeCsv(doc.ref || ''),
+          escapeCsv(doc.hash || ''),
+        ]);
       }
+
+      // Generate CSV and add to ZIP
+      const csvContent = csvRows.map(row => row.join(',')).join('\n');
+      zip.file('document.csv', csvContent);
+
       setExportZipProgress({ current: commondocument.length, total: commondocument.length, status: '正在壓縮...' });
       const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
       const link = document.createElement('a');
@@ -365,52 +406,149 @@ export default function CommonDocumentManagement() {
       link.download = `appwrite-document.zip`;
       link.click();
       URL.revokeObjectURL(link.href);
-      setExportZipProgress({ current: 0, total: 0, status: '' });
-      alert(`匯出完成！\n成功: ${successCount} 份\n失敗: ${failCount} 份`);
-    } catch (error) { console.error('ZIP export error:', error); alert('匯出失敗，請再試一次'); }
-    finally { setExportingZip(false); setExportZipProgress({ current: 0, total: 0, status: '' }); }
+      setExportZipProgress({ current: commondocument.length, total: commondocument.length, status: '完成！' });
+      setTimeout(() => { setExportingZip(false); setExportZipProgress({ current: 0, total: 0, status: '' }); }, 1500);
+    } catch (error) { console.error('ZIP export error:', error); alert('匯出失敗，請再試一次'); setExportingZip(false); setExportZipProgress({ current: 0, total: 0, status: '' }); }
   };
 
-  // ZIP Import (simplified)
+  // ZIP Import (full backup with CSV support + backwards compatible)
   const handleImportZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (importZipInputRef.current) importZipInputRef.current.value = '';
     if (!file.name.toLowerCase().endsWith('.zip')) { alert('請選擇 ZIP 檔案'); return; }
     setImportingZip(true);
-    setImportZipProgress({ current: 0, total: 0, status: '正在解壓縮 ZIP...', success: 0, failed: 0 });
+    setImportZipProgress({ current: 0, total: 0, status: '讀取 ZIP 檔案...', success: 0, failed: 0 });
     try {
       const zip = await JSZip.loadAsync(file);
-      const docFiles: { name: string; file: JSZip.JSZipObject }[] = [];
-      zip.forEach((relativePath, zipEntry) => { if (!zipEntry.dir) docFiles.push({ name: relativePath, file: zipEntry }); });
-      if (docFiles.length === 0) { alert('ZIP 檔案中沒有找到文件檔案'); setImportingZip(false); return; }
-      const confirmImport = window.confirm(`找到 ${docFiles.length} 份文件，是否開始匯入？`);
-      if (!confirmImport) { setImportingZip(false); return; }
-      let successCount = 0, failedCount = 0;
-      for (let i = 0; i < docFiles.length; i++) {
-        const docFile = docFiles[i];
-        const fileName = docFile.name.split('/').pop() || docFile.name;
-        setImportZipProgress({ current: i + 1, total: docFiles.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
-        try {
-          const arrayBuffer = await docFile.file.async('arraybuffer');
-          const ext = fileName.split('.').pop()?.toLowerCase() || 'pdf';
-          const blob = new Blob([arrayBuffer], { type: 'application/octet-stream' });
-          const docFileObj = new (File as any)([blob], fileName, { type: 'application/octet-stream' });
-          
-          // Upload to Appwrite Storage
-          const uploadData = await uploadToAppwriteStorage(docFileObj);
-          
-          const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT);
-          const createResponse = await fetch(createUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fileName, file: uploadData.url, filetype: ext, note: '', ref: '', category: '', hash: '', cover: '' }) });
-          if (!createResponse.ok) throw new Error('建立記錄失敗');
-          successCount++;
-        } catch (error) { console.error(`匯入失敗: ${fileName}`, error); failedCount++; }
+
+      // Check if this is new format with document.csv
+      const csvFile = zip.files['document.csv'];
+      if (csvFile) {
+        // New format: parse CSV and restore full data
+        const csvText = await csvFile.async('string');
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) { alert('CSV 檔案沒有資料'); setImportingZip(false); return; }
+
+        const parseCsvLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let c = 0; c < line.length; c++) {
+            const ch = line[c];
+            if (inQuotes) {
+              if (ch === '"' && line[c + 1] === '"') { current += '"'; c++; }
+              else if (ch === '"') { inQuotes = false; }
+              else { current += ch; }
+            } else {
+              if (ch === '"') { inQuotes = true; }
+              else if (ch === ',') { result.push(current); current = ''; }
+              else { current += ch; }
+            }
+          }
+          result.push(current);
+          return result;
+        };
+
+        const headers = parseCsvLine(lines[0]);
+        const dataRows = lines.slice(1).map(line => {
+          const values = parseCsvLine(line);
+          const obj: Record<string, string> = {};
+          headers.forEach((h, idx) => { obj[h] = values[idx] || ''; });
+          return obj;
+        });
+
+        const total = dataRows.length;
+        const confirmImport = window.confirm(`找到 ${total} 筆文件記錄（含元資料），是否開始匯入？`);
+        if (!confirmImport) { setImportingZip(false); return; }
+
+        setImportZipProgress({ current: 0, total, status: `找到 ${total} 筆文件記錄`, success: 0, failed: 0 });
+        let successCount = 0, failedCount = 0;
+
+        for (let i = 0; i < dataRows.length; i++) {
+          const row = dataRows[i];
+          setImportZipProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, failed: failedCount });
+
+          try {
+            // Upload document file from ZIP
+            let remoteFileUrl = '';
+            if (row.file && zip.files[row.file]) {
+              const fileBlob = await zip.files[row.file].async('blob');
+              const fileName = row.file.split('/').pop() || 'document.pdf';
+              const fileObj = new File([fileBlob], fileName, { type: 'application/octet-stream' });
+              const uploadResult = await uploadToAppwriteStorage(fileObj);
+              remoteFileUrl = uploadResult.url;
+            }
+
+            // Upload cover image from ZIP
+            let remoteCoverUrl = '';
+            if (row.cover && zip.files[row.cover]) {
+              const coverBlob = await zip.files[row.cover].async('blob');
+              const coverName = row.cover.split('/').pop() || 'cover.png';
+              const coverFileObj = new File([coverBlob], coverName, { type: 'application/octet-stream' });
+              const coverUpload = await uploadToAppwriteStorage(coverFileObj);
+              remoteCoverUrl = coverUpload.url;
+            }
+
+            // Check if record already exists (by name)
+            const existing = commondocument.find(d => d.name === row.name);
+            const apiUrl = existing
+              ? addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${existing.$id}`)
+              : addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT);
+            const method = existing ? 'PUT' : 'POST';
+
+            const submitData: Record<string, string> = {
+              name: row.name || '',
+              file: remoteFileUrl || (existing ? existing.file : ''),
+              cover: remoteCoverUrl || (existing ? existing.cover : ''),
+              filetype: row.filetype || '',
+              category: row.category || '',
+              note: row.note || '',
+              ref: row.ref || '',
+              hash: row.hash || (existing ? existing.hash : `zip_import_${Date.now()}_${Math.random().toString(36).substring(7)}`),
+            };
+
+            const response = await fetch(apiUrl, {
+              method,
+              headers: { 'Content-Type': 'application/json', ...getAppwriteHeaders() },
+              body: JSON.stringify(submitData),
+            });
+
+            if (response.ok) successCount++; else failedCount++;
+          } catch (err) { console.error(`處理 ${row.name} 時出錯:`, err); failedCount++; }
+          setImportZipProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, failed: failedCount });
+        }
+
+        setImportZipProgress({ current: total, total, status: '完成！', success: successCount, failed: failedCount });
+        setTimeout(() => { setImportingZip(false); setImportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 }); loadCommonDocument(true); }, 2000);
+      } else {
+        // Legacy format: plain document files in ZIP (backwards compatible)
+        const docFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+        zip.forEach((relativePath, zipEntry) => { if (!zipEntry.dir) docFiles.push({ name: relativePath, file: zipEntry }); });
+        if (docFiles.length === 0) { alert('ZIP 檔案中沒有找到文件檔案'); setImportingZip(false); return; }
+        const confirmImport = window.confirm(`找到 ${docFiles.length} 份文件（舊格式），是否開始匯入？`);
+        if (!confirmImport) { setImportingZip(false); return; }
+        let successCount = 0, failedCount = 0;
+        for (let i = 0; i < docFiles.length; i++) {
+          const docFile = docFiles[i];
+          const fileName = docFile.name.split('/').pop() || docFile.name;
+          setImportZipProgress({ current: i + 1, total: docFiles.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
+          try {
+            const arrayBuffer = await docFile.file.async('arraybuffer');
+            const ext = fileName.split('.').pop()?.toLowerCase() || 'pdf';
+            const blob = new Blob([arrayBuffer], { type: 'application/octet-stream' });
+            const docFileObj = new File([blob], fileName, { type: 'application/octet-stream' });
+            const uploadData = await uploadToAppwriteStorage(docFileObj);
+            const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT);
+            const createResponse = await fetch(createUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fileName, file: uploadData.url, filetype: ext, note: '', ref: '', category: '', hash: '', cover: '' }) });
+            if (!createResponse.ok) throw new Error('建立記錄失敗');
+            successCount++;
+          } catch (error) { console.error(`匯入失敗: ${fileName}`, error); failedCount++; }
+        }
+        setImportZipProgress({ current: docFiles.length, total: docFiles.length, status: '完成！', success: successCount, failed: failedCount });
+        setTimeout(() => { setImportingZip(false); setImportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 }); if (successCount > 0) loadCommonDocument(true); }, 2000);
       }
-      setImportZipProgress({ current: docFiles.length, total: docFiles.length, status: '完成', success: successCount, failed: failedCount });
-      alert(`匯入完成！\n成功: ${successCount} 份\n失敗: ${failedCount} 份`);
-      if (successCount > 0) loadCommonDocument(true);
-    } catch (error) { console.error('ZIP import error:', error); alert('匯入失敗，請確認 ZIP 檔案格式正確'); }
-    finally { setImportingZip(false); setImportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 }); }
+    } catch (error) { console.error('ZIP import error:', error); alert('匯入失敗，請確認 ZIP 檔案格式正確'); setImportingZip(false); setImportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 }); }
   };
 
   // 搜尋過濾
@@ -610,7 +748,7 @@ export default function CommonDocumentManagement() {
               <span className="hidden sm:inline">{importingZip ? '匯入中...' : '匯入 ZIP'}</span>
             </Button>
             <input ref={importZipInputRef} type="file" accept=".zip" onChange={handleImportZip} className="hidden" />
-            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV"><Download size={18} /> 匯出 CSV</Button>
+
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl"><Plus size={16} />新增文件</Button>
           </div>
         }

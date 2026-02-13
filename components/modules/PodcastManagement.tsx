@@ -220,16 +220,25 @@ export default function PodcastManagement() {
     setExportingZip(true); setExportZipProgress({ current: 0, total: podcast.length, status: '準備中...' });
     try {
       const zip = new JSZip();
+      zip.folder('podcast');
+      zip.folder('covers');
+
+      const csvRows: string[][] = [];
+      const csvHeaders = ['name', 'file', 'cover', 'filetype', 'category', 'note', 'ref', 'hash'];
+      csvRows.push(csvHeaders);
+
       for (let i = 0; i < podcast.length; i++) {
         const item = podcast[i];
+        const seq = String(i + 1).padStart(3, '0');
+        const sanitizedName = item.name.replace(/[<>:"\/\\|?*]/g, '_');
+        const baseName = `${seq}_${sanitizedName}`;
+
         setExportZipProgress({ current: i + 1, total: podcast.length, status: `正在處理: ${item.name}` });
-        try {
-          const proxyUrl = getProxiedMediaUrl(item.file);
-          const response = await fetch(proxyUrl);
-          if (!response.ok) continue;
-          const blob = await response.blob();
+
+        // Detect file extension
+        let fileExtension = 'mp3';
+        if (item.file) {
           const urlLower = item.file.toLowerCase();
-          let fileExtension = 'mp3';
           if (urlLower.includes('.mp4') || urlLower.includes('video%2Fmp4')) fileExtension = 'mp4';
           else if (urlLower.includes('.webm') || urlLower.includes('video%2Fwebm')) fileExtension = 'webm';
           else if (urlLower.includes('.ogg') || urlLower.includes('audio%2Fogg') || urlLower.includes('video%2Fogg')) fileExtension = 'ogg';
@@ -238,13 +247,65 @@ export default function PodcastManagement() {
           else if (urlLower.includes('.aac') || urlLower.includes('audio%2Faac')) fileExtension = 'aac';
           else if (urlLower.includes('.flac') || urlLower.includes('audio%2Fflac')) fileExtension = 'flac';
           else if (urlLower.includes('.m4a') || urlLower.includes('audio%2Fm4a')) fileExtension = 'm4a';
-          const sanitizedName = item.name.replace(/[<>:"\/\\|?*]/g, '_');
-          const categoryPrefix = item.category ? `[${item.category.replace(/[<>:"\/\\|?*]/g, '_')}]_` : '';
-          const nameHasExtension = sanitizedName.toLowerCase().endsWith(`.${fileExtension.toLowerCase()}`);
-          const filename = nameHasExtension ? `${categoryPrefix}${sanitizedName}` : `${categoryPrefix}${sanitizedName}.${fileExtension}`;
-          zip.file(filename, blob);
-        } catch (err) { console.error(`處理 ${item.name} 時出錯:`, err); }
+        }
+
+        // Download and add podcast file
+        let podcastPath = '';
+        if (item.file) {
+          try {
+            const proxyUrl = getProxiedMediaUrl(item.file);
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+              const blob = await response.blob();
+              podcastPath = `podcast/${baseName}.${fileExtension}`;
+              zip.file(podcastPath, blob);
+            }
+          } catch (err) { console.error(`下載播客 ${item.name} 時出錯:`, err); }
+        }
+
+        // Download and add cover image
+        let coverPath = '';
+        if (item.cover) {
+          try {
+            const coverProxyUrl = getProxiedMediaUrl(item.cover);
+            const coverResponse = await fetch(coverProxyUrl);
+            if (coverResponse.ok) {
+              const coverBlob = await coverResponse.blob();
+              let imgExt = 'png';
+              const contentType = coverResponse.headers.get('content-type') || '';
+              if (contentType.includes('jpeg') || contentType.includes('jpg')) imgExt = 'jpg';
+              else if (contentType.includes('webp')) imgExt = 'webp';
+              else if (contentType.includes('gif')) imgExt = 'gif';
+              coverPath = `covers/${baseName}.${imgExt}`;
+              zip.file(coverPath, coverBlob);
+            }
+          } catch (err) { console.error(`下載封面 ${item.name} 時出錯:`, err); }
+        }
+
+        // Build CSV row
+        const escapeCsv = (val: string) => {
+          if (!val) return '';
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        };
+        csvRows.push([
+          escapeCsv(item.name || ''),
+          escapeCsv(podcastPath),
+          escapeCsv(coverPath),
+          escapeCsv(item.filetype || ''),
+          escapeCsv(item.category || ''),
+          escapeCsv(item.note || ''),
+          escapeCsv(item.ref || ''),
+          escapeCsv(item.hash || ''),
+        ]);
       }
+
+      // Generate CSV and add to ZIP
+      const csvContent = csvRows.map(row => row.join(',')).join('\n');
+      zip.file('podcast.csv', csvContent);
+
       const content = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(content); const a = document.createElement('a'); a.href = url; a.download = 'appwrite-podcast.zip'; a.click(); URL.revokeObjectURL(url);
       setExportZipProgress({ current: podcast.length, total: podcast.length, status: '完成！' });
@@ -256,25 +317,128 @@ export default function PodcastManagement() {
     const file = e.target.files?.[0]; if (!file) return;
     setImportingZip(true); setImportZipProgress({ current: 0, total: 0, status: '讀取 ZIP 檔案...', success: 0, failed: 0 });
     try {
-      const zip = new JSZip(); const contents = await zip.loadAsync(file); const files = Object.keys(contents.files).filter(name => !contents.files[name].dir);
-      setImportZipProgress({ current: 0, total: files.length, status: `找到 ${files.length} 個檔案`, success: 0, failed: 0 });
-      let successCount = 0, failedCount = 0;
-      for (let i = 0; i < files.length; i++) {
-        const fileName = files[i]; setImportZipProgress({ current: i + 1, total: files.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
-        try {
-          const fileData = await contents.files[fileName].async('blob'); const ext = fileName.split('.').pop()?.toLowerCase() || 'mp3';
-          const validExts = ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'mp4', 'webm', 'mov'];
-          if (!validExts.includes(ext)) { failedCount++; continue; }
-          const podcastFileObj = new (File as any)([fileData], fileName, { type: 'application/octet-stream' });
-          const uploadData = await uploadToAppwriteStorage(podcastFileObj);
-          const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.PODCAST);
-          const createResponse = await fetch(createUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fileName, file: uploadData.url, filetype: ext, note: '', ref: '', category: '', hash: '', cover: false }) });
-          if (createResponse.ok) successCount++; else failedCount++;
-        } catch (err) { console.error(`處理 ${fileName} 時出錯:`, err); failedCount++; }
-        setImportZipProgress({ current: i + 1, total: files.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
+      const zip = new JSZip();
+      const contents = await zip.loadAsync(file);
+
+      // Check if this is a new-format ZIP with podcast.csv
+      const csvFile = contents.files['podcast.csv'];
+      if (csvFile) {
+        // New format: parse CSV and restore full data
+        const csvText = await csvFile.async('string');
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) { alert('CSV 檔案沒有資料'); setImportingZip(false); return; }
+
+        // Parse CSV header and rows
+        const parseCsvLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let c = 0; c < line.length; c++) {
+            const ch = line[c];
+            if (inQuotes) {
+              if (ch === '"' && line[c + 1] === '"') { current += '"'; c++; }
+              else if (ch === '"') { inQuotes = false; }
+              else { current += ch; }
+            } else {
+              if (ch === '"') { inQuotes = true; }
+              else if (ch === ',') { result.push(current); current = ''; }
+              else { current += ch; }
+            }
+          }
+          result.push(current);
+          return result;
+        };
+
+        const headers = parseCsvLine(lines[0]);
+        const dataRows = lines.slice(1).map(line => {
+          const values = parseCsvLine(line);
+          const obj: Record<string, string> = {};
+          headers.forEach((h, idx) => { obj[h] = values[idx] || ''; });
+          return obj;
+        });
+
+        const total = dataRows.length;
+        setImportZipProgress({ current: 0, total, status: `找到 ${total} 筆播客記錄`, success: 0, failed: 0 });
+        let successCount = 0, failedCount = 0;
+
+        for (let i = 0; i < dataRows.length; i++) {
+          const row = dataRows[i];
+          setImportZipProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, failed: failedCount });
+
+          try {
+            // Upload podcast file from ZIP
+            let remoteFileUrl = '';
+            if (row.file && contents.files[row.file]) {
+              const podcastBlob = await contents.files[row.file].async('blob');
+              const fileName = row.file.split('/').pop() || 'audio.mp3';
+              const podcastFileObj = new File([podcastBlob], fileName, { type: 'application/octet-stream' });
+              const uploadResult = await uploadToAppwriteStorage(podcastFileObj);
+              remoteFileUrl = uploadResult.url;
+            }
+
+            // Upload cover image from ZIP
+            let remoteCoverUrl = '';
+            if (row.cover && contents.files[row.cover]) {
+              const coverBlob = await contents.files[row.cover].async('blob');
+              const coverName = row.cover.split('/').pop() || 'cover.png';
+              const coverFileObj = new File([coverBlob], coverName, { type: 'application/octet-stream' });
+              const coverUpload = await uploadToAppwriteStorage(coverFileObj);
+              remoteCoverUrl = coverUpload.url;
+            }
+
+            // Check if record already exists (same name)
+            const existing = podcast.find(m => m.name === row.name);
+            const apiUrl = existing
+              ? addAppwriteConfigToUrl(`${API_ENDPOINTS.PODCAST}/${existing.$id}`)
+              : addAppwriteConfigToUrl(API_ENDPOINTS.PODCAST);
+            const method = existing ? 'PUT' : 'POST';
+
+            const submitData: Record<string, string> = {
+              name: row.name || '',
+              file: remoteFileUrl || (existing ? existing.file : ''),
+              cover: remoteCoverUrl || (existing ? existing.cover : ''),
+              filetype: row.filetype || '',
+              category: row.category || '',
+              note: row.note || '',
+              ref: row.ref || '',
+              hash: row.hash || (existing ? existing.hash : `zip_import_${Date.now()}_${Math.random().toString(36).substring(7)}`),
+            };
+
+            const response = await fetch(apiUrl, {
+              method,
+              headers: { 'Content-Type': 'application/json', ...getAppwriteHeaders() },
+              body: JSON.stringify(submitData),
+            });
+
+            if (response.ok) successCount++; else failedCount++;
+          } catch (err) { console.error(`處理 ${row.name} 時出錯:`, err); failedCount++; }
+          setImportZipProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, failed: failedCount });
+        }
+
+        setImportZipProgress({ current: total, total, status: '完成！', success: successCount, failed: failedCount });
+        setTimeout(() => { setImportingZip(false); loadPodcast(true); }, 2000);
+      } else {
+        // Legacy format: plain media files in ZIP (backwards compatible)
+        const files = Object.keys(contents.files).filter(name => !contents.files[name].dir);
+        setImportZipProgress({ current: 0, total: files.length, status: `找到 ${files.length} 個檔案（舊格式）`, success: 0, failed: 0 });
+        let successCount = 0, failedCount = 0;
+        for (let i = 0; i < files.length; i++) {
+          const fileName = files[i]; setImportZipProgress({ current: i + 1, total: files.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
+          try {
+            const fileData = await contents.files[fileName].async('blob'); const ext = fileName.split('.').pop()?.toLowerCase() || 'mp3';
+            const validExts = ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'mp4', 'webm', 'mov'];
+            if (!validExts.includes(ext)) { failedCount++; continue; }
+            const podcastFileObj = new File([fileData], fileName, { type: 'application/octet-stream' });
+            const uploadData = await uploadToAppwriteStorage(podcastFileObj);
+            const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.PODCAST);
+            const createResponse = await fetch(createUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fileName, file: uploadData.url, filetype: ext, note: '', ref: '', category: '', hash: '', cover: false }) });
+            if (createResponse.ok) successCount++; else failedCount++;
+          } catch (err) { console.error(`處理 ${fileName} 時出錯:`, err); failedCount++; }
+          setImportZipProgress({ current: i + 1, total: files.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
+        }
+        setImportZipProgress({ current: files.length, total: files.length, status: '完成！', success: successCount, failed: failedCount });
+        setTimeout(() => { setImportingZip(false); loadPodcast(true); }, 2000);
       }
-      setImportZipProgress({ current: files.length, total: files.length, status: '完成！', success: successCount, failed: failedCount });
-      setTimeout(() => { setImportingZip(false); loadPodcast(true); }, 2000);
     } catch (error) { console.error('匯入 ZIP 失敗:', error); alert('匯入失敗'); setImportingZip(false); }
     if (importZipInputRef.current) importZipInputRef.current.value = '';
   };
