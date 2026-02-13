@@ -84,6 +84,8 @@ export default function CommonAccountManagement() {
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   // Copy success message state
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  // Filter copy success state
+  const [filterCopySuccess, setFilterCopySuccess] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAll();
@@ -304,6 +306,43 @@ export default function CommonAccountManagement() {
       } else {
         alert(message);
       }
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      alert('❌ 複製失敗：' + (err instanceof Error ? err.message : '未知錯誤'));
+    }
+  };
+
+  // Copy all account names for a specific site filter
+  const handleCopyAllNames = async (siteName: string) => {
+    const matchedAccounts = accounts.filter(account =>
+      [...Array(37)].some((_, i) => {
+        const siteKey = `site${(i + 1).toString().padStart(2, '0')}` as keyof CommonAccount;
+        const name = account[siteKey] as string;
+        return name?.trim() === siteName.trim();
+      })
+    );
+    const names = matchedAccounts.map(a => a.name).join('\n');
+    try {
+      try {
+        await navigator.clipboard.writeText(names);
+      } catch {
+        const textArea = document.createElement('textarea');
+        textArea.value = names;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          const successful = document.execCommand('copy');
+          if (!successful) throw new Error('execCommand copy failed');
+        } finally {
+          textArea.remove();
+        }
+      }
+      setFilterCopySuccess(siteName);
+      setTimeout(() => setFilterCopySuccess(null), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
       alert('❌ 複製失敗：' + (err instanceof Error ? err.message : '未知錯誤'));
@@ -995,16 +1034,26 @@ export default function CommonAccountManagement() {
               }).length;
               const siteUrl = getSiteUrl(siteName);
               return (
-                <Button
-                  key={siteName}
-                  size="sm"
-                  variant={siteFilter === siteName ? "default" : "outline"}
-                  onClick={() => setSiteFilter(siteFilter === siteName ? null : siteName)}
-                  className={`h-8 px-3 rounded-lg text-sm flex items-center gap-1.5 shrink-0 ${siteFilter === siteName ? 'bg-blue-600 text-white' : ''}`}
-                >
-                  {siteUrl && <FaviconImage siteUrl={siteUrl} siteName={siteName} size={14} />}
-                  {siteName} ({count})
-                </Button>
+                <span key={siteName} className="inline-flex items-center gap-0.5 shrink-0">
+                  <Button
+                    size="sm"
+                    variant={siteFilter === siteName ? "default" : "outline"}
+                    onClick={() => setSiteFilter(siteFilter === siteName ? null : siteName)}
+                    className={`h-8 px-3 rounded-lg text-sm flex items-center gap-1.5 ${siteFilter === siteName ? 'bg-blue-600 text-white' : ''}`}
+                  >
+                    {siteUrl && <FaviconImage siteUrl={siteUrl} siteName={siteName} size={14} />}
+                    {siteName} ({count})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); handleCopyAllNames(siteName); }}
+                    className={`h-8 w-8 p-0 rounded-lg transition-colors ${filterCopySuccess === siteName ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}
+                    title={`複製所有 ${siteName} 帳號名稱`}
+                  >
+                    <Copy size={14} />
+                  </Button>
+                </span>
               );
             })}
           </div>
