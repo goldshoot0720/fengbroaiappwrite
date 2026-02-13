@@ -1022,11 +1022,11 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
     }
   };
 
-  // 從影片第 1 秒截圖作為封面
+  // 從影片截圖作為封面（自動跳過黑畫面）
   const captureVideoThumbnail = (file: File): Promise<File | null> => {
     return new Promise((resolve) => {
       const video = document.createElement('video');
-      video.preload = 'metadata';
+      video.preload = 'auto';
       video.muted = true;
       video.playsInline = true;
       const objectUrl = URL.createObjectURL(file);
@@ -1034,36 +1034,64 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
 
       // 設定超時，避免無限等待
       const timeout = setTimeout(() => {
-        URL.revokeObjectURL(objectUrl);
-        video.remove();
+        cleanup();
         console.warn('影片截圖超時');
         resolve(null);
-      }, 10000);
+      }, 15000);
 
-      video.addEventListener('loadeddata', () => {
-        // Seek 到第 1 秒（如果影片不足 1 秒則用 0）
-        video.currentTime = Math.min(1, video.duration || 0);
-      });
+      const cleanup = () => {
+        clearTimeout(timeout);
+        URL.revokeObjectURL(objectUrl);
+        video.remove();
+      };
 
-      video.addEventListener('seeked', () => {
+      // 要嘗試的時間點（秒）
+      const tryTimestamps = [3, 5, 1, 10];
+      let currentTryIndex = 0;
+
+      // 檢查畫面是否為黑畫面（平均亮度 < 10）
+      const isBlackFrame = (ctx: CanvasRenderingContext2D, width: number, height: number): boolean => {
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        let totalBrightness = 0;
+        const sampleStep = Math.max(1, Math.floor(data.length / 4 / 500)); // 取樣 ~500 個像素
+        let sampleCount = 0;
+        for (let i = 0; i < data.length; i += 4 * sampleStep) {
+          totalBrightness += (data[i] + data[i + 1] + data[i + 2]) / 3;
+          sampleCount++;
+        }
+        const avgBrightness = totalBrightness / sampleCount;
+        return avgBrightness < 10;
+      };
+
+      const captureFrame = (): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        return { canvas, ctx };
+      };
+
+      const handleSeeked = () => {
         try {
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            clearTimeout(timeout);
-            URL.revokeObjectURL(objectUrl);
-            video.remove();
-            resolve(null);
-            return;
+          const result = captureFrame();
+          if (!result) { cleanup(); resolve(null); return; }
+          const { canvas, ctx } = result;
+
+          // 檢查是否黑畫面，如果是且還有其他時間點可嘗試
+          if (isBlackFrame(ctx, canvas.width, canvas.height) && currentTryIndex < tryTimestamps.length) {
+            const nextTime = Math.min(tryTimestamps[currentTryIndex], video.duration || 0);
+            currentTryIndex++;
+            video.currentTime = nextTime;
+            return; // 等待下一次 seeked 事件
           }
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          // 不是黑畫面，或已用完所有嘗試 → 輸出結果
           canvas.toBlob(
             (blob) => {
-              clearTimeout(timeout);
-              URL.revokeObjectURL(objectUrl);
-              video.remove();
+              cleanup();
               if (blob) {
                 const thumbnailName = file.name.replace(/\.[^.]+$/, '') + '_cover.jpg';
                 const thumbnailFile = new File([blob], thumbnailName, { type: 'image/jpeg' });
@@ -1076,18 +1104,23 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
             0.85
           );
         } catch (err) {
-          clearTimeout(timeout);
-          URL.revokeObjectURL(objectUrl);
-          video.remove();
+          cleanup();
           console.error('影片截圖失敗:', err);
           resolve(null);
         }
+      };
+
+      video.addEventListener('loadeddata', () => {
+        // 先嘗試第一個時間點
+        const firstTime = Math.min(tryTimestamps[currentTryIndex], video.duration || 0);
+        currentTryIndex++;
+        video.currentTime = firstTime;
       });
 
+      video.addEventListener('seeked', handleSeeked);
+
       video.addEventListener('error', () => {
-        clearTimeout(timeout);
-        URL.revokeObjectURL(objectUrl);
-        video.remove();
+        cleanup();
         console.error('影片載入失敗');
         resolve(null);
       });
