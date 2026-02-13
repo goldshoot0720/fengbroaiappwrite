@@ -23,26 +23,26 @@ import JSZip from "jszip";
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
   if (typeof window === 'undefined') return url;
-  
+
   const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT');
   const projectId = localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID');
   const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID');
   const apiKey = localStorage.getItem('APPWRITE_API_KEY');
   const bucketId = localStorage.getItem('APPWRITE_BUCKET_ID');
-  
+
   if (!endpoint && !projectId && !databaseId) {
     return url;
   }
-  
+
   const separator = url.includes('?') ? '&' : '?';
   const params = new URLSearchParams();
-  
+
   if (endpoint) params.set('_endpoint', endpoint);
   if (projectId) params.set('_project', projectId);
   if (databaseId) params.set('_database', databaseId);
   if (apiKey) params.set('_key', apiKey);
   if (bucketId) params.set('_bucket', bucketId);
-  
+
   const paramString = params.toString();
   return paramString ? `${url}${separator}${paramString}` : url;
 }
@@ -96,7 +96,7 @@ export default function PodcastManagement() {
   const filteredPodcast = useMemo(() => {
     if (!searchQuery.trim()) return podcast;
     const query = searchQuery.toLowerCase();
-    return podcast.filter(item => 
+    return podcast.filter(item =>
       item.name?.toLowerCase().includes(query)
     );
   }, [podcast, searchQuery]);
@@ -114,7 +114,7 @@ export default function PodcastManagement() {
   const handleDelete = async (podcastItem: PodcastData) => {
     const confirmText = `DELETE ${podcastItem.name}`;
     const userInput = prompt(`確定要刪除播客「${podcastItem.name}」嗎？\n\n請輸入以下文字以確認刪除：\n${confirmText}`);
-    
+
     if (userInput !== confirmText) {
       if (userInput !== null) {
         alert('輸入不正確，刪除已取消');
@@ -154,23 +154,23 @@ export default function PodcastManagement() {
     setInlineCoverUploading(true);
     try {
       let coverUrl = '';
-      
+
       // 如果有選擇封面檔案，先上傳
       if (inlineCoverFile) {
         const formDataUpload = new FormData();
         formDataUpload.append('file', inlineCoverFile);
-        
+
         const response = await fetch('/api/upload-image', {
           method: 'POST',
           headers: getAppwriteHeaders(),
           body: formDataUpload,
         });
-        
+
         if (!response.ok) throw new Error('封面上傳失敗');
         const data = await response.json();
         coverUrl = data.url;
       }
-      
+
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.PODCAST}/${podcastId}`);
       const response = await fetch(url, {
         method: 'PUT',
@@ -680,40 +680,40 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
     const handleInlineCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      
+
       // 檢查檔案類型
       const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       if (!validTypes.includes(file.type)) {
         alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
         return;
       }
-      
+
       // 檢查檔案大小 (5MB)
       const maxSize = 5 * 1024 * 1024;
       if (file.size > maxSize) {
         alert('封面圖大小不能超過 5MB');
         return;
       }
-      
+
       setInlineCoverFile(file);
       const objectUrl = URL.createObjectURL(file);
       setInlineCoverPreview(objectUrl);
     };
-    
+
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-orange-500 p-4">
         <div className="space-y-3">
           <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
-          
+
           {/* 封面圖上傳區域 - 只在沒有封面時顯示 */}
           {!podcast.cover && (
             <div className="space-y-2">
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
               {inlineCoverPreview ? (
                 <div className="relative">
-                  <img 
-                    src={inlineCoverPreview} 
-                    alt="封面預覽" 
+                  <img
+                    src={inlineCoverPreview}
+                    alt="封面預覽"
                     className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                   />
                   <button
@@ -745,7 +745,7 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
               )}
             </div>
           )}
-          
+
           <Input
             placeholder="播客名稱"
             value={inlineEditForm.name}
@@ -765,9 +765,9 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
             className="rounded-lg text-sm h-16 resize-none"
           />
           <div className="flex gap-2">
-            <Button 
-              size="sm" 
-              onClick={() => onInlineSave(podcast.$id)} 
+            <Button
+              size="sm"
+              onClick={() => onInlineSave(podcast.$id)}
               disabled={inlineCoverUploading}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50"
             >
@@ -820,7 +820,7 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
                 {formatLocalDate(podcast.$createdAt)}
               </div>
             </div>
-            
+
             {/* 標籤 */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {podcast.category && (
@@ -835,7 +835,7 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
           {podcast.file ? (
             <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
               <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2">
-                <PlyrPlayer 
+                <PlyrPlayer
                   type={isVideoFile(podcast.file) ? "video" : "audio"}
                   src={getProxiedMediaUrl(podcast.file)}
                   loop={isLooping}
@@ -856,11 +856,10 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
             <>
               <button
                 onClick={() => setIsLooping(!isLooping)}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  isLooping 
-                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
+                className={`p-2 rounded-lg transition-all duration-200 ${isLooping
+                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
                 title={isLooping ? '重複播放' : '單次播放'}
               >
                 <Repeat className="w-4 h-4" />
@@ -877,19 +876,18 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
                   setIsCached(true);
                 }}
                 disabled={isCached || podcastCacheStatus?.downloading}
-                className={`p-2 rounded-lg transition-all duration-200 relative ${
-                  isCached || podcastCacheStatus?.cached
-                    ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 cursor-default'
-                    : podcastCacheStatus?.downloading
+                className={`p-2 rounded-lg transition-all duration-200 relative ${isCached || podcastCacheStatus?.cached
+                  ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 cursor-default'
+                  : podcastCacheStatus?.downloading
                     ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-500 cursor-wait'
                     : 'bg-gray-100 dark:bg-gray-700 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20'
-                }`}
+                  }`}
                 title={
                   isCached || podcastCacheStatus?.cached
                     ? '已快取'
                     : podcastCacheStatus?.downloading
-                    ? `下載中 ${Math.round(podcastCacheStatus.progress)}%`
-                    : '快取到本地'
+                      ? `下載中 ${Math.round(podcastCacheStatus.progress)}%`
+                      : '快取到本地'
                 }
               >
                 {isCached || podcastCacheStatus?.cached ? (
@@ -1024,6 +1022,78 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
     }
   };
 
+  // 從影片第 1 秒截圖作為封面
+  const captureVideoThumbnail = (file: File): Promise<File | null> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      const objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+
+      // 設定超時，避免無限等待
+      const timeout = setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+        video.remove();
+        console.warn('影片截圖超時');
+        resolve(null);
+      }, 10000);
+
+      video.addEventListener('loadeddata', () => {
+        // Seek 到第 1 秒（如果影片不足 1 秒則用 0）
+        video.currentTime = Math.min(1, video.duration || 0);
+      });
+
+      video.addEventListener('seeked', () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            clearTimeout(timeout);
+            URL.revokeObjectURL(objectUrl);
+            video.remove();
+            resolve(null);
+            return;
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(
+            (blob) => {
+              clearTimeout(timeout);
+              URL.revokeObjectURL(objectUrl);
+              video.remove();
+              if (blob) {
+                const thumbnailName = file.name.replace(/\.[^.]+$/, '') + '_cover.jpg';
+                const thumbnailFile = new File([blob], thumbnailName, { type: 'image/jpeg' });
+                resolve(thumbnailFile);
+              } else {
+                resolve(null);
+              }
+            },
+            'image/jpeg',
+            0.85
+          );
+        } catch (err) {
+          clearTimeout(timeout);
+          URL.revokeObjectURL(objectUrl);
+          video.remove();
+          console.error('影片截圖失敗:', err);
+          resolve(null);
+        }
+      });
+
+      video.addEventListener('error', () => {
+        clearTimeout(timeout);
+        URL.revokeObjectURL(objectUrl);
+        video.remove();
+        console.error('影片載入失敗');
+        resolve(null);
+      });
+    });
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1039,7 +1109,7 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
     const validAudioTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/m4a', 'audio/x-m4a', 'audio/mp4'];
     const validVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
     const validTypes = [...validAudioTypes, ...validVideoTypes];
-    
+
     if (!validTypes.includes(file.type)) {
       alert('只支援 MP3, WAV, OGG, AAC, FLAC, M4A 格式的音訊，或 MP4, WebM, MOV 格式的影片');
       return;
@@ -1050,32 +1120,45 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
     setUploadStatus('idle');
     setUploadProgress(0);
     setDuplicateWarning(''); // 清除之前的警告
-    
+
     // 儲存檔案並產生預覽 URL
     setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
-    
+
     // 計算檔案 hash
     const hash = await calculateFileHash(file);
     setFileHash(hash);
-    
+
     // 如果名稱欄位為空，自動填入檔案名稱
     if (!formData.name) {
       setFormData({ ...formData, name: file.name, hash });
     } else {
       setFormData({ ...formData, hash });
     }
-    
+
     // 檢查是否有重複的 hash
-    const duplicatePodcast = existingPodcast.find(m => 
+    const duplicatePodcast = existingPodcast.find(m =>
       m.hash === hash && (!podcast || m.$id !== podcast.$id)
     );
-    
+
     if (duplicatePodcast) {
       setDuplicateWarning(`警告：此播客與「${duplicatePodcast.name}」相同，請勿重複上傳！`);
     }
-    
+
+    // 如果是影片且尚未手動選擇封面，自動從第 1 秒截圖作為封面
+    if (validVideoTypes.includes(file.type) && !selectedCoverFile && !formData.cover) {
+      setCoverPreviewLoading(true);
+      captureVideoThumbnail(file).then((thumbnailFile) => {
+        if (thumbnailFile) {
+          setSelectedCoverFile(thumbnailFile);
+          const thumbUrl = URL.createObjectURL(thumbnailFile);
+          setCoverPreviewUrl(thumbUrl);
+        }
+        setCoverPreviewLoading(false);
+      });
+    }
+
     // 模擬預覽載入完成
     setTimeout(() => setPreviewLoading(false), 300);
   };
@@ -1149,12 +1232,12 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
     setCoverPreviewLoading(true);
     setCoverUploadStatus('idle');
     setCoverUploadProgress(0);
-    
+
     // 儲存檔案並產生預覽 URL
     setSelectedCoverFile(file);
     const objectUrl = URL.createObjectURL(file);
     setCoverPreviewUrl(objectUrl);
-    
+
     // 模擬預覽載入完成
     setTimeout(() => setCoverPreviewLoading(false), 300);
   };
@@ -1248,8 +1331,8 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
         }
       }
 
-      const apiUrl = podcast 
-        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.PODCAST}/${podcast.$id}`) 
+      const apiUrl = podcast
+        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.PODCAST}/${podcast.$id}`)
         : addAppwriteConfigToUrl(API_ENDPOINTS.PODCAST);
       const method = podcast ? 'PUT' : 'POST';
 
@@ -1384,59 +1467,59 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               分類 / Category
             </label>
-              {useCategorySelect && existingCategories.length > 0 ? (
-                <div className="space-y-2">
-                  <Select
-                    value={formData.category}
-                    onValueChange={(value) => {
-                      if (value === '__custom__') {
-                        setUseCategorySelect(false);
-                        setFormData({ ...formData, category: '' });
-                      } else {
-                        setFormData({ ...formData, category: value });
-                      }
-                    }}
+            {useCategorySelect && existingCategories.length > 0 ? (
+              <div className="space-y-2">
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => {
+                    if (value === '__custom__') {
+                      setUseCategorySelect(false);
+                      setFormData({ ...formData, category: '' });
+                    } else {
+                      setFormData({ ...formData, category: value });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-12 rounded-xl">
+                    <SelectValue placeholder="選擇分類 / Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {existingCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                    <SelectItem value="__custom__">自行輸入... / Custom input...</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  placeholder="輸入新分類 / Enter new category"
+                  className="h-12 rounded-xl"
+                />
+                {existingCategories.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setUseCategorySelect(true)}
+                    className="text-xs h-7"
                   >
-                    <SelectTrigger className="h-12 rounded-xl">
-                      <SelectValue placeholder="選擇分類 / Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {existingCategories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                      ))}
-                      <SelectItem value="__custom__">自行輸入... / Custom input...</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Input
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    placeholder="輸入新分類 / Enter new category"
-                    className="h-12 rounded-xl"
-                  />
-                  {existingCategories.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setUseCategorySelect(true)}
-                      className="text-xs h-7"
-                    >
-                      從現有分類中選擇 / Select from existing
-                    </Button>
-                  )}
-                </div>
-              )}
-              <div className="px-1 h-4">
-                {formData.category ? (
-                  <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-                ) : (
-                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入分類 / (Optional) Please enter category</span>
+                    從現有分類中選擇 / Select from existing
+                  </Button>
                 )}
               </div>
+            )}
+            <div className="px-1 h-4">
+              {formData.category ? (
+                <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
+              ) : (
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入分類 / (Optional) Please enter category</span>
+              )}
             </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1554,9 +1637,9 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
             <Button type="button" onClick={onClose} className="flex-1 bg-gray-500 hover:bg-gray-600 rounded-xl">
               取消
             </Button>
-            <Button 
-              type="submit" 
-              disabled={submitting || !!duplicateWarning} 
+            <Button
+              type="submit"
+              disabled={submitting || !!duplicateWarning}
               className="flex-1 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? '處理中...' : (podcast ? '更新' : '新增')}
