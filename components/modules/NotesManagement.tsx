@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2 } from "lucide-react";
 import JSZip from "jszip";
 
 const INITIAL_FORM: ArticleFormData = {
@@ -183,6 +183,11 @@ export default function NotesManagement() {
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const ZIP_CSV_HEADERS = ['title', 'content', 'newDate', 'url1', 'url2', 'url3', 'file1', 'file1name', 'file1type', 'file2', 'file2name', 'file2type', 'file3', 'file3name', 'file3type'];
   const ZIP_CSV_COLUMN_COUNT = ZIP_CSV_HEADERS.length;
+
+  // Select all / batch delete states
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
+  const [batchDeleteProgress, setBatchDeleteProgress] = useState({ current: 0, total: 0 });
 
   // File upload states
   const [selectedFile1, setSelectedFile1] = useState<File | null>(null);
@@ -441,9 +446,64 @@ export default function NotesManagement() {
     if (!confirm(`確定刪除 ${title}？`)) return;
     try {
       await deleteArticle(id);
+      setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
     } catch {
       alert("刪除失敗，請稍後再試");
     }
+  };
+
+  // 全選/取消全選
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredArticles.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredArticles.map(a => a.$id)));
+    }
+  };
+
+  // 切換單項選取
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  // 批次刪除選取的筆記
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const confirmText = `DELETE 鋒兄筆記`;
+    const userInput = prompt(
+      `確定要刪除所選的 ${selectedIds.size} 篇筆記嗎？\n\n此操作無法復原！\n\n請輸入以下文字以確認刪除：\n${confirmText}`
+    );
+    if (userInput !== confirmText) {
+      if (userInput !== null) {
+        alert('輸入不正確，刪除已取消');
+      }
+      return;
+    }
+
+    setBatchDeleting(true);
+    const ids = Array.from(selectedIds);
+    setBatchDeleteProgress({ current: 0, total: ids.length });
+
+    let successCount = 0, failCount = 0;
+    for (let i = 0; i < ids.length; i++) {
+      setBatchDeleteProgress({ current: i + 1, total: ids.length });
+      try {
+        await deleteArticle(ids[i]);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setBatchDeleting(false);
+    setBatchDeleteProgress({ current: 0, total: 0 });
+    setSelectedIds(new Set());
+    alert(`批次刪除完成！\n成功: ${successCount} 篇\n失敗: ${failCount} 篇`);
   };
 
   const handleEdit = (article: Article) => {
@@ -1248,16 +1308,48 @@ export default function NotesManagement() {
         </div>
       )}
 
-      {/* 搜尋欄位 */}
+      {/* 搜尋欄位 + 全選/批次刪除 */}
       {articles.length > 0 && (
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="搜尋標題、內容..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 rounded-xl"
-          />
+        <div className="space-y-3 mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              placeholder="搜尋標題、內容..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 rounded-xl"
+            />
+          </div>
+          {filteredArticles.length > 0 && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === filteredArticles.length && filteredArticles.length > 0}
+                  onChange={handleSelectAll}
+                  className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  全選 ({selectedIds.size}/{filteredArticles.length})
+                </span>
+              </label>
+              {selectedIds.size > 0 && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBatchDelete}
+                  disabled={batchDeleting}
+                  className="rounded-xl flex items-center gap-2 h-9"
+                >
+                  <Trash2 size={16} />
+                  {batchDeleting
+                    ? `刪除中 (${batchDeleteProgress.current}/${batchDeleteProgress.total})...`
+                    : `刪除所選 (${selectedIds.size})`}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1405,6 +1497,12 @@ export default function NotesManagement() {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(article.$id)}
+                            onChange={() => handleToggleSelect(article.$id)}
+                            className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 flex-shrink-0 mt-0.5"
+                          />
                           <FileText className="text-purple-600 dark:text-purple-400" size={20} />
                           <h3 className="font-semibold text-gray-900 dark:text-gray-100">{article.title}</h3>
                         </div>

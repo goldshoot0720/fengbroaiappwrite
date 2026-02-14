@@ -694,6 +694,23 @@ function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditFo
     }
   };
 
+  // 行內編輯模式 - 全卡片取代
+  if (isEditing) {
+    return (
+      <div className="bg-white dark:bg-[#1f1f1f] rounded-xl overflow-hidden shadow-sm border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3 animate-in zoom-in-95 duration-300">
+        <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">編輯中</div>
+        <Input placeholder="圖片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+        <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
+        <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
+        <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-20 resize-none" />
+        <div className="flex gap-2 pt-1">
+          <Button onClick={(e) => { e.stopPropagation(); onInlineSave(image.$id); }} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">儲存</Button>
+          <Button onClick={(e) => { e.stopPropagation(); onInlineCancel(); }} variant="outline" className="flex-1 gap-1 rounded-lg text-xs py-1.5">取消</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="group relative bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
       {/* 圖片預覽區 */}
@@ -719,7 +736,7 @@ function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditFo
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         {/* 分類標籤 */}
-        {!isEditing && image.category && (
+        {image.category && (
           <div className="absolute top-2 left-2">
             <span className="px-2 py-1 text-xs font-medium bg-blue-500/90 text-white rounded-md backdrop-blur-sm">
               {image.category}
@@ -729,86 +746,38 @@ function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditFo
       </div>
 
       {/* 資訊區 */}
-      <div className="p-3 sm:p-4">
-        {isEditing ? (
-          // 行內編輯模式
-          <div className="space-y-2">
-            <Input
-              placeholder="圖片名稱"
-              value={inlineEditForm.name}
-              onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
-              className="h-8 rounded-lg text-sm"
-            />
-            <Input
-              placeholder="分類"
-              value={inlineEditForm.category}
-              onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
-              className="h-8 rounded-lg text-sm"
-            />
-            <Input
-              placeholder="參考"
-              value={inlineEditForm.ref}
-              onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
-              className="h-8 rounded-lg text-sm"
-            />
-            <Textarea
-              placeholder="備註"
-              value={inlineEditForm.note}
-              onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
-              className="rounded-lg text-sm h-16 resize-none"
-            />
-            <div className="flex gap-2">
-              <Button
-                onClick={(e) => { e.stopPropagation(); onInlineSave(image.$id); }}
-                className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5"
-              >
-                儲存
-              </Button>
-              <Button
-                onClick={(e) => { e.stopPropagation(); onInlineCancel(); }}
-                variant="outline"
-                className="flex-1 gap-1 rounded-lg text-xs py-1.5"
-              >
-                取消
-              </Button>
-            </div>
-          </div>
-        ) : (
-          // 正常顯示模式
-          <>
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base truncate mb-2" title={image.name}>
-              {image.name}
-            </h3>
+      <div className="p-3 sm:p-4 overflow-hidden">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base truncate min-w-0 mb-2" title={image.name}>
+          {image.name}
+        </h3>
 
-            {image.note && (
-              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">{image.note}</p>
-            )}
-
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
-              <Calendar className="w-3 h-3" />
-              <span>{formatLocalDate(image.$createdAt)}</span>
-            </div>
-
-            {/* 操作按鈕 */}
-            <div className="flex gap-2">
-              <Button
-                onClick={(e) => { e.stopPropagation(); onInlineEdit(image); }}
-                className="flex-1 gap-1 bg-blue-500 hover:bg-blue-600 rounded-lg text-xs py-1.5"
-              >
-                <Edit size={14} />
-                編輯
-              </Button>
-              <Button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 gap-1 bg-red-500 hover:bg-red-600 rounded-lg text-xs py-1.5"
-              >
-                <Trash2 size={14} />
-                {deleting ? '刪除中...' : '刪除'}
-              </Button>
-            </div>
-          </>
+        {image.note && (
+          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">{image.note}</p>
         )}
+
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <Calendar className="w-3 h-3" />
+          <span>{formatLocalDate(image.$createdAt)}</span>
+        </div>
+
+        {/* 操作按鈕 */}
+        <div className="flex gap-2">
+          <Button
+            onClick={(e) => { e.stopPropagation(); onInlineEdit(image); }}
+            className="flex-1 gap-1 bg-blue-500 hover:bg-blue-600 rounded-lg text-xs py-1.5"
+          >
+            <Edit size={14} />
+            編輯
+          </Button>
+          <Button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex-1 gap-1 bg-red-500 hover:bg-red-600 rounded-lg text-xs py-1.5"
+          >
+            <Trash2 size={14} />
+            {deleting ? '刪除中...' : '刪除'}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -941,11 +910,12 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
     const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
     const filetype = fileExt; // e.g., 'png', 'jpg', 'gif', 'webp'
 
-    // 一次性更新 formData（包含名稱、hash 和 filetype）
-    // 使用完整檔案名稱（包含副檔名）作為預設名稱
+    // 新增模式：永遠使用檔名（去除副檔名）作為預設名稱；編輯模式：僅在名稱為空時自動填入
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+
     setFormData(prev => ({
       ...prev,
-      name: prev.name.trim() ? prev.name : file.name, // 如果當前名稱為空才自動填入完整檔名
+      name: !image ? fileNameWithoutExt : (prev.name.trim() ? prev.name : fileNameWithoutExt),
       hash: hash,
       filetype: filetype
     }));

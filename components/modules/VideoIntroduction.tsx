@@ -667,7 +667,7 @@ export default function VideoIntroduction() {
     if (!inlineEditingId) return;
     try {
       let coverUrl = inlineEditForm.cover;
-      
+
       // 如果有選擇封面檔案，先上傳
       if (inlineCoverFile) {
         setInlineCoverUploading(true);
@@ -682,7 +682,7 @@ export default function VideoIntroduction() {
         }
         setInlineCoverUploading(false);
       }
-      
+
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${videoId}`);
       const response = await fetch(url, {
         method: 'PUT',
@@ -848,11 +848,10 @@ export default function VideoIntroduction() {
           <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1">
             <button
               onClick={() => setViewMode('youtube')}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                viewMode === 'youtube'
-                  ? 'bg-red-500 text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'youtube'
+                ? 'bg-red-500 text-white shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
               title="YouTube 風格"
             >
               <Tv className="w-4 h-4" />
@@ -860,11 +859,10 @@ export default function VideoIntroduction() {
             </button>
             <button
               onClick={() => setViewMode('bilibili')}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                viewMode === 'bilibili'
-                  ? 'bg-[#00a1d6] text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'bilibili'
+                ? 'bg-[#00a1d6] text-white shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
               title="Bilibili 風格"
             >
               <Monitor className="w-4 h-4" />
@@ -1531,6 +1529,40 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
     }
   }, [video.cover, video.file]);
 
+  // 行內編輯模式 - 全卡片取代
+  if (isEditing) {
+    return (
+      <div className="flex flex-col gap-2.5 animate-in zoom-in-95 duration-300">
+        <div className="bg-white dark:bg-[#1f1f1f] rounded-xl overflow-hidden shadow-sm border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3">
+          <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">編輯中</div>
+          <Input placeholder="影片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-20 resize-none" />
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
+            {(inlineCoverPreview || inlineEditForm.cover) && (
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                <img src={inlineCoverPreview || inlineEditForm.cover} alt="封面預覽" className="w-full h-full object-cover" />
+                <button onClick={(e) => { e.stopPropagation(); setInlineCoverFile(null); setInlineCoverPreview(''); setInlineEditForm({ ...inlineEditForm, cover: '' }); if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = ''; }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
+              </div>
+            )}
+            <Input placeholder="封面圖 URL" value={inlineEditForm.cover} onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })} className="h-9 rounded-lg text-sm" />
+            <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+              <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-sm font-medium text-purple-600 dark:text-purple-400">{inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖'}</span>
+              <input ref={inlineCoverInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onChange={handleInlineCoverSelect} disabled={inlineCoverUploading} className="hidden" />
+            </label>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button onClick={(e) => { e.stopPropagation(); onInlineSave(video.$id); }} disabled={inlineCoverUploading} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">{inlineCoverUploading ? '上傳中...' : '儲存'}</Button>
+            <Button onClick={(e) => { e.stopPropagation(); onInlineCancel(); }} variant="outline" disabled={inlineCoverUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50">取消</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2.5 group animate-in zoom-in-95 duration-300">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -1607,7 +1639,7 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
         )}
 
         {/* 分類標籤 - 左下 */}
-        {!isEditing && video.category && !showHoverActions && (
+        {video.category && !showHoverActions && (
           <div className="absolute bottom-2 left-2 px-1.5 py-0.5 text-[11px] font-medium bg-black/80 text-white rounded">
             {video.category}
           </div>
@@ -1621,117 +1653,88 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
           FX
         </div>
         <div className="flex-1 min-w-0">
-          {isEditing ? (
-            // 行內編輯模式
-            <div className="space-y-2">
-              <Input placeholder="影片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-8 rounded-lg text-sm" />
-              <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-8 rounded-lg text-sm" />
-              <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-8 rounded-lg text-sm" />
-              <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-16 resize-none" />
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
-                {(inlineCoverPreview || inlineEditForm.cover) && (
-                  <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                    <img src={inlineCoverPreview || inlineEditForm.cover} alt="封面預覽" className="w-full h-full object-cover" />
-                    <button onClick={(e) => { e.stopPropagation(); setInlineCoverFile(null); setInlineCoverPreview(''); setInlineEditForm({ ...inlineEditForm, cover: '' }); if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = ''; }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
-                  </div>
+          {/* YouTube 2024 正常顯示模式 */}
+          <div className="flex items-start gap-1">
+            <div className="flex-1 min-w-0">
+              <h3
+                className={`text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-5 transition-colors ${video.file ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : ''}`}
+                onClick={video.file ? onPlay : undefined}
+              >
+                {video.name}
+              </h3>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">鋒兄影片</p>
+              <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+                <span>{formatLocalDate(video.$createdAt)}</span>
+                <span>•</span>
+                {video.file ? (
+                  <span className="text-gray-600 dark:text-gray-400">已發佈</span>
+                ) : (
+                  <span className="text-orange-600 dark:text-orange-400">尚未上傳</span>
                 )}
-                <Input placeholder="封面圖 URL" value={inlineEditForm.cover} onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })} className="h-8 rounded-lg text-sm" />
-                <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
-                  <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">{inlineCoverUploading ? '上傳中...' : inlineCoverFile ? inlineCoverFile.name : '上傳封面圖'}</span>
-                  <input ref={inlineCoverInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onChange={handleInlineCoverSelect} disabled={inlineCoverUploading} className="hidden" />
-                </label>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <Button onClick={(e) => { e.stopPropagation(); onInlineSave(video.$id); }} disabled={inlineCoverUploading} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">{inlineCoverUploading ? '上傳中...' : '儲存'}</Button>
-                <Button onClick={(e) => { e.stopPropagation(); onInlineCancel(); }} variant="outline" disabled={inlineCoverUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50">取消</Button>
               </div>
             </div>
-          ) : (
-            // YouTube 2024 正常顯示模式
-            <div className="flex items-start gap-1">
-              <div className="flex-1 min-w-0">
-                <h3
-                  className={`text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-5 transition-colors ${video.file ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : ''}`}
-                  onClick={video.file ? onPlay : undefined}
-                >
-                  {video.name}
-                </h3>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">鋒兄影片</p>
-                <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                  <span>{formatLocalDate(video.$createdAt)}</span>
-                  <span>•</span>
-                  {video.file ? (
-                    <span className="text-gray-600 dark:text-gray-400">已發佈</span>
-                  ) : (
-                    <span className="text-orange-600 dark:text-orange-400">尚未上傳</span>
-                  )}
-                </div>
-              </div>
 
-              {/* 垂直三點選單按鈕 */}
-              <div className="relative" ref={menuRef}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                  className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <MoreVertical className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-                </button>
+            {/* 垂直三點選單按鈕 */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+              >
+                <MoreVertical className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+              </button>
 
-                {/* 下拉選單 */}
-                {showMenu && (
-                  <div className="absolute right-0 top-8 z-20 w-48 bg-white dark:bg-[#282828] rounded-xl shadow-xl border dark:border-white/10 py-2 animate-in fade-in slide-in-from-top-1 duration-150">
+              {/* 下拉選單 */}
+              {showMenu && (
+                <div className="absolute right-0 top-8 z-20 w-48 bg-white dark:bg-[#282828] rounded-xl shadow-xl border dark:border-white/10 py-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowMenu(false); onInlineEdit(video); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                  >
+                    <Edit className="w-4 h-4" /> 編輯
+                  </button>
+                  {video.file && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onInlineEdit(video); }}
+                      onClick={(e) => {
+                        e.stopPropagation(); setShowMenu(false);
+                        const downloadUrl = getAppwriteDownloadUrl(video.file);
+                        const link = document.createElement('a'); link.href = downloadUrl; link.download = `${video.name}.mp4`; link.target = '_blank';
+                        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                      }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                     >
-                      <Edit className="w-4 h-4" /> 編輯
+                      <Download className="w-4 h-4" /> 下載
                     </button>
-                    {video.file && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation(); setShowMenu(false);
-                          const downloadUrl = getAppwriteDownloadUrl(video.file);
-                          const link = document.createElement('a'); link.href = downloadUrl; link.download = `${video.name}.mp4`; link.target = '_blank';
-                          document.body.appendChild(link); link.click(); document.body.removeChild(link);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
-                      >
-                        <Download className="w-4 h-4" /> 下載
-                      </button>
-                    )}
-                    {video.file && onAddToQueue && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setShowMenu(false); onAddToQueue(); }}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-white/10 transition-colors ${isInQueue ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-200'}`}
-                      >
-                        <ListPlus className="w-4 h-4" /> {isInQueue ? '已在佇列中' : '加入佇列'}
-                      </button>
-                    )}
-                    {video.file && (
-                      cacheStatus?.cached ? (
-                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDeleteCache(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-orange-600 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                          <HardDrive className="w-4 h-4" /> 刪除快取
-                        </button>
-                      ) : (
-                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDownload(); }} disabled={cacheStatus?.downloading} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                          <HardDrive className="w-4 h-4" /> 快取到本地
-                        </button>
-                      )
-                    )}
-                    <div className="border-t dark:border-white/10 my-1" />
+                  )}
+                  {video.file && onAddToQueue && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDelete(); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onAddToQueue(); }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-white/10 transition-colors ${isInQueue ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-200'}`}
                     >
-                      <Trash2 className="w-4 h-4" /> 刪除
+                      <ListPlus className="w-4 h-4" /> {isInQueue ? '已在佇列中' : '加入佇列'}
                     </button>
-                  </div>
-                )}
-              </div>
+                  )}
+                  {video.file && (
+                    cacheStatus?.cached ? (
+                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDeleteCache(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-orange-600 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+                        <HardDrive className="w-4 h-4" /> 刪除快取
+                      </button>
+                    ) : (
+                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDownload(); }} disabled={cacheStatus?.downloading} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+                        <HardDrive className="w-4 h-4" /> 快取到本地
+                      </button>
+                    )
+                  )}
+                  <div className="border-t dark:border-white/10 my-1" />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDelete(); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" /> 刪除
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -2258,8 +2261,9 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
 
-    // 如果名稱為空，預設採用檔名（去除副檔名）
-    const autoName = !formData.name ? file.name.replace(/\.[^/.]+$/, '') : formData.name;
+    // 新增模式：永遠使用檔名作為預設名稱；編輯模式：僅在名稱為空時自動填入
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+    const autoName = !video ? fileNameWithoutExt : (formData.name || fileNameWithoutExt);
 
     // 計算檔案 hash
     const hash = await calculateFileHash(file);
