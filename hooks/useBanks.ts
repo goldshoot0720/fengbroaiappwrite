@@ -28,8 +28,8 @@ export function useBanks() {
       
       const resData = await fetchApi<Bank[]>(`/api/bank?t=${Date.now()}`);
       let data: Bank[] = Array.isArray(resData) ? resData : [];
-      // 按名稱排序
-      data = data.sort((a, b) => a.name.localeCompare(b.name));
+      // 按存款金額由高至低排序
+      data = data.sort((a, b) => (b.deposit || 0) - (a.deposit || 0));
       
       setBanks(data);
       return data;
