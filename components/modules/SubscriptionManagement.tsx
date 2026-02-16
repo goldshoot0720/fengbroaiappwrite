@@ -335,13 +335,13 @@ export default function SubscriptionManagement() {
           const reg = await navigator.serviceWorker.ready;
           await reg.showNotification("訂閱即將到期提醒", {
             body: `${sub.name} 將在 ${daysRemaining} 天內到期`,
-            icon: "/favicon.jpg",
+            icon: "/favicon.ico",
             tag: `sub-${sub.$id}`,
           });
         } else {
           new Notification("訂閱即將到期提醒", {
             body: `${sub.name} 將在 ${daysRemaining} 天內到期`,
-            icon: "/favicon.jpg",
+            icon: "/favicon.ico",
             tag: `sub-${sub.$id}`,
           });
         }

@@ -11,9 +11,9 @@
   "id": "/",
   "icons": [
     {
-      "src": "/favicon.jpg",
+      "src": "/favicon.ico",
       "sizes": "960x960",
-      "type": "image/jpeg",
+      "type": "image/x-icon",
       "purpose": "any maskable"
     }
   ],

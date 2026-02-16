@@ -121,7 +121,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       if (notified[key] !== "shown") {
         await showSwNotification("訂閱即將到期提醒", {
           body: `${item.name} 將在 ${item.daysRemaining} 天內到期`,
-          icon: "/favicon.jpg",
+          icon: "/favicon.ico",
           tag: `sub-${item.id}`,
         });
         updated[key] = "shown";
@@ -138,7 +138,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       if (notified[key] !== "shown") {
         await showSwNotification("食品即將過期提醒", {
           body: `${item.name} 將在 ${item.daysRemaining} 天內過期`,
-          icon: "/favicon.jpg",
+          icon: "/favicon.ico",
           tag: `food-${item.id}`,
         });
         updated[key] = "shown";
@@ -153,7 +153,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       if (notified[key] !== "shown") {
         await showSwNotification("食品已過期", {
           body: `${item.name} 已過期 ${Math.abs(item.daysRemaining)} 天`,
-          icon: "/favicon.jpg",
+          icon: "/favicon.ico",
           tag: `expired-${item.id}`,
         });
         updated[key] = "shown";
