@@ -5,7 +5,7 @@ const PRECACHE_URLS = [
   '/',
   '/offline.html',
   '/favicon.ico',
-  '/favicon.ico',
+  '/favicon.jpg',
   '/manifest.json',
 ];
 
@@ -36,8 +36,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: '/favicon.jpg',
+      badge: '/favicon.jpg',
     })
   );
 });
