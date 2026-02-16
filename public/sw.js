@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v1';
+const CACHE_NAME = 'fengbro-ai-v3';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -25,6 +25,38 @@ self.addEventListener('activate', (event) => {
     )
   );
   self.clients.claim();
+});
+
+// Push event: handle push notifications (required for iOS PWA)
+self.addEventListener('push', (event) => {
+  let data = { title: '鋒兄AI', body: '您有新的提醒' };
+  try {
+    if (event.data) data = event.data.json();
+  } catch {}
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/favicon.jpg',
+      badge: '/favicon.jpg',
+    })
+  );
+});
+
+// Notification click: open the app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Focus existing window if available
+      for (const client of windowClients) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open new window
+      return clients.openWindow('/');
+    })
+  );
 });
 
 // Fetch: network-first for navigation, cache-first for static assets

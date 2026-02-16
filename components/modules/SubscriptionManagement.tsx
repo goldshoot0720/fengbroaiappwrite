@@ -360,7 +360,7 @@ export default function SubscriptionManagement() {
     }
   }, [subscriptions]);
 
-  const handleEnableNotification = () => {
+  const handleEnableNotification = async () => {
     if (typeof Notification === "undefined") {
       alert("此瀏覽器不支援通知功能");
       return;
@@ -372,20 +372,21 @@ export default function SubscriptionManagement() {
       return;
     }
 
-    Notification.requestPermission().then((permission) => {
-      if (permission === "granted") {
-        setNotificationEnabled(true);
-        try {
-          new Notification("通知已啟用", {
-            body: "之後訂閱到期會顯示提醒",
-            icon: "/favicon.ico",
-          });
-        } catch {
-        }
-      } else if (permission === "denied") {
-        alert("瀏覽器已拒絕通知權限");
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      setNotificationEnabled(true);
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification("通知已啟用", {
+          body: "之後訂閱到期會顯示提醒",
+          icon: "/favicon.jpg",
+        });
+      } catch {
+        try { new Notification("通知已啟用", { body: "之後訂閱到期會顯示提醒", icon: "/favicon.jpg" }); } catch {}
       }
-    });
+    } else if (permission === "denied") {
+      alert("瀏覽器已拒絕通知權限，請至瀏覽器設定開啟");
+    }
   };
 
   const handleDelete = async (id: string) => {

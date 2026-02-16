@@ -3,6 +3,7 @@
   "short_name": "鋒兄AI",
   "description": "鋒兄AI Appwrite",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
@@ -11,15 +12,9 @@
   "icons": [
     {
       "src": "/favicon.jpg",
-      "sizes": "192x192",
+      "sizes": "960x960",
       "type": "image/jpeg",
-      "purpose": "any"
-    },
-    {
-      "src": "/favicon.jpg",
-      "sizes": "512x512",
-      "type": "image/jpeg",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ],
   "categories": ["productivity", "utilities"],
