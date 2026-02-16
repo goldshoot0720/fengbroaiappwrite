@@ -300,17 +300,13 @@ export default function SubscriptionManagement() {
     }
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  // 發送 3 天內到期訂閱通知（每個項目一條）
+  const sendSubscriptionNotifications = async () => {
     if (typeof Notification === "undefined") return;
     if (Notification.permission !== "granted") return;
     if (!subscriptions.length) return;
 
-    const now = new Date();
-    if (now.getHours() < 6) return;
-
-    const today = now.toISOString().slice(0, 10);
-
+    const today = new Date().toISOString().slice(0, 10);
     const items = subscriptions
       .map((sub) => {
         const info = getSubscriptionExpiryInfo(sub);
@@ -320,52 +316,50 @@ export default function SubscriptionManagement() {
 
     if (items.length === 0) return;
 
-    // 與 EnhancedDashboard 共用同一 storageKey 與 key 格式，避免重複通知
     const storageKey = "dashboardNotificationDaily";
     let notified: Record<string, string> = {};
-
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (raw) notified = JSON.parse(raw) as Record<string, string>;
     } catch {}
 
-    const toNotify = items.filter(({ sub }) => {
-      const key = `sub-${sub.$id}-${sub.nextdate}-${today}`;
-      return notified[key] !== "shown";
-    });
-
-    if (toNotify.length === 0) return;
-
     const updated = { ...notified };
+    let hasNew = false;
 
-    const sendAll = async () => {
-      for (const { sub, daysRemaining } of toNotify) {
-        const key = `sub-${sub.$id}-${sub.nextdate}-${today}`;
-        try {
-          if ("serviceWorker" in navigator) {
-            const reg = await navigator.serviceWorker.ready;
-            await reg.showNotification("訂閱即將到期提醒", {
-              body: `${sub.name} 將在 ${daysRemaining} 天內到期`,
-              icon: "/favicon.jpg",
-              tag: `sub-${sub.$id}`,
-            });
-          } else {
-            new Notification("訂閱即將到期提醒", {
-              body: `${sub.name} 將在 ${daysRemaining} 天內到期`,
-              icon: "/favicon.jpg",
-              tag: `sub-${sub.$id}`,
-            });
-          }
-          updated[key] = "shown";
-        } catch {}
-      }
+    for (const { sub, daysRemaining } of items) {
+      const key = `sub-${sub.$id}-${sub.nextdate}-${today}`;
+      if (notified[key] === "shown") continue;
 
       try {
-        window.localStorage.setItem(storageKey, JSON.stringify(updated));
+        if ("serviceWorker" in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification("訂閱即將到期提醒", {
+            body: `${sub.name} 將在 ${daysRemaining} 天內到期`,
+            icon: "/favicon.jpg",
+            tag: `sub-${sub.$id}`,
+          });
+        } else {
+          new Notification("訂閱即將到期提醒", {
+            body: `${sub.name} 將在 ${daysRemaining} 天內到期`,
+            icon: "/favicon.jpg",
+            tag: `sub-${sub.$id}`,
+          });
+        }
+        updated[key] = "shown";
+        hasNew = true;
       } catch {}
-    };
+    }
 
-    sendAll();
+    if (hasNew) {
+      try { window.localStorage.setItem(storageKey, JSON.stringify(updated)); } catch {}
+    }
+  };
+
+  // 頁面載入時自動發送通知
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new Date().getHours() < 6) return;
+    sendSubscriptionNotifications();
   }, [subscriptions]);
 
   // 清理過期的 localStorage 通知記錄（保留 7 天內的）
@@ -378,7 +372,6 @@ export default function SubscriptionManagement() {
       const now = new Date();
       const cleaned: Record<string, string> = {};
       for (const [key, val] of Object.entries(notified)) {
-        // key 格式: sub-{id}-{nextdate}-{date} 或 food-{id}-{date} 等
         const parts = key.split("-");
         const dateStr = parts[parts.length - 1];
         if (dateStr && dateStr.length === 10) {
@@ -387,8 +380,7 @@ export default function SubscriptionManagement() {
         }
       }
       window.localStorage.setItem(storageKey, JSON.stringify(cleaned));
-    } catch {
-    }
+    } catch {}
   }, [subscriptions]);
 
   const handleEnableNotification = async () => {
@@ -399,22 +391,16 @@ export default function SubscriptionManagement() {
 
     if (Notification.permission === "granted") {
       setNotificationEnabled(true);
-      alert("已啟用通知");
+      // 直接發送實際到期項目通知
+      await sendSubscriptionNotifications();
       return;
     }
 
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
       setNotificationEnabled(true);
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification("通知已啟用", {
-          body: "之後訂閱到期會顯示提醒",
-          icon: "/favicon.jpg",
-        });
-      } catch {
-        try { new Notification("通知已啟用", { body: "之後訂閱到期會顯示提醒", icon: "/favicon.jpg" }); } catch {}
-      }
+      // 授權後立刻發送實際到期項目通知
+      await sendSubscriptionNotifications();
     } else if (permission === "denied") {
       alert("瀏覽器已拒絕通知權限，請至瀏覽器設定開啟");
     }

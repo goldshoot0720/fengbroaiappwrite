@@ -71,17 +71,15 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     try { new Notification(ntTitle, options); } catch {}
   };
 
-  // 請求通知權限
+  // 請求通知權限，授權後立刻發送實際到期項目通知
   const handleRequestPermission = async () => {
     if (typeof Notification === "undefined") return;
     try {
       const permission = await Notification.requestPermission();
       setNotificationPermission(permission);
       if (permission === "granted") {
-        await showSwNotification("通知已啟用", {
-          body: "訂閱到期和食品過期將會通知您",
-          icon: "/favicon.jpg",
-        });
+        // 授權後立刻發送實際通知，而非僅顯示確認訊息
+        await sendNotifications();
       }
     } catch {}
   };
