@@ -1,7 +1,7 @@
 {
   "name": "鋒兄AI Appwrite",
-  "short_name": "鋒兄AI",
-  "description": "鋒兄AI Appwrite",
+  "short_name": "鋒兄AI Appwrite",
+  "description": "鋒兄AI Appwrite - 食品庫存、訂閱管理系統",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -15,9 +15,20 @@
       "sizes": "any",
       "type": "image/x-icon",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "categories": ["productivity", "utilities"],
   "lang": "zh-TW",
-  "dir": "ltr"
+  "dir": "ltr",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "handle_links": "preferred",
+  "prefer_related_applications": false
 }

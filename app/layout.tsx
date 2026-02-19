@@ -50,8 +50,65 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js', { scope: '/' });
+                window.addEventListener('load', async function() {
+                  try {
+                    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+
+                    // 傳送 Appwrite config 給 Service Worker 供背景任務使用
+                    function sendConfigToSW(registration) {
+                      const config = {
+                        endpoint: localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT') || '',
+                        projectId: localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID') || '',
+                        databaseId: localStorage.getItem('APPWRITE_DATABASE_ID') || '',
+                        apiKey: localStorage.getItem('APPWRITE_API_KEY') || '',
+                      };
+                      const sw = registration.active || registration.installing || registration.waiting;
+                      if (sw) {
+                        sw.postMessage({ type: 'SAVE_CONFIG', config });
+                      }
+                    }
+
+                    // 等待 SW 激活後傳送 config
+                    if (reg.active) {
+                      sendConfigToSW(reg);
+                    } else {
+                      reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        if (newWorker) {
+                          newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'activated') sendConfigToSW(reg);
+                          });
+                        }
+                      });
+                    }
+
+                    // 註冊 Periodic Background Sync（Android Chrome 支援）
+                    // 讓 App 在背景定期檢查到期項目
+                    if ('periodicSync' in reg) {
+                      try {
+                        const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+                        if (status.state === 'granted') {
+                          await reg.periodicSync.register('check-expiry', {
+                            minInterval: 12 * 60 * 60 * 1000, // 最少 12 小時執行一次
+                          });
+                        }
+                      } catch (e) {
+                        // Periodic Background Sync 不支援時忽略
+                      }
+                    }
+
+                    // 註冊 Background Sync（連線恢復後觸發）
+                    if ('sync' in reg) {
+                      try {
+                        await reg.sync.register('check-expiry-sync');
+                      } catch (e) {
+                        // Background Sync 不支援時忽略
+                      }
+                    }
+
+                  } catch (e) {
+                    console.error('SW registration failed:', e);
+                  }
                 });
               }
             `,
