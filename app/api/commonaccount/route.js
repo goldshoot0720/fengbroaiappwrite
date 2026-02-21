@@ -54,7 +54,7 @@ export async function GET(request) {
     }
     
     const res = await databases.listDocuments(databaseId, collectionId, [
-      sdk.Query.limit(100)
+      sdk.Query.limit(2026)
     ]);
     return NextResponse.json(res.documents);
   } catch (err) {
