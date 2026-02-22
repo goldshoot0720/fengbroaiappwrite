@@ -2,7 +2,7 @@
 
 ## 專案概況
 - **專案名稱**: fengbroaiappwrite-main
-- **統計日期**: 2026年2月22日
+- **統計日期**: 2026年2月22日（第二次統計）
 - **統計工具**: PowerShell (Get-ChildItem + Get-Content)
 - **統計範圍**: 排除 node_modules、.next、.git
 
@@ -12,22 +12,22 @@
 
 | 語言類型 | 副檔名 | 檔案數 | 程式碼行數 |
 |---------|--------|--------|------------|
-| React TSX | .tsx | 54 | 29,474 |
+| React TSX | .tsx | 54 | 29,590 |
 | TypeScript | .ts | 33 | 5,405 |
 | CSS | .css | 1 | 409 |
 | ES Module Config | .mjs | 3 | 63 |
 | JSON | .json | 6 | 204 |
-| Markdown | .md | 30 | 3,744 |
-| **總計** | | **127** | **39,299** |
+| Markdown | .md | 30 | 3,748 |
+| **總計** | | **127** | **39,419** |
 
 ### 核心程式碼分析
 
-#### TypeScript / TSX 原始碼（合計 87 檔 / 34,879 行）
+#### TypeScript / TSX 原始碼（合計 87 檔 / 34,995 行）
 - **功能模組** (`components/modules/`): 15 個大型 TSX 模組
-  - CommonDocumentManagement.tsx — 鋒兄文件管理（2,812 行）
-  - VideoIntroduction.tsx — 影片介紹（2,789+ 行）
-  - MusicManagement.tsx — 音樂管理（2,789+ 行）
-  - MusicLyrics.tsx — 音樂歌詞（2,789+ 行）
+  - CommonDocumentManagement.tsx — 鋒兄文件管理（2,895+ 行）★ 最新更新
+  - VideoIntroduction.tsx — 影片介紹
+  - MusicManagement.tsx — 音樂管理
+  - MusicLyrics.tsx — 音樂歌詞
   - 其他管理模組 (11 個)
 - **UI 元件庫** (`components/ui/`): 35+ 個元件
 - **自定義 Hooks** (`hooks/`): 19 個自定義 React Hooks
@@ -98,4 +98,5 @@ types/                 # TypeScript 類型定義
 | 日期 | 總行數 | 功能更新 |
 |------|--------|---------|
 | 2025-02-07 | ~6,140,940（含dependencies） | 初版統計 |
-| 2026-02-22 | **39,299**（僅原始碼） | 行內編輯補齊欄位（file/filetype/hash）|
+| 2026-02-22 (一) | 39,299 | 行內編輯補齊欄位（file/filetype/hash）|
+| 2026-02-22 (二) | **39,419** | 行內編輯新增上傳文件功能（進度條/自動hash/filetype）|
