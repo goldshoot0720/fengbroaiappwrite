@@ -2,75 +2,41 @@
 
 ## 專案概況
 - **專案名稱**: fengbroaiappwrite-main
-- **統計日期**: 2025年2月7日
-- **統計工具**: cloc (Count Lines of Code)
+- **統計日期**: 2026年2月22日
+- **統計工具**: PowerShell (Get-ChildItem + Get-Content)
+- **統計範圍**: 排除 node_modules、.next、.git
 
-## 程式碼規模統計
-
-### 總體數據
-```
-總計檔案數: 25,131 個
-總計程式碼行數: 6,140,940 行
-總計註解行數: 831,410 行
-總計空白行數: 238,833 行
-```
+## 程式碼規模統計（專案原始碼）
 
 ### 各語言分布
 
-| 語言類型 | 檔案數 | 空白行數 | 註解行數 | 程式碼行數 |
-|---------|--------|----------|----------|------------|
-| JavaScript | 18,261 | 151,634 | 477,942 | 5,192,793 |
-| JSON | 1,160 | 119 | 0 | 440,852 |
-| TypeScript | 4,111 | 39,001 | 349,553 | 356,000 |
-| Markdown | 1,017 | 38,192 | 553 | 98,257 |
-| CSS | 127 | 8,177 | 1,649 | 39,429 |
-| C++ | 7 | 299 | 603 | 3,404 |
-| YAML | 133 | 185 | 102 | 2,149 |
-| SCSS | 37 | 229 | 234 | 1,280 |
-| SVG | 105 | 2 | 117 | 1,051 |
-| HTML | 25 | 113 | 4 | 862 |
-| 其他 | 152 | 1,883 | 1,054 | 4,764 |
+| 語言類型 | 副檔名 | 檔案數 | 程式碼行數 |
+|---------|--------|--------|------------|
+| React TSX | .tsx | 54 | 29,474 |
+| TypeScript | .ts | 33 | 5,405 |
+| CSS | .css | 1 | 409 |
+| ES Module Config | .mjs | 3 | 63 |
+| JSON | .json | 6 | 204 |
+| Markdown | .md | 30 | 3,744 |
+| **總計** | | **127** | **39,299** |
 
 ### 核心程式碼分析
 
-#### TypeScript/JavaScript 程式碼
-- **主要業務邏輯**: 約 356,000 行 TypeScript 程式碼
-- **API 路由**: 30+ 個 API 端點
-- **React 元件**: 50+ 個功能元件
-- **自定義 Hooks**: 15+ 個自定義 React Hooks
+#### TypeScript / TSX 原始碼（合計 87 檔 / 34,879 行）
+- **功能模組** (`components/modules/`): 15 個大型 TSX 模組
+  - CommonDocumentManagement.tsx — 鋒兄文件管理（2,812 行）
+  - VideoIntroduction.tsx — 影片介紹（2,789+ 行）
+  - MusicManagement.tsx — 音樂管理（2,789+ 行）
+  - MusicLyrics.tsx — 音樂歌詞（2,789+ 行）
+  - 其他管理模組 (11 個)
+- **UI 元件庫** (`components/ui/`): 35+ 個元件
+- **自定義 Hooks** (`hooks/`): 19 個自定義 React Hooks
+- **API 路由** (`app/api/`): 40 個 API 端點
 
-#### 專案結構
-```
-app/                    # Next.js App Router
-├── api/               # API 路由 (30+ endpoints)
-├── lyrics-test/       # 測試頁面
-components/            # React 元件
-├── layout/           # 佈局元件
-├── modules/          # 功能模組 (8個管理模組)
-├── providers/        # 狀態管理提供者
-├── ui/               # UI 元件庫 (30+ 元件)
-hooks/                 # 自定義 React Hooks (15+)
-lib/                   # 工具函數和設定
-types/                 # TypeScript 類型定義
-```
-
-### 功能模組統計
-
-#### 管理系統模組
-1. **BankManagement** - 銀行管理
-2. **CommonAccountManagement** - 共同帳戶管理  
-3. **CommonDocumentManagement** - 共同文件管理
-4. **FoodManagement** - 食物管理
-5. **MusicManagement** - 音樂管理
-6. **PodcastManagement** - 播客管理
-7. **RoutineManagement** - 例行公事管理
-8. **SubscriptionManagement** - 訂閱管理
-
-#### API 端點統計
-- **文章管理**: `/api/article`, `/api/article/[id]`
+#### API 端點統計（40 個）
+- **文件管理**: `/api/commondocument`, `/api/commondocument/[id]`
 - **銀行管理**: `/api/bank`, `/api/bank/[id]`
 - **共同帳戶**: `/api/commonaccount`, `/api/commonaccount/[id]`
-- **文件管理**: `/api/commondocument`, `/api/commondocument/[id]`
 - **食物管理**: `/api/food`, `/api/food/[id]`
 - **圖片管理**: `/api/image`, `/api/image/[id]`, `/api/images`
 - **音樂管理**: `/api/music`, `/api/music/[id]`
@@ -81,20 +47,55 @@ types/                 # TypeScript 類型定義
 - **系統功能**: `/api/create-table`, `/api/database-stats`, `/api/fix-permissions`
 - **媒體處理**: `/api/upload-image`, `/api/upload-music`, `/api/upload-podcast`, `/api/upload-video`
 
+### 專案結構
+```
+app/                    # Next.js App Router
+├── api/               # API 路由 (40 個端點)
+├── lyrics-test/       # 測試頁面
+components/            # React 元件
+├── layout/           # 佈局元件
+├── modules/          # 功能模組 (15 個管理模組)
+├── providers/        # 狀態管理提供者
+├── ui/               # UI 元件庫 (35+ 元件)
+hooks/                 # 自定義 React Hooks (19 個)
+lib/                   # 工具函數和設定
+types/                 # TypeScript 類型定義
+```
+
+### 功能模組統計（15 個）
+
+1. **AboutUs** - 關於我們
+2. **BankManagement** - 銀行管理
+3. **CommonAccountManagement** - 共同帳戶管理
+4. **CommonDocumentManagement** - 鋒兄文件管理 ⭐ 主要模組
+5. **EnhancedDashboard** - 儀表板
+6. **FoodManagement** - 食物管理
+7. **ImageGallery** - 圖片管理
+8. **MusicLyrics** - 音樂歌詞
+9. **MusicManagement** - 音樂管理
+10. **NotesManagement** - 筆記管理
+11. **PodcastManagement** - 播客管理
+12. **RoutineManagement** - 例行公事管理
+13. **SettingsManagement** - 設定管理
+14. **SubscriptionManagement** - 訂閱管理
+15. **VideoIntroduction** - 影片介紹
+
 ### 技術堆疊
-- **前端框架**: Next.js 16.0.10 (React 19)
-- **樣式**: Tailwind CSS 4.1.18
+- **前端框架**: Next.js (React 19)
+- **樣式**: Tailwind CSS
 - **UI 元件**: Radix UI + 自定義元件
 - **後端**: App Router API Routes
 - **資料儲存**: Appwrite
-- **類型檢查**: TypeScript 5.9.3
+- **類型檢查**: TypeScript 5
 
 ### 程式碼品質指標
-- **TypeScript 覆蓋率**: 約 6.4% (356K/5.55M 行)
-- **註解比例**: 13.5% (831K/6.14M 行)
-- **模組化程度**: 高 (功能模組分離)
-- **可維護性**: 良好 (清晰的專案結構)
+- **TypeScript 覆蓋率**: 100%（全 TypeScript 專案）
+- **模組化程度**: 高（功能模組分離）
+- **可維護性**: 良好（清晰的專案結構）
 
-## 總結
+## 版本歷史更新
 
-這是一個大型的全端應用程式，擁有超過 600 萬行程式碼，主要使用 JavaScript/TypeScript 開發。專案採用現代化的技術架構，具有完整的 CRUD 功能管理系統，支援多媒體內容管理，並且具有良好的模組化設計。
+| 日期 | 總行數 | 功能更新 |
+|------|--------|---------|
+| 2025-02-07 | ~6,140,940（含dependencies） | 初版統計 |
+| 2026-02-22 | **39,299**（僅原始碼） | 行內編輯補齊欄位（file/filetype/hash）|

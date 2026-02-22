@@ -27,26 +27,26 @@ import JSZip from "jszip";
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
   if (typeof window === 'undefined') return url;
-  
+
   const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT');
   const projectId = localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID');
   const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID');
   const apiKey = localStorage.getItem('APPWRITE_API_KEY');
   const bucketId = localStorage.getItem('APPWRITE_BUCKET_ID');
-  
+
   if (!endpoint && !projectId && !databaseId) {
     return url;
   }
-  
+
   const separator = url.includes('?') ? '&' : '?';
   const params = new URLSearchParams();
-  
+
   if (endpoint) params.set('_endpoint', endpoint);
   if (projectId) params.set('_project', projectId);
   if (databaseId) params.set('_database', databaseId);
   if (apiKey) params.set('_key', apiKey);
   if (bucketId) params.set('_bucket', bucketId);
-  
+
   const paramString = params.toString();
   return paramString ? `${url}${separator}${paramString}` : url;
 }
@@ -158,8 +158,8 @@ export default function CommonDocumentManagement() {
   const [previewDocument, setPreviewDocument] = useState<CommonDocumentData | null>(null);
   const [openInEditMode, setOpenInEditMode] = useState(false);
   const [importPreview, setImportPreview] = useState<{ data: DocumentFormData[]; errors: string[] } | null>(null);
-    const [importing, setImporting] = useState(false);
-    const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [exportingZip, setExportingZip] = useState(false);
   const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
   const [importingZip, setImportingZip] = useState(false);
@@ -168,7 +168,7 @@ export default function CommonDocumentManagement() {
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
-  const [inlineEditForm, setInlineEditForm] = useState({ name: '', category: '', note: '', ref: '', cover: '' });
+  const [inlineEditForm, setInlineEditForm] = useState({ name: '', file: '', filetype: '', category: '', note: '', ref: '', cover: '', hash: '' });
 
   // View mode state (grid or table)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
@@ -216,7 +216,7 @@ export default function CommonDocumentManagement() {
     let currentRow: string[] = [];
     let currentField = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < cleanText.length; i++) {
       const char = cleanText[i];
       const nextChar = cleanText[i + 1];
@@ -240,7 +240,7 @@ export default function CommonDocumentManagement() {
       currentRow.push(currentField);
       if (currentRow.some(f => f.trim())) { rows.push(currentRow); }
     }
-    
+
     if (rows.length < 2) { errors.push('CSV 檔案至少需要表頭和一行資料'); return { data, errors }; }
     const headerValues = rows[0];
     if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
@@ -253,7 +253,7 @@ export default function CommonDocumentManagement() {
       }
     }
     if (errors.length > 0) return { data, errors };
-    
+
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
       if (values.length !== EXPECTED_COLUMN_COUNT) { errors.push(`第 ${i + 1} 行: 欄位數量錯誤`); continue; }
@@ -275,10 +275,10 @@ export default function CommonDocumentManagement() {
 
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
-    
+
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
@@ -299,10 +299,10 @@ export default function CommonDocumentManagement() {
         if (response.ok) { successCount++; } else { failCount++; }
       } catch { failCount++; }
     }
-    
+
     // 匯入完成後統一重新載入一次
     await loadCommonDocument(true);
-    
+
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
@@ -555,7 +555,7 @@ export default function CommonDocumentManagement() {
   const filteredDocuments = useMemo(() => {
     if (!searchQuery.trim()) return commondocument;
     const query = searchQuery.toLowerCase();
-    return commondocument.filter(item => 
+    return commondocument.filter(item =>
       item.name?.toLowerCase().includes(query) ||
       item.note?.toLowerCase().includes(query) ||
       item.category?.toLowerCase().includes(query)
@@ -575,7 +575,7 @@ export default function CommonDocumentManagement() {
   const handleDelete = async (doc: CommonDocumentData) => {
     const confirmText = `DELETE ${doc.name}`;
     const userInput = prompt(`確定要刪除文件「${doc.name}」嗎？\n\n請輸入以下文字以確認刪除：\n${confirmText}`);
-    
+
     if (userInput !== confirmText) {
       if (userInput !== null) {
         alert('輸入不正確，刪除已取消');
@@ -600,10 +600,13 @@ export default function CommonDocumentManagement() {
   const handleInlineEdit = (doc: CommonDocumentData) => {
     setInlineEditForm({
       name: doc.name || '',
+      file: doc.file || '',
+      filetype: doc.filetype || '',
       category: doc.category || '',
       note: doc.note || '',
       ref: doc.ref || '',
       cover: doc.cover || '',
+      hash: doc.hash || '',
     });
     setInlineEditingId(doc.$id);
   };
@@ -618,16 +621,19 @@ export default function CommonDocumentManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: inlineEditForm.name,
+          file: inlineEditForm.file,
+          filetype: inlineEditForm.filetype,
           category: inlineEditForm.category,
           note: inlineEditForm.note,
           ref: inlineEditForm.ref,
           cover: inlineEditForm.cover,
+          hash: inlineEditForm.hash,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadCommonDocument(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
+      setInlineEditForm({ name: '', file: '', filetype: '', category: '', note: '', ref: '', cover: '', hash: '' });
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
@@ -637,7 +643,7 @@ export default function CommonDocumentManagement() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
+    setInlineEditForm({ name: '', file: '', filetype: '', category: '', note: '', ref: '', cover: '', hash: '' });
   };
 
   // 處理封面上傳
@@ -670,7 +676,7 @@ export default function CommonDocumentManagement() {
       }
 
       const data = await response.json();
-      
+
       // Update document with new cover URL
       const doc = commondocument.find(d => d.$id === docId);
       if (doc) {
@@ -688,7 +694,7 @@ export default function CommonDocumentManagement() {
         });
 
         if (!updateResponse.ok) throw new Error('更新封面失敗');
-        
+
         loadCommonDocument(true);
       }
     } catch (error) {
@@ -776,22 +782,20 @@ export default function CommonDocumentManagement() {
           <div className="flex bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === 'grid'
+                ? 'bg-blue-500 text-white'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
             >
               <LayoutGrid size={16} />
               卡片
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                viewMode === 'table'
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === 'table'
+                ? 'bg-blue-500 text-white'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
             >
               <TableIcon size={16} />
               表格
@@ -935,7 +939,7 @@ export default function CommonDocumentManagement() {
               {importing ? (
                 <div className="flex items-center gap-3">
                   <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     />
@@ -947,8 +951,8 @@ export default function CommonDocumentManagement() {
               ) : (
                 <>
                   <Button variant="outline" onClick={() => setImportPreview(null)}>取消</Button>
-                  <Button 
-                    onClick={executeImport} 
+                  <Button
+                    onClick={executeImport}
                     disabled={importPreview.errors.length > 0 || importPreview.data.length === 0}
                     className="bg-blue-500 hover:bg-blue-600"
                   >
@@ -1006,9 +1010,9 @@ export default function CommonDocumentManagement() {
               已使用 {formatFileSize(cacheStats.totalSize)} / {formatFileSize(maxCacheSize)}
             </p>
           </div>
-          <Button 
-            onClick={clearAllCache} 
-            variant="outline" 
+          <Button
+            onClick={clearAllCache}
+            variant="outline"
             className="rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
             disabled={cacheStats.cachedDocuments === 0}
           >
@@ -1016,8 +1020,8 @@ export default function CommonDocumentManagement() {
           </Button>
         </div>
         <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600 transition-all duration-300" 
+          <div
+            className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600 transition-all duration-300"
             style={{ width: `${Math.min((cacheStats.totalSize / maxCacheSize) * 100, 100)}%` }}
           />
         </div>
@@ -1045,8 +1049,8 @@ interface DocumentCardProps {
   onEditContent: () => void;
   // Inline editing props
   inlineEditingId: string | null;
-  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
-  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
+  inlineEditForm: { name: string; file: string; filetype: string; category: string; note: string; ref: string; cover: string; hash: string };
+  setInlineEditForm: (form: { name: string; file: string; filetype: string; category: string; note: string; ref: string; cover: string; hash: string }) => void;
   onInlineEdit: (doc: CommonDocumentData) => void;
   onInlineSave: (docId: string) => void;
   onInlineCancel: () => void;
@@ -1094,23 +1098,54 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
       <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-orange-500 p-4">
         <div className="space-y-3">
           <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
+          {/* 文件名稱 */}
           <Input
             placeholder="文件名稱"
             value={inlineEditForm.name}
             onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
             className="h-9 rounded-lg text-sm"
           />
+          {/* 分類 */}
           <Input
             placeholder="分類"
             value={inlineEditForm.category}
             onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
             className="h-9 rounded-lg text-sm"
           />
+          {/* 備註 */}
           <Textarea
             placeholder="備註"
             value={inlineEditForm.note}
             onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
             className="rounded-lg text-sm h-16 resize-none"
+          />
+          {/* 參考 */}
+          <Input
+            placeholder="參考 (ref)"
+            value={inlineEditForm.ref}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
+          {/* 檔案類型 */}
+          <Input
+            placeholder="檔案類型 (例: pdf, docx, mp4)"
+            value={inlineEditForm.filetype}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, filetype: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
+          {/* 檔案 URL */}
+          <Input
+            placeholder="檔案 URL"
+            value={inlineEditForm.file}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, file: e.target.value })}
+            className="h-9 rounded-lg text-sm"
+          />
+          {/* Hash */}
+          <Input
+            placeholder="Hash"
+            value={inlineEditForm.hash}
+            onChange={(e) => setInlineEditForm({ ...inlineEditForm, hash: e.target.value })}
+            className="h-9 rounded-lg text-sm"
           />
           {/* 封面圖片 - 可上傳或輸入 URL */}
           <div className="flex gap-2">
@@ -1151,9 +1186,9 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
             </div>
           ) : inlineEditForm.cover ? (
             <div className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <img 
-                src={inlineEditForm.cover} 
-                alt="封面預覽" 
+              <img
+                src={inlineEditForm.cover}
+                alt="封面預覽"
                 className="w-16 h-16 object-cover rounded-lg border"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
@@ -1165,12 +1200,6 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
               </button>
             </div>
           ) : null}
-          <Input
-            placeholder="參考"
-            value={inlineEditForm.ref}
-            onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })}
-            className="h-9 rounded-lg text-sm"
-          />
           <div className="flex gap-2">
             <Button size="sm" onClick={() => onInlineSave(document.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
               <Check className="w-4 h-4 mr-1" /> 儲存
@@ -1193,8 +1222,8 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
       <div className="relative mb-4 -mx-4 -mt-4 h-32 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden">
         {hasCover ? (
           <>
-            <img 
-              src={document.cover} 
+            <img
+              src={document.cover}
               alt={document.name}
               className="w-full h-full object-cover"
             />
@@ -1285,19 +1314,18 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
             <button
               onClick={handleCacheDownload}
               disabled={isCached || documentCacheStatus?.downloading}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all duration-200 text-sm font-medium relative ${
-                isCached || documentCacheStatus?.cached
-                  ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 cursor-default'
-                  : documentCacheStatus?.downloading
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all duration-200 text-sm font-medium relative ${isCached || documentCacheStatus?.cached
+                ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 cursor-default'
+                : documentCacheStatus?.downloading
                   ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-500 cursor-wait'
                   : 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/40'
-              }`}
+                }`}
               title={
                 isCached || documentCacheStatus?.cached
                   ? '已快取'
                   : documentCacheStatus?.downloading
-                  ? `下載中 ${Math.round(documentCacheStatus.progress)}%`
-                  : '快取到本地'
+                    ? `下載中 ${Math.round(documentCacheStatus.progress)}%`
+                    : '快取到本地'
               }
             >
               {isCached || documentCacheStatus?.cached ? (
@@ -1365,8 +1393,8 @@ interface DocumentTableProps {
   onPreview: (doc: CommonDocumentData) => void;
   onEditContent: (doc: CommonDocumentData) => void;
   inlineEditingId: string | null;
-  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
-  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
+  inlineEditForm: { name: string; file: string; filetype: string; category: string; note: string; ref: string; cover: string; hash: string };
+  setInlineEditForm: (form: { name: string; file: string; filetype: string; category: string; note: string; ref: string; cover: string; hash: string }) => void;
   onInlineEdit: (doc: CommonDocumentData) => void;
   onInlineSave: (docId: string) => void;
   onInlineCancel: () => void;
@@ -1374,11 +1402,11 @@ interface DocumentTableProps {
   uploadingCoverId: string | null;
 }
 
-function DocumentTable({ 
-  documents, 
-  onEdit, 
-  onDelete, 
-  onPreview, 
+function DocumentTable({
+  documents,
+  onEdit,
+  onDelete,
+  onPreview,
   onEditContent,
   inlineEditingId,
   inlineEditForm,
@@ -1440,8 +1468,8 @@ interface DocumentTableRowProps {
   onPreview: (doc: CommonDocumentData) => void;
   onEditContent: (doc: CommonDocumentData) => void;
   isInlineEditing: boolean;
-  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
-  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
+  inlineEditForm: { name: string; file: string; filetype: string; category: string; note: string; ref: string; cover: string; hash: string };
+  setInlineEditForm: (form: { name: string; file: string; filetype: string; category: string; note: string; ref: string; cover: string; hash: string }) => void;
   onInlineEdit: (doc: CommonDocumentData) => void;
   onInlineSave: (docId: string) => void;
   onInlineCancel: () => void;
@@ -1509,6 +1537,28 @@ function DocumentTableRow({
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Input
+                value={inlineEditForm.filetype}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, filetype: e.target.value })}
+                placeholder="檔案類型 (例: pdf, docx, mp4)"
+                className="h-9 text-sm"
+              />
+              <Input
+                value={inlineEditForm.hash}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, hash: e.target.value })}
+                placeholder="Hash"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              <Input
+                value={inlineEditForm.file}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, file: e.target.value })}
+                placeholder="檔案 URL"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex gap-2">
                 <Input
                   value={inlineEditForm.cover}
@@ -1550,9 +1600,9 @@ function DocumentTableRow({
                   </div>
                 ) : inlineEditForm.cover ? (
                   <>
-                    <img 
-                      src={inlineEditForm.cover} 
-                      alt="封面預覽" 
+                    <img
+                      src={inlineEditForm.cover}
+                      alt="封面預覽"
                       className="w-12 h-12 object-cover rounded-lg border"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
@@ -1719,11 +1769,11 @@ function DocumentTableRow({
 }
 
 // 文件表單模態框
-function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: { 
-  document: CommonDocumentData | null; 
-  existingDocuments: CommonDocumentData[]; 
-  onClose: () => void; 
-  onSuccess: () => void 
+function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: {
+  document: CommonDocumentData | null;
+  existingDocuments: CommonDocumentData[];
+  onClose: () => void;
+  onSuccess: () => void
 }) {
   const [formData, setFormData] = useState({
     name: document?.name || '',
@@ -1851,7 +1901,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
     setFileHash(hash);
     setFormData(prev => ({ ...prev, hash }));
 
-    const duplicateDoc = existingDocuments.find(d => 
+    const duplicateDoc = existingDocuments.find(d =>
       d.hash === hash && (!document || d.$id !== document.$id)
     );
 
@@ -1879,7 +1929,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       alert('請輸入文件名稱');
       return;
@@ -1903,7 +1953,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
       const url = document
         ? addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${document.$id}`)
         : addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT);
-      
+
       const response = await fetch(url, {
         method: document ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1979,7 +2029,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
             {uploadStatus === 'uploading' && (
               <div className="mt-3">
                 <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-blue-500 rounded-full transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
@@ -2077,7 +2127,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               封面圖片
             </label>
-            
+
             {/* 上傳區域 */}
             <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-4 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
               <input
@@ -2126,9 +2176,9 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
                     移除
                   </button>
                 </div>
-                <img 
-                  src={formData.cover} 
-                  alt="封面預覽" 
+                <img
+                  src={formData.cover}
+                  alt="封面預覽"
                   className="w-full h-32 object-cover rounded-lg"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
@@ -2249,14 +2299,14 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
 
   const getPreviewContent = () => {
     if (!document.file) return null;
-    
+
     // Image Preview (including SVG, BMP, ICO)
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext)) {
       return (
         <div className="flex items-center justify-center h-full p-4 bg-gray-50 dark:bg-gray-900/50">
-          <img 
-            src={getProxiedMediaUrl(document.file)} 
-            alt={document.name} 
+          <img
+            src={getProxiedMediaUrl(document.file)}
+            alt={document.name}
             className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
           />
         </div>
@@ -2269,9 +2319,9 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
       return (
         <div className="flex items-center justify-center h-full p-8 bg-black">
           <div className={`w-full ${isAudio ? 'max-w-2xl' : 'max-w-4xl'}`}>
-            <PlyrPlayer 
-              src={getProxiedMediaUrl(document.file)} 
-              type={isAudio ? 'audio' : 'video'} 
+            <PlyrPlayer
+              src={getProxiedMediaUrl(document.file)}
+              type={isAudio ? 'audio' : 'video'}
             />
           </div>
         </div>
@@ -2303,21 +2353,19 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setOfficeViewerType('microsoft')}
-                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                        officeViewerType === 'microsoft'
-                          ? 'bg-white text-blue-500'
-                          : 'bg-blue-400 text-white hover:bg-blue-300'
-                      }`}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${officeViewerType === 'microsoft'
+                        ? 'bg-white text-blue-500'
+                        : 'bg-blue-400 text-white hover:bg-blue-300'
+                        }`}
                     >
                       Microsoft
                     </button>
                     <button
                       onClick={() => setOfficeViewerType('google')}
-                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                        officeViewerType === 'google'
-                          ? 'bg-white text-blue-500'
-                          : 'bg-blue-400 text-white hover:bg-blue-300'
-                      }`}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${officeViewerType === 'google'
+                        ? 'bg-white text-blue-500'
+                        : 'bg-blue-400 text-white hover:bg-blue-300'
+                        }`}
                     >
                       Google
                     </button>
@@ -2369,7 +2417,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         </div>
       );
     }
-    
+
     // PDF Preview with Annotation
     if (ext === 'pdf') {
       return (
@@ -2379,7 +2427,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         />
       );
     }
-    
+
     // Text/Code files preview and edit
     if (canEditFile(document.name || document.file || '', document.filetype)) {
       if (txtLoading) {
@@ -2415,7 +2463,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         <div className="h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
           <CodeEditor
             value={txtContent}
-            onChange={() => {}}
+            onChange={() => { }}
             fileName={document.name || document.file || ''}
             height={isFullscreen ? "calc(100vh - 80px)" : "calc(90vh - 150px)"}
             readOnly={true}
@@ -2423,7 +2471,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         </div>
       );
     }
-    
+
     // ZIP Preview with Interactive Browsing
     if (ext === 'zip') {
       if (zipLoading) {
@@ -2471,7 +2519,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         // Inside folder: show direct children only
         const normalizedPath = zipCurrentPath.endsWith('/') ? zipCurrentPath : zipCurrentPath + '/';
         return entry.name.startsWith(normalizedPath) &&
-               entry.name.slice(normalizedPath.length).split('/').filter(s => s).length === 1;
+          entry.name.slice(normalizedPath.length).split('/').filter(s => s).length === 1;
       });
 
       if (zipViewingFile && zipFileContent !== null) {
@@ -2542,8 +2590,8 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
                   {!entry.isDir && (
                     <span className="text-xs text-gray-400 flex-shrink-0 w-20 text-right">
                       {entry.size < 1024 ? `${entry.size} B` :
-                       entry.size < 1024 * 1024 ? `${(entry.size / 1024).toFixed(1)} KB` :
-                       `${(entry.size / 1024 / 1024).toFixed(1)} MB`}
+                        entry.size < 1024 * 1024 ? `${(entry.size / 1024).toFixed(1)} KB` :
+                          `${(entry.size / 1024 / 1024).toFixed(1)} MB`}
                     </span>
                   )}
                   <div className="flex items-center gap-2">
@@ -2582,7 +2630,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         </div>
       );
     }
-    
+
     return (
       <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
         無法預覽此文件格式
@@ -2608,11 +2656,11 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         'ts': 'application/typescript', 'tsx': 'application/typescript'
       };
       const mimeType = mimeTypes[ext] || 'text/plain';
-      
+
       // Create a new file with edited content
       const blob = new Blob([editedContent], { type: mimeType });
       const file = new globalThis.File([blob], document.name || `edited.${ext}`, { type: blob.type });
-      
+
       // Upload the new file directly to Appwrite (bypasses Next.js body limit)
       const uploadData = await uploadToAppwriteStorage(file);
 
@@ -2626,9 +2674,9 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
           file: uploadData.url,
         }),
       });
-      
+
       if (!response.ok) throw new Error('更新失敗');
-      
+
       setTxtContent(editedContent);
       setIsEditing(false);
       alert('儲存成功！');
@@ -2674,115 +2722,112 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
   return (
     <>
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div className={`bg-white dark:bg-gray-800 flex flex-col overflow-hidden ${
-          isFullscreen
-            ? 'w-full h-full rounded-none'
-            : 'rounded-2xl w-full max-w-5xl h-[90vh]'
-        }`}>
+        <div className={`bg-white dark:bg-gray-800 flex flex-col overflow-hidden ${isFullscreen
+          ? 'w-full h-full rounded-none'
+          : 'rounded-2xl w-full max-w-5xl h-[90vh]'
+          }`}>
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="font-bold text-gray-900 dark:text-gray-100 truncate flex-1 mr-4">{document.name}</h2>
             <div className="flex items-center gap-2">
-            {canEdit && (
-              <>
-                {isEditing ? (
-                  <>
-                    <button
-                      onClick={handleSaveEdit}
-                      disabled={saving}
-                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
-                    >
-                      <Download className="w-4 h-4" />
-                      {saving ? '儲存中...' : '儲存'}
-                    </button>
+              {canEdit && (
+                <>
+                  {isEditing ? (
+                    <>
+                      <button
+                        onClick={handleSaveEdit}
+                        disabled={saving}
+                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <Download className="w-4 h-4" />
+                        {saving ? '儲存中...' : '儲存'}
+                      </button>
+                      <button
+                        onClick={handleEditToggle}
+                        disabled={saving}
+                        className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        取消
+                      </button>
+                    </>
+                  ) : (
                     <button
                       onClick={handleEditToggle}
-                      disabled={saving}
-                      className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                     >
-                      取消
+                      <Edit className="w-4 h-4" />
+                      編輯
                     </button>
-                  </>
-                ) : (
+                  )}
+                </>
+              )}
+              {ext === 'md' && !isEditing && (
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                   <button
-                    onClick={handleEditToggle}
-                    className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    onClick={() => setShowMarkdownPreview(false)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${!showMarkdownPreview
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                      }`}
                   >
-                    <Edit className="w-4 h-4" />
-                    編輯
+                    原始碼
                   </button>
-                )}
-              </>
-            )}
-            {ext === 'md' && !isEditing && (
-              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                <button
-                  onClick={() => setShowMarkdownPreview(false)}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                    !showMarkdownPreview
+                  <button
+                    onClick={() => setShowMarkdownPreview(true)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${showMarkdownPreview
                       ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
                       : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  原始碼
-                </button>
+                      }`}
+                  >
+                    預覽
+                  </button>
+                </div>
+              )}
+              {canEditImage && !isEditingImage && (
                 <button
-                  onClick={() => setShowMarkdownPreview(true)}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                    showMarkdownPreview
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
-                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                  }`}
+                  onClick={() => setIsEditingImage(true)}
+                  className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                 >
-                  預覽
+                  <Edit className="w-4 h-4" />
+                  編輯圖片
                 </button>
-              </div>
-            )}
-            {canEditImage && !isEditingImage && (
-              <button
-                onClick={() => setIsEditingImage(true)}
-                className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              )}
+              <a
+                href={getAppwriteDownloadUrl(document.file)}
+                download={document.name || "download"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
               >
-                <Edit className="w-4 h-4" />
-                編輯圖片
+                <Download className="w-4 h-4" />
+                下載
+              </a>
+              <button
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title={isFullscreen ? "退出全螢幕" : "全螢幕"}
+              >
+                {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
               </button>
-            )}
-            <a
-              href={getAppwriteDownloadUrl(document.file)}
-              download={document.name || "download"}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              下載
-            </a>
-            <button
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title={isFullscreen ? "退出全螢幕" : "全螢幕"}
-            >
-              {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-            </button>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-              <X className="w-5 h-5" />
-            </button>
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            {getPreviewContent()}
           </div>
         </div>
-        
-        <div className="flex-1 overflow-hidden">
-          {getPreviewContent()}
-        </div>
       </div>
-    </div>
 
-    {isEditingImage && canEditImage && (
-      <ImageEditor
-        imageUrl={getProxiedMediaUrl(document.file)}
-        onSave={handleSaveImage}
-        onCancel={() => setIsEditingImage(false)}
-        fileName={document.name || 'edited-image.png'}
-      />
-    )}
-  </>
+      {isEditingImage && canEditImage && (
+        <ImageEditor
+          imageUrl={getProxiedMediaUrl(document.file)}
+          onSave={handleSaveImage}
+          onCancel={() => setIsEditingImage(false)}
+          fileName={document.name || 'edited-image.png'}
+        />
+      )}
+    </>
   );
 }

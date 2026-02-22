@@ -37,7 +37,11 @@
       "Bash(cmd /c \"taskkill /F /PID 19712 2>nul & echo KILLED\")",
       "Bash(cmd /c \"taskkill /F /IM node.exe 2>nul & timeout /t 3 >nul & if exist D:\\\\qodercode\\\\fengbroaiappwrite-main\\\\.next\\\\dev\\\\lock del /f D:\\\\qodercode\\\\fengbroaiappwrite-main\\\\.next\\\\dev\\\\lock & echo DONE\")",
       "Bash(python:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(npm run build:*)",
+      "WebFetch(domain:fengbroaiappwrite.vercel.app)",
+      "Bash(git rm:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }
