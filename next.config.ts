@@ -51,7 +51,9 @@ const nextConfig: NextConfig = {
   
   // 其他配置
   experimental: {
-    // 實驗性功能
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
   }
 };
 

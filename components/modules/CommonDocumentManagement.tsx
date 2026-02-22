@@ -1864,42 +1864,16 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
     setUploadStatus('uploading');
     setUploadProgress(0);
 
-    const formDataUpload = new FormData();
-    formDataUpload.append('file', file);
-
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => prev >= 90 ? prev : prev + 10);
-    }, 200);
-
     try {
-      const response = await fetch('/api/upload-music', {
-        method: 'POST',
-        headers: getAppwriteHeaders(),
-        body: formDataUpload,
+      const result = await uploadToAppwriteStorage(file, (progress) => {
+        setUploadProgress(progress);
       });
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      if (!response.ok) {
-        let errorMessage = '上傳失敗';
-        try {
-          const error = await response.json();
-          errorMessage = error.error || errorMessage;
-        } catch (parseError) {
-          // If response is not JSON, use status text
-          errorMessage = `${errorMessage} (${response.status}: ${response.statusText})`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
       setUploadStatus('success');
-      return { url: data.url, fileId: data.fileId || '' };
+      setUploadProgress(100);
+      return result;
     } catch (error) {
-      clearInterval(progressInterval);
       setUploadStatus('error');
-      throw error;
+      throw error instanceof Error ? error : new Error('上傳失敗');
     }
   };
 
@@ -2639,22 +2613,9 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
       const blob = new Blob([editedContent], { type: mimeType });
       const file = new globalThis.File([blob], document.name || `edited.${ext}`, { type: blob.type });
       
-      // Upload the new file
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const uploadResponse = await fetch('/api/upload-music', {
-        method: 'POST',
-        headers: getAppwriteHeaders(),
-        body: formData,
-      });
-      
-      if (!uploadResponse.ok) {
-        throw new Error('上傳失敗');
-      }
-      
-      const uploadData = await uploadResponse.json();
-      
+      // Upload the new file directly to Appwrite (bypasses Next.js body limit)
+      const uploadData = await uploadToAppwriteStorage(file);
+
       // Update the document with new file URL
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${document.$id}`);
       const response = await fetch(url, {
@@ -2682,20 +2643,8 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
     setSaving(true);
     try {
       const file = new globalThis.File([imageBlob], fileName, { type: imageBlob.type });
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const uploadResponse = await fetch('/api/upload-music', {
-        method: 'POST',
-        headers: getAppwriteHeaders(),
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('上傳失敗');
-      }
-
-      const uploadData = await uploadResponse.json();
+      // Upload directly to Appwrite (bypasses Next.js body limit)
+      const uploadData = await uploadToAppwriteStorage(file);
 
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${document.$id}`);
       const response = await fetch(url, {

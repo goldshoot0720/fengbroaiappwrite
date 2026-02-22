@@ -300,54 +300,19 @@ export default function NotesManagement() {
     }
   };
 
-  const uploadFile = async (file: File, endpoint: string, isEdit: boolean = false): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const appwriteConfig = localStorage.getItem('appwriteConfig');
-    const config = appwriteConfig ? JSON.parse(appwriteConfig) : {};
-    const params = new URLSearchParams({
-      _endpoint: config.endpoint || '',
-      _project: config.projectId || '',
-      _database: config.databaseId || '',
-      _key: config.apiKey || '',
-      _bucket: config.bucketId || '',
-    });
-
-    // Simulate upload progress
-    const progressInterval = setInterval(() => {
-      if (isEdit) {
-        setEditUploadProgress(prev => Math.min(prev + 10, 90));
-      } else {
-        setUploadProgress(prev => Math.min(prev + 10, 90));
-      }
-    }, 200);
-
+  const uploadFile = async (file: File, _endpoint: string, isEdit: boolean = false): Promise<string> => {
+    // Upload directly to Appwrite to bypass Next.js body size limit
     try {
-      const response = await fetch(`${endpoint}?${params}`, {
-        method: 'POST',
-        body: formData,
+      const result = await uploadToAppwriteStorage(file, (progress) => {
+        if (isEdit) {
+          setEditUploadProgress(progress);
+        } else {
+          setUploadProgress(progress);
+        }
       });
-
-      clearInterval(progressInterval);
-
-      if (!response.ok) {
-        throw new Error('上傳失敗');
-      }
-
-      const data = await response.json();
-
-      // Complete progress
-      if (isEdit) {
-        setEditUploadProgress(100);
-      } else {
-        setUploadProgress(100);
-      }
-
-      return data.url;
+      return result.url;
     } catch (error) {
-      clearInterval(progressInterval);
-      throw error;
+      throw error instanceof Error ? error : new Error('上傳失敗');
     }
   };
 
