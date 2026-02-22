@@ -1067,6 +1067,10 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
   const [isCached, setIsCached] = useState(false);
   const isInlineEditing = inlineEditingId === document.$id;
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadFileProgress, setUploadFileProgress] = useState(0);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
   // 檢查快取狀態
   useEffect(() => {
@@ -1133,13 +1137,70 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
             onChange={(e) => setInlineEditForm({ ...inlineEditForm, filetype: e.target.value })}
             className="h-9 rounded-lg text-sm"
           />
-          {/* 檔案 URL */}
-          <Input
-            placeholder="檔案 URL"
-            value={inlineEditForm.file}
-            onChange={(e) => setInlineEditForm({ ...inlineEditForm, file: e.target.value })}
-            className="h-9 rounded-lg text-sm"
-          />
+          {/* 上傳文件 */}
+          <div className="space-y-1">
+            <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg"
+                className="hidden"
+                id={`card-file-upload-${document.$id}`}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  e.target.value = '';
+                  setUploadingFile(true);
+                  setUploadFileProgress(0);
+                  setUploadedFileName(file.name);
+                  try {
+                    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                    // calculate hash
+                    let hash = '';
+                    try {
+                      const buf = await file.arrayBuffer();
+                      const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+                      hash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    } catch { hash = `inline_${file.name}_${file.size}`; }
+                    // upload
+                    const result = await uploadToAppwriteStorage(file, (pct) => setUploadFileProgress(pct));
+                    setInlineEditForm({ ...inlineEditForm, file: result.url, filetype: ext, hash });
+                  } catch {
+                    alert('文件上傳失敗，請再試一次');
+                    setUploadedFileName('');
+                  } finally {
+                    setUploadingFile(false);
+                  }
+                }}
+              />
+              <label
+                htmlFor={`card-file-upload-${document.$id}`}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${uploadingFile
+                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                  : 'bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400'
+                  }`}
+              >
+                {uploadingFile ? (
+                  <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {uploadingFile ? `上傳中 ${uploadFileProgress}%` : '上傳文件'}
+              </label>
+              <Input
+                placeholder="或貼上檔案 URL"
+                value={inlineEditForm.file}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, file: e.target.value })}
+                className="h-9 rounded-lg text-sm flex-1"
+              />
+            </div>
+            {uploadedFileName && !uploadingFile && (
+              <p className="text-xs text-green-600 dark:text-green-400 truncate">✓ {uploadedFileName}</p>
+            )}
+            {inlineEditForm.file && !uploadedFileName && (
+              <p className="text-xs text-gray-400 truncate">目前: {inlineEditForm.file.split('/').pop() || inlineEditForm.file}</p>
+            )}
+          </div>
           {/* Hash */}
           <Input
             placeholder="Hash"
@@ -1498,6 +1559,9 @@ function DocumentTableRow({
   const canPreview = document.file && canPreviewFile(document.name || document.file || '', document.filetype);
   const canEditContent = document.file && canEditFile(document.name || document.file || '', document.filetype);
   const hasCover = document.cover && document.cover.trim() !== '';
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadFileProgress, setUploadFileProgress] = useState(0);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
   // 行內編輯模式
   if (isInlineEditing) {
@@ -1550,13 +1614,65 @@ function DocumentTableRow({
                 className="h-9 text-sm"
               />
             </div>
-            <div className="grid grid-cols-1 gap-3">
-              <Input
-                value={inlineEditForm.file}
-                onChange={(e) => setInlineEditForm({ ...inlineEditForm, file: e.target.value })}
-                placeholder="檔案 URL"
-                className="h-9 text-sm"
-              />
+            <div className="space-y-1">
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  accept=".pdf,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg"
+                  className="hidden"
+                  id={`table-file-upload-${document.$id}`}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    e.target.value = '';
+                    setUploadingFile(true);
+                    setUploadFileProgress(0);
+                    setUploadedFileName(file.name);
+                    try {
+                      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                      let hash = '';
+                      try {
+                        const buf = await file.arrayBuffer();
+                        const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+                        hash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                      } catch { hash = `inline_${file.name}_${file.size}`; }
+                      const result = await uploadToAppwriteStorage(file, (pct) => setUploadFileProgress(pct));
+                      setInlineEditForm({ ...inlineEditForm, file: result.url, filetype: ext, hash });
+                    } catch {
+                      alert('文件上傳失敗，請再試一次');
+                      setUploadedFileName('');
+                    } finally {
+                      setUploadingFile(false);
+                    }
+                  }}
+                />
+                <label
+                  htmlFor={`table-file-upload-${document.$id}`}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors whitespace-nowrap ${uploadingFile
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                      : 'bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400'
+                    }`}
+                >
+                  {uploadingFile ? (
+                    <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  {uploadingFile ? `上傳中 ${uploadFileProgress}%` : '上傳文件'}
+                </label>
+                <Input
+                  value={inlineEditForm.file}
+                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, file: e.target.value })}
+                  placeholder="或貼上檔案 URL"
+                  className="h-9 text-sm flex-1"
+                />
+              </div>
+              {uploadedFileName && !uploadingFile && (
+                <p className="text-xs text-green-600 dark:text-green-400 truncate">✓ {uploadedFileName}</p>
+              )}
+              {inlineEditForm.file && !uploadedFileName && (
+                <p className="text-xs text-gray-400 truncate">目前: {inlineEditForm.file.split('/').pop() || inlineEditForm.file}</p>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex gap-2">
