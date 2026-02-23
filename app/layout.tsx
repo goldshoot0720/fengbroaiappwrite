@@ -45,6 +45,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
+
   return (
     <html lang="zh-TW" className="scroll-smooth" suppressHydrationWarning>
       <head>
@@ -61,6 +63,34 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              var VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
+
+              // 訂閱 Web Push（僅在已授權通知時執行）
+              async function subscribeToPush(registration) {
+                if (!('pushManager' in registration)) return;
+                if (!('Notification' in window)) return;
+                if (Notification.permission !== 'granted') return;
+                if (!VAPID_PUBLIC_KEY) return;
+                try {
+                  var sub = await registration.pushManager.getSubscription();
+                  if (!sub) {
+                    sub = await registration.pushManager.subscribe({
+                      userVisibleOnly: true,
+                      applicationServerKey: VAPID_PUBLIC_KEY,
+                    });
+                  }
+                  if (sub) {
+                    await fetch('/api/push-subscribe', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(sub.toJSON()),
+                    });
+                  }
+                } catch (e) {
+                  console.error('[SW] Push subscribe error:', e);
+                }
+              }
+
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', async function() {
                   try {
@@ -80,15 +110,19 @@ export default function RootLayout({
                       }
                     }
 
-                    // 等待 SW 激活後傳送 config
+                    // 等待 SW 激活後傳送 config 並訂閱 Web Push
                     if (reg.active) {
                       sendConfigToSW(reg);
+                      subscribeToPush(reg);
                     } else {
                       reg.addEventListener('updatefound', () => {
                         const newWorker = reg.installing;
                         if (newWorker) {
                           newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'activated') sendConfigToSW(reg);
+                            if (newWorker.state === 'activated') {
+                              sendConfigToSW(reg);
+                              subscribeToPush(reg);
+                            }
                           });
                         }
                       });

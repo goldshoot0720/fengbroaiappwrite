@@ -84,6 +84,8 @@ export const API_ENDPOINTS = {
   ARTICLE: "/api/article",
   COMMON_ACCOUNT: "/api/commonaccount",
   ROUTINE: "/api/routine",
+  PUSH_SUBSCRIBE: "/api/push-subscribe",
+  PUSH_SEND: "/api/push-send",
 } as const;
 
 // 動畫設定

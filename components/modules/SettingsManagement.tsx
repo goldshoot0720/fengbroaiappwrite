@@ -61,6 +61,9 @@ export default function SettingsManagement() {
   const bulkQueueRef = useRef<string[]>([]);
   const bulkModeRef = useRef(false);
   const bulkIsUpdateRef = useRef(false);
+  const [notificationPermission, setNotificationPermission] = useState<string>('default');
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
   const [storageStats, setStorageStats] = useState<any>(null);
   const [cleaningStorage, setCleaningStorage] = useState(false);
   const [scanProgress, setScanProgress] = useState<{
@@ -278,6 +281,87 @@ APPWRITE_API_KEY=${appwriteConfig.apiKey}`;
   useEffect(() => {
     fetchStats();
   }, []);
+
+  // 初始化推播通知狀態
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+    setNotificationPermission(Notification.permission);
+    if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+      navigator.serviceWorker.ready.then(async (reg) => {
+        const sub = await reg.pushManager.getSubscription();
+        setPushSubscribed(!!sub);
+      }).catch(() => {});
+    }
+  }, []);
+
+  const handleEnablePush = async () => {
+    if (!('Notification' in window)) return;
+    setPushLoading(true);
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission !== 'granted') return;
+
+      const reg = await navigator.serviceWorker.ready;
+      if (!('pushManager' in reg)) {
+        alert('此瀏覽器不支援推播通知');
+        return;
+      }
+
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        alert('推播服務未設定，請聯繫管理員');
+        return;
+      }
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidKey,
+        });
+      }
+      if (sub) {
+        await fetch('/api/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub.toJSON()),
+        });
+        setPushSubscribed(true);
+      }
+    } catch (err) {
+      console.error('Push subscribe error:', err);
+      alert('啟用推播通知失敗：' + (err instanceof Error ? err.message : '未知錯誤'));
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleDisablePush = async () => {
+    setPushLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch('/api/push-subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+      setPushSubscribed(false);
+    } catch (err) {
+      console.error('Push unsubscribe error:', err);
+      alert('取消推播通知失敗：' + (err instanceof Error ? err.message : '未知錯誤'));
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const handleCreateTable = async (tableName: string, isUpdate = false) => {
     // 如果是更新操作且不在批次模式中，顯示警告
@@ -889,6 +973,89 @@ APPWRITE_API_KEY=${appwriteConfig.apiKey}`;
           </p>
           <div className="text-sm text-gray-400">
             即將推出...
+          </div>
+        </DataCard>
+
+        {/* 推播通知設定 */}
+        <DataCard className="p-6 md:col-span-2">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+              <Bell size={20} className="text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">推播通知</h3>
+              <p className="text-xs text-gray-400">APP 關閉時仍可收到到期提醒</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {notificationPermission === 'unsupported' ? (
+              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm text-gray-500">
+                此瀏覽器不支援推播通知
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">通知權限</span>
+                  <span className={`font-medium ${
+                    notificationPermission === 'granted' ? 'text-green-600 dark:text-green-400' :
+                    notificationPermission === 'denied' ? 'text-red-600 dark:text-red-400' :
+                    'text-yellow-600 dark:text-yellow-400'
+                  }`}>
+                    {notificationPermission === 'granted' ? '已授權' :
+                     notificationPermission === 'denied' ? '已拒絕' : '尚未設定'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">推播訂閱狀態</span>
+                  <span className={`font-medium ${pushSubscribed ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                    {pushSubscribed ? '已啟用' : '未啟用'}
+                  </span>
+                </div>
+                {notificationPermission === 'denied' && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
+                    <p className="text-xs text-red-700 dark:text-red-300">
+                      通知權限已被拒絕。請至瀏覽器設定手動開啟通知權限，再重新整理頁面。
+                    </p>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  {!pushSubscribed ? (
+                    <Button
+                      onClick={handleEnablePush}
+                      disabled={pushLoading || notificationPermission === 'denied'}
+                      className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {pushLoading ? (
+                        <><Loader2 size={16} className="animate-spin" /> 處理中...</>
+                      ) : (
+                        <><Bell size={16} /> 啟用推播通知</>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleDisablePush}
+                      disabled={pushLoading}
+                      variant="outline"
+                      className="flex-1 flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400"
+                    >
+                      {pushLoading ? (
+                        <><Loader2 size={16} className="animate-spin" /> 處理中...</>
+                      ) : (
+                        <><Bell size={16} /> 取消推播通知</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+                <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+                    <span className="text-base">💡</span>
+                    <span>
+                      <strong>每天 17:00（台灣時間）</strong>自動推播到期提醒，即使 APP 完全關閉也能收到通知。
+                    </span>
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </DataCard>
 

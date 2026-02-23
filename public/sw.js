@@ -135,15 +135,25 @@ async function checkExpiryBackground() {
 
 // ─── Push：伺服器推播通知 ─────────────────────────────────────────────────────
 self.addEventListener('push', (event) => {
-  let data = { title: '鋒兄AI Appwrite', body: '您有新的提醒' };
+  let data = { title: '鋒兄AI Appwrite', body: '您有新的提醒', items: [], url: '/' };
   try {
-    if (event.data) data = event.data.json();
+    if (event.data) data = { ...data, ...event.data.json() };
   } catch {}
+
+  const hasUrgent = Array.isArray(data.items) && data.items.some(i => i.daysLeft === 0);
+
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: '/favicon.ico',
       badge: '/favicon.ico',
+      tag: 'fengbro-expiry',
+      renotify: true,
+      requireInteraction: hasUrgent,
+      actions: [
+        { action: 'open', title: '查看詳情' },
+      ],
+      data: { url: data.url || '/' },
     })
   );
 });
@@ -151,12 +161,15 @@ self.addEventListener('push', (event) => {
 // ─── Notification Click：點擊通知開啟 App ────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
   const targetUrl = event.notification.data?.url || '/';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
         if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-          return client.focus();
+          client.focus();
+          return client.navigate(targetUrl);
         }
       }
       return clients.openWindow(targetUrl);
