@@ -235,32 +235,38 @@ const KNOWN_FAVICON_URLS: Record<string, string> = {
 };
 
 /**
- * 從 URL 獲取 favicon URL（直接從網站獲取）
+ * 從 URL 獲取 favicon URL
+ * 使用 Google / DuckDuckGo favicon proxy 避免 CORS 問題
  * @param siteUrl 網站 URL
- * @returns favicon URL 陣列
+ * @returns favicon URL 陣列（依序嘗試）
  */
 export function getFaviconUrlsOrdered(siteUrl: string): string[] {
   if (!siteUrl) return [];
-  
+
   try {
     const url = new URL(siteUrl);
     const hostname = url.hostname;
     const origin = url.origin;
-    
-    // 檢查是否有已知的 favicon URL
+    const encodedUrl = encodeURIComponent(origin);
+
+    // Google Favicon V2 API（代理抓取，無 CORS 問題，最可靠）
+    const googleFavicon = `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodedUrl}&size=32`;
+
+    // DuckDuckGo Favicon API（備用代理）
+    const ddgFavicon = `https://icons.duckduckgo.com/ip3/${hostname}.ico`;
+
+    // 已知的直接 URL（部分銀行有特殊路徑）
     const knownFavicon = KNOWN_FAVICON_URLS[hostname] || KNOWN_FAVICON_URLS[hostname.replace('www.', '')];
-    
-    if (knownFavicon) {
-      return [
-        knownFavicon,
-        `${origin}/favicon.ico`, // fallback
-      ];
-    }
-    
-    // 預設：直接從網站獲取 favicon.ico
-    return [
-      `${origin}/favicon.ico`,
+
+    const urls = [
+      googleFavicon,
+      ddgFavicon,
     ];
+
+    if (knownFavicon) urls.push(knownFavicon);
+    urls.push(`${origin}/favicon.ico`);
+
+    return urls;
   } catch {
     return [];
   }
