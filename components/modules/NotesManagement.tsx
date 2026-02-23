@@ -21,6 +21,7 @@ import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2 } from "lucide-react";
 import JSZip from "jszip";
+import { FaviconImage } from "@/components/ui/favicon-image";
 
 const INITIAL_FORM: ArticleFormData = {
   title: "",
@@ -1517,17 +1518,20 @@ export default function NotesManagement() {
                             <span>相關連結</span>
                           </div>
                           {article.url1 && (
-                            <a href={article.url1} target="_blank" rel="noreferrer" className="block text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
+                            <a href={article.url1} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
+                              <FaviconImage siteUrl={article.url1} siteName={article.title} size={14} />
                               {article.url1}
                             </a>
                           )}
                           {article.url2 && (
-                            <a href={article.url2} target="_blank" rel="noreferrer" className="block text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
+                            <a href={article.url2} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
+                              <FaviconImage siteUrl={article.url2} siteName={article.title} size={14} />
                               {article.url2}
                             </a>
                           )}
                           {article.url3 && (
-                            <a href={article.url3} target="_blank" rel="noreferrer" className="block text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
+                            <a href={article.url3} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
+                              <FaviconImage siteUrl={article.url3} siteName={article.title} size={14} />
                               {article.url3}
                             </a>
                           )}
