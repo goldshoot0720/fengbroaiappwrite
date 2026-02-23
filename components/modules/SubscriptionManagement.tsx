@@ -506,6 +506,9 @@ export default function SubscriptionManagement() {
     setIsInlineAdding(true);
     setInlineEditingId(null);
     setInlineEditForm(INITIAL_FORM);
+    setTimeout(() => {
+      document.getElementById("sub-inline-add")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
   };
 
   // CSV 匯入/匯出功能
@@ -1089,7 +1092,7 @@ export default function SubscriptionManagement() {
                 <TableBody>
                   {/* 行內新增列 (桌面版) */}
                   {isInlineAdding && (
-                    <TableRow className="bg-green-50 dark:bg-green-900/20">
+                    <TableRow id="sub-inline-add" className="bg-green-50 dark:bg-green-900/20">
                       <TableCell className="font-medium">
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
@@ -1379,7 +1382,10 @@ export default function SubscriptionManagement() {
                                   <span className="text-gray-900 dark:text-gray-100">{truncateName(sub.name, sub.$id)}</span>
                                 )}
                                 {isEditMode && (
-                                  <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg h-7 px-2" title="編輯"><Pencil size={14} /></Button>
+                                  <>
+                                    <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg h-7 px-2" title="編輯"><Pencil size={14} /></Button>
+                                    <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg h-7 px-2" title="複製"><Copy size={14} /></Button>
+                                  </>
                                 )}
                                 {sub.name.length > 37 && (
                                   <Button
@@ -1496,7 +1502,7 @@ export default function SubscriptionManagement() {
                 {/* 行內新增卡片 (手機版) */}
                 {isInlineAdding && (
                   <DataCardItem highlight="normal">
-                    <div className="space-y-3 border-2 border-green-500 rounded-lg p-4 -m-4">
+                    <div id="sub-inline-add" className="space-y-3 border-2 border-green-500 rounded-lg p-4 -m-4">
                       <div className="text-sm font-semibold text-green-600 dark:text-green-400 mb-2">新增訂閱</div>
                       <Input
                         placeholder="服務名稱"
@@ -1791,6 +1797,7 @@ export default function SubscriptionManagement() {
                         {isEditMode && (
                           <div className="flex gap-2 pt-2">
                             <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-xl" title="編輯"><Pencil size={14} /></Button>
+                            <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
                           </div>
                         )}
                       </div>
