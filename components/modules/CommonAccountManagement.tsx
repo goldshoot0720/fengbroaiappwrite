@@ -29,10 +29,17 @@ const SITE_URL_MAP: Record<string, string> = {
   'outlook': 'https://outlook.com',
   'Qoder': 'https://qoder.com',
   'qoder': 'https://qoder.com',
-  'Sora': 'https://sora.com',
-  'sora': 'https://sora.com',
+  'Sora': 'https://sora.chatgpt.com',
+  'sora': 'https://sora.chatgpt.com',
   'Suno': 'https://suno.com',
   'suno': 'https://suno.com',
+  'Appwrite': 'https://appwrite.io',
+  'appwrite': 'https://appwrite.io',
+  'Musicful': 'https://tw.musicful.ai',
+  'musicful': 'https://tw.musicful.ai',
+  'TRAE': 'https://www.trae.ai',
+  'trae': 'https://www.trae.ai',
+  'Trae': 'https://www.trae.ai',
 };
 
 // Helper function to check if string is a valid URL

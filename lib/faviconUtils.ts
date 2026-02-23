@@ -12,6 +12,7 @@ const KNOWN_FAVICON_URLS: Record<string, string> = {
   'outlook.live.com': 'https://outlook.live.com/favicon.ico',
   'suno.com': 'https://suno.com/favicon.ico',
   'sora.com': 'https://sora.com/favicon.ico',
+  'sora.chatgpt.com': 'https://openai.com/favicon.ico',
   'qoder.com': 'https://img.alicdn.com/imgextra/i3/O1CN01KliT1u1jEq947NlKH_!!6000000004517-55-tps-180-180.svg',
   
   // AI & Tech Services
@@ -29,6 +30,11 @@ const KNOWN_FAVICON_URLS: Record<string, string> = {
   'pika.art': 'https://pika.art/favicon.ico',
   'vercel.com': 'https://vercel.com/favicon.ico',
   'netlify.com': 'https://netlify.com/favicon.ico',
+  'appwrite.io': 'https://appwrite.io/favicon.ico',
+  'tw.musicful.ai': 'https://tw.musicful.ai/favicon.ico',
+  'musicful.ai': 'https://tw.musicful.ai/favicon.ico',
+  'www.trae.ai': 'https://www.trae.ai/favicon.ico',
+  'trae.ai': 'https://www.trae.ai/favicon.ico',
   
   // Streaming & Media
   'netflix.com': 'https://www.netflix.com/favicon.ico',
