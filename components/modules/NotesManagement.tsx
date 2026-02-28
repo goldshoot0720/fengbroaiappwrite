@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -182,6 +182,8 @@ export default function NotesManagement() {
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: '' });
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const [exportStatus, setExportStatus] = useState('');
+  const exportAbortRef = useRef<AbortController | null>(null);
   const ZIP_CSV_HEADERS = ['title', 'content', 'newDate', 'url1', 'url2', 'url3', 'file1', 'file1name', 'file1type', 'file2', 'file2name', 'file2type', 'file3', 'file3name', 'file3type'];
   const ZIP_CSV_COLUMN_COUNT = ZIP_CSV_HEADERS.length;
 
@@ -553,8 +555,50 @@ export default function NotesManagement() {
       return str;
     };
 
+    // 下載單一檔案，帶獨立超時，不會因單一檔案失敗而中斷整體匯出
+    const downloadFileWithTimeout = async (url: string, globalSignal: AbortSignal, timeoutMs = 30000): Promise<Blob | null> => {
+      if (globalSignal.aborted) return null;
+      const fileAbort = new AbortController();
+      const onGlobalAbort = () => fileAbort.abort();
+      globalSignal.addEventListener('abort', onGlobalAbort, { once: true });
+      console.log(`[匯出]   fetch URL: ${url}`);
+      try {
+        const fetchPromise = (async () => {
+          const response = await fetch(url, { signal: fileAbort.signal });
+          if (!response.ok) { console.warn(`[匯出]   HTTP ${response.status}`); return null; }
+          console.log(`[匯出]   headers 收到，開始讀取 body...`);
+          // response.blob() 無法被 AbortController 中斷，用 Promise.race 處理超時
+          const blobResult = await Promise.race([
+            response.blob(),
+            new Promise<null>((resolve) => {
+              const tid = setTimeout(() => { console.warn('[匯出]   blob() 讀取超時'); resolve(null); }, timeoutMs);
+              globalSignal.addEventListener('abort', () => { clearTimeout(tid); resolve(null); }, { once: true });
+            })
+          ]);
+          if (!blobResult) {
+            // 超時或取消，嘗試中止下載串流
+            try { response.body?.cancel(); } catch { }
+          }
+          return blobResult;
+        })();
+        const timeoutPromise = new Promise<null>((resolve) =>
+          setTimeout(() => { console.warn(`[匯出]   整體下載超時 (${timeoutMs}ms)`); fileAbort.abort(); resolve(null); }, timeoutMs)
+        );
+        return await Promise.race([fetchPromise, timeoutPromise]);
+      } catch {
+        return null;
+      } finally {
+        globalSignal.removeEventListener('abort', onGlobalAbort);
+      }
+    };
+
+    const abortController = new AbortController();
+    exportAbortRef.current = abortController;
+
     setExporting(true);
     setExportProgress({ current: 0, total: articles.length });
+    setExportStatus('準備中...');
+    console.log(`[匯出] 開始匯出，共 ${articles.length} 篇筆記`);
 
     try {
       const zip = new JSZip();
@@ -562,58 +606,62 @@ export default function NotesManagement() {
       const rows = [ZIP_CSV_HEADERS.join(',')];
 
       for (let i = 0; i < articles.length; i++) {
+        if (abortController.signal.aborted) { console.log('[匯出] 使用者取消'); break; }
+
         const item = articles[i];
         setExportProgress({ current: i + 1, total: articles.length });
+        setExportStatus(`${item.title}`);
+        console.log(`[匯出] (${i + 1}/${articles.length}) 處理筆記: "${item.title}"`);
 
         let file1Path = '';
         let file2Path = '';
         let file3Path = '';
 
         // 下載 file1
-        if (item.file1) {
-          try {
-            const fileName = item.file1name || `file1.${item.file1type || 'bin'}`;
-            const localName = `${i}_1_${fileName}`;
-            const response = await fetch(getAppwriteDownloadUrl(item.file1));
-            if (response.ok) {
-              const blob = await response.blob();
-              filesFolder.file(localName, blob);
-              file1Path = `files/${localName}`;
-            }
-          } catch (err) {
-            console.warn(`下載 file1 失敗 (${item.title}):`, err);
+        if (item.file1 && !abortController.signal.aborted) {
+          const fileName = item.file1name || `file1.${item.file1type || 'bin'}`;
+          const localName = `${i}_1_${fileName}`;
+          setExportStatus(`${item.title} → 下載 ${fileName}`);
+          console.log(`[匯出]   下載 file1: ${fileName}`);
+          const blob = await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file1), abortController.signal);
+          if (blob) {
+            filesFolder.file(localName, blob);
+            file1Path = `files/${localName}`;
+            console.log(`[匯出]   file1 完成 (${(blob.size / 1024).toFixed(1)} KB)`);
+          } else {
+            console.warn(`[匯出]   file1 下載失敗或超時，已跳過`);
           }
         }
 
         // 下載 file2
-        if (item.file2) {
-          try {
-            const fileName = item.file2name || `file2.${item.file2type || 'bin'}`;
-            const localName = `${i}_2_${fileName}`;
-            const response = await fetch(getAppwriteDownloadUrl(item.file2));
-            if (response.ok) {
-              const blob = await response.blob();
-              filesFolder.file(localName, blob);
-              file2Path = `files/${localName}`;
-            }
-          } catch (err) {
-            console.warn(`下載 file2 失敗 (${item.title}):`, err);
+        if (item.file2 && !abortController.signal.aborted) {
+          const fileName = item.file2name || `file2.${item.file2type || 'bin'}`;
+          const localName = `${i}_2_${fileName}`;
+          setExportStatus(`${item.title} → 下載 ${fileName}`);
+          console.log(`[匯出]   下載 file2: ${fileName}`);
+          const blob = await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file2), abortController.signal);
+          if (blob) {
+            filesFolder.file(localName, blob);
+            file2Path = `files/${localName}`;
+            console.log(`[匯出]   file2 完成 (${(blob.size / 1024).toFixed(1)} KB)`);
+          } else {
+            console.warn(`[匯出]   file2 下載失敗或超時，已跳過`);
           }
         }
 
         // 下載 file3
-        if (item.file3) {
-          try {
-            const fileName = item.file3name || `file3.${item.file3type || 'bin'}`;
-            const localName = `${i}_3_${fileName}`;
-            const response = await fetch(getAppwriteDownloadUrl(item.file3));
-            if (response.ok) {
-              const blob = await response.blob();
-              filesFolder.file(localName, blob);
-              file3Path = `files/${localName}`;
-            }
-          } catch (err) {
-            console.warn(`下載 file3 失敗 (${item.title}):`, err);
+        if (item.file3 && !abortController.signal.aborted) {
+          const fileName = item.file3name || `file3.${item.file3type || 'bin'}`;
+          const localName = `${i}_3_${fileName}`;
+          setExportStatus(`${item.title} → 下載 ${fileName}`);
+          console.log(`[匯出]   下載 file3: ${fileName}`);
+          const blob = await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file3), abortController.signal);
+          if (blob) {
+            filesFolder.file(localName, blob);
+            file3Path = `files/${localName}`;
+            console.log(`[匯出]   file3 完成 (${(blob.size / 1024).toFixed(1)} KB)`);
+          } else {
+            console.warn(`[匯出]   file3 下載失敗或超時，已跳過`);
           }
         }
 
@@ -636,11 +684,15 @@ export default function NotesManagement() {
         ].join(','));
       }
 
+      if (abortController.signal.aborted) return;
+
       // 將 CSV 加入 ZIP
       const BOM = '\uFEFF';
       const csvContent = BOM + rows.join('\n');
       zip.file('appwrite-article.csv', csvContent);
 
+      setExportStatus('產生 ZIP 壓縮中...');
+      console.log('[匯出] 產生 ZIP 中...');
       // 產生 ZIP 並下載
       const blob = await zip.generateAsync({ type: 'blob' });
       const link = document.createElement('a');
@@ -648,13 +700,22 @@ export default function NotesManagement() {
       link.download = 'appwrite-article.zip';
       link.click();
       URL.revokeObjectURL(link.href);
-    } catch (err) {
-      console.error('匯出 ZIP 失敗:', err);
-      alert('匯出 ZIP 失敗，請稍後再試');
+      console.log(`[匯出] 完成！ZIP 大小: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('匯出 ZIP 失敗:', err);
+        alert('匯出 ZIP 失敗，請稍後再試');
+      }
     } finally {
+      exportAbortRef.current = null;
+      setExportStatus('');
       setExporting(false);
       setExportProgress({ current: 0, total: 0 });
     }
+  };
+
+  const cancelExport = () => {
+    exportAbortRef.current?.abort();
   };
 
   // RFC 4180 compliant CSV parser - 支援 15 欄（ZIP 格式）和 6 欄（舊 CSV 格式）
@@ -917,13 +978,27 @@ export default function NotesManagement() {
               <Upload size={18} /> 匯入 ZIP
             </Button>
             <input id="zip-import-notes" type="file" accept=".zip" className="hidden" onChange={handleZipFileSelect} />
-            <Button onClick={exportToZIP} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯出 ZIP" disabled={exporting}>
-              {exporting ? (
-                <><Archive size={18} className="animate-pulse" /> 匯出中 ({exportProgress.current}/{exportProgress.total})...</>
-              ) : (
-                <><Download size={18} /> 匯出 ZIP</>
-              )}
-            </Button>
+            {exporting ? (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="rounded-xl flex items-center gap-2 h-12" disabled>
+                    <Archive size={18} className="animate-pulse" /> 匯出中 ({exportProgress.current}/{exportProgress.total})...
+                  </Button>
+                  <Button onClick={cancelExport} variant="outline" className="rounded-xl flex items-center gap-2 h-12 border-red-400 text-red-500 hover:bg-red-50" title="取消匯出">
+                    <Trash2 size={18} /> 取消
+                  </Button>
+                </div>
+                {exportStatus && (
+                  <p className="text-xs text-muted-foreground truncate max-w-[280px]" title={exportStatus}>
+                    {exportStatus}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <Button onClick={exportToZIP} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯出 ZIP">
+                <Download size={18} /> 匯出 ZIP
+              </Button>
+            )}
             <StatCard title="筆記總數" value={stats.total} gradient="from-blue-500 to-blue-600" className="min-w-[160px]" />
           </div>
         }
