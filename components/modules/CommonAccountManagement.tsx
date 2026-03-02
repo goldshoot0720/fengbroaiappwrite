@@ -4,12 +4,12 @@ import { useState, useMemo, useEffect } from "react";
 import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, Search, AlertTriangle, Copy, CopyPlus, Download, Upload } from "lucide-react";
 import { CommonAccount, CommonAccountFormData } from "@/types";
 import { Input, Textarea, DataCard, Button, SectionHeader, FormCard, FormActions } from "@/components/ui";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import { useCrud, fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
@@ -87,6 +87,53 @@ const SITE_URL_MAP: Record<string, string> = {
   'yandex': 'https://www.yandex.com',
   'Zoho': 'https://www.zoho.com',
   'zoho': 'https://www.zoho.com',
+  // 中文服務
+  '可灵AI': 'https://klingai.com',
+  '即梦AI': 'https://jimeng.jianying.com',
+  '豆包': 'https://www.doubao.com',
+  '哔哩哔哩': 'https://www.bilibili.com',
+  '蝦皮購物': 'https://shopee.tw',
+  'momo': 'https://www.momoshop.com.tw',
+  'PChome': 'https://www.pchome.com.tw',
+  // 雲端/部署服務
+  'AWS': 'https://aws.amazon.com',
+  'aws': 'https://aws.amazon.com',
+  'Cloudflare': 'https://www.cloudflare.com',
+  'cloudflare': 'https://www.cloudflare.com',
+  'DigitalOcean': 'https://www.digitalocean.com',
+  'digitalocean': 'https://www.digitalocean.com',
+  'Fly.io': 'https://fly.io',
+  'fly.io': 'https://fly.io',
+  'Heroku': 'https://www.heroku.com',
+  'heroku': 'https://www.heroku.com',
+  'InfinityFree': 'https://www.infinityfree.com',
+  'infinityfree': 'https://www.infinityfree.com',
+  'Koyeb': 'https://www.koyeb.com',
+  'koyeb': 'https://www.koyeb.com',
+  'Linodes': 'https://www.linode.com',
+  'linodes': 'https://www.linode.com',
+  'Netlify': 'https://www.netlify.com',
+  'netlify': 'https://www.netlify.com',
+  'Northflank': 'https://northflank.com',
+  'northflank': 'https://northflank.com',
+  'Vercel': 'https://vercel.com',
+  'vercel': 'https://vercel.com',
+  // 儲存服務
+  'pCloud': 'https://www.pcloud.com',
+  'pcloud': 'https://www.pcloud.com',
+  // AI 工具
+  'Clideo': 'https://clideo.com',
+  'clideo': 'https://clideo.com',
+  'nanobananas.ai': 'https://nanobananas.ai',
+  'Netflix': 'https://www.netflix.com',
+  'netflix': 'https://www.netflix.com',
+  'Pika': 'https://pika.art',
+  'pika': 'https://pika.art',
+  'Udio': 'https://www.udio.com',
+  'udio': 'https://www.udio.com',
+  // 工作室
+  'Amoy Studio': 'https://www.amoystudio.com',
+  'LitMedia': 'https://litmedia.net',
 };
 
 // Helper function to check if string is a valid URL
@@ -230,7 +277,7 @@ export default function CommonAccountManagement() {
       .filter(key => key.startsWith('site') && key !== 'name')
       .map(key => (form as any)[key]?.trim())
       .filter(name => name && name !== "");
-    
+
     // 找出重複的名稱
     const duplicates = siteNames.filter((name, index) => siteNames.indexOf(name) !== index);
     if (duplicates.length > 0) {
@@ -273,7 +320,7 @@ export default function CommonAccountManagement() {
       delete payload.$id;
       delete payload.$createdAt;
       delete payload.$updatedAt;
-      
+
       // 對於建立操作，移除空值以避免驗證錯誤
       // 對於更新操作，保留空值以利於清除資料庫中的欄位 (Appwrite String 欄位接受 "")
       if (!isUpdate) {
@@ -346,7 +393,7 @@ export default function CommonAccountManagement() {
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-        
+
         try {
           const successful = document.execCommand('copy');
           if (!successful) {
@@ -356,11 +403,11 @@ export default function CommonAccountManagement() {
           textArea.remove();
         }
       }
-      
+
       // Check if it looks like an email (simple check)
       const isEmail = text.includes('@') && text.includes('.');
       const message = isEmail ? '✅ 已複製帳號名稱！' : '✅ 已複製備註！';
-      
+
       // Show message temporarily
       if (accountId) {
         setCopySuccess(accountId);
@@ -482,13 +529,13 @@ export default function CommonAccountManagement() {
         const note = (account[noteKey] as string) || '';
         // CSV 處理：如果包含逗號、換行或雙引號，需要用雙引號包起並轉義
         row.push(
-          site.includes(',') || site.includes('\n') || site.includes('"') 
-            ? `"${site.replace(/"/g, '""')}"` 
+          site.includes(',') || site.includes('\n') || site.includes('"')
+            ? `"${site.replace(/"/g, '""')}"`
             : site
         );
         row.push(
-          note.includes(',') || note.includes('\n') || note.includes('"') 
-            ? `"${note.replace(/"/g, '""')}"` 
+          note.includes(',') || note.includes('\n') || note.includes('"')
+            ? `"${note.replace(/"/g, '""')}"`
             : note
         );
       }
@@ -497,11 +544,11 @@ export default function CommonAccountManagement() {
 
     // 組合 CSV
     const csvContent = [headers.join(','), ...rows].join('\n');
-    
+
     // 加入 BOM 以支援 Excel 開啟中文
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    
+
     // 下載
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -511,7 +558,7 @@ export default function CommonAccountManagement() {
   };
 
   // 匯入狀態
-  const [importPreview, setImportPreview] = useState<{data: CommonAccountFormData[], errors: string[]} | null>(null);
+  const [importPreview, setImportPreview] = useState<{ data: CommonAccountFormData[], errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useState<HTMLInputElement | null>(null);
@@ -521,10 +568,10 @@ export default function CommonAccountManagement() {
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
-      
+
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
-        
+
       if (inQuotes) {
         if (char === '"') {
           if (line[i + 1] === '"') {
@@ -548,10 +595,10 @@ export default function CommonAccountManagement() {
       }
     }
     result.push(current);
-      
+
     return result;
   };
-  
+
   // 解析完整 CSV（處理多行欄位）
   const parseFullCSV = (text: string): string[][] => {
     const rows: string[][] = [];
@@ -578,19 +625,19 @@ export default function CommonAccountManagement() {
     }
     return rows;
   };
-  
+
   // 解析 CSV
-  const parseCSV = (text: string): {data: CommonAccountFormData[], errors: string[]} => {
+  const parseCSV = (text: string): { data: CommonAccountFormData[], errors: string[] } => {
     const errors: string[] = [];
     const data: CommonAccountFormData[] = [];
-      
+
     const rows = parseFullCSV(text);
-      
+
     if (rows.length < 2) {
       errors.push('CSV 檔案至少需要表頭和一行資料');
       return { data, errors };
     }
-      
+
     // 建立預期的表頭
     const expectedHeaders = ['name'];
     for (let i = 1; i <= 37; i++) {
@@ -598,10 +645,10 @@ export default function CommonAccountManagement() {
       expectedHeaders.push(`site${idx}`, `note${idx}`);
     }
     const EXPECTED_COLUMN_COUNT = expectedHeaders.length; // 75 欄
-      
+
     // 解析表頭
     const headerValues = rows[0].map(h => h.trim());
-      
+
     // 嚴格檢查表頭欄位數量
     if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
       errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
@@ -612,13 +659,13 @@ export default function CommonAccountManagement() {
       }
       return { data, errors };
     }
-      
+
     // 檢查第一欄是否為 "name"
     if (headerValues[0] !== 'name') {
       errors.push(`第一欄必須是 "name"，實際為 "${headerValues[0]}"`);
       return { data, errors };
     }
-      
+
     // 嚴格檢查表頭名稱
     for (let i = 0; i < expectedHeaders.length; i++) {
       const expected = expectedHeaders[i];
@@ -632,16 +679,16 @@ export default function CommonAccountManagement() {
         }
       }
     }
-      
+
     if (errors.length > 0) {
       return { data, errors };
     }
-      
+
     // 解析資料行
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
       const lineNum = i + 1;
-        
+
       // 嚴格檢查欄位數量
       if (values.length !== EXPECTED_COLUMN_COUNT) {
         if (values.length > EXPECTED_COLUMN_COUNT) {
@@ -651,28 +698,28 @@ export default function CommonAccountManagement() {
         }
         continue;
       }
-        
+
       // 檢查 name 欄位
       if (!values[0] || !values[0].trim()) {
         errors.push(`第 ${lineNum} 行: name 欄位不能為空`);
         continue;
       }
-        
+
       const formData: CommonAccountFormData = { name: values[0].trim() };
-        
+
       // 填充 site/note 欄位
       for (let j = 1; j <= 37; j++) {
         const idx = j.toString().padStart(2, '0');
         const siteIndex = j * 2 - 1; // 1, 3, 5, ...
         const noteIndex = j * 2;     // 2, 4, 6, ...
-          
+
         (formData as any)[`site${idx}`] = values[siteIndex]?.trim() || '';
         (formData as any)[`note${idx}`] = values[noteIndex]?.trim() || '';
       }
-        
+
       data.push(formData);
     }
-      
+
     return { data, errors };
   };
 
@@ -680,12 +727,12 @@ export default function CommonAccountManagement() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     if (!file.name.endsWith('.csv')) {
       alert('請選擇 CSV 檔案');
       return;
     }
-    
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
@@ -693,7 +740,7 @@ export default function CommonAccountManagement() {
       setImportPreview(result);
     };
     reader.readAsText(file, 'UTF-8');
-    
+
     // 清除 input 以便可以重複選擇同一檔案
     e.target.value = '';
   };
@@ -701,14 +748,14 @@ export default function CommonAccountManagement() {
   // 執行匯入
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
-    
+
     try {
       let successCount = 0;
       let failCount = 0;
-      
+
       for (let i = 0; i < importPreview.data.length; i++) {
         const formData = importPreview.data[i];
         setImportProgress({ current: i + 1, total: importPreview.data.length });
@@ -728,7 +775,7 @@ export default function CommonAccountManagement() {
           failCount++;
         }
       }
-      
+
       await fetchAll();
       setImporting(false);
       setImportProgress({ current: 0, total: 0 });
@@ -783,7 +830,7 @@ export default function CommonAccountManagement() {
   // Save inline edit
   const saveInlineEdit = async () => {
     if (!inlineEdit) return;
-    
+
     const account = accounts.find(a => a.$id === inlineEdit.accountId);
     if (!account) return;
 
@@ -795,7 +842,7 @@ export default function CommonAccountManagement() {
       const otherSites = Object.entries(account)
         .filter(([key, val]) => key.startsWith('site') && key !== siteKey && key !== 'name' && val)
         .map(([_, val]) => (val as string).trim());
-      
+
       if (otherSites.includes(inlineEdit.siteName.trim())) {
         alert(`此帳號已有重複的站點名稱: 「${inlineEdit.siteName.trim()}」，請修改名稱後再儲存`);
         return;
@@ -823,8 +870,8 @@ export default function CommonAccountManagement() {
         </div>
       )}
 
-      <SectionHeader 
-        title="鋒兄常用" 
+      <SectionHeader
+        title="鋒兄常用"
         subtitle={`共 ${accounts.length} 組帳號設定`}
         showAccountLabel={true}
         action={
@@ -836,7 +883,7 @@ export default function CommonAccountManagement() {
               className="hidden"
               id="csv-import-input"
             />
-            <Button 
+            <Button
               onClick={() => document.getElementById('csv-import-input')?.click()}
               variant="outline"
               className="rounded-xl flex items-center gap-2"
@@ -845,7 +892,7 @@ export default function CommonAccountManagement() {
               <Upload size={18} />
               匯入
             </Button>
-            <Button 
+            <Button
               onClick={exportToCSV}
               variant="outline"
               className="rounded-xl flex items-center gap-2"
@@ -854,8 +901,8 @@ export default function CommonAccountManagement() {
               <Download size={18} />
               匯出
             </Button>
-            <Button 
-              onClick={() => setIsFormOpen(!isFormOpen)} 
+            <Button
+              onClick={() => setIsFormOpen(!isFormOpen)}
               className="rounded-xl flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
             >
               {isFormOpen ? <X size={18} /> : <Plus size={18} />}
@@ -873,7 +920,7 @@ export default function CommonAccountManagement() {
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">匯入預覽</h3>
               <p className="text-sm text-gray-500 mt-1">請確認以下資料是否正確</p>
             </div>
-            
+
             <div className="p-6 overflow-y-auto max-h-[50vh]">
               {/* 錯誤訊息 */}
               {importPreview.errors.length > 0 && (
@@ -886,7 +933,7 @@ export default function CommonAccountManagement() {
                   </ul>
                 </div>
               )}
-              
+
               {/* 資料預覽 */}
               {importPreview.data.length > 0 && (
                 <div className="space-y-3">
@@ -913,12 +960,12 @@ export default function CommonAccountManagement() {
                 </div>
               )}
             </div>
-            
+
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
               {importing ? (
                 <div className="flex items-center gap-3">
                   <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     />
@@ -1022,9 +1069,9 @@ export default function CommonAccountManagement() {
             <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
               <AlertTriangle className="text-red-500 shrink-0" size={20} />
               <p className="text-red-700 font-medium">{duplicateError}</p>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setDuplicateError(null)}
                 className="ml-auto h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-lg"
               >
@@ -1048,99 +1095,99 @@ export default function CommonAccountManagement() {
                 />
               </div>
 
-            <FormActions>
-              <Button type="submit" className="h-12 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 font-bold shadow-xl">
-                <Save size={20} />
-                儲存帳號組合
-              </Button>
-              <Button type="button" variant="outline" onClick={resetForm} className="h-12 px-8 rounded-xl border-gray-200 dark:border-gray-700">
-                取消
-              </Button>
-            </FormActions>
+              <FormActions>
+                <Button type="submit" className="h-12 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 font-bold shadow-xl">
+                  <Save size={20} />
+                  儲存帳號組合
+                </Button>
+                <Button type="button" variant="outline" onClick={resetForm} className="h-12 px-8 rounded-xl border-gray-200 dark:border-gray-700">
+                  取消
+                </Button>
+              </FormActions>
 
-            <div className="space-y-4">
-              <h3 className="text-md font-bold flex items-center gap-2 text-blue-600">
-                <LinkIcon size={18} /> 常用網站與備註 (最多 37 個)
-              </h3>
-              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
-                {[...Array(37)].map((_, i) => {
-                  const idx = (i + 1).toString().padStart(2, '0');
-                  const siteKey = `site${idx}` as keyof CommonAccountFormData;
-                  const noteKey = `note${idx}` as keyof CommonAccountFormData;
-                  const isExpanded = expandedNotes[idx];
+              <div className="space-y-4">
+                <h3 className="text-md font-bold flex items-center gap-2 text-blue-600">
+                  <LinkIcon size={18} /> 常用網站與備註 (最多 37 個)
+                </h3>
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
+                  {[...Array(37)].map((_, i) => {
+                    const idx = (i + 1).toString().padStart(2, '0');
+                    const siteKey = `site${idx}` as keyof CommonAccountFormData;
+                    const noteKey = `note${idx}` as keyof CommonAccountFormData;
+                    const isExpanded = expandedNotes[idx];
 
-                  return (
-                    <div key={idx} className="space-y-2 pb-2 border-b border-gray-50 dark:border-gray-800/50 last:border-0">
-                      <div className="space-y-1">
-                        <div className="flex gap-2 items-center">
-                          <span className="w-8 h-10 flex items-center justify-center text-xs text-gray-400 font-mono shrink-0">{idx}</span>
-                          <div className="flex-1 flex gap-2">
-                            <Input
-                              placeholder={`網站名稱 / Site Name (${idx})`}
-                              value={(form as any)[siteKey] || ""}
-                              onChange={(e) => setForm({ ...form, [siteKey]: e.target.value } as any)}
-                              className="rounded-xl flex-1 h-12"
-                              maxLength={100}
-                            />
-                            <Select
-                              value=""
-                              onValueChange={(val) => setForm({ ...form, [siteKey]: val } as any)}
+                    return (
+                      <div key={idx} className="space-y-2 pb-2 border-b border-gray-50 dark:border-gray-800/50 last:border-0">
+                        <div className="space-y-1">
+                          <div className="flex gap-2 items-center">
+                            <span className="w-8 h-10 flex items-center justify-center text-xs text-gray-400 font-mono shrink-0">{idx}</span>
+                            <div className="flex-1 flex gap-2">
+                              <Input
+                                placeholder={`網站名稱 / Site Name (${idx})`}
+                                value={(form as any)[siteKey] || ""}
+                                onChange={(e) => setForm({ ...form, [siteKey]: e.target.value } as any)}
+                                className="rounded-xl flex-1 h-12"
+                                maxLength={100}
+                              />
+                              <Select
+                                value=""
+                                onValueChange={(val) => setForm({ ...form, [siteKey]: val } as any)}
+                              >
+                                <SelectTrigger className="h-12 w-12 rounded-xl px-0 justify-center shrink-0">
+                                  <ChevronDown className="h-4 w-4" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {allSiteNames.map(site => (
+                                    <SelectItem key={site} value={site}>{site}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleNote(idx)}
+                              className={`shrink-0 rounded-xl h-12 w-12 ${isExpanded ? 'bg-purple-100 text-purple-600 hover:bg-purple-200' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
+                              title="顯示/隱藏備註"
                             >
-                              <SelectTrigger className="h-12 w-12 rounded-xl px-0 justify-center shrink-0">
-                                <ChevronDown className="h-4 w-4" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {allSiteNames.map(site => (
-                                  <SelectItem key={site} value={site}>{site}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              <NoteIcon size={18} />
+                            </Button>
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleNote(idx)}
-                            className={`shrink-0 rounded-xl h-12 w-12 ${isExpanded ? 'bg-purple-100 text-purple-600 hover:bg-purple-200' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
-                            title="顯示/隱藏備註"
-                          >
-                            <NoteIcon size={18} />
-                          </Button>
-                        </div>
-                        <div className="pl-10 px-1 h-4">
-                          {(form as any)[siteKey] ? (
-                            <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-                          ) : (
-                            <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入名稱 / (Optional) Please enter name</span>
-                          )}
-                        </div>
-                      </div>
-                      {isExpanded && (
-                        <div className="pl-10 pr-2 pb-2 space-y-1">
-                          <Textarea
-                            placeholder={`備註內容 / Note Content (Max 100 chars)`}
-                            value={(form as any)[noteKey] || ""}
-                            onChange={(e) => setForm({ ...form, [noteKey]: e.target.value } as any)}
-                            className="rounded-xl border-purple-100 dark:border-purple-900/30 min-h-[80px] resize-y py-2 text-sm shadow-inner"
-                            maxLength={100}
-                          />
-                          <div className="px-1 h-4">
-                            {(form as any)[noteKey] ? (
+                          <div className="pl-10 px-1 h-4">
+                            {(form as any)[siteKey] ? (
                               <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
                             ) : (
-                              <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入備註 / (Optional) Please enter note</span>
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入名稱 / (Optional) Please enter name</span>
                             )}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {isExpanded && (
+                          <div className="pl-10 pr-2 pb-2 space-y-1">
+                            <Textarea
+                              placeholder={`備註內容 / Note Content (Max 100 chars)`}
+                              value={(form as any)[noteKey] || ""}
+                              onChange={(e) => setForm({ ...form, [noteKey]: e.target.value } as any)}
+                              className="rounded-xl border-purple-100 dark:border-purple-900/30 min-h-[80px] resize-y py-2 text-sm shadow-inner"
+                              maxLength={100}
+                            />
+                            <div className="px-1 h-4">
+                              {(form as any)[noteKey] ? (
+                                <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入備註 / (Optional) Please enter note</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </form>
-        </FormCard>
-      </div>
+            </form>
+          </FormCard>
+        </div>
       )}
 
       {/* Search and Site Filter */}
@@ -1181,13 +1228,6 @@ export default function CommonAccountManagement() {
                 Z-A
               </>
             )}
-          </Button>
-          <Button
-            onClick={handleSelectAll}
-            variant="outline"
-            className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0"
-          >
-            {selectionMode && filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id)) ? "取消全選" : "全選"}
           </Button>
           {selectedIds.size > 0 && (
             <Button
@@ -1255,7 +1295,7 @@ export default function CommonAccountManagement() {
           <Star size={48} className="mx-auto text-gray-300 mb-4" />
           <p className="text-gray-500">
             {siteFilter || searchQuery
-              ? `沒有符合「${searchQuery || siteFilter}」的帳號` 
+              ? `沒有符合「${searchQuery || siteFilter}」的帳號`
               : "尚無常用帳號資料，請點擊右上方「新增」按鈕"
             }
           </p>
@@ -1311,7 +1351,7 @@ export default function CommonAccountManagement() {
                   </Button>
                 </div>
               </div>
-              
+
               <div className="p-4 flex-1 space-y-4">
                 {(() => {
                   // Collect all non-empty site/note pairs
@@ -1326,7 +1366,7 @@ export default function CommonAccountManagement() {
                   }).filter(Boolean) as { idx: string; siteName: string; note: string }[];
 
                   const isExpanded = expandedAccounts[account.$id];
-                  
+
                   // 篩選時且未展開時，將符合篩選條件的項目移到第一位
                   let displayItems = [...items];
                   if (!isExpanded && siteFilter) {
@@ -1344,36 +1384,36 @@ export default function CommonAccountManagement() {
                     <>
                       {visibleItems.map(({ idx, siteName, note }) => {
                         const isInlineEditing = inlineEdit?.accountId === account.$id && inlineEdit?.idx === idx;
-                        
+
                         return (
                           <div key={idx} className="group/item relative bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-blue-200 dark:hover:border-blue-800/50 transition-colors">
                             {isInlineEditing ? (
                               // Inline Edit Mode
                               <div className="space-y-3">
                                 <div className="flex gap-2 items-center">
-                            <div className="flex-1 flex gap-2">
-                              <Input
-                                placeholder={`網站名稱/${idx}`}
-                                value={inlineEdit.siteName}
-                                onChange={(e) => setInlineEdit({ ...inlineEdit, siteName: e.target.value })}
-                                className="rounded-lg flex-1 h-9 text-sm"
-                                autoFocus
-                                maxLength={100}
-                              />
-                              <Select
-                                value=""
-                                onValueChange={(val) => setInlineEdit({ ...inlineEdit, siteName: val })}
-                              >
-                                <SelectTrigger className="h-9 w-9 rounded-lg px-0 justify-center shrink-0">
-                                  <ChevronDown className="h-4 w-4" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {allSiteNames.map(site => (
-                                    <SelectItem key={site} value={site}>{site}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
+                                  <div className="flex-1 flex gap-2">
+                                    <Input
+                                      placeholder={`網站名稱/${idx}`}
+                                      value={inlineEdit.siteName}
+                                      onChange={(e) => setInlineEdit({ ...inlineEdit, siteName: e.target.value })}
+                                      className="rounded-lg flex-1 h-9 text-sm"
+                                      autoFocus
+                                      maxLength={100}
+                                    />
+                                    <Select
+                                      value=""
+                                      onValueChange={(val) => setInlineEdit({ ...inlineEdit, siteName: val })}
+                                    >
+                                      <SelectTrigger className="h-9 w-9 rounded-lg px-0 justify-center shrink-0">
+                                        <ChevronDown className="h-4 w-4" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {allSiteNames.map(site => (
+                                          <SelectItem key={site} value={site}>{site}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
                                 <Textarea
                                   placeholder={`備註內容 (上限100個字)`}
@@ -1413,9 +1453,9 @@ export default function CommonAccountManagement() {
                                       {siteUrl ? (
                                         <>
                                           <FaviconImage siteUrl={siteUrl} siteName={siteName} size={16} />
-                                          <a 
-                                            href={siteUrl} 
-                                            target="_blank" 
+                                          <a
+                                            href={siteUrl}
+                                            target="_blank"
                                             rel="noreferrer"
                                             className="truncate max-w-[150px] sm:max-w-[200px] text-blue-600 dark:text-blue-400 hover:underline"
                                           >

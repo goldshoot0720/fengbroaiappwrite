@@ -2,15 +2,15 @@
 
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Building2, 
-  Plus, 
+import {
+  Building2,
+  Plus,
   Minus,
-  ChevronDown, 
-  ChevronUp, 
-  Link as LinkIcon, 
-  MapPin, 
-  CreditCard, 
+  ChevronDown,
+  ChevronUp,
+  Link as LinkIcon,
+  MapPin,
+  CreditCard,
   Wallet,
   ArrowUpRight,
   ArrowDownLeft,
@@ -39,16 +39,16 @@ import { formatCurrency } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
 
-const INITIAL_FORM: BankFormData = { 
-  name: "", 
-  deposit: 0, 
-  site: "", 
-  address: "", 
-  withdrawals: 0, 
-  transfer: 0, 
-  activity: "", 
-  card: "", 
-  account: "" 
+const INITIAL_FORM: BankFormData = {
+  name: "",
+  deposit: 0,
+  site: "",
+  address: "",
+  withdrawals: 0,
+  transfer: 0,
+  activity: "",
+  card: "",
+  account: ""
 };
 
 export default function BankManagement() {
@@ -101,7 +101,7 @@ export default function BankManagement() {
   const filteredBanks = useMemo(() => {
     if (!searchQuery.trim()) return banks;
     const query = searchQuery.toLowerCase();
-    return banks.filter(bank => 
+    return banks.filter(bank =>
       bank.name?.toLowerCase().includes(query) ||
       bank.site?.toLowerCase().includes(query) ||
       bank.address?.toLowerCase().includes(query) ||
@@ -237,7 +237,7 @@ export default function BankManagement() {
   };
 
   // CSV 匯入/匯出功能
-  const [importPreview, setImportPreview] = useState<{data: BankFormData[], errors: string[]} | null>(null);
+  const [importPreview, setImportPreview] = useState<{ data: BankFormData[], errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const CSV_HEADERS = ['name', 'deposit', 'site', 'address', 'withdrawals', 'transfer', 'activity', 'card', 'account'];
@@ -277,14 +277,14 @@ export default function BankManagement() {
   const parseFullCSV = (text: string): string[][] => {
     const rows: string[][] = [];
     const cleanText = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    
+
     let currentRow: string[] = [];
     let currentField = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < cleanText.length; i++) {
       const char = cleanText[i];
-      
+
       if (inQuotes) {
         if (char === '"') {
           if (cleanText[i + 1] === '"') { currentField += '"'; i++; }
@@ -300,16 +300,16 @@ export default function BankManagement() {
         } else { currentField += char; }
       }
     }
-    
+
     if (currentField || currentRow.length > 0) {
       currentRow.push(currentField);
       if (currentRow.some(f => f.trim())) { rows.push(currentRow); }
     }
-    
+
     return rows;
   };
 
-  const parseCSV = (text: string): {data: BankFormData[], errors: string[]} => {
+  const parseCSV = (text: string): { data: BankFormData[], errors: string[] } => {
     const errors: string[] = []; const data: BankFormData[] = [];
     const rows = parseFullCSV(text);
     if (rows.length < 2) { errors.push('CSV 檔案至少需要表頭和一行資料'); return { data, errors }; }
@@ -456,7 +456,7 @@ export default function BankManagement() {
               {importing ? (
                 <div className="flex items-center gap-3">
                   <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     />
@@ -513,7 +513,7 @@ export default function BankManagement() {
                   <Input type="number" placeholder="0" value={form.deposit || ""} onChange={(e) => setForm({ ...form, deposit: parseInt(e.target.value) || 0 })} className="h-12 rounded-xl flex-1" />
                   {(form.deposit || 0) > 0 && (
                     <div className="flex flex-col gap-0.5">
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setForm({ ...form, deposit: (form.deposit || 0) + 1000 })}
                         className="p-1 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 rounded transition-colors"
@@ -521,7 +521,7 @@ export default function BankManagement() {
                       >
                         <Plus size={14} />
                       </button>
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setForm({ ...form, deposit: Math.max(0, (form.deposit || 0) - 1000) })}
                         className="p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 rounded transition-colors"
@@ -596,7 +596,7 @@ export default function BankManagement() {
                   <Input type="number" placeholder="0" value={form.withdrawals || ""} onChange={(e) => setForm({ ...form, withdrawals: parseInt(e.target.value) || 0 })} className="h-12 rounded-xl flex-1" />
                   {(form.withdrawals || 0) > 0 && (
                     <div className="flex flex-col gap-0.5">
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setForm({ ...form, withdrawals: (form.withdrawals || 0) + 1000 })}
                         className="p-1 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 rounded transition-colors"
@@ -604,7 +604,7 @@ export default function BankManagement() {
                       >
                         <Plus size={14} />
                       </button>
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setForm({ ...form, withdrawals: Math.max(0, (form.withdrawals || 0) - 1000) })}
                         className="p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 rounded transition-colors"
@@ -629,7 +629,7 @@ export default function BankManagement() {
                   <Input type="number" placeholder="0" value={form.transfer || ""} onChange={(e) => setForm({ ...form, transfer: parseInt(e.target.value) || 0 })} className="h-12 rounded-xl flex-1" />
                   {(form.transfer || 0) > 0 && (
                     <div className="flex flex-col gap-0.5">
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setForm({ ...form, transfer: (form.transfer || 0) + 1000 })}
                         className="p-1 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 rounded transition-colors"
@@ -637,7 +637,7 @@ export default function BankManagement() {
                       >
                         <Plus size={14} />
                       </button>
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setForm({ ...form, transfer: Math.max(0, (form.transfer || 0) - 1000) })}
                         className="p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 rounded transition-colors"
@@ -745,9 +745,6 @@ export default function BankManagement() {
               className="pl-10 h-12 rounded-xl"
             />
           </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredBanks.length > 0 && filteredBanks.every(b => selectedIds.has(b.$id)) ? "取消全選" : "全選"}
-          </Button>
           {selectedIds.size > 0 && (
             <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
               <Trash2 size={18} />
@@ -840,114 +837,114 @@ export default function BankManagement() {
                   </div>
                 ) : (
                   // 正常顯示模式
-                <div className="space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      {selectionMode && (
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(bank.$id)}
-                          onChange={() => handleToggleSelect(bank.$id)}
-                          className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
-                        />
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        {selectionMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(bank.$id)}
+                            onChange={() => handleToggleSelect(bank.$id)}
+                            className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
+                          />
+                        )}
+                        {bank.site && <FaviconImage siteUrl={bank.site} siteName={bank.name} size={24} />}
+                        <div>
+                          {bank.site ? (
+                            <a
+                              href={bank.site}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-lg font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                            >
+                              {bank.name}
+                              <LinkIcon size={14} />
+                            </a>
+                          ) : (
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{bank.name}</h3>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          {Number(bank.deposit) > 0 && (
+                            <>
+                              <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                                {formatCurrency(bank.deposit)}
+                              </div>
+                              <span className="text-xs text-gray-400">資產餘額</span>
+                            </>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleInlineEdit(bank)}
+                          className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
+                          title="編輯"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(bank.$id, bank.name)}
+                          className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                          title="刪除"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* 地址 */}
+                      {bank.address && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                          <MapPin size={16} className="text-gray-400" />
+                          <span className="truncate">{bank.address}</span>
+                        </div>
                       )}
-                      {bank.site && <FaviconImage siteUrl={bank.site} siteName={bank.name} size={24} />}
-                      <div>
-                        {bank.site ? (
-                          <a 
-                            href={bank.site} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="text-lg font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                          >
-                            {bank.name}
-                            <LinkIcon size={14} />
-                          </a>
-                        ) : (
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{bank.name}</h3>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        {Number(bank.deposit) > 0 && (
-                          <>
-                            <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                              {formatCurrency(bank.deposit)}
+
+                      {/* 卡片 */}
+                      {bank.card && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                          <CreditCard size={16} className="text-gray-400" />
+                          <span>{bank.card}</span>
+                        </div>
+                      )}
+
+                      {/* 帳號 */}
+                      {bank.account && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                          <User size={16} className="text-gray-400" />
+                          <span>{bank.account}</span>
+                        </div>
+                      )}
+
+                      {/* 額度資訊 - 只顯示大於 0 的值 */}
+                      {(Number(bank.withdrawals) > 0 || Number(bank.transfer) > 0) && (
+                        <div className="flex items-center gap-4 text-xs">
+                          {Number(bank.withdrawals) > 0 && (
+                            <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded">
+                              <ArrowDownLeft size={12} />
+                              <span>提款: {formatCurrency(bank.withdrawals)}</span>
                             </div>
-                            <span className="text-xs text-gray-400">資產餘額</span>
-                          </>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleInlineEdit(bank)}
-                        className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
-                        title="編輯"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(bank.$id, bank.name)}
-                        className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                        title="刪除"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                          )}
+                          {Number(bank.transfer) > 0 && (
+                            <div className="flex items-center gap-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-2 py-1 rounded">
+                              <ArrowUpRight size={12} />
+                              <span>轉帳: {formatCurrency(bank.transfer)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 活動連結 */}
+                      {bank.activity && (
+                        <a href={bank.activity} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-purple-500 hover:underline">
+                          <Activity size={16} />
+                          <span>最新活動優惠</span>
+                        </a>
+                      )}
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* 地址 */}
-                    {bank.address && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                        <MapPin size={16} className="text-gray-400" />
-                        <span className="truncate">{bank.address}</span>
-                      </div>
-                    )}
-                    
-                    {/* 卡片 */}
-                    {bank.card && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                        <CreditCard size={16} className="text-gray-400" />
-                        <span>{bank.card}</span>
-                      </div>
-                    )}
-
-                    {/* 帳號 */}
-                    {bank.account && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                        <User size={16} className="text-gray-400" />
-                        <span>{bank.account}</span>
-                      </div>
-                    )}
-
-                    {/* 額度資訊 - 只顯示大於 0 的值 */}
-                    {(Number(bank.withdrawals) > 0 || Number(bank.transfer) > 0) && (
-                      <div className="flex items-center gap-4 text-xs">
-                        {Number(bank.withdrawals) > 0 && (
-                          <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded">
-                            <ArrowDownLeft size={12} />
-                            <span>提款: {formatCurrency(bank.withdrawals)}</span>
-                          </div>
-                        )}
-                        {Number(bank.transfer) > 0 && (
-                          <div className="flex items-center gap-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-2 py-1 rounded">
-                            <ArrowUpRight size={12} />
-                            <span>轉帳: {formatCurrency(bank.transfer)}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 活動連結 */}
-                    {bank.activity && (
-                      <a href={bank.activity} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-purple-500 hover:underline">
-                        <Activity size={16} />
-                        <span>最新活動優惠</span>
-                      </a>
-                    )}
-                  </div>
-                </div>
                 )}
               </DataCardItem>
             ))}
