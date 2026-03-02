@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize } from "lucide-react";
+import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize, AlertTriangle } from "lucide-react";
 import SimpleVideoPlayer from "@/components/ui/simple-video-player";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
@@ -587,6 +587,47 @@ export default function VideoIntroduction() {
     );
   }, [videos, searchQuery]);
 
+  // Bulk delete state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (!selectionMode) {
+      setSelectionMode(true);
+      setSelectedIds(new Set(filteredVideos.map(v => v.$id)));
+    } else if (filteredVideos.length > 0 && filteredVideos.every(v => selectedIds.has(v.$id))) {
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+    } else {
+      setSelectedIds(new Set(filteredVideos.map(v => v.$id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    for (const id of Array.from(selectedIds)) {
+      try {
+        const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${id}`);
+        await fetch(url, { method: 'DELETE' });
+      } catch (err) { console.error("Delete failed:", err); }
+    }
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+    loadVideos(true);
+  };
+
   const {
     cacheStatus,
     cacheStats,
@@ -844,6 +885,15 @@ export default function VideoIntroduction() {
               className="pl-10 h-12 rounded-xl"
             />
           </div>
+          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+            {selectionMode && filteredVideos.length > 0 && filteredVideos.every(v => selectedIds.has(v.$id)) ? "取消全選" : "全選"}
+          </Button>
+          {selectedIds.size > 0 && (
+            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 size={18} />
+              刪除選取 ({selectedIds.size})
+            </Button>
+          )}
           {/* 介面風格切換 */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1">
             <button
@@ -891,9 +941,17 @@ export default function VideoIntroduction() {
           : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-6"
         }>
           {filteredVideos.map((video) => (
-            viewMode === 'bilibili' ? (
+            <div key={video.$id} className="relative">
+              {selectionMode && (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(video.$id)}
+                  onChange={() => handleToggleSelect(video.$id)}
+                  className="absolute top-2 left-2 z-10 h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer"
+                />
+              )}
+              {viewMode === 'bilibili' ? (
               <BilibiliVideoCard
-                key={video.$id}
                 video={video}
                 cacheStatus={cacheStatus[video.$id]}
                 onPlay={() => playVideo(video)}
@@ -917,7 +975,6 @@ export default function VideoIntroduction() {
               />
             ) : (
               <VideoManagementCard
-                key={video.$id}
                 video={video}
                 cacheStatus={cacheStatus[video.$id]}
                 onPlay={() => playVideo(video)}
@@ -939,7 +996,8 @@ export default function VideoIntroduction() {
                 setInlineCoverPreview={setInlineCoverPreview}
                 inlineCoverUploading={inlineCoverUploading}
               />
-            )
+            )}
+            </div>
           ))}
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare } from "lucide-react";
+import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -40,7 +40,10 @@ export default function FoodManagement() {
   const [isEditMode, setIsEditMode] = useState(false);
 
   // Selection state
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -74,46 +77,31 @@ export default function FoodManagement() {
   }, [foods, searchQuery]);
 
   // Selection helpers (after filteredFoods)
-  const isAllSelected = filteredFoods.length > 0 && selectedIds.size === filteredFoods.length;
-  const toggleSelectAll = () => {
-    if (isAllSelected) {
+  const isAllSelected = filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id));
+  const handleSelectAll = () => {
+    if (!selectionMode) {
+      setSelectionMode(true);
+      setSelectedIds(new Set(filteredFoods.map(food => food.$id)));
+    } else if (filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id))) {
       setSelectedIds(new Set());
+      setSelectionMode(false);
     } else {
       setSelectedIds(new Set(filteredFoods.map(food => food.$id)));
     }
   };
+  const toggleSelectAll = handleSelectAll;
 
   // 批量刪除選中的項目
-  const deleteSelected = async () => {
-    if (selectedIds.size === 0) return;
-
-    // 如果是全選刪除，需要輸入確認文字
-    if (isAllSelected) {
-      const confirmText = prompt(
-        `⚠️ 警告：您正在刪除所有 ${selectedIds.size} 個食品！\n\n請輸入「DELETE Food」確認刪除：`
-      );
-      if (confirmText !== 'DELETE Food') {
-        if (confirmText !== null) {
-          alert('輸入錯誤，刪除已取消');
-        }
-        return;
-      }
-    } else {
-      // 部分選擇，使用一般確認
-      if (!confirm(`確定要刪除選中的 ${selectedIds.size} 個食品嗎？`)) return;
+  const handleBulkDelete = async () => {
+    for (const id of Array.from(selectedIds)) {
+      try { await deleteFood(id); } catch (err) { console.error("Delete failed:", err); }
     }
-
-    try {
-      for (const id of selectedIds) {
-        await deleteFood(id);
-      }
-      setSelectedIds(new Set());
-    } catch (error) {
-      console.error('Batch delete failed:', error);
-      const errorMessage = error instanceof Error ? error.message : '批量刪除失敗，請稍後再試';
-      alert(errorMessage);
-    }
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
   };
+  const deleteSelected = () => setBulkDeleteOpen(true);
 
   useEffect(() => {
     // Clean up object URLs on unmount
@@ -678,14 +666,25 @@ export default function FoodManagement() {
 
       {/* 搜尋欄位 */}
       {foods.length > 0 && (
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="搜尋食品名稱、商店..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 rounded-xl"
-          />
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              placeholder="搜尋食品名稱、商店..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 rounded-xl"
+            />
+          </div>
+          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+            {selectionMode && filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id)) ? "取消全選" : "全選"}
+          </Button>
+          {selectedIds.size > 0 && (
+            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 size={18} />
+              刪除選取 ({selectedIds.size})
+            </Button>
+          )}
         </div>
       )}
 
@@ -706,7 +705,7 @@ export default function FoodManagement() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
-              isEditMode={isEditMode}
+              isEditMode={isEditMode || selectionMode}
               setIsEditMode={setIsEditMode}
               selectedIds={selectedIds}
               toggleSelect={toggleSelect}
@@ -730,7 +729,7 @@ export default function FoodManagement() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
-              isEditMode={isEditMode}
+              isEditMode={isEditMode || selectionMode}
               setIsEditMode={setIsEditMode}
               selectedIds={selectedIds}
               toggleSelect={toggleSelect}
@@ -747,6 +746,44 @@ export default function FoodManagement() {
           </>
         )}
       </DataCard>
+
+      {/* 批次刪除確認 Modal */}
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-3 mb-3">
+                <AlertTriangle className="text-red-500" size={24} />
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">確認批次刪除</h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400">
+                即將刪除 <span className="font-bold text-red-600">{selectedIds.size}</span> 筆資料，此操作無法復原
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">請輸入以下文字確認：</p>
+              <code className="block bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg text-sm font-mono text-red-600">DELETE food</code>
+              <input
+                type="text"
+                value={bulkDeleteInput}
+                onChange={(e) => setBulkDeleteInput(e.target.value)}
+                placeholder="輸入 DELETE food"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+              />
+            </div>
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }}>取消</Button>
+              <Button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteInput !== "DELETE food"}
+                className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+              >
+                確認刪除 ({selectedIds.size} 筆)
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
