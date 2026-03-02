@@ -95,17 +95,17 @@ export default function ImageGallery() {
   const handleSelectAll = () => {
     if (!selectionMode) {
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredImages.map(img => img.$id)));
+      setSelectedIds(new Set(filteredImages.map(img => img.$id).filter(Boolean)));
     } else if (filteredImages.length > 0 && filteredImages.every(img => selectedIds.has(img.$id))) {
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredImages.map(img => img.$id)));
+      setSelectedIds(new Set(filteredImages.map(img => img.$id).filter(Boolean)));
     }
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try {
         const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${id}`);
         await fetch(url, { method: 'DELETE' });

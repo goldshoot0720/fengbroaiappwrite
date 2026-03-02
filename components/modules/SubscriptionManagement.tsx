@@ -237,18 +237,18 @@ export default function SubscriptionManagement() {
   const handleSelectAll = () => {
     if (!selectionMode) {
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredSubscriptions.map(sub => sub.$id)));
+      setSelectedIds(new Set(filteredSubscriptions.map(sub => sub.$id).filter(Boolean)));
     } else if (filteredSubscriptions.length > 0 && filteredSubscriptions.every(sub => selectedIds.has(sub.$id))) {
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredSubscriptions.map(sub => sub.$id)));
+      setSelectedIds(new Set(filteredSubscriptions.map(sub => sub.$id).filter(Boolean)));
     }
   };
 
   // 批量刪除選中的項目
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try { await deleteSubscription(id); } catch (err) { console.error("Delete failed:", err); }
     }
     setSelectedIds(new Set());

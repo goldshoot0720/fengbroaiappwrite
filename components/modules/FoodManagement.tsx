@@ -81,19 +81,19 @@ export default function FoodManagement() {
   const handleSelectAll = () => {
     if (!selectionMode) {
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredFoods.map(food => food.$id)));
+      setSelectedIds(new Set(filteredFoods.map(food => food.$id).filter(Boolean)));
     } else if (filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id))) {
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredFoods.map(food => food.$id)));
+      setSelectedIds(new Set(filteredFoods.map(food => food.$id).filter(Boolean)));
     }
   };
   const toggleSelectAll = handleSelectAll;
 
   // 批量刪除選中的項目
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try { await deleteFood(id); } catch (err) { console.error("Delete failed:", err); }
     }
     setSelectedIds(new Set());

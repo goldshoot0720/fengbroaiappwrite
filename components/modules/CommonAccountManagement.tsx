@@ -424,20 +424,20 @@ export default function CommonAccountManagement() {
     if (!selectionMode) {
       // Enter selection mode and select all
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredAccounts.map(a => a.$id)));
+      setSelectedIds(new Set(filteredAccounts.map(a => a.$id).filter(Boolean)));
     } else if (filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id))) {
       // All selected → deselect all and exit selection mode
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
       // Partial → select all
-      setSelectedIds(new Set(filteredAccounts.map(a => a.$id)));
+      setSelectedIds(new Set(filteredAccounts.map(a => a.$id).filter(Boolean)));
     }
   };
 
   // Execute bulk delete
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try { await remove(id); } catch (err) { console.error("Delete failed:", err); }
     }
     setSelectedIds(new Set());

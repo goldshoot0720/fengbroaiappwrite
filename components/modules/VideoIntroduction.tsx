@@ -605,17 +605,17 @@ export default function VideoIntroduction() {
   const handleSelectAll = () => {
     if (!selectionMode) {
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredVideos.map(v => v.$id)));
+      setSelectedIds(new Set(filteredVideos.map(v => v.$id).filter(Boolean)));
     } else if (filteredVideos.length > 0 && filteredVideos.every(v => selectedIds.has(v.$id))) {
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredVideos.map(v => v.$id)));
+      setSelectedIds(new Set(filteredVideos.map(v => v.$id).filter(Boolean)));
     }
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try {
         const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${id}`);
         await fetch(url, { method: 'DELETE' });

@@ -656,17 +656,17 @@ export default function MusicManagement() {
   const handleSelectAll = () => {
     if (!selectionMode) {
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredMusic.map(m => m.$id)));
+      setSelectedIds(new Set(filteredMusic.map(m => m.$id).filter(Boolean)));
     } else if (filteredMusic.length > 0 && filteredMusic.every(m => selectedIds.has(m.$id))) {
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredMusic.map(m => m.$id)));
+      setSelectedIds(new Set(filteredMusic.map(m => m.$id).filter(Boolean)));
     }
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try {
         const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.MUSIC}/${id}`);
         const response = await fetch(url, { method: 'DELETE' });

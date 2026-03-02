@@ -119,17 +119,17 @@ export default function PodcastManagement() {
   const handleSelectAll = () => {
     if (!selectionMode) {
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredPodcast.map(p => p.$id)));
+      setSelectedIds(new Set(filteredPodcast.map(p => p.$id).filter(Boolean)));
     } else if (filteredPodcast.length > 0 && filteredPodcast.every(p => selectedIds.has(p.$id))) {
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredPodcast.map(p => p.$id)));
+      setSelectedIds(new Set(filteredPodcast.map(p => p.$id).filter(Boolean)));
     }
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try {
         const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.PODCAST}/${id}`);
         const response = await fetch(url, { method: 'DELETE' });

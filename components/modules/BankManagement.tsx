@@ -119,17 +119,17 @@ export default function BankManagement() {
   const handleSelectAll = () => {
     if (!selectionMode) {
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredBanks.map(b => b.$id)));
+      setSelectedIds(new Set(filteredBanks.map(b => b.$id).filter(Boolean)));
     } else if (filteredBanks.length > 0 && filteredBanks.every(b => selectedIds.has(b.$id))) {
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredBanks.map(b => b.$id)));
+      setSelectedIds(new Set(filteredBanks.map(b => b.$id).filter(Boolean)));
     }
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try { await deleteBank(id); } catch (err) { console.error("Delete failed:", err); }
     }
     setSelectedIds(new Set());

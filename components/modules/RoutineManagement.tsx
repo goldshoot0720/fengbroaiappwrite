@@ -93,17 +93,17 @@ export default function RoutineManagement() {
   const handleSelectAll = () => {
     if (!selectionMode) {
       setSelectionMode(true);
-      setSelectedIds(new Set(filteredRoutines.map(r => r.$id)));
+      setSelectedIds(new Set(filteredRoutines.map(r => r.$id).filter(Boolean)));
     } else if (filteredRoutines.length > 0 && filteredRoutines.every(r => selectedIds.has(r.$id))) {
       setSelectedIds(new Set());
       setSelectionMode(false);
     } else {
-      setSelectedIds(new Set(filteredRoutines.map(r => r.$id)));
+      setSelectedIds(new Set(filteredRoutines.map(r => r.$id).filter(Boolean)));
     }
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds)) {
+    for (const id of Array.from(selectedIds).filter(id => !!id)) {
       try { await remove(id); } catch (err) { console.error("Delete failed:", err); }
     }
     setSelectedIds(new Set());
