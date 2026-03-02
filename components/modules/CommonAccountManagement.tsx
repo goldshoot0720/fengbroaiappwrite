@@ -141,6 +141,7 @@ export default function CommonAccountManagement() {
   // Filter copy success state
   const [filterCopySuccess, setFilterCopySuccess] = useState<string | null>(null);
   // Bulk selection state
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteInput, setBulkDeleteInput] = useState("");
@@ -420,10 +421,16 @@ export default function CommonAccountManagement() {
 
   // Select/deselect all filtered accounts
   const handleSelectAll = () => {
-    const allSelected = filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id));
-    if (allSelected) {
+    if (!selectionMode) {
+      // Enter selection mode and select all
+      setSelectionMode(true);
+      setSelectedIds(new Set(filteredAccounts.map(a => a.$id)));
+    } else if (filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id))) {
+      // All selected → deselect all and exit selection mode
       setSelectedIds(new Set());
+      setSelectionMode(false);
     } else {
+      // Partial → select all
       setSelectedIds(new Set(filteredAccounts.map(a => a.$id)));
     }
   };
@@ -434,6 +441,7 @@ export default function CommonAccountManagement() {
       try { await remove(id); } catch (err) { console.error("Delete failed:", err); }
     }
     setSelectedIds(new Set());
+    setSelectionMode(false);
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
     fetchAll();
@@ -1151,7 +1159,7 @@ export default function CommonAccountManagement() {
             variant="outline"
             className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0"
           >
-            {filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id)) ? "取消全選" : "全選"}
+            {selectionMode && filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id)) ? "取消全選" : "全選"}
           </Button>
           {selectedIds.size > 0 && (
             <Button
@@ -1227,15 +1235,17 @@ export default function CommonAccountManagement() {
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {filteredAccounts.map((account) => (
-            <DataCard key={account.$id} className={`flex flex-col h-full hover:shadow-lg transition-all duration-300 border-t-4 overflow-hidden group ${selectedIds.has(account.$id) ? 'border-t-red-500 ring-2 ring-red-300 dark:ring-red-800' : 'border-t-blue-500'}`}>
+            <DataCard key={account.$id} className={`flex flex-col h-full hover:shadow-lg transition-all duration-300 border-t-4 overflow-hidden group ${selectionMode && selectedIds.has(account.$id) ? 'border-t-red-500 ring-2 ring-red-300 dark:ring-red-800' : 'border-t-blue-500'}`}>
               <div className="p-4 pr-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(account.$id)}
-                    onChange={() => handleToggleSelect(account.$id)}
-                    className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
-                  />
+                  {selectionMode && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(account.$id)}
+                      onChange={() => handleToggleSelect(account.$id)}
+                      className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
+                    />
+                  )}
                   <NoteIcon size={20} className="text-blue-500 shrink-0" />
                   <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100 truncate">
                     {account.name}
