@@ -901,6 +901,38 @@ export default function CommonAccountManagement() {
               <Download size={18} />
               匯出
             </Button>
+            {selectionMode ? (
+              <>
+                <Button
+                  onClick={handleSelectAll}
+                  variant="outline"
+                  className="rounded-xl flex items-center gap-2 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+                >
+                  {filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id))
+                    ? <><X size={18} /> 取消全選</>
+                    : <><Trash2 size={18} /> 全選</>
+                  }
+                </Button>
+                <Button
+                  onClick={() => { setSelectionMode(false); setSelectedIds(new Set()); }}
+                  variant="outline"
+                  className="rounded-xl flex items-center gap-2"
+                >
+                  <X size={18} />
+                  取消選取
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={handleSelectAll}
+                variant="outline"
+                className="rounded-xl flex items-center gap-2"
+                title="全選刪除"
+              >
+                <Trash2 size={18} />
+                全選刪除
+              </Button>
+            )}
             <Button
               onClick={() => setIsFormOpen(!isFormOpen)}
               className="rounded-xl flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
