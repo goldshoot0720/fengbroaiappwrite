@@ -733,7 +733,6 @@ export default function BankManagement() {
         </FormCard>
       )}
 
-      {/* 搜尋欄位 */}
       {banks.length > 0 && (
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
@@ -745,6 +744,9 @@ export default function BankManagement() {
               className="pl-10 h-12 rounded-xl"
             />
           </div>
+          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+            {selectionMode && filteredBanks.length > 0 && filteredBanks.every(b => selectedIds.has(b.$id)) ? '取消全選' : '全選'}
+          </Button>
           {selectedIds.size > 0 && (
             <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
               <Trash2 size={18} />

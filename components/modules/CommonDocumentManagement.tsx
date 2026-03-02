@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus } from "lucide-react";
+import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus, AlertTriangle } from "lucide-react";
 import { useCommonDocument, CommonDocumentData } from "@/hooks/useCommonDocument";
 import { useDocumentCache } from "@/hooks/useDocumentCache";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -175,6 +175,15 @@ export default function CommonDocumentManagement() {
 
   // Cover upload state
   const [uploadingCoverId, setUploadingCoverId] = useState<string | null>(null);
+
+  // Bulk selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(0);
+  const [deleteTotal, setDeleteTotal] = useState(0);
 
   // 文件快取管理
   const {
@@ -562,6 +571,46 @@ export default function CommonDocumentManagement() {
     );
   }, [commondocument, searchQuery]);
 
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (!selectionMode) {
+      setSelectionMode(true);
+      setSelectedIds(new Set(filteredDocuments.map(d => d.$id).filter(Boolean)));
+    } else if (filteredDocuments.length > 0 && filteredDocuments.every(d => selectedIds.has(d.$id))) {
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+    } else {
+      setSelectedIds(new Set(filteredDocuments.map(d => d.$id).filter(Boolean)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    setDeleteTotal(ids.length);
+    setDeleteProgress(0);
+    setIsDeleting(true);
+    await Promise.all(ids.map(id => {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${id}`);
+      return fetch(url, { method: 'DELETE' })
+        .catch(err => console.error('Delete failed:', err))
+        .finally(() => setDeleteProgress(prev => prev + 1));
+    }));
+    setIsDeleting(false);
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+    loadCommonDocument(true);
+  };
+
   const handleAdd = () => {
     setEditingDocument(null);
     setShowFormModal(true);
@@ -779,6 +828,15 @@ export default function CommonDocumentManagement() {
               className="pl-10 h-12 rounded-xl"
             />
           </div>
+          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+            {selectionMode && filteredDocuments.length > 0 && filteredDocuments.every(d => selectedIds.has(d.$id)) ? '取消全選' : '全選'}
+          </Button>
+          {selectedIds.size > 0 && (
+            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 size={18} />
+              刪除選取 ({selectedIds.size})
+            </Button>
+          )}
           <div className="flex bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}
@@ -1036,6 +1094,50 @@ export default function CommonDocumentManagement() {
           </div>
         </div>
       </div>
+
+      {/* 批次刪除確認 Modal */}
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-3 mb-3">
+                <AlertTriangle className="text-red-500" size={24} />
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">確認批次刪除</h3>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">即將刪除 <span className="font-bold text-red-600">{selectedIds.size}</span> 份文件，此操作無法復原</p>
+            </div>
+            {isDeleting ? (
+              <div className="p-6 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600 shrink-0" />
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">正在刪除中... ({deleteProgress} / {deleteTotal} 筆)</p>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                  <div className="bg-red-500 h-2.5 rounded-full transition-all duration-300" style={{ width: `${deleteTotal > 0 ? (deleteProgress / deleteTotal) * 100 : 0}%` }} />
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">請輸入以下文字確認：</p>
+                <code className="block bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg text-sm font-mono text-red-600">DELETE document</code>
+                <input
+                  type="text"
+                  value={bulkDeleteInput}
+                  onChange={(e) => setBulkDeleteInput(e.target.value)}
+                  placeholder="輸入 DELETE document"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
+            )}
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }} disabled={isDeleting}>取消</Button>
+              <Button onClick={handleBulkDelete} disabled={bulkDeleteInput !== "DELETE document" || isDeleting} className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
+                {isDeleting ? '刪除中...' : `確認刪除 (${selectedIds.size} 筆)`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1649,8 +1751,8 @@ function DocumentTableRow({
                 <label
                   htmlFor={`table-file-upload-${document.$id}`}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors whitespace-nowrap ${uploadingFile
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                      : 'bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400'
+                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400'
                     }`}
                 >
                   {uploadingFile ? (

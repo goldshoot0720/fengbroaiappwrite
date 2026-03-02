@@ -893,6 +893,9 @@ export default function VideoIntroduction() {
               className="pl-10 h-12 rounded-xl"
             />
           </div>
+          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+            {selectionMode && filteredVideos.length > 0 && filteredVideos.every(v => selectedIds.has(v.$id)) ? '取消全選' : '全選'}
+          </Button>
           {selectedIds.size > 0 && (
             <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
               <Trash2 size={18} />

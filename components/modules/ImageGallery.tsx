@@ -623,6 +623,9 @@ export default function ImageGallery() {
               className="pl-10 h-12 rounded-xl"
             />
           </div>
+          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+            {selectionMode && filteredImages.length > 0 && filteredImages.every(img => selectedIds.has(img.$id)) ? '取消全選' : '全選'}
+          </Button>
           {selectedIds.size > 0 && (
             <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
               <Trash2 size={18} />

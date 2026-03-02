@@ -510,9 +510,18 @@ export default function RoutineManagement() {
             <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2">
               <Download size={18} /> 匯出
             </Button>
+            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl flex items-center gap-2">
+              {selectionMode && filteredRoutines.length > 0 && filteredRoutines.every(r => selectedIds.has(r.$id)) ? '取消全選' : '全選'}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={18} />
+                刪除選取 ({selectedIds.size})
+              </Button>
+            )}
             <Button onClick={() => setIsFormOpen(!isFormOpen)} className="w-full md:w-auto">
               <Plus size={18} className="mr-2" />
-              {isFormOpen ? "收起表單" : "新增例行事項"}
+              {isFormOpen ? '收起表單' : '新增例行事項'}
             </Button>
           </div>
 
