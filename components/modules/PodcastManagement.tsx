@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Podcast as PodcastIcon, Plus, Edit, Trash2, X, Upload, Calendar, Play, Pause, Search, ChevronDown, Repeat, HardDrive, Check, FolderUp } from "lucide-react";
+import { Podcast as PodcastIcon, Plus, Edit, Trash2, X, Upload, Calendar, Play, Pause, Search, ChevronDown, Repeat, HardDrive, Check, FolderUp, AlertTriangle } from "lucide-react";
 import { usePodcast, PodcastData } from "@/hooks/usePodcast";
 import { usePodcastCache } from "@/hooks/usePodcastCache";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -76,6 +76,12 @@ export default function PodcastManagement() {
   const [inlineCoverPreview, setInlineCoverPreview] = useState<string>('');
   const [inlineCoverUploading, setInlineCoverUploading] = useState(false);
 
+  // Bulk selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+
   // 播客快取管理
   const {
     cacheStatus,
@@ -100,6 +106,42 @@ export default function PodcastManagement() {
       item.name?.toLowerCase().includes(query)
     );
   }, [podcast, searchQuery]);
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (!selectionMode) {
+      setSelectionMode(true);
+      setSelectedIds(new Set(filteredPodcast.map(p => p.$id)));
+    } else if (filteredPodcast.length > 0 && filteredPodcast.every(p => selectedIds.has(p.$id))) {
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+    } else {
+      setSelectedIds(new Set(filteredPodcast.map(p => p.$id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    for (const id of Array.from(selectedIds)) {
+      try {
+        const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.PODCAST}/${id}`);
+        const response = await fetch(url, { method: 'DELETE' });
+        if (!response.ok) console.error('Delete failed for', id);
+      } catch (err) { console.error("Delete failed:", err); }
+    }
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+    loadPodcast(true);
+  };
 
   const handleAdd = () => {
     setEditingPodcast(null);
@@ -495,14 +537,25 @@ export default function PodcastManagement() {
 
       {/* 搜尋欄位 */}
       {podcast.length > 0 && (
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="搜尋播客名稱..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 rounded-xl"
-          />
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              placeholder="搜尋播客名稱..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 rounded-xl"
+            />
+          </div>
+          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+            {selectionMode && filteredPodcast.length > 0 && filteredPodcast.every(p => selectedIds.has(p.$id)) ? "取消全選" : "全選"}
+          </Button>
+          {selectedIds.size > 0 && (
+            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 size={18} />
+              刪除選取 ({selectedIds.size})
+            </Button>
+          )}
         </div>
       )}
 
@@ -536,6 +589,9 @@ export default function PodcastManagement() {
               onToggleExpand={() => setExpandedPodcastId(expandedPodcastId === podcastItem.$id ? null : podcastItem.$id)}
               onEdit={() => handleEdit(podcastItem)}
               onDelete={() => handleDelete(podcastItem)}
+              selectionMode={selectionMode}
+              isSelected={selectedIds.has(podcastItem.$id)}
+              onToggleSelect={() => handleToggleSelect(podcastItem.$id)}
               cacheStatus={cacheStatus}
               downloadAndCachePodcast={downloadAndCachePodcast}
               inlineEditingId={inlineEditingId}
@@ -631,6 +687,44 @@ export default function PodcastManagement() {
           </div>
         </div>
       )}
+
+      {/* 批次刪除確認 Modal */}
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-3 mb-3">
+                <AlertTriangle className="text-red-500" size={24} />
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">確認批次刪除</h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400">
+                即將刪除 <span className="font-bold text-red-600">{selectedIds.size}</span> 筆播客，此操作無法復原
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">請輸入以下文字確認：</p>
+              <code className="block bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg text-sm font-mono text-red-600">DELETE podcast</code>
+              <input
+                type="text"
+                value={bulkDeleteInput}
+                onChange={(e) => setBulkDeleteInput(e.target.value)}
+                placeholder="輸入 DELETE podcast"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+              />
+            </div>
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }}>取消</Button>
+              <Button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteInput !== "DELETE podcast"}
+                className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+              >
+                確認刪除 ({selectedIds.size} 筆)
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -659,9 +753,13 @@ interface MusicCardProps {
   setInlineCoverFile: (file: File | null) => void;
   setInlineCoverPreview: (preview: string) => void;
   inlineCoverUploading: boolean;
+  // Bulk selection props
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
-function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, onEdit, onDelete, cacheStatus, downloadAndCachePodcast, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, inlineCoverPreview, setInlineCoverFile, setInlineCoverPreview, inlineCoverUploading }: MusicCardProps) {
+function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, onEdit, onDelete, cacheStatus, downloadAndCachePodcast, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, inlineCoverPreview, setInlineCoverFile, setInlineCoverPreview, inlineCoverUploading, selectionMode, isSelected, onToggleSelect }: MusicCardProps) {
   const [isLooping, setIsLooping] = useState(false);
   const [isCached, setIsCached] = useState(false);
   const { checkPodcastCache } = usePodcastCache();
@@ -804,6 +902,16 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 group border border-gray-200 dark:border-gray-700">
       <div className="flex items-center gap-4 p-4 cursor-pointer" onClick={onToggleExpand}>
+        {/* 全選 checkbox */}
+        {selectionMode && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => { e.stopPropagation(); onToggleSelect?.(); }}
+            onClick={(e) => e.stopPropagation()}
+            className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
+          />
+        )}
         {/* 封面 */}
         <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 group/cover">
           {podcast.cover ? (
