@@ -238,6 +238,86 @@ const KNOWN_FAVICON_URLS: Record<string, string> = {
   // 大台北銀行
   'www.taipeibank.com.tw': 'https://www.taipeibank.com.tw/favicon.ico',
   'taipeibank.com.tw': 'https://www.taipeibank.com.tw/favicon.ico',
+
+  // === 鋒兄常用服務 ===
+
+  // AOL
+  'aol.com': 'https://www.aol.com/favicon.ico',
+  'www.aol.com': 'https://www.aol.com/favicon.ico',
+
+  // Back4App
+  'back4app.com': 'https://www.back4app.com/_public/favicon.ico',
+  'www.back4app.com': 'https://www.back4app.com/_public/favicon.ico',
+
+  // ChatGPT
+  'chatgpt.com': 'https://chatgpt.com/favicon.ico',
+
+  // Codeberg
+  'codeberg.org': 'https://codeberg.org/assets/img/favicon.svg',
+
+  // Daum (韓國入口網站)
+  'daum.net': 'https://daum.net/favicon.ico',
+  'www.daum.net': 'https://daum.net/favicon.ico',
+
+  // Kakao
+  'kakao.com': 'https://kakao.com/favicon.ico',
+  'www.kakao.com': 'https://kakao.com/favicon.ico',
+
+  // Manus (AI Agent)
+  'manus.im': 'https://manus.im/favicon.ico',
+
+  // MindVideo
+  'mindvideo.ai': 'https://www.mindvideo.ai/favicon.ico',
+  'www.mindvideo.ai': 'https://www.mindvideo.ai/favicon.ico',
+
+  // Mureka (AI 音樂)
+  'mureka.ai': 'https://www.mureka.ai/favicon.ico',
+  'www.mureka.ai': 'https://www.mureka.ai/favicon.ico',
+
+  // Nhost (BaaS)
+  'nhost.io': 'https://nhost.io/favicon.ico',
+
+  // PixVerse (AI 影片)
+  'pixverse.ai': 'https://cdn.pixverse.ai/media/pixverse/favicon.svg',
+  'www.pixverse.ai': 'https://cdn.pixverse.ai/media/pixverse/favicon.svg',
+
+  // Proton (加密郵件)
+  'proton.me': 'https://proton.me/favicons/favicon-32x32.png',
+  'www.proton.me': 'https://proton.me/favicons/favicon-32x32.png',
+
+  // Railway (雲端部署)
+  'railway.app': 'https://railway.app/favicon.ico',
+
+  // Render / Renderul (雲端部署)
+  'render.com': 'https://render.com/favicon.ico',
+  'www.render.com': 'https://render.com/favicon.ico',
+
+  // Sanity (Headless CMS)
+  'sanity.io': 'https://www.sanity.io/static/images/favicons/favicon-96x96.png?v=2',
+  'www.sanity.io': 'https://www.sanity.io/static/images/favicons/favicon-96x96.png?v=2',
+
+  // Strapi (Headless CMS)
+  'strapi.io': 'https://strapi.io/assets/favicon-32x32.png',
+
+  // Supabase (BaaS)
+  'supabase.com': 'https://supabase.com/favicon.ico',
+  'www.supabase.com': 'https://supabase.com/favicon.ico',
+
+  // VK (俄羅斯社群)
+  'vk.com': 'https://vk.com/images/icons/favicons/fav_logo.ico',
+  'www.vk.com': 'https://vk.com/images/icons/favicons/fav_logo.ico',
+
+  // Yahoo
+  'yahoo.com': 'https://s.yimg.com/cv/apiv2/yahoo/brandassets/favicon.png',
+  'www.yahoo.com': 'https://s.yimg.com/cv/apiv2/yahoo/brandassets/favicon.png',
+
+  // Yandex (俄羅斯搜尋)
+  'yandex.com': 'https://yandex.com/favicon.ico',
+  'www.yandex.com': 'https://yandex.com/favicon.ico',
+
+  // Zoho (商業軟體)
+  'zoho.com': 'https://www.zohowebstatic.com/sites/zweb/images/favicon.ico',
+  'www.zoho.com': 'https://www.zohowebstatic.com/sites/zweb/images/favicon.ico',
 };
 
 /**
