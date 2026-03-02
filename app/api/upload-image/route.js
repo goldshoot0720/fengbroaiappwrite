@@ -1,48 +1,40 @@
 import { NextResponse } from "next/server";
 
-const sdk = require('node-appwrite');
-
 export const dynamic = 'force-dynamic';
-
-// Configure maximum request body size for file uploads (50MB)
-// Note: This uses Next.js experimental feature for body size limit
 export const runtime = 'nodejs';
-export const maxDuration = 60; // 60 seconds timeout for uploads
+export const maxDuration = 60;
 
-function createAppwrite(config) {
-  // Use config from request headers (user input) or fallback to env (支援新舊兩種變數名)
-  const endpoint = config?.endpoint || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = config?.projectId || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const apiKey = config?.apiKey || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-  const bucketId = config?.bucketId || process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
+// Configure Next.js body size limit (must be set via route segment config)
+// Note: For form data, Next.js reads it natively so we don't need extra config.
 
-  if (!endpoint || !projectId || !apiKey || !bucketId) {
-    throw new Error("Appwrite configuration is missing");
-  }
+function getAppwriteConfig(headers) {
+  const endpoint = headers.get('x-appwrite-endpoint') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '';
+  const projectId = headers.get('x-appwrite-project') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '';
+  const apiKey = headers.get('x-appwrite-key') || process.env.APPWRITE_API_KEY || process.env.NEXT_PUBLIC_APPWRITE_API_KEY || '';
+  const bucketId = headers.get('x-appwrite-bucket') || process.env.APPWRITE_BUCKET_ID || process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID || '';
 
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  const storage = new sdk.Storage(client);
-
-  return { storage, bucketId, endpoint, projectId };
+  return { endpoint, projectId, apiKey, bucketId };
 }
 
-// POST /api/upload-image - Upload image to Appwrite Storage
+// POST /api/upload-image - Upload image to Appwrite Storage via REST API
 export async function POST(request) {
   try {
-    // Get Appwrite config from headers (user input from localStorage)
-    const appwriteConfig = {
-      endpoint: request.headers.get('x-appwrite-endpoint'),
-      projectId: request.headers.get('x-appwrite-project'),
-      apiKey: request.headers.get('x-appwrite-key'),
-      bucketId: request.headers.get('x-appwrite-bucket'),
-    };
+    const config = getAppwriteConfig(request.headers);
+    const { endpoint, projectId, apiKey, bucketId } = config;
 
-    const { storage, bucketId, endpoint, projectId } = createAppwrite(appwriteConfig);
-    
+    if (!endpoint || !projectId || !apiKey || !bucketId) {
+      const missing = [];
+      if (!endpoint) missing.push('endpoint');
+      if (!projectId) missing.push('projectId');
+      if (!apiKey) missing.push('apiKey');
+      if (!bucketId) missing.push('bucketId');
+      console.error('[upload-image] Missing config:', missing);
+      return NextResponse.json(
+        { error: `Appwrite 設定缺少: ${missing.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get('file');
 
@@ -50,33 +42,56 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // 檢查檔案大小 (10MB for images - reasonable for web use)
-    const maxSize = 10 * 1024 * 1024;
+    // 檔案大小檢查 (50MB)
+    const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
-      return NextResponse.json({ error: '檔案大小不能超過 10MB' }, { status: 400 });
+      return NextResponse.json({ error: '檔案大小不能超過 50MB' }, { status: 400 });
     }
 
-    // 檢查檔案類型
+    // 檔案類型檢查
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       return NextResponse.json({ error: '只支援 JPG, PNG, GIF, WEBP 格式' }, { status: 400 });
     }
 
-    // 讀取檔案內容
+    // 生成唯一 file ID (Appwrite 格式: 唯一字元串)
+    const fileId = generateUniqueId();
+
+    // 讀取檔案 buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 上傳到 Appwrite Storage
-    // In node-appwrite v21, create File object with buffer
-    const fileObject = new File([buffer], file.name, { type: file.type });
-    const uploadedFile = await storage.createFile(
-      bucketId,
-      sdk.ID.unique(),
-      fileObject
-    );
+    // 建立 multipart/form-data 發送到 Appwrite REST API
+    const uploadFormData = new FormData();
+    const blob = new Blob([buffer], { type: file.type });
+    uploadFormData.append('fileId', fileId);
+    uploadFormData.append('file', blob, file.name);
 
-    // 獲取檔案 URL
-    const fileUrl = `${endpoint}/storage/buckets/${bucketId}/files/${uploadedFile.$id}/view?project=${projectId}`;
+    // 設定 Appwrite REST API URL
+    const baseEndpoint = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+    const uploadUrl = `${baseEndpoint}/storage/buckets/${bucketId}/files`;
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'X-Appwrite-Project': projectId,
+        'X-Appwrite-Key': apiKey,
+      },
+      body: uploadFormData,
+    });
+
+    if (!uploadResponse.ok) {
+      let errMsg = '上傳失敗';
+      try {
+        const errData = await uploadResponse.json();
+        errMsg = errData.message || errData.error || errMsg;
+      } catch { }
+      console.error('[upload-image] Appwrite upload error:', uploadResponse.status, errMsg);
+      return NextResponse.json({ error: errMsg }, { status: uploadResponse.status });
+    }
+
+    const uploadedFile = await uploadResponse.json();
+    const fileUrl = `${baseEndpoint}/storage/buckets/${bucketId}/files/${uploadedFile.$id}/view?project=${projectId}`;
 
     return NextResponse.json({
       success: true,
@@ -88,7 +103,17 @@ export async function POST(request) {
     });
 
   } catch (err) {
-    console.error("POST /api/upload-image error:", err);
+    console.error('[upload-image] Unexpected error:', err);
     return NextResponse.json({ error: err.message || '上傳失敗' }, { status: 500 });
   }
+}
+
+// 生成 Appwrite 相容的唯一 ID (20個字元英數字)
+function generateUniqueId() {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 20; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
