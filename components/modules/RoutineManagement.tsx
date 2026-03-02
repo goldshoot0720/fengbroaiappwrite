@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
-import { useCrud } from "@/hooks/useApi";
+import { useCrud, fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
 
 interface Routine {
@@ -103,9 +103,10 @@ export default function RoutineManagement() {
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds).filter(id => !!id)) {
-      try { await remove(id); } catch (err) { console.error("Delete failed:", err); }
-    }
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    await Promise.all(ids.map(id =>
+      fetchApi(`${API_ENDPOINTS.ROUTINE}/${id}`, { method: 'DELETE' }).catch(err => console.error("Delete failed:", err))
+    ));
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);

@@ -13,13 +13,15 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useFoods, getFoodExpiryInfo } from "@/hooks/useFoods";
+import { fetchApi } from "@/hooks/useApi";
+import { API_ENDPOINTS } from "@/lib/constants";
 import { FoodFormData, Food } from "@/types";
 import { formatDate, formatDaysRemaining } from "@/lib/formatters";
 
 const INITIAL_FORM: FoodFormData = { name: "", amount: 0, todate: "", photo: "", price: 0, shop: "", photohash: "" };
 
 export default function FoodManagement() {
-  const { foods, loading, error, createFood, updateFood, deleteFood, updateAmount } = useFoods();
+  const { foods, loading, error, createFood, updateFood, deleteFood, updateAmount, loadFoods } = useFoods();
   const [form, setForm] = useState<FoodFormData>(INITIAL_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -93,13 +95,15 @@ export default function FoodManagement() {
 
   // 批量刪除選中的項目
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds).filter(id => !!id)) {
-      try { await deleteFood(id); } catch (err) { console.error("Delete failed:", err); }
-    }
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    await Promise.all(ids.map(id =>
+      fetchApi(`${API_ENDPOINTS.FOOD}/${id}`, { method: 'DELETE' }).catch(err => console.error("Delete failed:", err))
+    ));
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
+    loadFoods(true);
   };
   const deleteSelected = () => setBulkDeleteOpen(true);
 

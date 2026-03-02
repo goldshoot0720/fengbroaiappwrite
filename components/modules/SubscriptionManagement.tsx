@@ -16,6 +16,8 @@ import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscriptions";
+import { fetchApi } from "@/hooks/useApi";
+import { API_ENDPOINTS } from "@/lib/constants";
 import { SubscriptionFormData, Subscription } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatDate, formatDaysRemaining, formatCurrency, formatCurrencyWithExchange, convertToTWD } from "@/lib/formatters";
@@ -248,9 +250,10 @@ export default function SubscriptionManagement() {
 
   // 批量刪除選中的項目
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds).filter(id => !!id)) {
-      try { await deleteSubscription(id); } catch (err) { console.error("Delete failed:", err); }
-    }
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    await Promise.all(ids.map(id =>
+      fetchApi(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, { method: 'DELETE' }).catch(err => console.error("Delete failed:", err))
+    ));
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);

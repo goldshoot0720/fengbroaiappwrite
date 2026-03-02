@@ -105,12 +105,11 @@ export default function ImageGallery() {
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds).filter(id => !!id)) {
-      try {
-        const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${id}`);
-        await fetch(url, { method: 'DELETE' });
-      } catch (err) { console.error("Delete failed:", err); }
-    }
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    await Promise.all(ids.map(id => {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${id}`);
+      return fetch(url, { method: 'DELETE' }).catch(err => console.error("Delete failed:", err));
+    }));
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);

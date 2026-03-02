@@ -129,13 +129,15 @@ export default function BankManagement() {
   };
 
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds).filter(id => !!id)) {
-      try { await deleteBank(id); } catch (err) { console.error("Delete failed:", err); }
-    }
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    await Promise.all(ids.map(id =>
+      fetchApi(`${API_ENDPOINTS.BANK}/${id}`, { method: 'DELETE' }).catch(err => console.error("Delete failed:", err))
+    ));
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
+    loadBanks();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

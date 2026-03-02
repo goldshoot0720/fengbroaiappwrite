@@ -11,7 +11,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { useCrud } from "@/hooks/useApi";
+import { useCrud, fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FaviconImage } from "@/components/ui/favicon-image";
@@ -437,9 +437,10 @@ export default function CommonAccountManagement() {
 
   // Execute bulk delete
   const handleBulkDelete = async () => {
-    for (const id of Array.from(selectedIds).filter(id => !!id)) {
-      try { await remove(id); } catch (err) { console.error("Delete failed:", err); }
-    }
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    await Promise.all(ids.map(id =>
+      fetchApi(`${API_ENDPOINTS.COMMON_ACCOUNT}/${id}`, { method: 'DELETE' }).catch(err => console.error("Delete failed:", err))
+    ));
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);
