@@ -140,6 +140,10 @@ export default function CommonAccountManagement() {
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   // Filter copy success state
   const [filterCopySuccess, setFilterCopySuccess] = useState<string | null>(null);
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
 
   useEffect(() => {
     fetchAll();
@@ -402,6 +406,37 @@ export default function CommonAccountManagement() {
       console.error('Failed to copy:', err);
       alert('❌ 複製失敗：' + (err instanceof Error ? err.message : '未知錯誤'));
     }
+  };
+
+  // Toggle single account selection
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Select/deselect all filtered accounts
+  const handleSelectAll = () => {
+    const allSelected = filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id));
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredAccounts.map(a => a.$id)));
+    }
+  };
+
+  // Execute bulk delete
+  const handleBulkDelete = async () => {
+    for (const id of Array.from(selectedIds)) {
+      try { await remove(id); } catch (err) { console.error("Delete failed:", err); }
+    }
+    setSelectedIds(new Set());
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+    fetchAll();
   };
 
   // 匯出 CSV
@@ -897,6 +932,54 @@ export default function CommonAccountManagement() {
         </div>
       )}
 
+      {/* 批次刪除確認 Modal */}
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+              <AlertTriangle className="text-red-500 shrink-0" size={24} />
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">確認批次刪除</h3>
+                <p className="text-sm text-gray-500 mt-1">即將刪除 <span className="font-bold text-red-600">{selectedIds.size}</span> 筆帳號，此操作無法復原</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                請輸入以下文字以確認刪除：
+              </p>
+              <code className="block bg-gray-100 dark:bg-gray-800 text-red-600 dark:text-red-400 font-mono text-sm px-4 py-2 rounded-lg select-all">
+                DELETE commonaccount
+              </code>
+              <input
+                type="text"
+                value={bulkDeleteInput}
+                onChange={(e) => setBulkDeleteInput(e.target.value)}
+                placeholder="輸入 DELETE commonaccount"
+                className="w-full h-11 px-4 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 font-mono text-sm"
+                autoFocus
+              />
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }}
+                className="rounded-xl"
+              >
+                取消
+              </Button>
+              <Button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteInput !== "DELETE commonaccount"}
+                className="rounded-xl bg-red-600 hover:bg-red-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Trash2 size={16} className="mr-2" />
+                確認刪除 ({selectedIds.size} 筆)
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isFormOpen && (
         <div className="space-y-4">
           {duplicateError && (
@@ -1063,6 +1146,22 @@ export default function CommonAccountManagement() {
               </>
             )}
           </Button>
+          <Button
+            onClick={handleSelectAll}
+            variant="outline"
+            className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0"
+          >
+            {filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id)) ? "取消全選" : "全選"}
+          </Button>
+          {selectedIds.size > 0 && (
+            <Button
+              onClick={() => setBulkDeleteOpen(true)}
+              className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 size={18} />
+              刪除選取 ({selectedIds.size})
+            </Button>
+          )}
         </div>
 
         {allSiteNames.length > 0 && (
@@ -1128,9 +1227,15 @@ export default function CommonAccountManagement() {
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {filteredAccounts.map((account) => (
-            <DataCard key={account.$id} className="flex flex-col h-full hover:shadow-lg transition-all duration-300 border-t-4 border-t-blue-500 overflow-hidden group">
+            <DataCard key={account.$id} className={`flex flex-col h-full hover:shadow-lg transition-all duration-300 border-t-4 overflow-hidden group ${selectedIds.has(account.$id) ? 'border-t-red-500 ring-2 ring-red-300 dark:ring-red-800' : 'border-t-blue-500'}`}>
               <div className="p-4 pr-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(account.$id)}
+                    onChange={() => handleToggleSelect(account.$id)}
+                    className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
+                  />
                   <NoteIcon size={20} className="text-blue-500 shrink-0" />
                   <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100 truncate">
                     {account.name}
