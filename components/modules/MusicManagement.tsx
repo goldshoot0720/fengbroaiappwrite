@@ -87,6 +87,9 @@ export default function MusicManagement() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(0);
+  const [deleteTotal, setDeleteTotal] = useState(0);
 
   // 音樂快取管理
   const {
@@ -667,10 +670,16 @@ export default function MusicManagement() {
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds).filter(id => !!id);
+    setDeleteTotal(ids.length);
+    setDeleteProgress(0);
+    setIsDeleting(true);
     await Promise.all(ids.map(id => {
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.MUSIC}/${id}`);
-      return fetch(url, { method: 'DELETE' }).catch(err => console.error("Delete failed:", err));
+      return fetch(url, { method: 'DELETE' })
+        .catch(err => console.error("Delete failed:", err))
+        .finally(() => setDeleteProgress(prev => prev + 1));
     }));
+    setIsDeleting(false);
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);
@@ -950,25 +959,42 @@ export default function MusicManagement() {
                 即將刪除 <span className="font-bold text-red-600">{selectedIds.size}</span> 筆音樂，此操作無法復原
               </p>
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">請輸入以下文字確認：</p>
-              <code className="block bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg text-sm font-mono text-red-600">DELETE music</code>
-              <input
-                type="text"
-                value={bulkDeleteInput}
-                onChange={(e) => setBulkDeleteInput(e.target.value)}
-                placeholder="輸入 DELETE music"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
-              />
-            </div>
+            {isDeleting ? (
+              <div className="p-6 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600 shrink-0" />
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    正在刪除中... ({deleteProgress} / {deleteTotal} 筆)
+                  </p>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                  <div
+                    className="bg-red-500 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${deleteTotal > 0 ? (deleteProgress / deleteTotal) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">請輸入以下文字確認：</p>
+                <code className="block bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg text-sm font-mono text-red-600">DELETE music</code>
+                <input
+                  type="text"
+                  value={bulkDeleteInput}
+                  onChange={(e) => setBulkDeleteInput(e.target.value)}
+                  placeholder="輸入 DELETE music"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
+            )}
             <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }}>取消</Button>
+              <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }} disabled={isDeleting}>取消</Button>
               <Button
                 onClick={handleBulkDelete}
-                disabled={bulkDeleteInput !== "DELETE music"}
+                disabled={bulkDeleteInput !== "DELETE music" || isDeleting}
                 className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
               >
-                確認刪除 ({selectedIds.size} 筆)
+                {isDeleting ? '刪除中...' : `確認刪除 (${selectedIds.size} 筆)`}
               </Button>
             </div>
           </div>
