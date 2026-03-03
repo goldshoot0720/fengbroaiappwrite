@@ -42,7 +42,7 @@ export async function POST(request) {
     };
 
     const { storage, bucketId, endpoint, projectId } = createAppwrite(appwriteConfig);
-    
+
     const formData = await request.formData();
     const file = formData.get('file');
 
@@ -73,7 +73,7 @@ export async function POST(request) {
       // Images - 新增支援
       'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/x-icon', 'image/vnd.microsoft.icon'
     ];
-    
+
     // 檢查副檔名 (用於 MIME type 不明確的情況，如 .md 檔案)
     const fileName = file.name.toLowerCase();
     const validExtensions = [
@@ -89,7 +89,7 @@ export async function POST(request) {
       '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'
     ];
     const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
-    
+
     if (!validTypes.includes(file.type) && !hasValidExtension) {
       return NextResponse.json({ error: '只支援 MP3, WAV, OGG, AAC, FLAC, M4A, PDF, TXT, MD, DOCX, XLSX, PPTX, ZIP, MP4, WEBM, MOV, AVI, MKV, JPG, PNG, GIF, WEBP, SVG 格式' }, { status: 400 });
     }
@@ -100,7 +100,7 @@ export async function POST(request) {
 
     // 上傳到 Appwrite Storage
     // In node-appwrite v21, create File object with buffer
-    const fileObject = new File([buffer], file.name, { type: file.type });
+    const fileObject = sdk.InputFile.fromBuffer(buffer, file.name);
     const uploadedFile = await storage.createFile(
       bucketId,
       sdk.ID.unique(),

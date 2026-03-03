@@ -64,7 +64,7 @@ export async function POST(request) {
       .setKey(apiKey);
 
     const storage = new sdk.Storage(client);
-    const fileObject = new File([buffer], file.name, { type: file.type });
+    const fileObject = sdk.InputFile.fromBuffer(buffer, file.name);
     const uploadedFile = await storage.createFile(
       bucketId,
       sdk.ID.unique(),
