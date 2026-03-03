@@ -37,7 +37,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const { databases, databaseId } = createAppwrite(searchParams);
-    
+
     // 嘗試取得 collection ID
     let collectionId;
     try {
@@ -53,12 +53,12 @@ export async function GET(request) {
         { status: 404 }
       );
     }
-    
+
     const res = await databases.listDocuments(
       databaseId,
       collectionId,
       [
-        sdk.Query.limit(100),
+        sdk.Query.limit(500),
         sdk.Query.orderAsc('nextdate')
       ]
     );
@@ -76,7 +76,7 @@ export async function POST(req) {
     const { searchParams } = new URL(req.url);
     const { databases, databaseId } = createAppwrite(searchParams);
     const collectionId = await getCollectionId(databases, databaseId, "subscription");
-    
+
     const body = await req.json();
 
     // 驗證必填欄位（site 和 nextdate 為可選）
