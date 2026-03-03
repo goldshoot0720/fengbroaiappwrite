@@ -1,0 +1,1363 @@
+"use client";
+
+import { useState, useMemo, useRef } from "react";
+import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp, AlertTriangle } from "lucide-react";
+import { SectionHeader } from "@/components/ui/section-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { DataCard } from "@/components/ui/data-card";
+import { FullPageLoading } from "@/components/ui/loading-spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useImages, ImageData } from "@/hooks";
+import { API_ENDPOINTS } from "@/lib/constants";
+import { formatLocalDate } from "@/lib/formatters";
+import { getAppwriteHeaders, getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
+import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import JSZip from "jszip";
+
+// Helper function to add Appwrite config to URL
+function addAppwriteConfigToUrl(url: string): string {
+  if (typeof window === 'undefined') return url;
+
+  const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT');
+  const projectId = localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID');
+  const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID');
+  const apiKey = localStorage.getItem('APPWRITE_API_KEY');
+  const bucketId = localStorage.getItem('APPWRITE_BUCKET_ID');
+
+  if (!endpoint && !projectId && !databaseId) {
+    return url;
+  }
+
+  const separator = url.includes('?') ? '&' : '?';
+  const params = new URLSearchParams();
+
+  if (endpoint) params.set('_endpoint', endpoint);
+  if (projectId) params.set('_project', projectId);
+  if (databaseId) params.set('_database', databaseId);
+  if (apiKey) params.set('_key', apiKey);
+  if (bucketId) params.set('_bucket', bucketId);
+
+  const paramString = params.toString();
+  return paramString ? `${url}${separator}${paramString}` : url;
+}
+
+export default function ImageGallery() {
+  const { images, loading, error, loadImages } = useImages();
+  const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingImage, setEditingImage] = useState<ImageData | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' });
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 });
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline editing state
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineEditForm, setInlineEditForm] = useState({
+    name: '',
+    note: '',
+    category: '',
+    ref: '',
+  });
+
+  // Bulk delete state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(0);
+  const [deleteTotal, setDeleteTotal] = useState(0);
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // 搜尋過濾
+  const filteredImages = useMemo(() => {
+    if (!searchQuery.trim()) return images;
+    const query = searchQuery.toLowerCase();
+    return images.filter(image =>
+      image.name?.toLowerCase().includes(query) ||
+      image.note?.toLowerCase().includes(query) ||
+      image.category?.toLowerCase().includes(query)
+    );
+  }, [images, searchQuery]);
+
+  const handleSelectAll = () => {
+    if (!selectionMode) {
+      setSelectionMode(true);
+      setSelectedIds(new Set(filteredImages.map(img => img.$id).filter(Boolean)));
+    } else if (filteredImages.length > 0 && filteredImages.every(img => selectedIds.has(img.$id))) {
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+    } else {
+      setSelectedIds(new Set(filteredImages.map(img => img.$id).filter(Boolean)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    setDeleteTotal(ids.length);
+    setDeleteProgress(0);
+    setIsDeleting(true);
+    await Promise.all(ids.map(id => {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${id}`);
+      return fetch(url, { method: 'DELETE' })
+        .catch(err => console.error("Delete failed:", err))
+        .finally(() => setDeleteProgress(prev => prev + 1));
+    }));
+    setIsDeleting(false);
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+    loadImages(true);
+  };
+
+  const handleEdit = (image: ImageData) => {
+    setEditingImage(image);
+    setShowForm(true);
+  };
+
+  const handleAdd = () => {
+    setEditingImage(null);
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingImage(null);
+  };
+
+  // 開始行內編輯
+  const handleInlineEdit = (image: ImageData) => {
+    setInlineEditForm({
+      name: image.name || '',
+      note: image.note || '',
+      category: image.category || '',
+      ref: image.ref || '',
+    });
+    setInlineEditingId(image.$id);
+  };
+
+  // 儲存行內編輯
+  const handleInlineSave = async (imageId: string) => {
+    if (!inlineEditingId) return;
+    try {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${imageId}`);
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineEditForm.name,
+          note: inlineEditForm.note,
+          category: inlineEditForm.category,
+          ref: inlineEditForm.ref,
+        }),
+      });
+      if (!response.ok) throw new Error('更新失敗');
+      loadImages(true);
+      setInlineEditingId(null);
+      setInlineEditForm({ name: '', note: '', category: '', ref: '' });
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+      alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
+    }
+  };
+
+  // 取消行內編輯
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditForm({ name: '', note: '', category: '', ref: '' });
+  };
+
+  // Export all images as ZIP
+  const handleExportZip = async () => {
+    if (images.length === 0) {
+      alert('沒有圖片可以匯出');
+      return;
+    }
+
+    if (exporting) return;
+
+    const confirm = window.confirm(`準備匯出 ${images.length} 張圖片至 ZIP 檔案，是否繼續？`);
+    if (!confirm) return;
+
+    setExporting(true);
+    setExportProgress({ current: 0, total: images.length, status: '準備中...' });
+
+    try {
+      const zip = new JSZip();
+      zip.folder('images');
+
+      const csvRows: string[][] = [];
+      const csvHeaders = ['name', 'file', 'filetype', 'category', 'note', 'ref', 'hash'];
+      csvRows.push(csvHeaders);
+
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
+        const seq = String(i + 1).padStart(3, '0');
+        const sanitizedName = image.name.replace(/[<>:"\/\\|?*]/g, '_');
+        const baseName = `${seq}_${sanitizedName}`;
+
+        setExportProgress({ current: i + 1, total: images.length, status: `正在下載: ${image.name}` });
+
+        // Detect file extension
+        const fileExtension = image.filetype || image.file?.split('.').pop()?.split('?')[0] || 'jpg';
+
+        // Download and add image file
+        let imagePath = '';
+        if (image.file) {
+          try {
+            const response = await fetch(getAppwriteDownloadUrl(image.file));
+            if (response.ok) {
+              const blob = await response.blob();
+              imagePath = `images/${baseName}.${fileExtension}`;
+              zip.file(imagePath, blob);
+            }
+          } catch (err) { console.error(`下載圖片 ${image.name} 時出錯:`, err); }
+        }
+
+        // Build CSV row
+        const escapeCsv = (val: string) => {
+          if (!val) return '';
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        };
+        csvRows.push([
+          escapeCsv(image.name || ''),
+          escapeCsv(imagePath),
+          escapeCsv(image.filetype || ''),
+          escapeCsv(image.category || ''),
+          escapeCsv(image.note || ''),
+          escapeCsv(image.ref || ''),
+          escapeCsv(image.hash || ''),
+        ]);
+      }
+
+      // Generate CSV and add to ZIP
+      const csvContent = csvRows.map(row => row.join(',')).join('\n');
+      zip.file('image.csv', csvContent);
+
+      setExportProgress({ current: images.length, total: images.length, status: '正在壓縮...' });
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `appwrite-image.zip`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+
+      setExportProgress({ current: images.length, total: images.length, status: '完成！' });
+      setTimeout(() => setExporting(false), 1500);
+    } catch (error) {
+      console.error('ZIP export error:', error);
+      alert('匯出失敗，請再試一次');
+    } finally {
+      setExporting(false);
+      setExportProgress({ current: 0, total: 0, status: '' });
+    }
+  };
+
+  // 計算檔案 SHA-256 hash
+  const calculateFileHash = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    try {
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+      console.error('Hash calculation error:', error);
+      return `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+  };
+
+  // Import images from ZIP
+  const handleImportZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input
+    if (importInputRef.current) {
+      importInputRef.current.value = '';
+    }
+
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      alert('請選擇 ZIP 檔案');
+      return;
+    }
+
+    setImporting(true);
+    setImportProgress({ current: 0, total: 0, status: '正在解壓縮 ZIP...', success: 0, skipped: 0, failed: 0 });
+
+    try {
+      const zip = await JSZip.loadAsync(file);
+
+      // Check if this is a new-format ZIP with image.csv
+      const csvFile = zip.files['image.csv'];
+      if (csvFile) {
+        // New format: parse CSV and restore full data
+        const csvText = await csvFile.async('string');
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) { alert('CSV 檔案沒有資料'); setImporting(false); return; }
+
+        // Parse CSV header and rows
+        const parseCsvLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let c = 0; c < line.length; c++) {
+            const ch = line[c];
+            if (inQuotes) {
+              if (ch === '"' && line[c + 1] === '"') { current += '"'; c++; }
+              else if (ch === '"') { inQuotes = false; }
+              else { current += ch; }
+            } else {
+              if (ch === '"') { inQuotes = true; }
+              else if (ch === ',') { result.push(current); current = ''; }
+              else { current += ch; }
+            }
+          }
+          result.push(current);
+          return result;
+        };
+
+        const headers = parseCsvLine(lines[0]);
+        const dataRows = lines.slice(1).map(line => {
+          const values = parseCsvLine(line);
+          const obj: Record<string, string> = {};
+          headers.forEach((h, idx) => { obj[h] = values[idx] || ''; });
+          return obj;
+        });
+
+        const total = dataRows.length;
+        setImportProgress({ current: 0, total, status: `找到 ${total} 筆圖片記錄`, success: 0, skipped: 0, failed: 0 });
+        let successCount = 0, failedCount = 0;
+
+        for (let i = 0; i < dataRows.length; i++) {
+          const row = dataRows[i];
+          setImportProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, skipped: 0, failed: failedCount });
+
+          try {
+            // Upload image file from ZIP
+            let remoteFileUrl = '';
+            if (row.file && zip.files[row.file]) {
+              const imageBlob = await zip.files[row.file].async('blob');
+              const fileName = row.file.split('/').pop() || 'image.jpg';
+              const imageFileObj = new File([imageBlob], fileName, { type: 'application/octet-stream' });
+              const uploadResult = await uploadToAppwriteStorage(imageFileObj);
+              remoteFileUrl = uploadResult.url;
+            }
+
+            // Check if record already exists (same name)
+            const existing = images.find(m => m.name === row.name);
+            const apiUrl = existing
+              ? addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${existing.$id}`)
+              : addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE);
+            const method = existing ? 'PUT' : 'POST';
+
+            const submitData: Record<string, string | boolean> = {
+              name: row.name || '',
+              file: remoteFileUrl || (existing ? existing.file : ''),
+              filetype: row.filetype || '',
+              category: row.category || '',
+              note: row.note || '',
+              ref: row.ref || '',
+              hash: row.hash || (existing ? existing.hash : `zip_import_${Date.now()}_${Math.random().toString(36).substring(7)}`),
+              cover: false,
+            };
+
+            const response = await fetch(apiUrl, {
+              method,
+              headers: { 'Content-Type': 'application/json', ...getAppwriteHeaders() },
+              body: JSON.stringify(submitData),
+            });
+
+            if (response.ok) successCount++; else failedCount++;
+          } catch (err) { console.error(`處理 ${row.name} 時出錯:`, err); failedCount++; }
+          setImportProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, skipped: 0, failed: failedCount });
+        }
+
+        setImportProgress({ current: total, total, status: '完成！', success: successCount, skipped: 0, failed: failedCount });
+        setTimeout(() => { setImporting(false); setImportProgress({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 }); loadImages(true); }, 2000);
+      } else {
+        // Legacy format: plain image files in ZIP (backwards compatible)
+        const imageFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+        const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            const ext = relativePath.split('.').pop()?.toLowerCase() || '';
+            if (validExtensions.includes(ext)) {
+              imageFiles.push({ name: relativePath, file: zipEntry });
+            }
+          }
+        });
+
+        if (imageFiles.length === 0) {
+          alert('ZIP 檔案中沒有找到圖片檔案 (JPG, PNG, GIF, WEBP)');
+          setImporting(false);
+          return;
+        }
+
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (let i = 0; i < imageFiles.length; i++) {
+          const imageFile = imageFiles[i];
+          const fileName = imageFile.name.split('/').pop() || imageFile.name;
+
+          setImportProgress({
+            current: i + 1,
+            total: imageFiles.length,
+            status: `正在處理: ${fileName}`,
+            success: successCount,
+            skipped: 0,
+            failed: failedCount
+          });
+
+          try {
+            const arrayBuffer = await imageFile.file.async('arraybuffer');
+            const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+            const mimeType = ext === 'png' ? 'image/png' :
+              ext === 'gif' ? 'image/gif' :
+                ext === 'webp' ? 'image/webp' : 'image/jpeg';
+            const blob = new Blob([arrayBuffer], { type: mimeType });
+            const imageFileObj = new File([blob], fileName, { type: mimeType });
+
+            const formDataUpload = new FormData();
+            formDataUpload.append('file', imageFileObj);
+
+            const uploadResponse = await fetch('/api/upload-image', {
+              method: 'POST',
+              headers: getAppwriteHeaders(),
+              body: formDataUpload,
+            });
+
+            if (!uploadResponse.ok) throw new Error('上傳失敗');
+            const uploadData = await uploadResponse.json();
+
+            const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE);
+            const createResponse = await fetch(createUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: fileName,
+                file: uploadData.url,
+                filetype: ext,
+                note: '',
+                ref: '',
+                category: '',
+                hash: '',
+                cover: false
+              }),
+            });
+
+            if (createResponse.ok) successCount++; else failedCount++;
+          } catch (error) {
+            console.error(`匯入失敗: ${fileName}`, error);
+            failedCount++;
+          }
+        }
+
+        setImportProgress({
+          current: imageFiles.length,
+          total: imageFiles.length,
+          status: '完成！',
+          success: successCount,
+          skipped: 0,
+          failed: failedCount
+        });
+        setTimeout(() => { setImporting(false); setImportProgress({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 }); loadImages(true); }, 2000);
+      }
+    } catch (error) {
+      console.error('ZIP import error:', error);
+      alert('匯入失敗，請確認 ZIP 檔案格式正確');
+    } finally {
+      setImporting(false);
+      setImportProgress({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 });
+    }
+  };
+
+  return (
+    <div className="space-y-4 lg:space-y-6">
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-600 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      <SectionHeader
+        title="鋒兄圖片"
+        subtitle={loading ? "載入中..." : `共 ${images.length} 張圖片`}
+        showAccountLabel={true}
+        action={
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              onClick={handleExportZip}
+              disabled={loading || exporting || importing || images.length === 0}
+              className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50"
+              title="匯出所有圖片為 ZIP"
+            >
+              <Download size={16} className={exporting ? "animate-bounce" : ""} />
+              <span className="hidden sm:inline">{exporting ? '匯出中...' : '匯出 ZIP'}</span>
+            </Button>
+            <Button
+              onClick={() => importInputRef.current?.click()}
+              disabled={loading || exporting || importing}
+              className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl disabled:opacity-50"
+              title="從 ZIP 匯入圖片"
+            >
+              <FolderUp size={16} className={importing ? "animate-bounce" : ""} />
+              <span className="hidden sm:inline">{importing ? '匯入中...' : '匯入 ZIP'}</span>
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".zip"
+              onChange={handleImportZip}
+              className="hidden"
+            />
+            <Button onClick={handleAdd} className="gap-2 bg-green-500 hover:bg-green-600 rounded-xl">
+              <Plus size={16} />
+              <span className="hidden sm:inline">新增圖片</span>
+            </Button>
+            <Button onClick={() => loadImages(true)} disabled={loading} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              <span className="hidden sm:inline">重新載入</span>
+            </Button>
+          </div>
+        }
+      />
+
+      <ImageStats images={images} />
+
+      {/* Export Progress Modal */}
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯出圖片中...</h3>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {exportProgress.status}
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>進度</span>
+                  <span>{exportProgress.current} / {exportProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                  <div
+                    className="bg-purple-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Progress Modal */}
+      {importing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯入圖片中...</h3>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {importProgress.status}
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>進度</span>
+                  <span>{importProgress.current} / {importProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                  <div
+                    className="bg-orange-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-xs text-center">
+                <div className="bg-green-100 dark:bg-green-900/30 rounded-lg p-2">
+                  <div className="font-bold text-green-600 dark:text-green-400">{importProgress.success}</div>
+                  <div className="text-green-600/70 dark:text-green-400/70">成功</div>
+                </div>
+                <div className="bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-2">
+                  <div className="font-bold text-yellow-600 dark:text-yellow-400">{importProgress.skipped}</div>
+                  <div className="text-yellow-600/70 dark:text-yellow-400/70">跳過</div>
+                </div>
+                <div className="bg-red-100 dark:bg-red-900/30 rounded-lg p-2">
+                  <div className="font-bold text-red-600 dark:text-red-400">{importProgress.failed}</div>
+                  <div className="text-red-600/70 dark:text-red-400/70">失敗</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 搜尋欄位 */}
+      {images.length > 0 && (
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              placeholder="搜尋圖片名稱、備註、分類..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 rounded-xl"
+            />
+          </div>
+          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+            {selectionMode && filteredImages.length > 0 && filteredImages.every(img => selectedIds.has(img.$id)) ? '取消全選' : '全選'}
+          </Button>
+          {selectedIds.size > 0 && (
+            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 size={18} />
+              刪除選取 ({selectedIds.size})
+            </Button>
+          )}
+        </div>
+      )}
+
+      {filteredImages.length === 0 && images.length > 0 ? (
+        <EmptyState icon={<Search className="text-gray-400" size={32} />} title="無搜尋結果" description={`找不到「${searchQuery}」相關的圖片`} />
+      ) : (
+        <ImageGrid
+          images={filteredImages}
+          loading={loading}
+          onSelectImage={setSelectedImage}
+          onEdit={handleEdit}
+          onRefresh={() => loadImages(true)}
+          inlineEditingId={inlineEditingId}
+          inlineEditForm={inlineEditForm}
+          setInlineEditForm={setInlineEditForm}
+          onInlineEdit={handleInlineEdit}
+          onInlineSave={handleInlineSave}
+          onInlineCancel={cancelInlineEdit}
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          onToggleSelect={handleToggleSelect}
+        />
+      )}
+
+      {selectedImage && (
+        <ImagePreviewModal image={selectedImage} onClose={() => setSelectedImage(null)} />
+      )}
+
+      {showForm && (
+        <ImageFormModal image={editingImage} existingImages={images} onClose={handleCloseForm} onSuccess={() => loadImages(true)} />
+      )}
+
+      {/* 批次刪除確認 Modal */}
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-3 mb-3">
+                <AlertTriangle className="text-red-500" size={24} />
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">確認批次刪除</h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400">
+                即將刪除 <span className="font-bold text-red-600">{selectedIds.size}</span> 筆資料，此操作無法復原
+              </p>
+            </div>
+            {isDeleting ? (
+              <div className="p-6 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600 shrink-0" />
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    正在刪除中... ({deleteProgress} / {deleteTotal} 筆)
+                  </p>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                  <div
+                    className="bg-red-500 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${deleteTotal > 0 ? (deleteProgress / deleteTotal) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">請輸入以下文字確認：</p>
+                <code className="block bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg text-sm font-mono text-red-600">DELETE image</code>
+                <input
+                  type="text"
+                  value={bulkDeleteInput}
+                  onChange={(e) => setBulkDeleteInput(e.target.value)}
+                  placeholder="輸入 DELETE image"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
+            )}
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }} disabled={isDeleting}>取消</Button>
+              <Button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteInput !== "DELETE image" || isDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+              >
+                {isDeleting ? '刪除中...' : `確認刪除 (${selectedIds.size} 筆)`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 統計卡片
+function ImageStats({ images }: { images: ImageData[] }) {
+  const totalImages = images.length;
+
+  return (
+    <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4">
+      <StatCard title="總圖片數" value={totalImages} icon={ImageIcon} gradient="from-blue-500 to-blue-600" />
+      <StatCard title="Appwrite 儲存" value={totalImages} iconElement={<span className="text-2xl">☁️</span>} gradient="from-purple-500 to-purple-600" />
+    </div>
+  );
+}
+
+// 圖片網格
+interface ImageGridProps {
+  images: ImageData[];
+  loading: boolean;
+  onSelectImage: (img: ImageData) => void;
+  onEdit: (img: ImageData) => void;
+  onRefresh: () => void;
+  inlineEditingId: string | null;
+  inlineEditForm: { name: string; note: string; category: string; ref: string };
+  setInlineEditForm: (form: { name: string; note: string; category: string; ref: string }) => void;
+  onInlineEdit: (img: ImageData) => void;
+  onInlineSave: (imageId: string) => void;
+  onInlineCancel: () => void;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+}
+
+function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, selectionMode, selectedIds, onToggleSelect }: ImageGridProps) {
+  if (loading) return <FullPageLoading text="載入圖片中..." />;
+  if (images.length === 0) return <EmptyState icon={<ImageIcon className="text-gray-400" size={32} />} title="沒有找到圖片" />;
+
+  return (
+    <DataCard className="p-3 sm:p-4 lg:p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+        {images.map((image) => (
+          <ImageCard
+            key={image.$id}
+            image={image}
+            onSelect={() => onSelectImage(image)}
+            onEdit={() => onEdit(image)}
+            onRefresh={onRefresh}
+            isEditing={inlineEditingId === image.$id}
+            inlineEditForm={inlineEditForm}
+            setInlineEditForm={setInlineEditForm}
+            onInlineEdit={onInlineEdit}
+            onInlineSave={onInlineSave}
+            onInlineCancel={onInlineCancel}
+            selectionMode={selectionMode}
+            isSelected={selectedIds?.has(image.$id) ?? false}
+            onToggleSelect={onToggleSelect}
+          />
+        ))}
+      </div>
+    </DataCard>
+  );
+}
+
+// 單張圖片卡片
+interface ImageCardProps {
+  image: ImageData;
+  onSelect: () => void;
+  onEdit: () => void;
+  onRefresh: () => void;
+  isEditing: boolean;
+  inlineEditForm: { name: string; note: string; category: string; ref: string };
+  setInlineEditForm: (form: { name: string; note: string; category: string; ref: string }) => void;
+  onInlineEdit: (img: ImageData) => void;
+  onInlineSave: (imageId: string) => void;
+  onInlineCancel: () => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
+}
+
+function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, selectionMode, isSelected, onToggleSelect }: ImageCardProps) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`確定要刪除圖片 "${image.name}" 嗎?`)) return;
+
+    setDeleting(true);
+    try {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${image.$id}`);
+      const response = await fetch(url, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('刪除失敗');
+      onRefresh();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '刪除失敗');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // 行內編輯模式 - 全卡片取代
+  if (isEditing) {
+    return (
+      <div className="bg-white dark:bg-[#1f1f1f] rounded-xl overflow-hidden shadow-sm border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3 animate-in zoom-in-95 duration-300">
+        <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">編輯中</div>
+        <Input placeholder="圖片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+        <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
+        <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
+        <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-20 resize-none" />
+        <div className="flex gap-2 pt-1">
+          <Button onClick={(e) => { e.stopPropagation(); onInlineSave(image.$id); }} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">儲存</Button>
+          <Button onClick={(e) => { e.stopPropagation(); onInlineCancel(); }} variant="outline" className="flex-1 gap-1 rounded-lg text-xs py-1.5">取消</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group relative bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
+      {/* 圖片預覽區 */}
+      <div
+        className="relative aspect-video bg-gray-100 dark:bg-gray-700 overflow-hidden cursor-pointer"
+        onClick={onSelect}
+      >
+        {image.file ? (
+          <img
+            src={getProxiedMediaUrl(image.file)}
+            alt={image.name}
+            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <div className="bg-white/80 dark:bg-gray-800/80 p-3 rounded-full shadow-sm">
+              <ImageIcon className="text-gray-400 w-6 h-6" />
+            </div>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">無圖片</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        {/* 分類標籤 */}
+        {image.category && (
+          <div className="absolute top-2 left-2">
+            <span className="px-2 py-1 text-xs font-medium bg-blue-500/90 text-white rounded-md backdrop-blur-sm">
+              {image.category}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 資訊區 */}
+      <div className="p-3 sm:p-4 overflow-hidden">
+        <div className="flex items-center gap-2 mb-2">
+          {selectionMode && (
+            <input
+              type="checkbox"
+              checked={isSelected ?? false}
+              onChange={() => onToggleSelect?.(image.$id)}
+              className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
+            />
+          )}
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base truncate min-w-0" title={image.name}>
+            {image.name}
+          </h3>
+        </div>
+
+        {image.note && (
+          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">{image.note}</p>
+        )}
+
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <Calendar className="w-3 h-3" />
+          <span>{formatLocalDate(image.$createdAt)}</span>
+        </div>
+
+        {/* 操作按鈕 */}
+        <div className="flex gap-2">
+          <Button
+            onClick={(e) => { e.stopPropagation(); onInlineEdit(image); }}
+            className="flex-1 gap-1 bg-blue-500 hover:bg-blue-600 rounded-lg text-xs py-1.5"
+          >
+            <Edit size={14} />
+            編輯
+          </Button>
+          <Button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex-1 gap-1 bg-red-500 hover:bg-red-600 rounded-lg text-xs py-1.5"
+          >
+            <Trash2 size={14} />
+            {deleting ? '刪除中...' : '刪除'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 圖片預覽模態框
+function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4" onClick={onClose}>
+      <div className="relative w-full h-full max-w-7xl max-h-screen flex flex-col">
+        {/* 頂部控制欄 */}
+        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10">
+          <button onClick={onClose} className="p-2.5 bg-black/80 backdrop-blur-sm rounded-lg text-white hover:bg-black/95 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* 圖片 - 置中顯示 */}
+        <div className="flex-1 flex items-center justify-center p-12 sm:p-16">
+          {image.file ? (
+            <img
+              src={getProxiedMediaUrl(image.file)}
+              alt={image.name}
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <div className="text-white text-center">
+              <ImageIcon className="mx-auto mb-4 w-24 h-24" />
+              <p>沒有圖片 URL</p>
+            </div>
+          )}
+        </div>
+
+        {/* 底部資訊欄 */}
+        <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4">
+          <div className="bg-black/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-white">
+            <h3 className="font-medium mb-2">{image.name}</h3>
+            {image.note && <p className="text-sm opacity-90 mb-2">{image.note}</p>}
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-4 h-4" />
+                {formatLocalDate(image.$createdAt)}
+              </span>
+              {image.category && <span>分類: {image.category}</span>}
+              {image.ref && <span>參考: {image.ref}</span>}
+              <span className="ml-auto text-xs opacity-75">點擊空白處關閉</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 圖片表單模態框
+function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: ImageData | null; existingImages: ImageData[]; onClose: () => void; onSuccess: () => void }) {
+  const [formData, setFormData] = useState({
+    name: image?.name || '',
+    file: image?.file || '',
+    filetype: image?.filetype || '',
+    note: image?.note || '',
+    ref: image?.ref || '',
+    category: image?.category || '',
+    hash: image?.hash || '',
+    cover: false, // 一律為 false
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [fileHash, setFileHash] = useState<string>(''); // 儲存檔案 hash
+  const [duplicateWarning, setDuplicateWarning] = useState<string>(''); // 重複警告
+  const [useCategorySelect, setUseCategorySelect] = useState(true); // 是否使用選擇框
+
+  // 獲取所有已存在的分類
+  const existingCategories = Array.from(new Set(existingImages.map(img => img.category).filter(Boolean)));
+
+  // 計算檔案 SHA-256 hash
+  const calculateFileHash = async (file: File): Promise<string> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex;
+    } catch (error) {
+      console.error('Hash calculation error:', error);
+      // 如果計算失敗，使用備用方案
+      return `fallback_${file.name}_${file.size}_${file.lastModified}`;
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 檢查檔案大小 (50MB = 50 * 1024 * 1024 bytes)
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('檔案大小不能超過 50MB');
+      return;
+    }
+
+    // 檢查檔案類型
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
+      return;
+    }
+
+    // 顯示預覽載入狀態
+    setPreviewLoading(true);
+    setUploadStatus('idle');
+    setUploadProgress(0);
+    setDuplicateWarning(''); // 清除之前的警告
+
+    // 儲存檔案並產生預覽 URL
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    // 計算檔案 hash
+    const hash = await calculateFileHash(file);
+    setFileHash(hash);
+
+    // 取得檔案類型（副檔名）
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+    const filetype = fileExt; // e.g., 'png', 'jpg', 'gif', 'webp'
+
+    // 新增模式：永遠使用檔名（去除副檔名）作為預設名稱；編輯模式：僅在名稱為空時自動填入
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+
+    setFormData(prev => ({
+      ...prev,
+      name: !image ? fileNameWithoutExt : (prev.name.trim() ? prev.name : fileNameWithoutExt),
+      hash: hash,
+      filetype: filetype
+    }));
+
+    // 檢查是否有重複的 hash
+    const duplicateImage = existingImages.find(img =>
+      img.hash === hash && (!image || img.$id !== image.$id)
+    );
+
+    if (duplicateImage) {
+      setDuplicateWarning(`警告：此圖片與「${duplicateImage.name}」相同，請勿重複上傳！`);
+    }
+
+    // 模擬預覽載入完成
+    setTimeout(() => setPreviewLoading(false), 300);
+  };
+
+  const uploadFileToAppwrite = async (file: File): Promise<{ url: string; fileId: string }> => {
+    setUploadStatus('uploading');
+    setUploadProgress(0);
+
+    const formDataUpload = new FormData();
+    formDataUpload.append('file', file);
+
+    // 模擬上傳進度
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + 10;
+      });
+    }, 200);
+
+    try {
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: getAppwriteHeaders(),
+        body: formDataUpload,
+      });
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (!response.ok) {
+        let errorMessage = '上傳失敗';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch (parseError) {
+          // If response is not JSON, use status text
+          errorMessage = `${errorMessage} (${response.status}: ${response.statusText})`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      setUploadStatus('success');
+      return { url: data.url, fileId: data.fileId || '' };
+    } catch (error) {
+      clearInterval(progressInterval);
+      setUploadStatus('error');
+      throw error;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      alert('請輸入圖片名稱');
+      return;
+    }
+
+    // 檢查是否有重複
+    if (duplicateWarning) {
+      alert('此圖片與既有圖片重複，無法上傳！請選擇其他圖片。');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let finalFormData = { ...formData };
+
+      // 如果有選擇新檔案，先上傳到 Appwrite
+      if (selectedFile) {
+        const { url, fileId } = await uploadFileToAppwrite(selectedFile);
+        finalFormData.file = url;
+        // 使用已計算的 hash，如果沒有則使用 fileId
+        finalFormData.hash = fileHash || fileId;
+      } else if (!image && !formData.hash) {
+        // 新增且沒有檔案也沒有 hash 的情況，生成一個備用 hash
+        finalFormData.hash = `no_file_${Date.now()}`;
+      }
+
+      const url = image
+        ? addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${image.$id}`)
+        : addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE);
+      const method = image ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalFormData),
+      });
+
+      if (!response.ok) throw new Error(image ? '更新失敗' : '新增失敗');
+
+      onSuccess();
+      onClose();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '操作失敗');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            {image ? '編輯圖片' : '新增圖片'}
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              圖片名稱 <span className="text-red-500">*</span>
+            </label>
+            <Input
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="請輸入圖片名稱"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              圖片 URL 或上傳檔案
+            </label>
+            <div className="space-y-3">
+              <Input
+                value={formData.file}
+                onChange={(e) => setFormData({ ...formData, file: e.target.value })}
+                placeholder="https://example.com/image.jpg"
+                disabled={submitting}
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">或</span>
+                <label className="flex-1">
+                  <div className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
+                    <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                      {previewLoading ? '載入中...' : selectedFile ? `已選擇: ${selectedFile.name}` : '上傳圖片 (最大 50MB)'}
+                    </span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    onChange={handleFileSelect}
+                    disabled={submitting || previewLoading}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              {previewUrl && (
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">預覽：</p>
+                  <img src={previewUrl} alt="Preview" className="max-h-48 rounded-lg border border-gray-200 dark:border-gray-700" />
+                </div>
+              )}
+              {duplicateWarning && (
+                <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                    {duplicateWarning}
+                  </p>
+                </div>
+              )}
+              {uploadStatus === 'uploading' && (
+                <div className="mt-2">
+                  <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    <span>上傳至 Appwrite...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {uploadStatus === 'success' && (
+                <p className="text-sm text-green-600 dark:text-green-400">✓ 上傳成功</p>
+              )}
+              {uploadStatus === 'error' && (
+                <p className="text-sm text-red-600 dark:text-red-400">✗ 上傳失敗</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              備註
+            </label>
+            <Textarea
+              value={formData.note}
+              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+              placeholder="圖片備註說明"
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                分類
+              </label>
+              {useCategorySelect && existingCategories.length > 0 ? (
+                <div className="space-y-2">
+                  <Select
+                    value={formData.category}
+                    onValueChange={(value) => {
+                      if (value === '__custom__') {
+                        setUseCategorySelect(false);
+                        setFormData({ ...formData, category: '' });
+                      } else {
+                        setFormData({ ...formData, category: value });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="選擇分類" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {existingCategories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                      <SelectItem value="__custom__">自行輸入...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    placeholder="輸入新分類"
+                  />
+                  {existingCategories.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUseCategorySelect(true)}
+                      className="text-xs h-7"
+                    >
+                      從現有分類中選擇
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                參考
+              </label>
+              <Input
+                value={formData.ref}
+                onChange={(e) => setFormData({ ...formData, ref: e.target.value })}
+                placeholder="參考資訊"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Hash (程式自動生成)
+            </label>
+            <Input
+              value={formData.hash}
+              disabled
+              placeholder="上傳檔案後自動生成"
+              className="bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <Button type="button" onClick={onClose} className="flex-1 bg-gray-500 hover:bg-gray-600 rounded-xl">
+              取消
+            </Button>
+            <Button
+              type="submit"
+              disabled={submitting || !!duplicateWarning}
+              className="flex-1 bg-blue-500 hover:bg-blue-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? '處理中...' : (image ? '更新' : '新增')}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
