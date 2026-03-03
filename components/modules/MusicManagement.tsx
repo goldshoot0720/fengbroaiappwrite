@@ -18,7 +18,7 @@ import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { MusicQueuePanel } from "@/components/ui/music-queue-panel";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
-import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl } from "@/lib/utils";
+import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import JSZip from "jszip";
 
@@ -145,7 +145,7 @@ export default function MusicManagement() {
     const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'appwrite-Music.csv';
+    link.download = getExportFilename('music');
     link.click();
     URL.revokeObjectURL(link.href);
   };
@@ -1550,23 +1550,23 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                   onChange={(e) => setInlineEditForm({ ...inlineEditForm, lyrics: e.target.value })}
                   className="rounded-lg text-sm h-24 resize-none"
                 />
-                
+
                 {/* 封面圖上傳 */}
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
-                  
+
                   {/* 顯示當前封面或預覽 */}
                   {(inlineCoverPreview || inlineEditForm.cover) && (
                     <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
-                      <img 
+                      <img
                         src={inlineCoverPreview || inlineEditForm.cover}
                         alt="封面預覽"
                         className="w-full h-full object-contain"
                       />
                       <button
-                        onClick={() => { 
-                          setInlineCoverFile(null); 
-                          setInlineCoverPreview(''); 
+                        onClick={() => {
+                          setInlineCoverFile(null);
+                          setInlineCoverPreview('');
                           setInlineEditForm({ ...inlineEditForm, cover: '' });
                           if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = '';
                         }}
@@ -1576,7 +1576,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                       </button>
                     </div>
                   )}
-                  
+
                   {/* 封面 URL 輸入 */}
                   <Input
                     placeholder="封面圖 URL"
@@ -1584,7 +1584,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                     onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
                     className="h-9 rounded-lg text-sm"
                   />
-                  
+
                   {/* 上傳按鈕 */}
                   <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
                     <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -1601,7 +1601,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                     />
                   </label>
                 </div>
-                
+
                 <Textarea
                   placeholder="備註"
                   value={inlineEditForm.note}
@@ -1666,11 +1666,10 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                             setCopiedLyricsId(selectedItem.$id);
                             setTimeout(() => setCopiedLyricsId(null), 2000);
                           }}
-                          className={`p-1.5 rounded-lg transition-all ${
-                            copiedLyricsId === selectedItem.$id
+                          className={`p-1.5 rounded-lg transition-all ${copiedLyricsId === selectedItem.$id
                               ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
                               : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200'
-                          }`}
+                            }`}
                           title="複製歌詞"
                         >
                           {copiedLyricsId === selectedItem.$id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -1853,11 +1852,10 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                     setCopiedLyricsId(lyricsItem.$id);
                     setTimeout(() => setCopiedLyricsId(null), 2000);
                   }}
-                  className={`px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2 ${
-                    copiedLyricsId === lyricsItem.$id
+                  className={`px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2 ${copiedLyricsId === lyricsItem.$id
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
                       : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
-                  }`}
+                    }`}
                   title="複製歌詞"
                 >
                   {copiedLyricsId === lyricsItem.$id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -2039,23 +2037,23 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
               onChange={(e) => setInlineEditForm({ ...inlineEditForm, lyrics: e.target.value })}
               className="rounded-lg text-sm h-24 resize-none"
             />
-            
+
             {/* 封面圖上傳 */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
-              
+
               {/* 顯示當前封面或預覽 */}
               {(inlineCoverPreview || inlineEditForm.cover) && (
                 <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
-                  <img 
+                  <img
                     src={inlineCoverPreview || inlineEditForm.cover}
                     alt="封面預覽"
                     className="w-full h-full object-contain"
                   />
                   <button
-                    onClick={() => { 
-                      setInlineCoverFile?.(null); 
-                      setInlineCoverPreview?.(''); 
+                    onClick={() => {
+                      setInlineCoverFile?.(null);
+                      setInlineCoverPreview?.('');
                       setInlineEditForm({ ...inlineEditForm, cover: '' });
                       if (inlineCoverInputRef.current) inlineCoverInputRef.current.value = '';
                     }}
@@ -2065,7 +2063,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                   </button>
                 </div>
               )}
-              
+
               {/* 封面 URL 輸入 */}
               <Input
                 placeholder="封面圖 URL"
@@ -2073,7 +2071,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                 onChange={(e) => setInlineEditForm({ ...inlineEditForm, cover: e.target.value })}
                 className="h-9 rounded-lg text-sm"
               />
-              
+
               {/* 上傳按鈕 */}
               <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
                 <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -2090,7 +2088,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                 />
               </label>
             </div>
-            
+
             <Textarea
               placeholder="備註"
               value={inlineEditForm.note}
@@ -2372,11 +2370,10 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                         setCopiedLyrics(true);
                         setTimeout(() => setCopiedLyrics(false), 2000);
                       }}
-                      className={`px-2.5 py-1 text-xs rounded-lg transition-colors duration-200 flex items-center gap-1 ${
-                        copiedLyrics
+                      className={`px-2.5 py-1 text-xs rounded-lg transition-colors duration-200 flex items-center gap-1 ${copiedLyrics
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
                           : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
-                      }`}
+                        }`}
                       title="複製歌詞"
                     >
                       {copiedLyrics ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}

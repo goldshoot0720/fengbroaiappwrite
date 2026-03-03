@@ -15,6 +15,7 @@ import { useCrud, fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FaviconImage } from "@/components/ui/favicon-image";
+import { getExportFilename } from "@/lib/utils";
 
 // 常見網站名稱到 URL 的映射（用於 favicon 顯示）
 const SITE_URL_MAP: Record<string, string> = {
@@ -552,7 +553,7 @@ export default function CommonAccountManagement() {
     // 下載
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'appwrite-CommonAccount.csv';
+    link.download = getExportFilename('commonaccount');
     link.click();
     URL.revokeObjectURL(link.href);
   };

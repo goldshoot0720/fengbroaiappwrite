@@ -38,6 +38,7 @@ import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatCurrency } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
+import { getExportFilename } from "@/lib/utils";
 
 const INITIAL_FORM: BankFormData = {
   name: "",
@@ -258,7 +259,7 @@ export default function BankManagement() {
     const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'appwrite-Bank.csv';
+    link.download = getExportFilename('bank');
     link.click();
     URL.revokeObjectURL(link.href);
   };

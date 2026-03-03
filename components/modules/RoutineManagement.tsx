@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useCrud, fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
+import { getExportFilename } from "@/lib/utils";
 
 interface Routine {
   $id: string;
@@ -341,7 +342,7 @@ export default function RoutineManagement() {
     const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'appwrite-Routine.csv';
+    link.download = getExportFilename('routine');
     link.click();
     URL.revokeObjectURL(link.href);
   };

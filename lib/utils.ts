@@ -5,6 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * 生成匯出檔案名稱
+ * 格式：appwrite-{nickname}-{tableName}-{YYYYMMDD}.{ext}
+ */
+export function getExportFilename(tableName: string, ext: string = 'csv'): string {
+  const nickname = typeof window !== 'undefined'
+    ? (localStorage.getItem('APPWRITE_ACCOUNT_NICKNAME') || '')
+    : '';
+  const now = new Date();
+  const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  const parts = ['appwrite', nickname, tableName, date].filter(Boolean);
+  return `${parts.join('-')}.${ext}`;
+}
+
 // Appwrite 動態配置
 export function getAppwriteConfig() {
   if (typeof window === 'undefined') {
@@ -20,7 +34,7 @@ export function getAppwriteConfig() {
 
   // Client-side: 檢查是否已經儲存過自定義配置
   const hasCustomConfig = localStorage.getItem('appwrite_custom_config_saved');
-  
+
   if (hasCustomConfig === 'true') {
     // 如果已經儲存過，只使用 localStorage 的配置，不 fallback 到 .env
     const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT') || '';
@@ -28,7 +42,7 @@ export function getAppwriteConfig() {
     const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID') || '';
     const bucketId = localStorage.getItem('APPWRITE_BUCKET_ID') || '';
     const apiKey = localStorage.getItem('APPWRITE_API_KEY') || '';
-    
+
     return {
       endpoint,
       projectId,
@@ -37,7 +51,7 @@ export function getAppwriteConfig() {
       apiKey,
     };
   }
-  
+
   // 如果沒有儲存過，使用 .env 的預設配置（現在所有變數都有 NEXT_PUBLIC_ 前綴，瀏覽器可訪問）
   return {
     endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '',
@@ -66,7 +80,7 @@ export function getAppwriteHeaders() {
  */
 export function getProxiedMediaUrl(url: string | undefined | null): string {
   if (!url) return '';
-  
+
   // 如果已經是代理 URL，或者是 blob URL，則直接返回
   if (url.includes('/api/media-proxy') || url.startsWith('blob:')) {
     return url;
@@ -75,7 +89,7 @@ export function getProxiedMediaUrl(url: string | undefined | null): string {
   // 檢查是否為 Appwrite 的 Storage URL
   // 支持絕對路徑 (http...) 和相對路徑 (/v1/...)
   const isAppwriteStorage = url.includes('/storage/buckets/');
-  
+
   if (!isAppwriteStorage) {
     return url;
   }
@@ -96,12 +110,12 @@ export function getProxiedMediaUrl(url: string | undefined | null): string {
 
   const params = new URLSearchParams();
   params.set('url', absoluteUrl);
-  
+
   // 只有當有 API Key 且不是 'undefined'/'null' 時才添加
   if (config.apiKey && config.apiKey !== 'undefined' && config.apiKey !== 'null') {
     params.set('_key', config.apiKey);
   }
-  
+
   // Add project ID for public access fallback
   if (config.projectId && config.projectId !== 'undefined' && config.projectId !== 'null') {
     params.set('_project', config.projectId);
@@ -117,12 +131,12 @@ export function getProxiedMediaUrl(url: string | undefined | null): string {
  */
 export function getAppwriteDownloadUrl(url: string | undefined | null): string {
   if (!url) return '';
-  
+
   // 如果是 Appwrite Storage URL 且包含 /view，將其替換為 /download
   if (url.includes('/storage/buckets/') && url.includes('/view')) {
     return url.replace('/view', '/download');
   }
-  
+
   return url;
 }
 
@@ -152,15 +166,15 @@ export function getCurrentAccountLabel(): string {
 // 清除所有快取（用於 Appwrite 帳號切換）
 export function clearAllCaches() {
   if (typeof window === 'undefined') return;
-  
+
   console.log('[clearAllCaches] 清除所有快取...');
-  
+
   // 1. 清除 localStorage 中的所有快取相關 key
   const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (key && (
-      key.includes('_refresh_key') || 
+      key.includes('_refresh_key') ||
       key.includes('crud_') ||
       key === 'appwrite_account_switched'
     )) {
@@ -171,22 +185,22 @@ export function clearAllCaches() {
     console.log(`[clearAllCaches] 清除 localStorage key: ${key}`);
     localStorage.removeItem(key);
   });
-  
+
   // 2. 清除 useCrud 的內存快取
   if ((window as any).__crudCache) {
     console.log(`[clearAllCaches] 清除 __crudCache (${(window as any).__crudCache.size} 個項目)`);
     (window as any).__crudCache.clear();
   }
-  
+
   // 3. 強制清除模組級快取（透過設定特殊 flag）
   const timestamp = Date.now().toString();
   localStorage.setItem('appwrite_account_switched', timestamp);
   console.log(`[clearAllCaches] 設定 appwrite_account_switched: ${timestamp}`);
-  
+
   // 4. 強制所有 hooks 重新載入（設定 refresh keys）
   const modules = [
     'subscriptions',
-    'foods', 
+    'foods',
     'banks',
     'articles',
     'images',
@@ -194,12 +208,12 @@ export function clearAllCaches() {
     'videos',
     'dashboard'
   ];
-  
+
   modules.forEach(module => {
     const key = `${module}_refresh_key`;
     localStorage.setItem(key, timestamp);
     console.log(`[clearAllCaches] 設定 ${key}: ${timestamp}`);
   });
-  
+
   console.log('[clearAllCaches] 快取清除完成，所有模組將在下次載入時重新取得資料');
 }

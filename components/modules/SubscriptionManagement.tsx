@@ -21,6 +21,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { SubscriptionFormData, Subscription } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatDate, formatDaysRemaining, formatCurrency, formatCurrencyWithExchange, convertToTWD } from "@/lib/formatters";
+import { getExportFilename } from "@/lib/utils";
 
 // 帳號下拉選單組件：可選擇已有帳號或自行輸入（使用 Portal 避免被父層裁切）
 function AccountComboBox({ value, onChange, accounts, className = "" }: {
@@ -324,7 +325,7 @@ export default function SubscriptionManagement() {
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (raw) notified = JSON.parse(raw) as Record<string, string>;
-    } catch {}
+    } catch { }
 
     const updated = { ...notified };
     let hasNew = false;
@@ -350,11 +351,11 @@ export default function SubscriptionManagement() {
         }
         updated[key] = "shown";
         hasNew = true;
-      } catch {}
+      } catch { }
     }
 
     if (hasNew) {
-      try { window.localStorage.setItem(storageKey, JSON.stringify(updated)); } catch {}
+      try { window.localStorage.setItem(storageKey, JSON.stringify(updated)); } catch { }
     }
   };
 
@@ -383,7 +384,7 @@ export default function SubscriptionManagement() {
         }
       }
       window.localStorage.setItem(storageKey, JSON.stringify(cleaned));
-    } catch {}
+    } catch { }
   }, [subscriptions]);
 
   const handleEnableNotification = async () => {
@@ -673,7 +674,7 @@ export default function SubscriptionManagement() {
     const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'appwrite-Subscription.csv';
+    link.download = getExportFilename('subscription');
     link.click();
     URL.revokeObjectURL(link.href);
   };
