@@ -2,7 +2,7 @@
 
 ## 專案概況
 - **專案名稱**: fengbroaiappwrite-main
-- **最新統計日期**: 2026年3月3日
+- **最新統計日期**: 2026年3月3日（下午更新）
 - **統計工具**: PowerShell (Get-ChildItem + Get-Content)
 - **統計範圍**: 排除 node_modules、.next、.git、.claude、.kiro、lock 檔
 
@@ -12,24 +12,33 @@
 
 | 語言類型 | 副檔名 | 檔案數 | 程式碼行數 |
 |---------|--------|--------|------------|
-| React TSX | .tsx | 54 | 28,990 |
-| TypeScript | .ts | 33 | 4,929 |
-| CSS | .css | 1 | 403 |
-| ES Module Config | .mjs | 3 | 60 |
-| JSON | .json | 9 | 191 |
-| Markdown | .md | 30 | 2,927 |
-| **總計** | | **130** | **37,500** |
+| React TSX | .tsx | 108 | 57,245 |
+| TypeScript | .ts | 74 | 11,157 |
+| CSS | .css | 2 | 806 |
+| ES Module Config | .mjs | 6 | 120 |
+| JSON | .json | 18 | 505 |
+| Markdown | .md | 61 | 6,671 |
+| **總計** | | **269** | **76,504** |
 
 ### 核心程式碼分析
 
-#### TypeScript / TSX 原始碼（合計 87 檔 / 33,919 行）
+#### TypeScript / TSX 原始碼（合計 182 檔 / 68,402 行）
 - **功能模組** (`components/modules/`): 15 個大型 TSX 模組
-  - NotesManagement.tsx — 鋒兄筆記（1,873 行）★ 最新更新（新增分類功能）
-  - CommonDocumentManagement.tsx — 鋒兄文件管理（2,895+ 行）
-  - VideoIntroduction.tsx — 影片介紹
-  - MusicManagement.tsx — 音樂管理
-  - MusicLyrics.tsx — 音樂歌詞
-  - 其他管理模組 (10 個)
+  - MusicManagement.tsx — 音樂管理（2,953 行）★ 最大模組
+  - CommonDocumentManagement.tsx — 鋒兄文件管理（2,854 行）
+  - VideoIntroduction.tsx — 影片介紹（2,737 行）
+  - MusicLyrics.tsx — 音樂歌詞（2,125 行）
+  - FoodManagement.tsx — 食物管理（1,825 行）
+  - SubscriptionManagement.tsx — 訂閱管理（1,767 行）
+  - NotesManagement.tsx — 鋒兄筆記（1,736 行）★ 最新更新（分類功能）
+  - PodcastManagement.tsx — 播客管理（1,613 行）
+  - CommonAccountManagement.tsx — 共同帳戶（1,447 行）
+  - ImageGallery.tsx — 圖片管理（1,220 行）
+  - SettingsManagement.tsx — 設定管理（1,211 行）
+  - RoutineManagement.tsx — 例行公事（1,142 行）
+  - BankManagement.tsx — 銀行管理（960 行）
+  - AboutUs.tsx — 關於我們（662 行）
+  - EnhancedDashboard.tsx — 儀表板（640 行）
 - **UI 元件庫** (`components/ui/`): 35+ 個元件
 - **自定義 Hooks** (`hooks/`): 19 個自定義 React Hooks
 - **API 路由** (`app/api/`): 40 個 API 端點
@@ -102,4 +111,5 @@ types/                 # TypeScript 類型定義
 | 2025-02-07 | ~6,140,940（含dependencies） | 初版統計 |
 | 2026-02-22 (一) | 39,299 | 行內編輯補齊欄位（file/filetype/hash）|
 | 2026-02-22 (二) | 39,419 | 行內編輯新增上傳文件功能（進度條/自動hash/filetype）|
-| 2026-03-03 | **37,500** | 鋒兄筆記新增分類（category）功能：搜尋篩選、輸入欄、卡片標籤 |
+| 2026-03-03 (一) | **37,500** | 鋒兄筆記新增分類（category）功能：搜尋篩選、輸入欄、卡片標籤 |
+| 2026-03-03 (二) | **76,504** | 重新完整計算所有原始碼（含全部元件、API、Hooks、設定檔）|

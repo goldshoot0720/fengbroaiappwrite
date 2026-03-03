@@ -302,12 +302,12 @@ function SystemArchitecture() {
           <div className="space-y-2">
             <p className="text-gray-700 dark:text-gray-300"><strong>版本</strong>: v1.0.0</p>
             <p className="text-gray-700 dark:text-gray-300"><strong>技術框架</strong>: Next.js 16 / React 19 / Appwrite</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>程式碼規模</strong>: ~39,419 行</p>
+            <p className="text-gray-700 dark:text-gray-300"><strong>程式碼規模</strong>: ~76,504 行</p>
           </div>
           <div className="space-y-2">
-            <p className="text-gray-700 dark:text-gray-300"><strong>TypeScript/TSX</strong>: 34,995 行 (87 檔案)</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>CSS/JSON/MD</strong>: 4,424 行 (40 檔案)</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>最後更新</strong>: 2026-02-22</p>
+            <p className="text-gray-700 dark:text-gray-300"><strong>TypeScript/TSX</strong>: 68,402 行 (182 檔案)</p>
+            <p className="text-gray-700 dark:text-gray-300"><strong>CSS/JSON/MD</strong>: 8,102 行 (87 檔案)</p>
+            <p className="text-gray-700 dark:text-gray-300"><strong>最後更新</strong>: 2026-03-03</p>
           </div>
         </div>
       </div>
