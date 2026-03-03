@@ -1407,12 +1407,12 @@ export default function NotesManagement() {
                 className="pl-10 h-12 rounded-xl"
               />
             </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <Select value={categoryFilter || "__all__"} onValueChange={(v) => setCategoryFilter(v === "__all__" ? "" : v)}>
               <SelectTrigger className="h-12 rounded-xl w-36 flex-shrink-0">
                 <SelectValue placeholder="全部分類" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">📚 全部</SelectItem>
+                <SelectItem value="__all__">📚 全部</SelectItem>
                 {existingCategories.map(cat => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
