@@ -132,6 +132,7 @@ export interface Article {
   title: string;
   content: string;
   newDate: string;
+  category?: string;
   url1?: string;
   url2?: string;
   url3?: string;
@@ -152,6 +153,7 @@ export interface ArticleFormData {
   title: string;
   content: string;
   newDate: string;
+  category?: string;
   url1?: string;
   url2?: string;
   url3?: string;

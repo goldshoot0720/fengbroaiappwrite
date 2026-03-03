@@ -27,7 +27,7 @@ export function useArticles() {
   // 載入文章資料（使用快取）
   const loadArticles = useCallback(async (forceRefresh = false) => {
     const storedRefreshKey = getRefreshKey();
-    
+
     if (!forceRefresh && cachedArticles && (!storedRefreshKey || cacheTimestamp >= parseInt(storedRefreshKey))) {
       setArticles(cachedArticles);
       setLoading(false);
@@ -44,10 +44,10 @@ export function useArticles() {
       data = data.sort(
         (a, b) => new Date(b.newDate).getTime() - new Date(a.newDate).getTime()
       );
-      
+
       cachedArticles = data;
       cacheTimestamp = Date.now();
-      
+
       setArticles(data);
       return data;
     } catch (err) {
@@ -65,19 +65,21 @@ export function useArticles() {
     try {
       // 轉換日期格式為 ISO datetime
       const dateTime = new Date(formData.newDate).toISOString();
-      
+
       // 準備數據，過濾空字串的 URL 和 file 欄位
       const dataToSend: any = {
         title: formData.title,
         content: formData.content,
         newDate: dateTime,
       };
-      
-      // 只添加非空的 URL
+
+      // 分類
+      if (formData.category && formData.category.trim()) dataToSend.category = formData.category;
+
       if (formData.url1 && formData.url1.trim()) dataToSend.url1 = formData.url1;
       if (formData.url2 && formData.url2.trim()) dataToSend.url2 = formData.url2;
       if (formData.url3 && formData.url3.trim()) dataToSend.url3 = formData.url3;
-      
+
       // 只添加非空的 file 欄位
       if (formData.file1 && formData.file1.trim()) dataToSend.file1 = formData.file1;
       if (formData.file1name && formData.file1name.trim()) dataToSend.file1name = formData.file1name;
@@ -88,12 +90,12 @@ export function useArticles() {
       if (formData.file3 && formData.file3.trim()) dataToSend.file3 = formData.file3;
       if (formData.file3name && formData.file3name.trim()) dataToSend.file3name = formData.file3name;
       if (formData.file3type && formData.file3type.trim()) dataToSend.file3type = formData.file3type;
-      
+
       const res = await fetchApi<Article>(API_ENDPOINTS.ARTICLE, {
         method: "POST",
         body: JSON.stringify(dataToSend),
       });
-      
+
       const newArticle: Article = res;
       setArticles((prev) => {
         const updated = [newArticle, ...prev];
@@ -115,19 +117,21 @@ export function useArticles() {
     try {
       // 轉換日期格式為 ISO datetime
       const dateTime = new Date(formData.newDate).toISOString();
-      
+
       // 準備數據，過濾空字串的 URL 和 file 欄位
       const dataToSend: any = {
         title: formData.title,
         content: formData.content,
         newDate: dateTime,
       };
-      
-      // 只添加非空的 URL
+
+      // 分類
+      if (formData.category && formData.category.trim()) dataToSend.category = formData.category;
+
       if (formData.url1 && formData.url1.trim()) dataToSend.url1 = formData.url1;
       if (formData.url2 && formData.url2.trim()) dataToSend.url2 = formData.url2;
       if (formData.url3 && formData.url3.trim()) dataToSend.url3 = formData.url3;
-      
+
       // 只添加非空的 file 欄位
       if (formData.file1 && formData.file1.trim()) dataToSend.file1 = formData.file1;
       if (formData.file1name && formData.file1name.trim()) dataToSend.file1name = formData.file1name;
@@ -138,12 +142,12 @@ export function useArticles() {
       if (formData.file3 && formData.file3.trim()) dataToSend.file3 = formData.file3;
       if (formData.file3name && formData.file3name.trim()) dataToSend.file3name = formData.file3name;
       if (formData.file3type && formData.file3type.trim()) dataToSend.file3type = formData.file3type;
-      
+
       const res = await fetchApi<Article>(`${API_ENDPOINTS.ARTICLE}/${id}`, {
         method: "PUT",
         body: JSON.stringify(dataToSend),
       });
-      
+
       const updatedArticle: Article = res;
       setArticles((prev) => {
         const updated = prev.map((a) => (a.$id === id ? updatedArticle : a));
@@ -164,7 +168,7 @@ export function useArticles() {
   const deleteArticle = useCallback(async (id: string): Promise<boolean> => {
     try {
       await fetchApi(`${API_ENDPOINTS.ARTICLE}/${id}`, { method: "DELETE" });
-      
+
       setArticles((prev) => prev.filter((a) => a.$id !== id));
       cachedArticles = null;
       setRefreshKey();

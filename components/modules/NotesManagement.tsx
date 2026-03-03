@@ -27,6 +27,7 @@ const INITIAL_FORM: ArticleFormData = {
   title: "",
   content: "",
   newDate: new Date().toISOString().split('T')[0],
+  category: "",
   url1: "",
   url2: "",
   url3: "",
@@ -212,15 +213,33 @@ export default function NotesManagement() {
     return Array.from(new Set(titles)).sort();
   }, [articles]);
 
-  // 搜尋過濾
+  // 取得已存在的不重複分類用於下拉選單
+  const existingCategories = useMemo(() => {
+    const cats = articles.map(a => a.category).filter(Boolean) as string[];
+    return Array.from(new Set(cats)).sort();
+  }, [articles]);
+
+  // 分類篩選狀態
+  const [categoryFilter, setCategoryFilter] = useState("");
+
+  // 搜尋過濾（包含分類）
   const filteredArticles = useMemo(() => {
-    if (!searchQuery.trim()) return articles;
+    let result = articles;
+    if (categoryFilter) {
+      if (categoryFilter === '__none__') {
+        result = result.filter(article => !article.category || article.category.trim() === '');
+      } else {
+        result = result.filter(article => article.category === categoryFilter);
+      }
+    }
+    if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
-    return articles.filter(article =>
+    return result.filter(article =>
       article.title?.toLowerCase().includes(query) ||
-      article.content?.toLowerCase().includes(query)
+      article.content?.toLowerCase().includes(query) ||
+      article.category?.toLowerCase().includes(query)
     );
-  }, [articles, searchQuery]);
+  }, [articles, searchQuery, categoryFilter]);
 
   // File upload handlers
   const handleFileSelect = (fileNumber: 1 | 2 | 3, file: File | null) => {
@@ -479,6 +498,7 @@ export default function NotesManagement() {
       title: article.title,
       content: article.content,
       newDate: formatDate(article.newDate),
+      category: article.category || "",
       url1: article.url1 || "",
       url2: article.url2 || "",
       url3: article.url3 || "",
@@ -872,6 +892,7 @@ export default function NotesManagement() {
       content: formData.content,
       newDate: dateTime,
     };
+    if (formData.category && formData.category.trim()) dataToSend.category = formData.category;
     if (formData.url1 && formData.url1.trim()) dataToSend.url1 = formData.url1;
     if (formData.url2 && formData.url2.trim()) dataToSend.url2 = formData.url2;
     if (formData.url3 && formData.url3.trim()) dataToSend.url3 = formData.url3;
@@ -1103,6 +1124,30 @@ export default function NotesManagement() {
                 </div>
               </div>
             </FormGrid>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">分類（選填）/ Category (Optional)</label>
+              <div className="relative">
+                <input
+                  id="category-datalist"
+                  list="category-options"
+                  placeholder="輸入分類名稱（可從建議選取）"
+                  value={form.category || ""}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="flex h-12 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
+                <datalist id="category-options">
+                  {existingCategories.map(cat => <option key={cat} value={cat} />)}
+                </datalist>
+              </div>
+              <div className="px-1 h-4">
+                {form.category ? (
+                  <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已設定分類: {form.category}</span>
+                ) : (
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 輸入分類 / (Optional) Enter category</span>
+                )}
+              </div>
+            </div>
 
             <div className="space-y-1">
               <Textarea
@@ -1349,17 +1394,33 @@ export default function NotesManagement() {
         </div>
       )}
 
-      {/* 搜尋欄位 + 全選/批次刪除 */}
+      {/* 搜尋欄位 + 分類篩選 + 全選/批次刪除 */}
       {articles.length > 0 && (
         <div className="space-y-3 mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋標題、內容..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="搜尋標題、內容、分類..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-12 rounded-xl"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-12 rounded-xl w-36 flex-shrink-0">
+                <SelectValue placeholder="全部分類" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">📚 全部</SelectItem>
+                {existingCategories.map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+                {existingCategories.length > 0 && (
+                  <SelectItem value="__none__">未分類</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </div>
           {filteredArticles.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap">
@@ -1435,6 +1496,23 @@ export default function NotesManagement() {
                           className="h-10 rounded-lg"
                         />
                       </FormGrid>
+
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">分類 / Category</label>
+                        <div className="relative">
+                          <input
+                            id="edit-category-datalist"
+                            list="edit-category-options"
+                            placeholder="輸入分類名稱"
+                            value={editForm.category || ""}
+                            onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                            className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          />
+                          <datalist id="edit-category-options">
+                            {existingCategories.map(cat => <option key={cat} value={cat} />)}
+                          </datalist>
+                        </div>
+                      </div>
 
                       <Textarea
                         placeholder="筆記內容 (上限 3377 字)"
@@ -1545,7 +1623,14 @@ export default function NotesManagement() {
                             className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 flex-shrink-0 mt-0.5"
                           />
                           <FileText className="text-purple-600 dark:text-purple-400" size={20} />
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">{article.title}</h3>
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <h3 className="font-semibold text-gray-900 dark:text-gray-100">{article.title}</h3>
+                            {article.category && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
+                                {article.category}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Button
