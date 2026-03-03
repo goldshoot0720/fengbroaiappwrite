@@ -1074,44 +1074,16 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
     setUploadStatus('uploading');
     setUploadProgress(0);
 
-    const formDataUpload = new FormData();
-    formDataUpload.append('file', file);
-
-    // 模擬上傳進度
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) return prev;
-        return prev + 10;
-      });
-    }, 200);
-
     try {
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        headers: getAppwriteHeaders(),
-        body: formDataUpload,
+      // 直接從瀏覽器上傳到 Appwrite，繞過 Vercel 4.5MB 限制
+      const result = await uploadToAppwriteStorage(file, (progress) => {
+        setUploadProgress(progress);
       });
 
-      clearInterval(progressInterval);
       setUploadProgress(100);
-
-      if (!response.ok) {
-        let errorMessage = '上傳失敗';
-        try {
-          const error = await response.json();
-          errorMessage = error.error || errorMessage;
-        } catch (parseError) {
-          // If response is not JSON, use status text
-          errorMessage = `${errorMessage} (${response.status}: ${response.statusText})`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
       setUploadStatus('success');
-      return { url: data.url, fileId: data.fileId || '' };
+      return result;
     } catch (error) {
-      clearInterval(progressInterval);
       setUploadStatus('error');
       throw error;
     }
