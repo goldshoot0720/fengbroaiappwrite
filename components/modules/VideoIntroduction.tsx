@@ -347,7 +347,7 @@ export default function VideoIntroduction() {
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(zipBlob);
-      link.download = 'appwrite-video.zip';
+      link.download = getExportFilename('video', 'zip');
       link.click();
       URL.revokeObjectURL(link.href);
 
