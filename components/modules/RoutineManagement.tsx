@@ -888,12 +888,14 @@ export default function RoutineManagement() {
                                           onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
                                           className="h-9 rounded-lg text-sm"
                                         />
-                                        <Input
+                                        <Textarea
                                           placeholder="備註"
                                           value={inlineEditForm.note}
                                           onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
-                                          className="h-9 rounded-lg text-sm"
+                                          className="min-h-[72px] rounded-lg text-sm col-span-3 resize-y"
                                         />
+                                      </div>
+                                      <div className="grid grid-cols-4 gap-3">
                                         <Input
                                           placeholder="日期一"
                                           type="date"
