@@ -88,11 +88,13 @@ function useResolvedVideoSource(video: VideoData) {
           cleanupStream = stream.cleanup;
           if (isActive) {
             setResolvedSrc(stream.url);
-          }
-          await stream.ready;
-          if (isActive) {
             setLoadingSource(false);
           }
+          void stream.ready.catch((error) => {
+            if (isActive) {
+              setSourceError(error instanceof Error ? error.message : "影片串流初始化失敗");
+            }
+          });
           return;
         }
 
