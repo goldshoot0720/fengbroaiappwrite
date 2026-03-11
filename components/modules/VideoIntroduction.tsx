@@ -18,9 +18,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { VideoItem } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
-import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
+import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { MAX_VIDEO_PART_SIZE, createMultipartVideoStream, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
+import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
 import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { VideoScreenshotButton } from "@/components/ui/video-screenshot-button";
@@ -61,8 +61,6 @@ function useResolvedVideoSource(video: VideoData) {
   useEffect(() => {
     let isActive = true;
     let objectUrl = "";
-    let cleanupStream: (() => void) | null = null;
-
     const resolveSource = async () => {
       if (!video.file) {
         setResolvedSrc("");
@@ -82,19 +80,11 @@ function useResolvedVideoSource(video: VideoData) {
       setSourceError(null);
 
       try {
-        const stream = await createMultipartVideoStream(video.file);
-        if (stream) {
-          objectUrl = stream.url;
-          cleanupStream = stream.cleanup;
+        if (isMultipartVideoFiletype(video.filetype)) {
           if (isActive) {
-            setResolvedSrc(stream.url);
+            setResolvedSrc(getMultipartVideoPlaybackUrl(video.file));
             setLoadingSource(false);
           }
-          void stream.ready.catch((error) => {
-            if (isActive) {
-              setSourceError(error instanceof Error ? error.message : "影片串流初始化失敗");
-            }
-          });
           return;
         }
 
@@ -124,7 +114,6 @@ function useResolvedVideoSource(video: VideoData) {
 
     return () => {
       isActive = false;
-      cleanupStream?.();
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
@@ -1407,69 +1396,44 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
 
   const toggleFullscreen = () => setIsFullscreen(!isFullscreen);
 
-  // 監聽影片播放結束事件 - 支援重複播放和自動播放下一個
-  useEffect(() => {
-    const handleVideoEnded = () => {
-      // 如果開啟重複播放，重播當前影片
-      if (repeatMode) {
-        const plyrVideo = document.querySelector('.plyr video') as HTMLVideoElement;
-        if (plyrVideo) {
-          plyrVideo.currentTime = 0;
-          plyrVideo.play();
-        }
-        return;
+  const handleVideoEnded = useCallback(() => {
+    if (repeatMode) {
+      const player = document.querySelector('.plyr video') as HTMLVideoElement | null;
+      if (player) {
+        player.currentTime = 0;
+        void player.play().catch(() => {});
       }
+      return;
+    }
 
-      // 自動播放下一個（順序播放，不重複）
-      if (!autoPlay) return;
+    if (!autoPlay) return;
 
-      // 找到當前影片在列表中的位置
-      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+    const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
 
-      // 從當前位置往後找下一個未播放的影片
-      let nextVideo: VideoData | null = null;
-      for (let i = 1; i < allVideosWithFile.length; i++) {
-        const nextIndex = (currentIndex + i) % allVideosWithFile.length;
-        const candidate = allVideosWithFile[nextIndex];
-        if (!playedIds.has(candidate.$id)) {
-          nextVideo = candidate;
-          break;
-        }
+    let nextVideo: VideoData | null = null;
+    for (let i = 1; i < allVideosWithFile.length; i++) {
+      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
+      const candidate = allVideosWithFile[nextIndex];
+      if (!playedIds.has(candidate.$id)) {
+        nextVideo = candidate;
+        break;
       }
+    }
 
-      // 如果所有影片都播放過了，重置並從下一個開始
-      if (!nextVideo && allVideosWithFile.length > 1) {
-        const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
-        nextVideo = allVideosWithFile[nextIndex];
-        setPlayedIds(new Set([nextVideo.$id])); // 重置播放記錄
-        console.log('所有影片已播放完畢，重新開始:', nextVideo.name);
-      } else if (nextVideo) {
-        setPlayedIds(prev => new Set([...prev, nextVideo!.$id]));
-        console.log('自動播放下一個:', nextVideo.name);
-      }
+    if (!nextVideo && allVideosWithFile.length > 1) {
+      const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
+      nextVideo = allVideosWithFile[nextIndex];
+      setPlayedIds(new Set([nextVideo.$id]));
+      console.log('所有影片已播放完畢，重新開始:', nextVideo.name);
+    } else if (nextVideo) {
+      setPlayedIds(prev => new Set([...prev, nextVideo!.$id]));
+      console.log('自動播放下一個:', nextVideo.name);
+    }
 
-      if (nextVideo) {
-        setCurrentVideo(nextVideo);
-      }
-    };
-
-    // 監聽 Plyr 播放器的 ended 事件
-    const checkForPlyr = () => {
-      const plyrVideo = document.querySelector('.plyr video') as HTMLVideoElement;
-      if (plyrVideo) {
-        plyrVideo.addEventListener('ended', handleVideoEnded);
-        return () => plyrVideo.removeEventListener('ended', handleVideoEnded);
-      }
-    };
-
-    const timer = setTimeout(checkForPlyr, 500);
-    const cleanup = checkForPlyr();
-
-    return () => {
-      clearTimeout(timer);
-      if (cleanup) cleanup();
-    };
-  }, [autoPlay, repeatMode, allVideosWithFile, currentVideo, playedIds]);
+    if (nextVideo) {
+      setCurrentVideo(nextVideo);
+    }
+  }, [repeatMode, autoPlay, allVideosWithFile, currentVideo.$id, playedIds]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -1498,6 +1462,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
               src={resolvedSrc}
               poster={currentVideo.cover}
               autoplay={true}
+              onEnded={handleVideoEnded}
               className="w-full h-full"
             />
           )}
@@ -1560,6 +1525,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
                   src={resolvedSrc}
                   poster={currentVideo.cover}
                   autoplay={true}
+                  onEnded={handleVideoEnded}
                   className="w-full h-full"
                 />
               )}
@@ -2182,43 +2148,32 @@ function BilibiliPlayerModal({ video, videoRef, onClose }: { video: VideoData; v
     return result.slice(0, 12);
   }, [allVideosWithFile, currentVideo.$id, playedIds]);
 
-  // 自動播放下一個
-  useEffect(() => {
-    const handleVideoEnded = () => {
-      if (repeatMode) {
-        const plyrVideo = document.querySelector('.plyr video') as HTMLVideoElement;
-        if (plyrVideo) { plyrVideo.currentTime = 0; plyrVideo.play(); }
-        return;
+  const handleVideoEnded = useCallback(() => {
+    if (repeatMode) {
+      const player = document.querySelector('.plyr video') as HTMLVideoElement | null;
+      if (player) {
+        player.currentTime = 0;
+        void player.play().catch(() => {});
       }
-      if (!autoPlay) return;
-      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-      let nextVideo: VideoData | null = null;
-      for (let i = 1; i < allVideosWithFile.length; i++) {
-        const nextIndex = (currentIndex + i) % allVideosWithFile.length;
-        const candidate = allVideosWithFile[nextIndex];
-        if (!playedIds.has(candidate.$id)) { nextVideo = candidate; break; }
-      }
-      if (!nextVideo && allVideosWithFile.length > 1) {
-        const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
-        nextVideo = allVideosWithFile[nextIndex];
-        setPlayedIds(new Set([nextVideo.$id]));
-      } else if (nextVideo) {
-        setPlayedIds(prev => new Set([...prev, nextVideo!.$id]));
-      }
-      if (nextVideo) setCurrentVideo(nextVideo);
-    };
-
-    const checkForPlyr = () => {
-      const plyrVideo = document.querySelector('.plyr video') as HTMLVideoElement;
-      if (plyrVideo) {
-        plyrVideo.addEventListener('ended', handleVideoEnded);
-        return () => plyrVideo.removeEventListener('ended', handleVideoEnded);
-      }
-    };
-    const timer = setTimeout(checkForPlyr, 500);
-    const cleanup = checkForPlyr();
-    return () => { clearTimeout(timer); if (cleanup) cleanup(); };
-  }, [autoPlay, repeatMode, allVideosWithFile, currentVideo, playedIds]);
+      return;
+    }
+    if (!autoPlay) return;
+    const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+    let nextVideo: VideoData | null = null;
+    for (let i = 1; i < allVideosWithFile.length; i++) {
+      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
+      const candidate = allVideosWithFile[nextIndex];
+      if (!playedIds.has(candidate.$id)) { nextVideo = candidate; break; }
+    }
+    if (!nextVideo && allVideosWithFile.length > 1) {
+      const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
+      nextVideo = allVideosWithFile[nextIndex];
+      setPlayedIds(new Set([nextVideo.$id]));
+    } else if (nextVideo) {
+      setPlayedIds(prev => new Set([...prev, nextVideo!.$id]));
+    }
+    if (nextVideo) setCurrentVideo(nextVideo);
+  }, [repeatMode, autoPlay, allVideosWithFile, currentVideo.$id, playedIds]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -2261,6 +2216,7 @@ function BilibiliPlayerModal({ video, videoRef, onClose }: { video: VideoData; v
                   src={resolvedSrc}
                   poster={currentVideo.cover}
                   autoplay={true}
+                  onEnded={handleVideoEnded}
                   className="w-full h-full"
                 />
               )}

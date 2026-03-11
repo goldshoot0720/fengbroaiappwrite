@@ -141,6 +141,27 @@ export function getAppwriteDownloadUrl(url: string | undefined | null): string {
 }
 
 /**
+ * Build a playback URL for multipart videos so the browser sees a single
+ * range-capable stream instead of raw PART files.
+ */
+export function getMultipartVideoPlaybackUrl(manifestUrl: string | undefined | null): string {
+  if (!manifestUrl) return '';
+
+  const params = new URLSearchParams();
+  params.set('manifestUrl', getAppwriteDownloadUrl(manifestUrl));
+
+  const config = getAppwriteConfig();
+  if (config.apiKey && config.apiKey !== 'undefined' && config.apiKey !== 'null') {
+    params.set('_key', config.apiKey);
+  }
+  if (config.projectId && config.projectId !== 'undefined' && config.projectId !== 'null') {
+    params.set('_project', config.projectId);
+  }
+
+  return `/api/multipart-video?${params.toString()}`;
+}
+
+/**
  * 獲取當前 Appwrite 帳號的友善顯示名稱
  * - 使用 .env 配置時返回 "appwrite-.env"
  * - 使用自定義配置時返回 "appwrite-{nickname}" 或 "appwrite-custom"
