@@ -140,6 +140,144 @@ function AccountComboBox({ value, onChange, accounts, className = "" }: {
 
 const INITIAL_FORM: SubscriptionFormData = { name: "", site: "", price: 0, nextdate: "", note: "", account: "", currency: "TWD", continue: true };
 
+function getDraftBillingSummary(form: SubscriptionFormData) {
+  const price = Number(form.price || 0);
+  const currency = form.currency || "TWD";
+  const twdAmount = convertToTWD(price, currency);
+
+  let dateLabel = "未設定扣款日";
+  let dateTone = "text-gray-500 dark:text-gray-400";
+
+  if (form.nextdate) {
+    const target = new Date(form.nextdate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
+    const days = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (days < 0) {
+      dateLabel = `已逾期 ${Math.abs(days)} 天`;
+      dateTone = "text-red-600 dark:text-red-400";
+    } else if (days === 0) {
+      dateLabel = "今天扣款";
+      dateTone = "text-orange-600 dark:text-orange-400";
+    } else if (days <= 7) {
+      dateLabel = `${days} 天後扣款`;
+      dateTone = "text-amber-600 dark:text-amber-400";
+    } else {
+      dateLabel = `${days} 天後扣款`;
+      dateTone = "text-emerald-600 dark:text-emerald-400";
+    }
+  }
+
+  return {
+    amountLabel: formatCurrencyWithExchange(price, currency),
+    twdLabel: formatCurrency(twdAmount),
+    dateLabel,
+    dateTone,
+  };
+}
+
+function CrudWorkbench({
+  total,
+  isInlineAdding,
+  isEditMode,
+  selectedCount,
+  onToggleAdd,
+  onToggleEdit,
+  onBulkDelete,
+}: {
+  total: number;
+  isInlineAdding: boolean;
+  isEditMode: boolean;
+  selectedCount: number;
+  onToggleAdd: () => void;
+  onToggleEdit: () => void;
+  onBulkDelete: () => void;
+}) {
+  return (
+    <DataCard className="p-4 sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-1">
+          <div className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            Friendly AI CRUD
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">訂閱工作台</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            先新增，再批次整理；需要大量調整時再切換編輯模式。
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-[560px]">
+          <button
+            type="button"
+            onClick={onToggleAdd}
+            className={`rounded-2xl border px-4 py-4 text-left transition-colors ${isInlineAdding ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 bg-white hover:border-green-300 hover:bg-green-50/60 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:bg-green-900/10'}`}
+          >
+            <div className="mb-2 inline-flex rounded-full bg-green-100 p-2 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+              {isInlineAdding ? <X size={16} /> : <Plus size={16} />}
+            </div>
+            <div className="font-semibold text-gray-900 dark:text-gray-100">{isInlineAdding ? "關閉新增" : "新增訂閱"}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">直接在列表內建立新的訂閱項目</div>
+          </button>
+          <button
+            type="button"
+            onClick={onToggleEdit}
+            className={`rounded-2xl border px-4 py-4 text-left transition-colors ${isEditMode ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/60 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:bg-blue-900/10'}`}
+          >
+            <div className="mb-2 inline-flex rounded-full bg-blue-100 p-2 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+              <Pencil size={16} />
+            </div>
+            <div className="font-semibold text-gray-900 dark:text-gray-100">{isEditMode ? "結束編輯" : "編輯模式"}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">進入批次調整、複製與刪除操作</div>
+          </button>
+          <button
+            type="button"
+            onClick={onBulkDelete}
+            disabled={selectedCount === 0}
+            className="rounded-2xl border border-gray-200 bg-white px-4 py-4 text-left transition-colors hover:border-red-300 hover:bg-red-50/60 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:bg-red-900/10"
+          >
+            <div className="mb-2 inline-flex rounded-full bg-red-100 p-2 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+              <Trash2 size={16} />
+            </div>
+            <div className="font-semibold text-gray-900 dark:text-gray-100">刪除選取</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {selectedCount > 0 ? `目前已選 ${selectedCount} 筆` : `目前共 ${total} 筆資料`}
+            </div>
+          </button>
+        </div>
+      </div>
+    </DataCard>
+  );
+}
+
+function DraftSummaryCard({ form, tone }: { form: SubscriptionFormData; tone: "green" | "blue" }) {
+  const summary = getDraftBillingSummary(form);
+  const toneClass = tone === "green"
+    ? "border-green-200 bg-green-50/70 dark:border-green-800 dark:bg-green-900/10"
+    : "border-blue-200 bg-blue-50/70 dark:border-blue-800 dark:bg-blue-900/10";
+
+  return (
+    <div className={`rounded-2xl border p-3 ${toneClass}`}>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">AI 摘要</div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">服務名稱</div>
+          <div className="font-semibold text-gray-900 dark:text-gray-100">{form.name || "尚未命名"}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">帳單估算</div>
+          <div className="font-semibold text-gray-900 dark:text-gray-100">{summary.amountLabel}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">約 {summary.twdLabel}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">扣款狀態</div>
+          <div className={`font-semibold ${summary.dateTone}`}>{summary.dateLabel}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{form.continue !== false ? "到期後將持續追蹤" : "標記為不續訂"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SubscriptionManagement() {
   const { subscriptions, loading, error, stats, createSubscription, createSubscriptionSilent, updateSubscription, updateSubscriptionSilent, deleteSubscription, loadSubscriptions } = useSubscriptions();
   const [canAskNotification, setCanAskNotification] = useState(false);
@@ -827,6 +965,32 @@ export default function SubscriptionManagement() {
         </div>
       )}
 
+      <CrudWorkbench
+        total={stats.total}
+        isInlineAdding={isInlineAdding}
+        isEditMode={isEditMode}
+        selectedCount={selectedIds.size}
+        onToggleAdd={() => {
+          if (isInlineAdding) {
+            cancelInlineAdd();
+          } else {
+            startInlineAdd();
+          }
+        }}
+        onToggleEdit={() => {
+          setIsEditMode(!isEditMode);
+          if (isEditMode) {
+            setInlineEditingId(null);
+            setInlineEditForm(INITIAL_FORM);
+          }
+        }}
+        onBulkDelete={() => {
+          if (selectedIds.size > 0) {
+            setBulkDeleteOpen(true);
+          }
+        }}
+      />
+
       <div className="flex justify-end gap-2">
         <input type="file" accept=".csv" onChange={handleFileSelect} className="hidden" id="csv-import-subscription" />
         <Button onClick={() => document.getElementById('csv-import-subscription')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
@@ -969,47 +1133,49 @@ export default function SubscriptionManagement() {
 
       {/* 搜尋欄位 + 續訂篩選 */}
       {subscriptions.length > 0 && (
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋服務名稱、網站、帳號、備註..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900/40">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">查詢與篩選</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">先縮小資料範圍，再進入編輯或批次操作</div>
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              目前顯示 {filteredSubscriptions.length} / {subscriptions.length} 筆
+            </div>
           </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredSubscriptions.length > 0 && filteredSubscriptions.every(sub => selectedIds.has(sub.$id)) ? "取消全選" : "全選"}
-          </Button>
-          {selectedIds.size > 0 && (
-            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={18} />
-              刪除選取 ({selectedIds.size})
-            </Button>
-          )}
-          <Select value={monthFilter} onValueChange={setMonthFilter}>
-            <SelectTrigger className="h-12 rounded-xl w-32 shrink-0">
-              <SelectValue placeholder="年月" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部月份</SelectItem>
-              {monthOptions.map(ym => (
-                <SelectItem key={ym} value={ym}>{ym}</SelectItem>
-              ))}
-              <SelectItem value="none">無日期</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={continueFilter} onValueChange={(value: "all" | "yes" | "no") => setContinueFilter(value)}>
-            <SelectTrigger className="h-12 rounded-xl w-28 shrink-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="yes">續訂</SelectItem>
-              <SelectItem value="no">不續</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-3 lg:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="搜尋服務名稱、網站、帳號、備註..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-12 rounded-xl"
+              />
+            </div>
+            <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <SelectTrigger className="h-12 rounded-xl w-full lg:w-36 shrink-0">
+                <SelectValue placeholder="年月" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部月份</SelectItem>
+                {monthOptions.map(ym => (
+                  <SelectItem key={ym} value={ym}>{ym}</SelectItem>
+                ))}
+                <SelectItem value="none">無日期</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={continueFilter} onValueChange={(value: "all" | "yes" | "no") => setContinueFilter(value)}>
+              <SelectTrigger className="h-12 rounded-xl w-full lg:w-32 shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="yes">續訂</SelectItem>
+                <SelectItem value="no">不續</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
@@ -1105,9 +1271,10 @@ export default function SubscriptionManagement() {
                 <TableBody>
                   {/* 行內新增列 (桌面版) */}
                   {isInlineAdding && (
-                    <TableRow id="sub-inline-add" className="bg-green-50 dark:bg-green-900/20">
+                      <TableRow id="sub-inline-add" className="bg-green-50 dark:bg-green-900/20">
                       <TableCell className="font-medium">
                         <div className="flex flex-col gap-2">
+                          <DraftSummaryCard form={inlineAddForm} tone="green" />
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-500 w-14 shrink-0">名稱</span>
                             <Input
@@ -1244,6 +1411,7 @@ export default function SubscriptionManagement() {
                         <TableRow key={sub.$id} className="bg-blue-50 dark:bg-blue-900/20">
                           <TableCell className="font-medium">
                             <div className="flex flex-col gap-2">
+                              <DraftSummaryCard form={inlineEditForm} tone="blue" />
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-500 w-14 shrink-0">名稱</span>
                                 <Input
@@ -1517,6 +1685,7 @@ export default function SubscriptionManagement() {
                   <DataCardItem highlight="normal">
                     <div id="sub-inline-add" className="space-y-3 border-2 border-green-500 rounded-lg p-4 -m-4">
                       <div className="text-sm font-semibold text-green-600 dark:text-green-400 mb-2">新增訂閱</div>
+                      <DraftSummaryCard form={inlineAddForm} tone="green" />
                       <Input
                         placeholder="服務名稱"
                         value={inlineAddForm.name}
@@ -1635,6 +1804,7 @@ export default function SubscriptionManagement() {
                     return (
                       <DataCardItem key={sub.$id} highlight="normal">
                         <div className="space-y-3">
+                          <DraftSummaryCard form={inlineEditForm} tone="blue" />
                           <Input
                             placeholder="服務名稱"
                             value={inlineEditForm.name}
