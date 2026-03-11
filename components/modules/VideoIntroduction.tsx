@@ -20,6 +20,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
 import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { VideoScreenshotButton } from "@/components/ui/video-screenshot-button";
@@ -50,6 +51,102 @@ function addAppwriteConfigToUrl(url: string): string {
 
   const paramString = params.toString();
   return paramString ? `${url}${separator}${paramString}` : url;
+}
+
+function useResolvedVideoSource(video: VideoData) {
+  const [resolvedSrc, setResolvedSrc] = useState("");
+  const [loadingSource, setLoadingSource] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    let objectUrl = "";
+
+    const resolveSource = async () => {
+      if (!video.file) {
+        setResolvedSrc("");
+        setLoadingSource(false);
+        setSourceError(null);
+        return;
+      }
+
+      if (!isMultipartVideoFiletype(video.filetype)) {
+        setResolvedSrc(getProxiedMediaUrl(video.file));
+        setLoadingSource(false);
+        setSourceError(null);
+        return;
+      }
+
+      setLoadingSource(true);
+      setSourceError(null);
+
+      try {
+        const { blob } = await resolveVideoBlob({
+          file: video.file,
+          filetype: video.filetype,
+          name: video.name,
+        });
+
+        objectUrl = URL.createObjectURL(blob);
+        if (isActive) {
+          setResolvedSrc(objectUrl);
+        }
+      } catch (error) {
+        if (isActive) {
+          setResolvedSrc("");
+          setSourceError(error instanceof Error ? error.message : "影片來源解析失敗");
+        }
+      } finally {
+        if (isActive) {
+          setLoadingSource(false);
+        }
+      }
+    };
+
+    void resolveSource();
+
+    return () => {
+      isActive = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [video.$id, video.file, video.filetype, video.name]);
+
+  return { resolvedSrc, loadingSource, sourceError };
+}
+
+async function downloadVideoToBrowser(video: VideoData): Promise<void> {
+  if (!video.file) {
+    throw new Error("此影片沒有可下載的檔案");
+  }
+
+  if (!isMultipartVideoFiletype(video.filetype)) {
+    const downloadUrl = getAppwriteDownloadUrl(video.file);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = getVideoDownloadFilename({ file: video.file, filetype: video.filetype, name: video.name });
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+
+  const { blob, fileName } = await resolveVideoBlob({
+    file: video.file,
+    filetype: video.filetype,
+    name: video.name,
+  });
+
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 
@@ -276,26 +373,20 @@ export default function VideoIntroduction() {
         setExportZipProgress({ current: i + 1, total: videos.length, status: `正在處理: ${video.name}` });
 
         // Detect video file extension
-        let fileExtension = 'mp4';
-        if (video.file) {
-          const urlLower = video.file.toLowerCase();
-          if (urlLower.includes('.webm') || urlLower.includes('video%2Fwebm')) fileExtension = 'webm';
-          else if (urlLower.includes('.ogg') || urlLower.includes('video%2Fogg')) fileExtension = 'ogg';
-          else if (urlLower.includes('.mov') || urlLower.includes('video%2Fmov')) fileExtension = 'mov';
-        }
-        if (video.filetype) fileExtension = video.filetype;
+        let fileExtension = getOriginalVideoFiletype(video.filetype);
 
         // Download and add video file
         let videoPath = '';
         if (video.file) {
           try {
-            const proxyUrl = getProxiedMediaUrl(video.file);
-            const response = await fetch(proxyUrl);
-            if (response.ok) {
-              const blob = await response.blob();
-              videoPath = `videos/${baseName}.${fileExtension}`;
-              zip.file(videoPath, blob);
-            }
+            const { blob, filetype } = await resolveVideoBlob({
+              file: video.file,
+              filetype: video.filetype,
+              name: video.name,
+            });
+            fileExtension = filetype || fileExtension;
+            videoPath = `videos/${baseName}.${fileExtension}`;
+            zip.file(videoPath, blob);
           } catch (err) { console.error(`下載影片 ${video.name} 時出錯:`, err); }
         }
 
@@ -428,12 +519,16 @@ export default function VideoIntroduction() {
           try {
             // Upload video file from ZIP
             let remoteFileUrl = '';
+            let remoteFiletype = row.filetype || '';
             if (row.file && zip.files[row.file]) {
               const videoBlob = await zip.files[row.file].async('blob');
               const fileName = row.file.split('/').pop() || 'video.mp4';
               const videoFileObj = new File([videoBlob], fileName, { type: 'application/octet-stream' });
-              const uploadResult = await uploadToAppwriteStorage(videoFileObj);
+              const uploadResult = videoFileObj.size > MAX_VIDEO_PART_SIZE
+                ? await uploadVideoInParts(videoFileObj)
+                : await uploadToAppwriteStorage(videoFileObj);
               remoteFileUrl = uploadResult.url;
+              remoteFiletype = "filetype" in uploadResult ? uploadResult.filetype : remoteFiletype;
             }
 
             // Upload cover image from ZIP
@@ -457,7 +552,7 @@ export default function VideoIntroduction() {
               name: row.name || '',
               file: remoteFileUrl || (existing ? existing.file : ''),
               cover: remoteCoverUrl || (existing ? (typeof existing.cover === 'string' ? existing.cover : '') : ''),
-              filetype: row.filetype || '',
+              filetype: remoteFiletype || row.filetype || '',
               category: row.category || '',
               note: row.note || '',
               ref: row.ref || '',
@@ -529,9 +624,13 @@ export default function VideoIntroduction() {
             const blob = new Blob([arrayBuffer], { type: mimeType });
             const videoFileObj = new File([blob], fileName, { type: mimeType });
 
-            const uploadResult = await uploadToAppwriteStorage(videoFileObj, (progress) => {
-              setImportZipProgress(prev => ({ ...prev, status: `上傳中: ${fileName} (${progress}%)` }));
-            });
+            const uploadResult = videoFileObj.size > MAX_VIDEO_PART_SIZE
+              ? await uploadVideoInParts(videoFileObj, (progress) => {
+                setImportZipProgress(prev => ({ ...prev, status: `分段上傳中: ${fileName} (${progress}%)` }));
+              })
+              : await uploadToAppwriteStorage(videoFileObj, (progress) => {
+                setImportZipProgress(prev => ({ ...prev, status: `上傳中: ${fileName} (${progress}%)` }));
+              });
 
             const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
             const createResponse = await fetch(createUrl, {
@@ -540,7 +639,7 @@ export default function VideoIntroduction() {
               body: JSON.stringify({
                 name: fileName,
                 file: uploadResult.url,
-                filetype: ext,
+                filetype: ("filetype" in uploadResult ? uploadResult.filetype : ext) || ext,
                 note: '',
                 ref: '',
                 category: '',
@@ -782,10 +881,19 @@ export default function VideoIntroduction() {
       description: video.note || '',
       filename: video.name,
       url: video.file,
+      filetype: video.filetype,
       cover: typeof video.cover === 'string' ? video.cover : '',
     };
     await downloadAndCacheVideo(videoItem);
   }, [downloadAndCacheVideo]);
+
+  const handleDirectDownload = useCallback(async (video: VideoData) => {
+    try {
+      await downloadVideoToBrowser(video);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '下載失敗');
+    }
+  }, []);
 
   const handleDeleteCache = useCallback(async (videoId: string) => {
     if (confirm('確定要刪除此影片的快取嗎？')) {
@@ -966,6 +1074,7 @@ export default function VideoIntroduction() {
                   onEdit={() => handleEdit(video)}
                   onDelete={() => handleDelete(video)}
                   onDownload={() => handleDownload(video)}
+                  onDirectDownload={() => handleDirectDownload(video)}
                   onDeleteCache={() => handleDeleteCache(video.$id)}
                   onAddToQueue={() => handleAddToQueue(video)}
                   isInQueue={isInQueue(video.$id)}
@@ -989,6 +1098,7 @@ export default function VideoIntroduction() {
                   onEdit={() => handleEdit(video)}
                   onDelete={() => handleDelete(video)}
                   onDownload={() => handleDownload(video)}
+                  onDirectDownload={() => handleDirectDownload(video)}
                   onDeleteCache={() => handleDeleteCache(video.$id)}
                   onAddToQueue={() => handleAddToQueue(video)}
                   isInQueue={isInQueue(video.$id)}
@@ -1244,6 +1354,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
   const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set([video.$id]));
   const modalRef = useRef<HTMLDivElement>(null);
+  const { resolvedSrc, loadingSource, sourceError } = useResolvedVideoSource(currentVideo);
 
   // 所有有影片的列表（按順序）
   const allVideosWithFile = useMemo(() => {
@@ -1358,14 +1469,20 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
           <X className="w-6 h-6" />
         </button>
         <div className="w-full h-full">
-          <PlyrPlayer
-            key={currentVideo.$id}
-            type="video"
-            src={getProxiedMediaUrl(currentVideo.file || '')}
-            poster={currentVideo.cover}
-            autoplay={true}
-            className="w-full h-full"
-          />
+          {loadingSource ? (
+            <div className="w-full h-full flex items-center justify-center text-white">影片載入中...</div>
+          ) : sourceError ? (
+            <div className="w-full h-full flex items-center justify-center text-red-400 px-6 text-center">{sourceError}</div>
+          ) : (
+            <PlyrPlayer
+              key={currentVideo.$id}
+              type="video"
+              src={resolvedSrc}
+              poster={currentVideo.cover}
+              autoplay={true}
+              className="w-full h-full"
+            />
+          )}
         </div>
       </div>
     );
@@ -1414,14 +1531,20 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
           <div className="flex-1 lg:max-w-[calc(100%-426px)] space-y-3">
             {/* 播放器容器 */}
             <div className="bg-black rounded-xl overflow-hidden aspect-video [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-xl">
-              <PlyrPlayer
-                key={currentVideo.$id}
-                type="video"
-                src={getProxiedMediaUrl(currentVideo.file || '')}
-                poster={currentVideo.cover}
-                autoplay={true}
-                className="w-full h-full"
-              />
+              {loadingSource ? (
+                <div className="w-full h-full flex items-center justify-center text-white">影片載入中...</div>
+              ) : sourceError ? (
+                <div className="w-full h-full flex items-center justify-center text-red-400 px-6 text-center">{sourceError}</div>
+              ) : (
+                <PlyrPlayer
+                  key={currentVideo.$id}
+                  type="video"
+                  src={resolvedSrc}
+                  poster={currentVideo.cover}
+                  autoplay={true}
+                  className="w-full h-full"
+                />
+              )}
             </div>
 
             {/* 影片標題 */}
@@ -1581,6 +1704,7 @@ interface VideoManagementCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onDownload: () => void;
+  onDirectDownload: () => void;
   onDeleteCache: () => void;
   onAddToQueue?: () => void;
   isInQueue?: boolean;
@@ -1600,7 +1724,7 @@ interface VideoManagementCardProps {
 }
 
 // 影片管理卡片 (YouTube 2024 首頁風格)
-function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
+function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showHoverActions, setShowHoverActions] = useState(false);
@@ -1739,16 +1863,7 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
               </button>
             )}
             <button
-              onClick={() => {
-                const downloadUrl = getAppwriteDownloadUrl(video.file);
-                const link = document.createElement('a');
-                link.href = downloadUrl;
-                link.download = `${video.name}.mp4`;
-                link.target = '_blank';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-              }}
+              onClick={onDirectDownload}
               className="p-1.5 bg-black/80 hover:bg-black/95 rounded text-white transition-colors"
               title="下載影片"
             >
@@ -1814,10 +1929,9 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
                   {video.file && (
                     <button
                       onClick={(e) => {
-                        e.stopPropagation(); setShowMenu(false);
-                        const downloadUrl = getAppwriteDownloadUrl(video.file);
-                        const link = document.createElement('a'); link.href = downloadUrl; link.download = `${video.name}.mp4`; link.target = '_blank';
-                        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                        e.stopPropagation();
+                        setShowMenu(false);
+                        onDirectDownload();
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                     >
@@ -1861,7 +1975,7 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
 }
 
 // Bilibili 風格影片卡片
-function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
+function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
   const [showActions, setShowActions] = useState(false);
   const inlineCoverInputRef = useRef<HTMLInputElement>(null);
 
@@ -1978,7 +2092,7 @@ function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDow
               </button>
             )}
             {video.file && (
-              <button onClick={() => { const downloadUrl = getAppwriteDownloadUrl(video.file); const link = document.createElement('a'); link.href = downloadUrl; link.download = `${video.name}.mp4`; link.target = '_blank'; document.body.appendChild(link); link.click(); document.body.removeChild(link); }} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-black/70 transition-colors" title="下載影片">
+              <button onClick={onDirectDownload} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-black/70 transition-colors" title="下載影片">
                 <Download className="w-3.5 h-3.5" />
               </button>
             )}
@@ -2030,6 +2144,7 @@ function BilibiliPlayerModal({ video, videoRef, onClose }: { video: VideoData; v
   const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set([video.$id]));
   const [showDescription, setShowDescription] = useState(false);
+  const { resolvedSrc, loadingSource, sourceError } = useResolvedVideoSource(currentVideo);
 
   const allVideosWithFile = useMemo(() => videos.filter(v => v.file), [videos]);
 
@@ -2117,14 +2232,20 @@ function BilibiliPlayerModal({ video, videoRef, onClose }: { video: VideoData; v
           <div className="flex-1 lg:max-w-[calc(100%-340px)] space-y-3">
             {/* 播放器 */}
             <div className="bg-black rounded-lg shadow-lg aspect-video ring-1 ring-black/10 dark:ring-white/5 [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-lg">
-              <PlyrPlayer
-                key={currentVideo.$id}
-                type="video"
-                src={getProxiedMediaUrl(currentVideo.file || '')}
-                poster={currentVideo.cover}
-                autoplay={true}
-                className="w-full h-full"
-              />
+              {loadingSource ? (
+                <div className="w-full h-full flex items-center justify-center text-white">影片載入中...</div>
+              ) : sourceError ? (
+                <div className="w-full h-full flex items-center justify-center text-red-400 px-6 text-center">{sourceError}</div>
+              ) : (
+                <PlyrPlayer
+                  key={currentVideo.$id}
+                  type="video"
+                  src={resolvedSrc}
+                  poster={currentVideo.cover}
+                  autoplay={true}
+                  className="w-full h-full"
+                />
+              )}
             </div>
 
             {/* 影片標題 */}
@@ -2354,14 +2475,6 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 檢查檔案大小 (50MB = 50 * 1024 * 1024 bytes)
-    // Note: Direct upload to Appwrite Storage, no Next.js 4MB limit!
-    const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      alert('影片檔案大小不能超過 50MB');
-      return;
-    }
-
     // 檢查檔案類型
     const validTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
     if (!validTypes.includes(file.type)) {
@@ -2414,15 +2527,18 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     setTimeout(() => setPreviewLoading(false), 300);
   };
 
-  const uploadFileToAppwrite = async (file: File): Promise<{ url: string; fileId: string }> => {
+  const uploadFileToAppwrite = async (file: File): Promise<{ url: string; fileId: string; filetype?: string }> => {
     setUploadStatus('uploading');
     setUploadProgress(0);
 
     try {
-      // Direct upload to Appwrite Storage (bypasses Next.js API route)
-      const result = await uploadToAppwriteStorage(file, (progress) => {
-        setUploadProgress(progress);
-      });
+      const result = file.size > MAX_VIDEO_PART_SIZE
+        ? await uploadVideoInParts(file, (progress) => {
+          setUploadProgress(progress);
+        })
+        : await uploadToAppwriteStorage(file, (progress) => {
+          setUploadProgress(progress);
+        });
 
       setUploadStatus('success');
       return result;
@@ -2502,8 +2618,9 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       // 如果有選擇新檔案，先上傳到 Appwrite
       if (selectedFile) {
         try {
-          const { url, fileId } = await uploadFileToAppwrite(selectedFile);
+          const { url, fileId, filetype } = await uploadFileToAppwrite(selectedFile);
           finalFormData.file = url;
+          finalFormData.filetype = filetype || finalFormData.filetype;
           // 使用已計算的 hash，如果沒有則使用 fileId
           finalFormData.hash = fileHash || fileId;
         } catch (uploadError) {
@@ -2598,7 +2715,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
                   <div className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
                     <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {previewLoading ? '載入中...' : selectedFile ? `已選擇: ${selectedFile.name}` : '上傳影片 (最大 50MB) / Upload (Max 50MB)'}
+                      {previewLoading ? '載入中...' : selectedFile ? `已選擇: ${selectedFile.name}` : '上傳影片 (超過 50MB 會自動分段)'}
                     </span>
                   </div>
                   <input

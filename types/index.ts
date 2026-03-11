@@ -78,6 +78,7 @@ export interface VideoItem {
   description: string;
   filename: string;
   url?: string;
+  filetype?: string;
   duration?: string;
   thumbnail?: string;
   cover?: string;

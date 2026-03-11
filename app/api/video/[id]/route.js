@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
+const MULTIPART_VIDEO_SUFFIX = '+part';
 
 function createAppwrite(searchParams) {
   // 從 URL 參數讀取配置（優先），否則使用 .env
@@ -40,6 +41,47 @@ function extractFileIdFromUrl(fileUrl) {
   // URL format: .../storage/buckets/{bucketId}/files/{fileId}/view?...
   const match = fileUrl.match(/\/files\/([^\/]+)\/view/);
   return match ? match[1] : null;
+}
+
+function isMultipartVideoFiletype(filetype) {
+  return typeof filetype === 'string' && filetype.endsWith(MULTIPART_VIDEO_SUFFIX);
+}
+
+async function fetchVideoManifest(fileUrl, apiKey) {
+  const response = await fetch(fileUrl, {
+    headers: apiKey ? { 'x-appwrite-key': apiKey } : {},
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch multipart manifest: HTTP ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+async function deleteVideoAssetBundle(storage, bucketId, fileUrl, filetype, apiKey) {
+  const deletedFileIds = new Set();
+
+  if (isMultipartVideoFiletype(filetype)) {
+    try {
+      const manifest = await fetchVideoManifest(fileUrl, apiKey);
+      for (const part of manifest?.parts || []) {
+        const partFileId = part?.fileId || extractFileIdFromUrl(part?.url);
+        if (partFileId && !deletedFileIds.has(partFileId)) {
+          await storage.deleteFile(bucketId, partFileId);
+          deletedFileIds.add(partFileId);
+        }
+      }
+    } catch (manifestErr) {
+      console.warn(`Failed to delete multipart video parts for ${fileUrl}:`, manifestErr.message);
+    }
+  }
+
+  const mainFileId = extractFileIdFromUrl(fileUrl);
+  if (mainFileId && !deletedFileIds.has(mainFileId)) {
+    await storage.deleteFile(bucketId, mainFileId);
+  }
 }
 
 // GET /api/video/[id] - Get video by ID
@@ -135,8 +177,8 @@ export async function PUT(request, { params }) {
           
           // Only delete from storage if no other documents reference it
           if (fileRefCount === 0) {
-            await storage.deleteFile(bucketId, oldFileId);
-            console.log(`Deleted old video file: ${oldFileId}`);
+            await deleteVideoAssetBundle(storage, bucketId, currentDoc.file, currentDoc.filetype, searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY);
+            console.log(`Deleted old video file bundle: ${oldFileId}`);
           } else {
             console.log(`Skipped deleting old video file ${oldFileId} - referenced by ${fileRefCount} other documents`);
           }
@@ -214,8 +256,8 @@ export async function DELETE(request, { params }) {
           
           // Only delete from storage if no other documents reference it
           if (fileRefCount === 0) {
-            await storage.deleteFile(bucketId, fileId);
-            console.log(`Deleted video file: ${fileId}`);
+            await deleteVideoAssetBundle(storage, bucketId, doc.file, doc.filetype, searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY);
+            console.log(`Deleted video file bundle: ${fileId}`);
           } else {
             console.log(`Skipped deleting video file ${fileId} - referenced by ${fileRefCount} other documents`);
           }

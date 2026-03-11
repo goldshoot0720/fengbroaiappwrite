@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { resolveVideoBlob } from "@/lib/videoMultipart";
 
 interface VideoItem {
   id: string;
@@ -8,6 +9,7 @@ interface VideoItem {
   description: string;
   filename: string;
   url?: string;
+  filetype?: string;
   duration?: string;
   thumbnail?: string;
   cover?: string;
@@ -143,50 +145,22 @@ export function useVideoCache() {
         await cleanOldCache();
       }
 
-      const videoUrl = video.url || `/videos/${video.filename}`;
-      
-      const response = await fetch(videoUrl, {
-        mode: 'cors',
-        headers: {
-          'Accept': 'video/*'
-        }
+      const { blob } = await resolveVideoBlob({
+        file: video.url || `/videos/${video.filename}`,
+        filetype: video.filetype,
+        name: video.filename,
+      }, (progress) => {
+        setCacheStatus(prev => ({
+          ...prev,
+          [video.id]: {
+            ...prev[video.id],
+            progress
+          }
+        }));
+
+        onProgress?.(progress);
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
-      let loaded = 0;
-
-      const reader = response.body?.getReader();
-      const chunks: Uint8Array[] = [];
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) break;
-          
-          chunks.push(value);
-          loaded += value.length;
-          
-          const progress = total > 0 ? (loaded / total) * 100 : 0;
-          
-          setCacheStatus(prev => ({
-            ...prev,
-            [video.id]: {
-              ...prev[video.id],
-              progress
-            }
-          }));
-          
-          onProgress?.(progress);
-        }
-      }
-
-      const blob = new Blob(chunks as BlobPart[], { type: 'video/mp4' });
       const actualSize = blob.size; // Use actual blob size
       await saveVideoToCache(video.id, blob, video, actualSize);
 
