@@ -38,6 +38,12 @@ export interface VideoBlobSource {
   name?: string | null;
 }
 
+export interface MultipartVideoStream {
+  cleanup: () => void;
+  ready: Promise<void>;
+  url: string;
+}
+
 function isVideoPartManifest(value: unknown): value is VideoPartManifest {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<VideoPartManifest>;
@@ -179,6 +185,110 @@ export async function fetchVideoPartManifest(manifestUrl: string): Promise<Video
   }
 
   return manifest;
+}
+
+function waitForSourceBufferUpdate(sourceBuffer: SourceBuffer): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const handleUpdateEnd = () => {
+      sourceBuffer.removeEventListener("updateend", handleUpdateEnd);
+      sourceBuffer.removeEventListener("error", handleError);
+      resolve();
+    };
+
+    const handleError = () => {
+      sourceBuffer.removeEventListener("updateend", handleUpdateEnd);
+      sourceBuffer.removeEventListener("error", handleError);
+      reject(new Error("影片串流寫入失敗"));
+    };
+
+    sourceBuffer.addEventListener("updateend", handleUpdateEnd, { once: true });
+    sourceBuffer.addEventListener("error", handleError, { once: true });
+  });
+}
+
+export async function createMultipartVideoStream(manifestUrl: string): Promise<MultipartVideoStream | null> {
+  if (typeof window === "undefined" || typeof MediaSource === "undefined") {
+    return null;
+  }
+
+  const manifest = await fetchVideoPartManifest(manifestUrl);
+  const mimeType = manifest.originalType || "video/mp4";
+
+  if (!MediaSource.isTypeSupported(mimeType)) {
+    return null;
+  }
+
+  const mediaSource = new MediaSource();
+  const objectUrl = URL.createObjectURL(mediaSource);
+  const abortController = new AbortController();
+
+  const ready = new Promise<void>((resolve, reject) => {
+    let resolved = false;
+
+    const resolveReady = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    const handleSourceOpen = async () => {
+      mediaSource.removeEventListener("sourceopen", handleSourceOpen);
+
+      try {
+        const sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+
+        for (const [index, part] of manifest.parts.entries()) {
+          const response = await fetch(
+            getProxiedMediaUrl(getAppwriteDownloadUrl(part.url)),
+            { signal: abortController.signal }
+          );
+
+          if (!response.ok) {
+            throw new Error(`影片分段串流失敗: HTTP ${response.status}`);
+          }
+
+          const chunk = await response.arrayBuffer();
+          sourceBuffer.appendBuffer(chunk);
+          await waitForSourceBufferUpdate(sourceBuffer);
+
+          if (index === 0) {
+            resolveReady();
+          }
+        }
+
+        if (mediaSource.readyState === "open") {
+          mediaSource.endOfStream();
+        }
+
+        resolveReady();
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          reject(new Error("影片串流已取消"));
+          return;
+        }
+
+        if (mediaSource.readyState === "open") {
+          try {
+            mediaSource.endOfStream("network");
+          } catch {}
+        }
+
+        reject(error instanceof Error ? error : new Error("影片串流初始化失敗"));
+      }
+    };
+
+    mediaSource.addEventListener("sourceopen", handleSourceOpen, { once: true });
+  });
+
+  return {
+    url: objectUrl,
+    ready,
+    cleanup: () => {
+      abortController.abort();
+      URL.revokeObjectURL(objectUrl);
+    },
+  };
 }
 
 export async function resolveVideoBlob(

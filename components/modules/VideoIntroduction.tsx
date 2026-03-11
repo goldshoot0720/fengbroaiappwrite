@@ -20,7 +20,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
+import { MAX_VIDEO_PART_SIZE, createMultipartVideoStream, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
 import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { VideoScreenshotButton } from "@/components/ui/video-screenshot-button";
@@ -61,6 +61,7 @@ function useResolvedVideoSource(video: VideoData) {
   useEffect(() => {
     let isActive = true;
     let objectUrl = "";
+    let cleanupStream: (() => void) | null = null;
 
     const resolveSource = async () => {
       if (!video.file) {
@@ -81,6 +82,20 @@ function useResolvedVideoSource(video: VideoData) {
       setSourceError(null);
 
       try {
+        const stream = await createMultipartVideoStream(video.file);
+        if (stream) {
+          objectUrl = stream.url;
+          cleanupStream = stream.cleanup;
+          if (isActive) {
+            setResolvedSrc(stream.url);
+          }
+          await stream.ready;
+          if (isActive) {
+            setLoadingSource(false);
+          }
+          return;
+        }
+
         const { blob } = await resolveVideoBlob({
           file: video.file,
           filetype: video.filetype,
@@ -107,6 +122,7 @@ function useResolvedVideoSource(video: VideoData) {
 
     return () => {
       isActive = false;
+      cleanupStream?.();
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
