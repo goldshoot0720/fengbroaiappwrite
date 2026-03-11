@@ -524,11 +524,11 @@ export default function VideoIntroduction() {
               const videoBlob = await zip.files[row.file].async('blob');
               const fileName = row.file.split('/').pop() || 'video.mp4';
               const videoFileObj = new File([videoBlob], fileName, { type: 'application/octet-stream' });
-              const uploadResult = videoFileObj.size > MAX_VIDEO_PART_SIZE
+              const uploadResult: { url: string; fileId: string; filetype?: string } = videoFileObj.size > MAX_VIDEO_PART_SIZE
                 ? await uploadVideoInParts(videoFileObj)
                 : await uploadToAppwriteStorage(videoFileObj);
               remoteFileUrl = uploadResult.url;
-              remoteFiletype = "filetype" in uploadResult ? uploadResult.filetype : remoteFiletype;
+              remoteFiletype = uploadResult.filetype || remoteFiletype;
             }
 
             // Upload cover image from ZIP
@@ -624,7 +624,7 @@ export default function VideoIntroduction() {
             const blob = new Blob([arrayBuffer], { type: mimeType });
             const videoFileObj = new File([blob], fileName, { type: mimeType });
 
-            const uploadResult = videoFileObj.size > MAX_VIDEO_PART_SIZE
+            const uploadResult: { url: string; fileId: string; filetype?: string } = videoFileObj.size > MAX_VIDEO_PART_SIZE
               ? await uploadVideoInParts(videoFileObj, (progress) => {
                 setImportZipProgress(prev => ({ ...prev, status: `分段上傳中: ${fileName} (${progress}%)` }));
               })
@@ -639,7 +639,7 @@ export default function VideoIntroduction() {
               body: JSON.stringify({
                 name: fileName,
                 file: uploadResult.url,
-                filetype: ("filetype" in uploadResult ? uploadResult.filetype : ext) || ext,
+                filetype: uploadResult.filetype || ext,
                 note: '',
                 ref: '',
                 category: '',
