@@ -38,6 +38,12 @@ export interface VideoBlobSource {
   name?: string | null;
 }
 
+function isVideoPartManifest(value: unknown): value is VideoPartManifest {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<VideoPartManifest>;
+  return candidate.type === MANIFEST_TYPE && Array.isArray(candidate.parts);
+}
+
 export function isMultipartVideoFiletype(filetype?: string | null): boolean {
   return typeof filetype === "string" && filetype.endsWith(MULTIPART_VIDEO_SUFFIX);
 }
@@ -153,12 +159,21 @@ export async function fetchVideoPartManifest(manifestUrl: string): Promise<Video
     throw new Error(`Manifest 讀取失敗: HTTP ${response.status}`);
   }
 
-  const manifest = await response.json();
-  if (manifest?.type !== MANIFEST_TYPE || !Array.isArray(manifest?.parts)) {
+  const rawText = await response.text();
+  let manifest: unknown;
+
+  try {
+    manifest = JSON.parse(rawText);
+  } catch {
+    const preview = rawText.slice(0, 120).replace(/\s+/g, " ");
+    throw new Error(`影片 manifest JSON 損壞或不是 JSON: ${preview || "<empty>"}`);
+  }
+
+  if (!isVideoPartManifest(manifest)) {
     throw new Error("影片 manifest 格式不正確");
   }
 
-  return manifest as VideoPartManifest;
+  return manifest;
 }
 
 export async function resolveVideoBlob(
