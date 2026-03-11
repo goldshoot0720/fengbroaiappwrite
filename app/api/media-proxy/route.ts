@@ -143,7 +143,6 @@ function createProxiedResponse(response: Response, url: string) {
     'content-range',
     'accept-ranges',
     'cache-control',
-    'content-length', // Required for 206 and helpful for 200
   ];
 
   headersToCopy.forEach(header => {
