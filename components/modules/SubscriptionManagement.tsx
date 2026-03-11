@@ -304,6 +304,7 @@ export default function SubscriptionManagement() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [expiryFilter, setExpiryFilter] = useState<"all" | "expired" | "7days" | "month" | "none">("all");
   const [noteFilter, setNoteFilter] = useState<"all" | "with" | "without">("all");
+  const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -365,6 +366,12 @@ export default function SubscriptionManagement() {
       result = result.filter(sub => sub.continue === false);
     }
 
+    if (archiveFilter === "active") {
+      result = result.filter(sub => !sub.archived);
+    } else if (archiveFilter === "archived") {
+      result = result.filter(sub => !!sub.archived);
+    }
+
     if (categoryFilter !== "all") {
       result = result.filter(sub => (sub.category || "") === categoryFilter);
     }
@@ -413,7 +420,27 @@ export default function SubscriptionManagement() {
     }
 
     return result;
-  }, [subscriptions, searchQuery, continueFilter, monthFilter]);
+  }, [subscriptions, searchQuery, continueFilter, monthFilter, categoryFilter, expiryFilter, noteFilter, archiveFilter]);
+
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map<string, Subscription[]>();
+    subscriptions
+      .filter(sub => !sub.archived)
+      .forEach((sub) => {
+        const key = `${(sub.name || '').trim().toLowerCase()}::${(sub.account || '').trim().toLowerCase()}::${sub.price || 0}`;
+        const bucket = groups.get(key) || [];
+        bucket.push(sub);
+        groups.set(key, bucket);
+      });
+    return Array.from(groups.entries())
+      .map(([key, items]) => ({ key, items }))
+      .filter(group => group.items.length > 1);
+  }, [subscriptions]);
+
+  const expiredNonRenewals = useMemo(
+    () => subscriptions.filter(sub => !sub.archived && sub.continue === false && getSubscriptionExpiryInfo(sub).daysRemaining < 0),
+    [subscriptions]
+  );
 
   // 取得所有已存在的帳號（去重）
   const existingAccounts = useMemo(() => {
@@ -604,6 +631,108 @@ export default function SubscriptionManagement() {
       const errorMessage = error instanceof Error ? error.message : '刪除失敗，請稍後再試';
       alert(errorMessage);
     }
+  };
+
+  const handleArchiveToggle = async (sub: Subscription, archived: boolean) => {
+    try {
+      await updateSubscription(sub.$id, {
+        name: sub.name,
+        site: sub.site,
+        price: sub.price,
+        nextdate: sub.nextdate ? formatDate(sub.nextdate) : "",
+        note: sub.note || "",
+        account: sub.account || "",
+        currency: sub.currency || "TWD",
+        continue: sub.continue !== false,
+        category: sub.category || "",
+        purpose: sub.purpose || "",
+        usageFrequency: sub.usageFrequency || "",
+        friendliness: sub.friendliness || "",
+        alternative: sub.alternative || "",
+        retentionRecommendation: sub.retentionRecommendation || "",
+        archived,
+      });
+    } catch (error) {
+      console.error('Archive toggle failed:', error);
+      alert(error instanceof Error ? error.message : '封存失敗');
+    }
+  };
+
+  const handleArchiveExpiredNonRenewals = async () => {
+    if (expiredNonRenewals.length === 0) return;
+    if (!confirm(`確定要封存 ${expiredNonRenewals.length} 筆已過期且不續訂的資料嗎？`)) return;
+    for (const sub of expiredNonRenewals) {
+      await updateSubscriptionSilent(sub.$id, {
+        name: sub.name,
+        site: sub.site,
+        price: sub.price,
+        nextdate: sub.nextdate ? formatDate(sub.nextdate) : "",
+        note: sub.note || "",
+        account: sub.account || "",
+        currency: sub.currency || "TWD",
+        continue: sub.continue !== false,
+        category: sub.category || "",
+        purpose: sub.purpose || "",
+        usageFrequency: sub.usageFrequency || "",
+        friendliness: sub.friendliness || "",
+        alternative: sub.alternative || "",
+        retentionRecommendation: sub.retentionRecommendation || "",
+        archived: true,
+      });
+    }
+    await loadSubscriptions();
+  };
+
+  const handleMergeDuplicateGroup = async (group: Subscription[]) => {
+    if (group.length < 2) return;
+    const sorted = [...group].sort((a, b) => {
+      const nextA = a.nextdate ? new Date(a.nextdate).getTime() : 0;
+      const nextB = b.nextdate ? new Date(b.nextdate).getTime() : 0;
+      return nextB - nextA;
+    });
+    const keep = sorted[0];
+    const mergedNote = Array.from(new Set(sorted.map(item => item.note?.trim()).filter(Boolean))).join('\n\n');
+    const mergedAlternative = Array.from(new Set(sorted.map(item => item.alternative?.trim()).filter(Boolean))).join(' / ');
+
+    await updateSubscriptionSilent(keep.$id, {
+      name: keep.name,
+      site: keep.site,
+      price: keep.price,
+      nextdate: keep.nextdate ? formatDate(keep.nextdate) : "",
+      note: mergedNote || keep.note || "",
+      account: keep.account || "",
+      currency: keep.currency || "TWD",
+      continue: keep.continue !== false,
+      category: keep.category || "",
+      purpose: keep.purpose || "",
+      usageFrequency: keep.usageFrequency || "",
+      friendliness: keep.friendliness || "",
+      alternative: mergedAlternative || keep.alternative || "",
+      retentionRecommendation: keep.retentionRecommendation || "",
+      archived: false,
+    });
+
+    for (const item of sorted.slice(1)) {
+      await updateSubscriptionSilent(item.$id, {
+        name: item.name,
+        site: item.site,
+        price: item.price,
+        nextdate: item.nextdate ? formatDate(item.nextdate) : "",
+        note: item.note || "",
+        account: item.account || "",
+        currency: item.currency || "TWD",
+        continue: item.continue !== false,
+        category: item.category || "",
+        purpose: item.purpose || "",
+        usageFrequency: item.usageFrequency || "",
+        friendliness: item.friendliness || "",
+        alternative: item.alternative || "",
+        retentionRecommendation: item.retentionRecommendation || "",
+        archived: true,
+      });
+    }
+
+    await loadSubscriptions();
   };
 
   // 開始行內編輯
@@ -1270,7 +1399,79 @@ export default function SubscriptionManagement() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={archiveFilter} onValueChange={(value: "active" | "archived" | "all") => setArchiveFilter(value)}>
+              <SelectTrigger className="h-12 rounded-xl w-full lg:w-36 shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">啟用中</SelectItem>
+                <SelectItem value="archived">已封存</SelectItem>
+                <SelectItem value="all">全部狀態</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+        </div>
+      )}
+
+      {(duplicateGroups.length > 0 || expiredNonRenewals.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <DataCard className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">過期清理區</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">已過期且標記不續訂的資料可先封存</div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleArchiveExpiredNonRenewals}
+                disabled={expiredNonRenewals.length === 0}
+                className="rounded-lg"
+              >
+                一鍵封存 ({expiredNonRenewals.length})
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {expiredNonRenewals.slice(0, 4).map(sub => (
+                <div key={sub.$id} className="rounded-xl border border-red-200 bg-red-50/60 p-3 dark:border-red-800 dark:bg-red-900/10">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{sub.name}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{sub.account || '未填帳號'} · {sub.nextdate ? formatDate(sub.nextdate) : '無日期'}</div>
+                </div>
+              ))}
+            </div>
+          </DataCard>
+          <DataCard className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">重複資料管理</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">依服務名稱 + 帳號 + 價格自動分組</div>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{duplicateGroups.length} 組</div>
+            </div>
+            <div className="space-y-2">
+              {duplicateGroups.slice(0, 4).map(group => (
+                <div key={group.key} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-800 dark:bg-amber-900/10">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{group.items[0].name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{group.items[0].account || '未填帳號'} · {group.items.length} 筆</div>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={() => handleMergeDuplicateGroup(group.items)} className="rounded-lg">
+                      合併並封存其他
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {group.items.map(item => (
+                      <span key={item.$id} className="rounded-full bg-white px-2 py-0.5 text-[11px] text-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
+                        {item.nextdate ? formatDate(item.nextdate) : '無日期'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </DataCard>
         </div>
       )}
 
@@ -1755,6 +1956,7 @@ export default function SubscriptionManagement() {
                                 )}
                                 <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg h-7 px-2" title="編輯"><Pencil size={14} /></Button>
                                 <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg h-7 px-2" title="複製"><Copy size={14} /></Button>
+                                <Button type="button" size="sm" variant="outline" onClick={() => handleArchiveToggle(sub, !sub.archived)} className="rounded-lg h-7 px-2" title={sub.archived ? "取消封存" : "封存"}>{sub.archived ? "取消封存" : "封存"}</Button>
                                 <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50" title="刪除"><Trash2 size={14} /></Button>
                                 {sub.name.length > 37 && (
                                   <Button
@@ -1785,6 +1987,11 @@ export default function SubscriptionManagement() {
                                 {sub.retentionRecommendation && (
                                   <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                                     {sub.retentionRecommendation}
+                                  </span>
+                                )}
+                                {sub.archived && (
+                                  <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                    已封存
                                   </span>
                                 )}
                                 {sub.usageFrequency && (
@@ -2256,6 +2463,11 @@ export default function SubscriptionManagement() {
                                     {sub.retentionRecommendation}
                                   </span>
                                 )}
+                                {sub.archived && (
+                                  <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                    已封存
+                                  </span>
+                                )}
                                 {sub.usageFrequency && (
                                   <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                                     {sub.usageFrequency}
@@ -2299,9 +2511,12 @@ export default function SubscriptionManagement() {
                             </div>
                           )}
                         </div>
-                        <div className="flex gap-2 pt-2">
+                        <div className="flex flex-wrap gap-2 pt-2">
                           <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-xl" title="編輯"><Pencil size={14} /></Button>
                           <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleArchiveToggle(sub, !sub.archived)} className="rounded-xl" title={sub.archived ? "取消封存" : "封存"}>
+                            {sub.archived ? "取消封存" : "封存"}
+                          </Button>
                           <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50" title="刪除"><Trash2 size={14} /></Button>
                         </div>
                       </div>

@@ -88,7 +88,8 @@ const TABLE_SCHEMAS = {
       { key: 'usageFrequency', type: 'string', size: 50, required: false },
       { key: 'friendliness', type: 'string', size: 50, required: false },
       { key: 'alternative', type: 'string', size: 200, required: false },
-      { key: 'retentionRecommendation', type: 'string', size: 50, required: false }
+      { key: 'retentionRecommendation', type: 'string', size: 50, required: false },
+      { key: 'archived', type: 'boolean', required: false, default: false }
     ]
   },
   image: {

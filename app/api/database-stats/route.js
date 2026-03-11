@@ -82,7 +82,8 @@ const TABLE_DEFINITIONS = {
     { key: 'usageFrequency', type: 'string', size: 50 },
     { key: 'friendliness', type: 'string', size: 50 },
     { key: 'alternative', type: 'string', size: 200 },
-    { key: 'retentionRecommendation', type: 'string', size: 50 }
+    { key: 'retentionRecommendation', type: 'string', size: 50 },
+    { key: 'archived', type: 'boolean' }
   ],
   image: [
     { key: 'name', type: 'string', size: 100 },

@@ -48,6 +48,7 @@ export async function PUT(req, context) {
     // 確保 price 是數字
     const { name, site, price, nextdate, note, account, currency, category, purpose, usageFrequency, friendliness, alternative, retentionRecommendation } = body;
     const continueValue = body.continue;
+    const archived = body.archived;
     const bodyData = {
       name,
       price: price !== undefined && price !== null ? Number(price) : 0,
@@ -65,6 +66,7 @@ export async function PUT(req, context) {
     if (friendliness !== undefined) bodyData.friendliness = friendliness || "";
     if (alternative !== undefined) bodyData.alternative = alternative || "";
     if (retentionRecommendation !== undefined) bodyData.retentionRecommendation = retentionRecommendation || "";
+    if (archived !== undefined) bodyData.archived = !!archived;
     if (continueValue !== undefined) bodyData.continue = continueValue;
 
     const res = await databases.updateDocument(

@@ -46,6 +46,7 @@ export interface Subscription {
   friendliness?: string;
   alternative?: string;
   retentionRecommendation?: string;
+  archived?: boolean;
   $createdAt?: string;
   $updatedAt?: string;
 }
@@ -65,6 +66,7 @@ export interface SubscriptionFormData {
   friendliness?: string;
   alternative?: string;
   retentionRecommendation?: string;
+  archived?: boolean;
 }
 
 export interface SubscriptionDetail {
