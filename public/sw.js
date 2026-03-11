@@ -183,6 +183,7 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
   if (!request.url.startsWith(self.location.origin)) return;
+  if (request.url.includes('/api/media-proxy')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
