@@ -177,7 +177,15 @@ export default function VideoIntroduction() {
     note: '',
     ref: '',
     cover: '',
+    file: '',
+    filetype: '',
+    hash: '',
   });
+  const [inlineVideoFile, setInlineVideoFile] = useState<File | null>(null);
+  const [inlineVideoPreviewName, setInlineVideoPreviewName] = useState('');
+  const [inlineVideoUploading, setInlineVideoUploading] = useState(false);
+  const [inlineVideoUploadProgress, setInlineVideoUploadProgress] = useState(0);
+  const [inlineVideoDuplicateWarning, setInlineVideoDuplicateWarning] = useState('');
   const [inlineCoverFile, setInlineCoverFile] = useState<File | null>(null);
   const [inlineCoverPreview, setInlineCoverPreview] = useState<string>('');
   const [inlineCoverUploading, setInlineCoverUploading] = useState(false);
@@ -802,10 +810,59 @@ export default function VideoIntroduction() {
       note: video.note || '',
       ref: video.ref || '',
       cover: typeof video.cover === 'string' ? video.cover : '',
+      file: video.file || '',
+      filetype: video.filetype || '',
+      hash: video.hash || '',
     });
+    setInlineVideoFile(null);
+    setInlineVideoPreviewName('');
+    setInlineVideoUploading(false);
+    setInlineVideoUploadProgress(0);
+    setInlineVideoDuplicateWarning('');
     setInlineCoverFile(null);
     setInlineCoverPreview('');
     setInlineEditingId(video.$id);
+  };
+
+  const calculateInlineVideoHash = async (file: File): Promise<string> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      return `fallback_${file.name}_${file.size}_${file.lastModified}`;
+    }
+  };
+
+  const handleInlineVideoSelect = async (file: File | null, currentVideo: VideoData) => {
+    if (!file) return;
+    const validTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 MP4, WebM, OGG, MOV 格式的影片');
+      return;
+    }
+
+    setInlineVideoUploadProgress(0);
+    setInlineVideoDuplicateWarning('');
+    setInlineVideoFile(file);
+    setInlineVideoPreviewName(file.name);
+
+    const hash = await calculateInlineVideoHash(file);
+    const filetype = file.name.split('.').pop()?.toLowerCase() || '';
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+    const duplicateVideo = videos.find((item) => item.hash === hash && item.$id !== currentVideo.$id);
+
+    setInlineEditForm((prev) => ({
+      ...prev,
+      name: prev.name || fileNameWithoutExt,
+      filetype,
+      hash,
+    }));
+
+    if (duplicateVideo) {
+      setInlineVideoDuplicateWarning(`警告：此影片與「${duplicateVideo.name}」相同，請勿重複上傳！`);
+    }
   };
 
   // 儲存行內編輯
@@ -813,6 +870,32 @@ export default function VideoIntroduction() {
     if (!inlineEditingId) return;
     try {
       let coverUrl = inlineEditForm.cover;
+      let fileUrl = inlineEditForm.file;
+      let filetype = inlineEditForm.filetype;
+      let hash = inlineEditForm.hash;
+
+      if (inlineVideoDuplicateWarning) {
+        alert('此影片與既有影片重複，無法重新上傳！請選擇其他影片。');
+        return;
+      }
+
+      if (inlineVideoFile) {
+        setInlineVideoUploading(true);
+        try {
+          const uploadResult: { url: string; fileId: string; filetype?: string } = inlineVideoFile.size > MAX_VIDEO_PART_SIZE
+            ? await uploadVideoInParts(inlineVideoFile, setInlineVideoUploadProgress)
+            : await uploadToAppwriteStorage(inlineVideoFile, setInlineVideoUploadProgress);
+          fileUrl = uploadResult.url;
+          filetype = uploadResult.filetype || filetype;
+          hash = hash || uploadResult.fileId;
+        } catch (uploadError) {
+          console.error('影片上傳失敗:', uploadError);
+          alert('影片上傳失敗，請稍後再試');
+          setInlineVideoUploading(false);
+          return;
+        }
+        setInlineVideoUploading(false);
+      }
 
       // 如果有選擇封面檔案，先上傳
       if (inlineCoverFile) {
@@ -835,16 +918,24 @@ export default function VideoIntroduction() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: inlineEditForm.name,
+          file: fileUrl,
+          filetype,
           category: inlineEditForm.category,
           note: inlineEditForm.note,
           ref: inlineEditForm.ref,
+          hash,
           cover: coverUrl,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadVideos(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
+      setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '', file: '', filetype: '', hash: '' });
+      setInlineVideoFile(null);
+      setInlineVideoPreviewName('');
+      setInlineVideoUploading(false);
+      setInlineVideoUploadProgress(0);
+      setInlineVideoDuplicateWarning('');
       setInlineCoverFile(null);
       setInlineCoverPreview('');
     } catch (error) {
@@ -856,7 +947,12 @@ export default function VideoIntroduction() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '' });
+    setInlineEditForm({ name: '', category: '', note: '', ref: '', cover: '', file: '', filetype: '', hash: '' });
+    setInlineVideoFile(null);
+    setInlineVideoPreviewName('');
+    setInlineVideoUploading(false);
+    setInlineVideoUploadProgress(0);
+    setInlineVideoDuplicateWarning('');
     setInlineCoverFile(null);
     setInlineCoverPreview('');
   };
@@ -1095,6 +1191,12 @@ export default function VideoIntroduction() {
                   onInlineEdit={handleInlineEdit}
                   onInlineSave={handleInlineSave}
                   onInlineCancel={cancelInlineEdit}
+                  inlineVideoFile={inlineVideoFile}
+                  inlineVideoPreviewName={inlineVideoPreviewName}
+                  inlineVideoUploading={inlineVideoUploading}
+                  inlineVideoUploadProgress={inlineVideoUploadProgress}
+                  inlineVideoDuplicateWarning={inlineVideoDuplicateWarning}
+                  onInlineVideoSelect={handleInlineVideoSelect}
                   inlineCoverFile={inlineCoverFile}
                   setInlineCoverFile={setInlineCoverFile}
                   inlineCoverPreview={inlineCoverPreview}
@@ -1119,6 +1221,12 @@ export default function VideoIntroduction() {
                   onInlineEdit={handleInlineEdit}
                   onInlineSave={handleInlineSave}
                   onInlineCancel={cancelInlineEdit}
+                  inlineVideoFile={inlineVideoFile}
+                  inlineVideoPreviewName={inlineVideoPreviewName}
+                  inlineVideoUploading={inlineVideoUploading}
+                  inlineVideoUploadProgress={inlineVideoUploadProgress}
+                  inlineVideoDuplicateWarning={inlineVideoDuplicateWarning}
+                  onInlineVideoSelect={handleInlineVideoSelect}
                   inlineCoverFile={inlineCoverFile}
                   setInlineCoverFile={setInlineCoverFile}
                   inlineCoverPreview={inlineCoverPreview}
@@ -1698,11 +1806,17 @@ interface VideoManagementCardProps {
   isInQueue?: boolean;
   // Inline editing props
   isEditing: boolean;
-  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string };
-  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string }) => void;
+  inlineEditForm: { name: string; category: string; note: string; ref: string; cover: string; file: string; filetype: string; hash: string };
+  setInlineEditForm: (form: { name: string; category: string; note: string; ref: string; cover: string; file: string; filetype: string; hash: string }) => void;
   onInlineEdit: (video: VideoData) => void;
   onInlineSave: (videoId: string) => void;
   onInlineCancel: () => void;
+  inlineVideoFile: File | null;
+  inlineVideoPreviewName: string;
+  inlineVideoUploading: boolean;
+  inlineVideoUploadProgress: number;
+  inlineVideoDuplicateWarning: string;
+  onInlineVideoSelect: (file: File | null, video: VideoData) => void;
   // Inline cover upload props
   inlineCoverFile: File | null;
   setInlineCoverFile: (file: File | null) => void;
@@ -2009,7 +2123,7 @@ function InlineCreateVideoCard({
 }
 
 // 影片管理卡片 (YouTube 2024 首頁風格)
-function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
+function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineVideoFile, inlineVideoPreviewName, inlineVideoUploading, inlineVideoUploadProgress, inlineVideoDuplicateWarning, onInlineVideoSelect, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [showHoverActions, setShowHoverActions] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -2053,6 +2167,32 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
         <div className="bg-white dark:bg-[#1f1f1f] rounded-xl overflow-hidden shadow-sm border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3">
           <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">編輯中</div>
           <Input placeholder="影片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <label className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
+            <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{inlineVideoUploading ? '上傳中...' : inlineVideoFile ? inlineVideoPreviewName : '重新上傳影片'}</span>
+            <input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" onChange={(e) => onInlineVideoSelect(e.target.files?.[0] || null, video)} disabled={inlineVideoUploading || inlineCoverUploading} className="hidden" />
+          </label>
+          {inlineVideoPreviewName && (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
+              已選擇影片: {inlineVideoPreviewName}
+            </div>
+          )}
+          {inlineVideoDuplicateWarning && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">{inlineVideoDuplicateWarning}</p>
+            </div>
+          )}
+          {inlineVideoUploading && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                <span>上傳影片至 Appwrite...</span>
+                <span>{inlineVideoUploadProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${inlineVideoUploadProgress}%` }} />
+              </div>
+            </div>
+          )}
           <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
           <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
           <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-20 resize-none" />
@@ -2072,8 +2212,8 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
             </label>
           </div>
           <div className="flex gap-2 pt-1">
-            <Button onClick={(e) => { e.stopPropagation(); onInlineSave(video.$id); }} disabled={inlineCoverUploading} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">{inlineCoverUploading ? '上傳中...' : '儲存'}</Button>
-            <Button onClick={(e) => { e.stopPropagation(); onInlineCancel(); }} variant="outline" disabled={inlineCoverUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50">取消</Button>
+            <Button onClick={(e) => { e.stopPropagation(); onInlineSave(video.$id); }} disabled={inlineCoverUploading || inlineVideoUploading || !!inlineVideoDuplicateWarning} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">{inlineCoverUploading || inlineVideoUploading ? '上傳中...' : '儲存'}</Button>
+            <Button onClick={(e) => { e.stopPropagation(); onInlineCancel(); }} variant="outline" disabled={inlineCoverUploading || inlineVideoUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5 disabled:opacity-50">取消</Button>
           </div>
         </div>
       </div>
@@ -2258,7 +2398,7 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
 }
 
 // Bilibili 風格影片卡片
-function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
+function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineVideoFile, inlineVideoPreviewName, inlineVideoUploading, inlineVideoUploadProgress, inlineVideoDuplicateWarning, onInlineVideoSelect, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
   const [showActions, setShowActions] = useState(false);
   const inlineCoverInputRef = useRef<HTMLInputElement>(null);
 
@@ -2276,6 +2416,32 @@ function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDow
     return (
       <div className="bg-white dark:bg-[#1d1d1d] rounded-lg overflow-hidden shadow-sm border dark:border-white/5 p-3 space-y-2">
         <Input placeholder="影片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-8 rounded-lg text-sm" />
+        <label className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
+          <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{inlineVideoUploading ? '上傳中...' : inlineVideoFile ? inlineVideoPreviewName : '重新上傳影片'}</span>
+          <input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" onChange={(e) => onInlineVideoSelect(e.target.files?.[0] || null, video)} disabled={inlineVideoUploading || inlineCoverUploading} className="hidden" />
+        </label>
+        {inlineVideoPreviewName && (
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
+            已選擇影片: {inlineVideoPreviewName}
+          </div>
+        )}
+        {inlineVideoDuplicateWarning && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">{inlineVideoDuplicateWarning}</p>
+          </div>
+        )}
+        {inlineVideoUploading && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+              <span>上傳影片至 Appwrite...</span>
+              <span>{inlineVideoUploadProgress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${inlineVideoUploadProgress}%` }} />
+            </div>
+          </div>
+        )}
         <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-8 rounded-lg text-sm" />
         <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-8 rounded-lg text-sm" />
         <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-16 resize-none" />
@@ -2295,8 +2461,8 @@ function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDow
           </label>
         </div>
         <div className="flex gap-2 pt-1">
-          <Button onClick={() => onInlineSave(video.$id)} disabled={inlineCoverUploading} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">{inlineCoverUploading ? '上傳中...' : '儲存'}</Button>
-          <Button onClick={onInlineCancel} variant="outline" disabled={inlineCoverUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5">取消</Button>
+          <Button onClick={() => onInlineSave(video.$id)} disabled={inlineCoverUploading || inlineVideoUploading || !!inlineVideoDuplicateWarning} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">{inlineCoverUploading || inlineVideoUploading ? '上傳中...' : '儲存'}</Button>
+          <Button onClick={onInlineCancel} variant="outline" disabled={inlineCoverUploading || inlineVideoUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5">取消</Button>
         </div>
       </div>
     );

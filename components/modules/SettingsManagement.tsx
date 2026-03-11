@@ -1100,7 +1100,7 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}`;
                   <p className="text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
                     <span className="text-base">💡</span>
                     <span>
-                      <strong>先儲存推播公鑰，再啟用推播通知。</strong> 每天 17:00（台灣時間）會自動推播到期提醒，即使 APP 完全關閉也能收到通知。
+                      <strong>先儲存推播公鑰，再啟用推播通知。</strong> 每天 08:00（台灣時間）會自動推播到期提醒，即使 APP 完全關閉也能收到通知。
                     </span>
                   </p>
                 </div>

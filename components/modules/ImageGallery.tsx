@@ -84,7 +84,16 @@ export default function ImageGallery() {
     note: '',
     category: '',
     ref: '',
+    file: '',
+    filetype: '',
+    hash: '',
   });
+  const [inlineEditFile, setInlineEditFile] = useState<File | null>(null);
+  const [inlineEditPreviewUrl, setInlineEditPreviewUrl] = useState('');
+  const [inlineEditPreviewLoading, setInlineEditPreviewLoading] = useState(false);
+  const [inlineEditUploadProgress, setInlineEditUploadProgress] = useState(0);
+  const [inlineEditUploadStatus, setInlineEditUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [inlineEditDuplicateWarning, setInlineEditDuplicateWarning] = useState('');
 
   // Bulk delete state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -214,29 +223,115 @@ export default function ImageGallery() {
       note: image.note || '',
       category: image.category || '',
       ref: image.ref || '',
+      file: image.file || '',
+      filetype: image.filetype || '',
+      hash: image.hash || '',
     });
+    setInlineEditFile(null);
+    setInlineEditPreviewUrl(image.file ? getProxiedMediaUrl(image.file) : '');
+    setInlineEditPreviewLoading(false);
+    setInlineEditUploadProgress(0);
+    setInlineEditUploadStatus('idle');
+    setInlineEditDuplicateWarning('');
     setInlineEditingId(image.$id);
+  };
+
+  const handleInlineEditFileSelect = async (file: File | null, currentImage: ImageData) => {
+    if (!file) return;
+
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('檔案大小不能超過 50MB');
+      return;
+    }
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
+      return;
+    }
+
+    setInlineEditPreviewLoading(true);
+    setInlineEditUploadStatus('idle');
+    setInlineEditUploadProgress(0);
+    setInlineEditDuplicateWarning('');
+    setInlineEditFile(file);
+    setInlineEditPreviewUrl(URL.createObjectURL(file));
+
+    const hash = await calculateFileHash(await file.arrayBuffer());
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+    const duplicateImage = images.find((img) => img.hash === hash && img.$id !== currentImage.$id);
+
+    setInlineEditForm((prev) => ({
+      ...prev,
+      filetype: fileExt,
+      hash,
+    }));
+
+    if (duplicateImage) {
+      setInlineEditDuplicateWarning(`警告：此圖片與「${duplicateImage.name}」相同，請勿重複上傳！`);
+    }
+
+    setTimeout(() => setInlineEditPreviewLoading(false), 300);
+  };
+
+  const uploadInlineEditFileToAppwrite = async (file: File): Promise<{ url: string; fileId: string }> => {
+    setInlineEditUploadStatus('uploading');
+    setInlineEditUploadProgress(0);
+
+    try {
+      const result = await uploadToAppwriteStorage(file, (progress) => {
+        setInlineEditUploadProgress(progress);
+      });
+      setInlineEditUploadProgress(100);
+      setInlineEditUploadStatus('success');
+      return result;
+    } catch (error) {
+      setInlineEditUploadStatus('error');
+      throw error;
+    }
   };
 
   // 儲存行內編輯
   const handleInlineSave = async (imageId: string) => {
     if (!inlineEditingId) return;
     try {
+      if (inlineEditDuplicateWarning) {
+        alert('此圖片與既有圖片重複，無法重新上傳！請選擇其他圖片。');
+        return;
+      }
+
+      const finalFormData = { ...inlineEditForm };
+      if (inlineEditFile) {
+        const { url, fileId } = await uploadInlineEditFileToAppwrite(inlineEditFile);
+        finalFormData.file = url;
+        finalFormData.hash = finalFormData.hash || fileId;
+      }
+
       const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${imageId}`);
       const response = await fetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: inlineEditForm.name,
-          note: inlineEditForm.note,
-          category: inlineEditForm.category,
-          ref: inlineEditForm.ref,
+          name: finalFormData.name,
+          note: finalFormData.note,
+          category: finalFormData.category,
+          ref: finalFormData.ref,
+          file: finalFormData.file,
+          filetype: finalFormData.filetype,
+          hash: finalFormData.hash,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
       loadImages(true);
       setInlineEditingId(null);
-      setInlineEditForm({ name: '', note: '', category: '', ref: '' });
+      setInlineEditForm({ name: '', note: '', category: '', ref: '', file: '', filetype: '', hash: '' });
+      setInlineEditFile(null);
+      setInlineEditPreviewUrl('');
+      setInlineEditPreviewLoading(false);
+      setInlineEditUploadProgress(0);
+      setInlineEditUploadStatus('idle');
+      setInlineEditDuplicateWarning('');
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert(error instanceof Error ? error.message : '更新失敗，請稍後再試');
@@ -246,7 +341,13 @@ export default function ImageGallery() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm({ name: '', note: '', category: '', ref: '' });
+    setInlineEditForm({ name: '', note: '', category: '', ref: '', file: '', filetype: '', hash: '' });
+    setInlineEditFile(null);
+    setInlineEditPreviewUrl('');
+    setInlineEditPreviewLoading(false);
+    setInlineEditUploadProgress(0);
+    setInlineEditUploadStatus('idle');
+    setInlineEditDuplicateWarning('');
   };
 
   const handleInlineCreateFileSelect = async (file: File | null) => {
@@ -831,6 +932,12 @@ export default function ImageGallery() {
           onInlineEdit={handleInlineEdit}
           onInlineSave={handleInlineSave}
           onInlineCancel={cancelInlineEdit}
+          inlineEditPreviewUrl={inlineEditPreviewUrl}
+          inlineEditPreviewLoading={inlineEditPreviewLoading}
+          inlineEditUploadProgress={inlineEditUploadProgress}
+          inlineEditUploadStatus={inlineEditUploadStatus}
+          inlineEditDuplicateWarning={inlineEditDuplicateWarning}
+          onInlineEditFileSelect={handleInlineEditFileSelect}
           selectionMode={selectionMode}
           selectedIds={selectedIds}
           onToggleSelect={handleToggleSelect}
@@ -938,17 +1045,23 @@ interface ImageGridProps {
   onInlineCreateSave: () => void;
   onInlineCreateCancel: () => void;
   inlineEditingId: string | null;
-  inlineEditForm: { name: string; note: string; category: string; ref: string };
-  setInlineEditForm: (form: { name: string; note: string; category: string; ref: string }) => void;
+  inlineEditForm: { name: string; note: string; category: string; ref: string; file: string; filetype: string; hash: string };
+  setInlineEditForm: (form: { name: string; note: string; category: string; ref: string; file: string; filetype: string; hash: string }) => void;
   onInlineEdit: (img: ImageData) => void;
   onInlineSave: (imageId: string) => void;
   onInlineCancel: () => void;
+  inlineEditPreviewUrl: string;
+  inlineEditPreviewLoading: boolean;
+  inlineEditUploadProgress: number;
+  inlineEditUploadStatus: 'idle' | 'uploading' | 'success' | 'error';
+  inlineEditDuplicateWarning: string;
+  onInlineEditFileSelect: (file: File | null, image: ImageData) => void;
   selectionMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
 }
 
-function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInlineCreating, inlineCreateForm, setInlineCreateForm, inlineCreatePreviewUrl, inlineCreatePreviewLoading, inlineCreateSubmitting, inlineCreateUploadProgress, inlineCreateUploadStatus, inlineCreateDuplicateWarning, inlineCreateUseCategorySelect, setInlineCreateUseCategorySelect, existingCategories, onInlineCreateFileSelect, onInlineCreateSave, onInlineCreateCancel, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, selectionMode, selectedIds, onToggleSelect }: ImageGridProps) {
+function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInlineCreating, inlineCreateForm, setInlineCreateForm, inlineCreatePreviewUrl, inlineCreatePreviewLoading, inlineCreateSubmitting, inlineCreateUploadProgress, inlineCreateUploadStatus, inlineCreateDuplicateWarning, inlineCreateUseCategorySelect, setInlineCreateUseCategorySelect, existingCategories, onInlineCreateFileSelect, onInlineCreateSave, onInlineCreateCancel, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineEditPreviewUrl, inlineEditPreviewLoading, inlineEditUploadProgress, inlineEditUploadStatus, inlineEditDuplicateWarning, onInlineEditFileSelect, selectionMode, selectedIds, onToggleSelect }: ImageGridProps) {
   if (loading) return <FullPageLoading text="載入圖片中..." />;
   if (images.length === 0 && !isInlineCreating) return <EmptyState icon={<ImageIcon className="text-gray-400" size={32} />} title="沒有找到圖片" />;
 
@@ -986,6 +1099,12 @@ function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInline
             onInlineEdit={onInlineEdit}
             onInlineSave={onInlineSave}
             onInlineCancel={onInlineCancel}
+            inlineEditPreviewUrl={inlineEditPreviewUrl}
+            inlineEditPreviewLoading={inlineEditPreviewLoading}
+            inlineEditUploadProgress={inlineEditUploadProgress}
+            inlineEditUploadStatus={inlineEditUploadStatus}
+            inlineEditDuplicateWarning={inlineEditDuplicateWarning}
+            onInlineEditFileSelect={onInlineEditFileSelect}
             selectionMode={selectionMode}
             isSelected={selectedIds?.has(image.$id) ?? false}
             onToggleSelect={onToggleSelect}
@@ -1110,17 +1229,23 @@ interface ImageCardProps {
   onEdit: () => void;
   onRefresh: () => void;
   isEditing: boolean;
-  inlineEditForm: { name: string; note: string; category: string; ref: string };
-  setInlineEditForm: (form: { name: string; note: string; category: string; ref: string }) => void;
+  inlineEditForm: { name: string; note: string; category: string; ref: string; file: string; filetype: string; hash: string };
+  setInlineEditForm: (form: { name: string; note: string; category: string; ref: string; file: string; filetype: string; hash: string }) => void;
   onInlineEdit: (img: ImageData) => void;
   onInlineSave: (imageId: string) => void;
   onInlineCancel: () => void;
+  inlineEditPreviewUrl: string;
+  inlineEditPreviewLoading: boolean;
+  inlineEditUploadProgress: number;
+  inlineEditUploadStatus: 'idle' | 'uploading' | 'success' | 'error';
+  inlineEditDuplicateWarning: string;
+  onInlineEditFileSelect: (file: File | null, image: ImageData) => void;
   selectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
 }
 
-function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, selectionMode, isSelected, onToggleSelect }: ImageCardProps) {
+function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineEditPreviewUrl, inlineEditPreviewLoading, inlineEditUploadProgress, inlineEditUploadStatus, inlineEditDuplicateWarning, onInlineEditFileSelect, selectionMode, isSelected, onToggleSelect }: ImageCardProps) {
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -1148,9 +1273,43 @@ function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditFo
       <div className="bg-white dark:bg-[#1f1f1f] rounded-xl overflow-hidden shadow-sm border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3 animate-in zoom-in-95 duration-300">
         <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">編輯中</div>
         <Input placeholder="圖片名稱" value={inlineEditForm.name} onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+        <label className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
+          <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+            {inlineEditPreviewLoading ? '載入中...' : '重新上傳圖片'}
+          </span>
+          <input
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+            onChange={(e) => onInlineEditFileSelect(e.target.files?.[0] || null, image)}
+            disabled={inlineEditPreviewLoading}
+            className="hidden"
+          />
+        </label>
+        {inlineEditPreviewUrl && (
+          <img src={inlineEditPreviewUrl} alt="Edit Preview" className="max-h-40 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" />
+        )}
+        {inlineEditDuplicateWarning && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">{inlineEditDuplicateWarning}</p>
+          </div>
+        )}
         <Input placeholder="分類" value={inlineEditForm.category} onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
         <Input placeholder="參考" value={inlineEditForm.ref} onChange={(e) => setInlineEditForm({ ...inlineEditForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
         <Textarea placeholder="備註" value={inlineEditForm.note} onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })} className="rounded-lg text-sm h-20 resize-none" />
+        {inlineEditUploadStatus === 'uploading' && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+              <span>上傳至 Appwrite...</span>
+              <span>{inlineEditUploadProgress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${inlineEditUploadProgress}%` }} />
+            </div>
+          </div>
+        )}
+        {inlineEditUploadStatus === 'success' && <p className="text-sm text-green-600 dark:text-green-400">✓ 上傳成功</p>}
+        {inlineEditUploadStatus === 'error' && <p className="text-sm text-red-600 dark:text-red-400">✗ 上傳失敗</p>}
         <div className="flex gap-2 pt-1">
           <Button onClick={(e) => { e.stopPropagation(); onInlineSave(image.$id); }} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">儲存</Button>
           <Button onClick={(e) => { e.stopPropagation(); onInlineCancel(); }} variant="outline" className="flex-1 gap-1 rounded-lg text-xs py-1.5">取消</Button>

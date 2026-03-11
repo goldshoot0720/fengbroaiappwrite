@@ -64,7 +64,7 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const { searchParams } = new URL(request.url);
-    const { databases, databaseId } = createAppwrite(searchParams);
+    const { databases, storage, databaseId, bucketId } = createAppwrite(searchParams);
     const { id } = await params;
     const body = await request.json();
     
@@ -77,6 +77,7 @@ export async function PUT(request, { params }) {
     }
     
     const collectionId = imageCollection.$id;
+    const existingDoc = await databases.getDocument(databaseId, collectionId, id);
     
     const document = await databases.updateDocument(
       databaseId,
@@ -93,6 +94,18 @@ export async function PUT(request, { params }) {
         cover: !!body.cover
       }
     );
+
+    if (bucketId && body.file && existingDoc.file && body.file !== existingDoc.file) {
+      const oldFileId = extractFileIdFromUrl(existingDoc.file);
+      const newFileId = extractFileIdFromUrl(body.file);
+      if (oldFileId && oldFileId !== newFileId) {
+        try {
+          await storage.deleteFile(bucketId, oldFileId);
+        } catch (storageErr) {
+          console.warn(`Failed to delete replaced image file ${oldFileId}:`, storageErr.message);
+        }
+      }
+    }
     
     return NextResponse.json(document);
   } catch (err) {
