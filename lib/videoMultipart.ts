@@ -1,5 +1,5 @@
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { getProxiedMediaUrl } from "@/lib/utils";
+import { getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
 
 // Keep each uploaded part comfortably below common Appwrite Cloud/bucket limits.
 export const MAX_VIDEO_PART_SIZE = 20 * 1024 * 1024;
@@ -138,6 +138,11 @@ export async function uploadVideoInParts(
     onProgress?.(95 + Math.round(progress * 0.05));
   });
 
+  // Verify that the uploaded manifest can be downloaded and parsed before
+  // we save its URL into the video record. This prevents broken multipart
+  // entries from being persisted.
+  await fetchVideoPartManifest(manifestUpload.url);
+
   onProgress?.(100);
 
   return {
@@ -149,7 +154,7 @@ export async function uploadVideoInParts(
 }
 
 export async function fetchVideoPartManifest(manifestUrl: string): Promise<VideoPartManifest> {
-  const response = await fetch(getProxiedMediaUrl(manifestUrl), {
+  const response = await fetch(getProxiedMediaUrl(getAppwriteDownloadUrl(manifestUrl)), {
     headers: {
       Accept: "application/json",
     },
@@ -166,11 +171,11 @@ export async function fetchVideoPartManifest(manifestUrl: string): Promise<Video
     manifest = JSON.parse(rawText);
   } catch {
     const preview = rawText.slice(0, 120).replace(/\s+/g, " ");
-    throw new Error(`影片 manifest JSON 損壞或不是 JSON: ${preview || "<empty>"}`);
+    throw new Error(`影片 manifest JSON 損壞或不是 JSON，請重新上傳影片: ${preview || "<empty>"}`);
   }
 
   if (!isVideoPartManifest(manifest)) {
-    throw new Error("影片 manifest 格式不正確");
+    throw new Error("影片 manifest 格式不正確，請重新上傳影片");
   }
 
   return manifest;
