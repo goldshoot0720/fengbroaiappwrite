@@ -138,7 +138,12 @@ function AccountComboBox({ value, onChange, accounts, className = "" }: {
   );
 }
 
-const INITIAL_FORM: SubscriptionFormData = { name: "", site: "", price: 0, nextdate: "", note: "", account: "", currency: "TWD", continue: true, category: "" };
+const INITIAL_FORM: SubscriptionFormData = { name: "", site: "", price: 0, nextdate: "", note: "", account: "", currency: "TWD", continue: true, category: "", purpose: "", usageFrequency: "", friendliness: "", alternative: "", retentionRecommendation: "" };
+const AI_PURPOSE_OPTIONS = ["聊天 AI", "生圖 AI", "影音 AI", "音樂 AI", "雲端 AI", "研究 AI"];
+const USAGE_FREQUENCY_OPTIONS = ["每天", "每週", "偶爾", "幾乎不用"];
+const FRIENDLINESS_OPTIONS = ["高", "中", "低"];
+const RETENTION_OPTIONS = ["必留", "待觀察", "可刪", "試用中"];
+
 
 function getDraftBillingSummary(form: SubscriptionFormData) {
   const price = Number(form.price || 0);
@@ -267,6 +272,11 @@ function DraftSummaryCard({ form, tone }: { form: SubscriptionFormData; tone: "g
               {form.category}
             </div>
           )}
+          {form.purpose && (
+            <div className="mt-1 inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+              {form.purpose}
+            </div>
+          )}
         </div>
         <div>
           <div className="text-xs text-gray-500 dark:text-gray-400">帳單估算</div>
@@ -276,7 +286,7 @@ function DraftSummaryCard({ form, tone }: { form: SubscriptionFormData; tone: "g
         <div>
           <div className="text-xs text-gray-500 dark:text-gray-400">扣款狀態</div>
           <div className={`font-semibold ${summary.dateTone}`}>{summary.dateLabel}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{form.continue !== false ? "到期後將持續追蹤" : "標記為不續訂"}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{form.retentionRecommendation || (form.continue !== false ? "到期後將持續追蹤" : "標記為不續訂")}</div>
         </div>
       </div>
     </div>
@@ -607,7 +617,12 @@ export default function SubscriptionManagement() {
       account: sub.account || "",
       currency: sub.currency || "TWD",
       continue: sub.continue !== false,
-      category: sub.category || ""
+      category: sub.category || "",
+      purpose: sub.purpose || "",
+      usageFrequency: sub.usageFrequency || "",
+      friendliness: sub.friendliness || "",
+      alternative: sub.alternative || "",
+      retentionRecommendation: sub.retentionRecommendation || ""
     });
     setInlineEditingId(sub.$id);
   };
@@ -682,7 +697,12 @@ export default function SubscriptionManagement() {
       account: sub.account || "",
       currency: sub.currency || "TWD",
       continue: sub.continue !== false,
-      category: sub.category || ""
+      category: sub.category || "",
+      purpose: sub.purpose || "",
+      usageFrequency: sub.usageFrequency || "",
+      friendliness: sub.friendliness || "",
+      alternative: sub.alternative || "",
+      retentionRecommendation: sub.retentionRecommendation || ""
     });
     setIsInlineAdding(true);
     setInlineEditingId(null);
@@ -988,9 +1008,12 @@ export default function SubscriptionManagement() {
         subtitle={`共 ${stats.total} 個訂閱服務`}
         showAccountLabel={true}
         action={
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
             <StatCard title="本月月費" value={formatCurrency(stats.totalMonthlyFee)} gradient="from-blue-500 to-blue-600" className="min-w-[160px]" />
             <StatCard title="下月月費" value={formatCurrency(stats.nextMonthFee)} gradient="from-purple-500 to-purple-600" className="min-w-[160px]" />
+            <StatCard title="AI 月費" value={formatCurrency(stats.aiMonthlyFee)} gradient="from-cyan-500 to-cyan-600" className="min-w-[160px]" />
+            <StatCard title="非 AI 月費" value={formatCurrency(stats.nonAiMonthlyFee)} gradient="from-slate-500 to-slate-600" className="min-w-[160px]" />
+            <StatCard title="AI 本月到期" value={stats.aiExpiringSoon} gradient="from-amber-500 to-orange-600" className="min-w-[160px]" />
           </div>
         }
       />
@@ -1386,6 +1409,45 @@ export default function SubscriptionManagement() {
                               className="h-9 rounded-lg text-sm"
                             />
                           </div>
+                          <div className="grid grid-cols-2 gap-2 pl-16">
+                            <Select value={inlineAddForm.purpose || "__empty__"} onValueChange={(value) => setInlineAddForm({ ...inlineAddForm, purpose: value === "__empty__" ? "" : value })}>
+                              <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue placeholder="用途" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__empty__">未設定用途</SelectItem>
+                                {AI_PURPOSE_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select value={inlineAddForm.retentionRecommendation || "__empty__"} onValueChange={(value) => setInlineAddForm({ ...inlineAddForm, retentionRecommendation: value === "__empty__" ? "" : value })}>
+                              <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue placeholder="保留建議" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__empty__">未設定建議</SelectItem>
+                                {RETENTION_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select value={inlineAddForm.usageFrequency || "__empty__"} onValueChange={(value) => setInlineAddForm({ ...inlineAddForm, usageFrequency: value === "__empty__" ? "" : value })}>
+                              <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue placeholder="常用度" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__empty__">未設定常用度</SelectItem>
+                                {USAGE_FREQUENCY_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select value={inlineAddForm.friendliness || "__empty__"} onValueChange={(value) => setInlineAddForm({ ...inlineAddForm, friendliness: value === "__empty__" ? "" : value })}>
+                              <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue placeholder="友善度" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__empty__">未設定友善度</SelectItem>
+                                {FRIENDLINESS_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 w-14 shrink-0">替代品</span>
+                            <Input
+                              placeholder="例如：Claude / Gemini / Suno"
+                              value={inlineAddForm.alternative || ""}
+                              onChange={(e) => setInlineAddForm({ ...inlineAddForm, alternative: e.target.value })}
+                              className="h-9 rounded-lg text-sm"
+                            />
+                          </div>
                           <div className="flex items-start gap-2">
                             <span className="text-xs text-gray-500 w-14 shrink-0 pt-2">備註</span>
                             <Textarea
@@ -1528,6 +1590,45 @@ export default function SubscriptionManagement() {
                                   placeholder="例如：AI / 影音 / 生產力"
                                   value={inlineEditForm.category || ""}
                                   onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+                                  className="h-9 rounded-lg text-sm"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 pl-16">
+                                <Select value={inlineEditForm.purpose || "__empty__"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, purpose: value === "__empty__" ? "" : value })}>
+                                  <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue placeholder="用途" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__empty__">未設定用途</SelectItem>
+                                    {AI_PURPOSE_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                                <Select value={inlineEditForm.retentionRecommendation || "__empty__"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, retentionRecommendation: value === "__empty__" ? "" : value })}>
+                                  <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue placeholder="保留建議" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__empty__">未設定建議</SelectItem>
+                                    {RETENTION_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                                <Select value={inlineEditForm.usageFrequency || "__empty__"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, usageFrequency: value === "__empty__" ? "" : value })}>
+                                  <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue placeholder="常用度" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__empty__">未設定常用度</SelectItem>
+                                    {USAGE_FREQUENCY_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                                <Select value={inlineEditForm.friendliness || "__empty__"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, friendliness: value === "__empty__" ? "" : value })}>
+                                  <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue placeholder="友善度" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__empty__">未設定友善度</SelectItem>
+                                    {FRIENDLINESS_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-14 shrink-0">替代品</span>
+                                <Input
+                                  placeholder="例如：Claude / Gemini / Suno"
+                                  value={inlineEditForm.alternative || ""}
+                                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, alternative: e.target.value })}
                                   className="h-9 rounded-lg text-sm"
                                 />
                               </div>
@@ -1675,8 +1776,28 @@ export default function SubscriptionManagement() {
                                   {sub.category}
                                 </span>
                               )}
+                              <div className="flex flex-wrap gap-1">
+                                {sub.purpose && (
+                                  <span className="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                                    {sub.purpose}
+                                  </span>
+                                )}
+                                {sub.retentionRecommendation && (
+                                  <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                    {sub.retentionRecommendation}
+                                  </span>
+                                )}
+                                {sub.usageFrequency && (
+                                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                    {sub.usageFrequency}
+                                  </span>
+                                )}
+                              </div>
                               {sub.note && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap">📝 {sub.note}</span>
+                              )}
+                              {sub.alternative && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">替代品：{sub.alternative}</span>
                               )}
                             </div>
                           </div>
@@ -1805,6 +1926,42 @@ export default function SubscriptionManagement() {
                         onChange={(e) => setInlineAddForm({ ...inlineAddForm, category: e.target.value })}
                         className="h-10 rounded-lg"
                       />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Select value={inlineAddForm.purpose || "__empty__"} onValueChange={(value) => setInlineAddForm({ ...inlineAddForm, purpose: value === "__empty__" ? "" : value })}>
+                          <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="用途" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__empty__">未設定用途</SelectItem>
+                            {AI_PURPOSE_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select value={inlineAddForm.retentionRecommendation || "__empty__"} onValueChange={(value) => setInlineAddForm({ ...inlineAddForm, retentionRecommendation: value === "__empty__" ? "" : value })}>
+                          <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="保留建議" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__empty__">未設定建議</SelectItem>
+                            {RETENTION_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select value={inlineAddForm.usageFrequency || "__empty__"} onValueChange={(value) => setInlineAddForm({ ...inlineAddForm, usageFrequency: value === "__empty__" ? "" : value })}>
+                          <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="常用度" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__empty__">未設定常用度</SelectItem>
+                            {USAGE_FREQUENCY_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select value={inlineAddForm.friendliness || "__empty__"} onValueChange={(value) => setInlineAddForm({ ...inlineAddForm, friendliness: value === "__empty__" ? "" : value })}>
+                          <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="友善度" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__empty__">未設定友善度</SelectItem>
+                            {FRIENDLINESS_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Input
+                        placeholder="替代品（例如：Claude / Gemini / Suno）"
+                        value={inlineAddForm.alternative || ""}
+                        onChange={(e) => setInlineAddForm({ ...inlineAddForm, alternative: e.target.value })}
+                        className="h-10 rounded-lg"
+                      />
                       <div className="flex gap-2">
                         <div className="flex-1 flex items-center gap-1">
                           <Input
@@ -1927,6 +2084,42 @@ export default function SubscriptionManagement() {
                             placeholder="分類（例如：AI / 影音 / 生產力）"
                             value={inlineEditForm.category || ""}
                             onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+                            className="h-10 rounded-lg"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <Select value={inlineEditForm.purpose || "__empty__"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, purpose: value === "__empty__" ? "" : value })}>
+                              <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="用途" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__empty__">未設定用途</SelectItem>
+                                {AI_PURPOSE_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select value={inlineEditForm.retentionRecommendation || "__empty__"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, retentionRecommendation: value === "__empty__" ? "" : value })}>
+                              <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="保留建議" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__empty__">未設定建議</SelectItem>
+                                {RETENTION_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select value={inlineEditForm.usageFrequency || "__empty__"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, usageFrequency: value === "__empty__" ? "" : value })}>
+                              <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="常用度" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__empty__">未設定常用度</SelectItem>
+                                {USAGE_FREQUENCY_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select value={inlineEditForm.friendliness || "__empty__"} onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, friendliness: value === "__empty__" ? "" : value })}>
+                              <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="友善度" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__empty__">未設定友善度</SelectItem>
+                                {FRIENDLINESS_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Input
+                            placeholder="替代品（例如：Claude / Gemini / Suno）"
+                            value={inlineEditForm.alternative || ""}
+                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, alternative: e.target.value })}
                             className="h-10 rounded-lg"
                           />
                           <div className="flex gap-2">
@@ -2052,8 +2245,28 @@ export default function SubscriptionManagement() {
                                   {sub.category}
                                 </span>
                               )}
+                              <div className="flex flex-wrap gap-1">
+                                {sub.purpose && (
+                                  <span className="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                                    {sub.purpose}
+                                  </span>
+                                )}
+                                {sub.retentionRecommendation && (
+                                  <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                    {sub.retentionRecommendation}
+                                  </span>
+                                )}
+                                {sub.usageFrequency && (
+                                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                    {sub.usageFrequency}
+                                  </span>
+                                )}
+                              </div>
                               {sub.note && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap">📝 {sub.note}</span>
+                              )}
+                              {sub.alternative && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">替代品：{sub.alternative}</span>
                               )}
                               {sub.name.length > 37 && (
                                 <Button

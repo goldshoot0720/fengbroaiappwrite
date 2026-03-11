@@ -83,7 +83,12 @@ const TABLE_SCHEMAS = {
       { key: 'account', type: 'string', size: 100, required: false },
       { key: 'currency', type: 'string', size: 100, required: false },
       { key: 'continue', type: 'boolean', required: false, default: true },
-      { key: 'category', type: 'string', size: 100, required: false }
+      { key: 'category', type: 'string', size: 100, required: false },
+      { key: 'purpose', type: 'string', size: 100, required: false },
+      { key: 'usageFrequency', type: 'string', size: 50, required: false },
+      { key: 'friendliness', type: 'string', size: 50, required: false },
+      { key: 'alternative', type: 'string', size: 200, required: false },
+      { key: 'retentionRecommendation', type: 'string', size: 50, required: false }
     ]
   },
   image: {

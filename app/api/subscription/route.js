@@ -80,7 +80,7 @@ export async function POST(req) {
     const body = await req.json();
 
     // 驗證必填欄位（site 和 nextdate 為可選）
-    const { name, site, price, nextdate, note, account, currency, category } = body;
+    const { name, site, price, nextdate, note, account, currency, category, purpose, usageFrequency, friendliness, alternative, retentionRecommendation } = body;
     const continueValue = body.continue;
     if (!name || price == null) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -99,6 +99,11 @@ export async function POST(req) {
     if (account) payload.account = account;
     if (currency) payload.currency = currency || "TWD";
     if (category) payload.category = category;
+    if (purpose) payload.purpose = purpose;
+    if (usageFrequency) payload.usageFrequency = usageFrequency;
+    if (friendliness) payload.friendliness = friendliness;
+    if (alternative) payload.alternative = alternative;
+    if (retentionRecommendation) payload.retentionRecommendation = retentionRecommendation;
     if (continueValue !== undefined) payload.continue = continueValue;
 
     const res = await databases.createDocument(

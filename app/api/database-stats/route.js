@@ -77,7 +77,12 @@ const TABLE_DEFINITIONS = {
     { key: 'account', type: 'string', size: 100 },
     { key: 'currency', type: 'string', size: 100 },
     { key: 'continue', type: 'boolean' },
-    { key: 'category', type: 'string', size: 100 }
+    { key: 'category', type: 'string', size: 100 },
+    { key: 'purpose', type: 'string', size: 100 },
+    { key: 'usageFrequency', type: 'string', size: 50 },
+    { key: 'friendliness', type: 'string', size: 50 },
+    { key: 'alternative', type: 'string', size: 200 },
+    { key: 'retentionRecommendation', type: 'string', size: 50 }
   ],
   image: [
     { key: 'name', type: 'string', size: 100 },

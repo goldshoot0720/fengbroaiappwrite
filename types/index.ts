@@ -41,6 +41,11 @@ export interface Subscription {
   currency?: string;
   continue?: boolean;
   category?: string;
+  purpose?: string;
+  usageFrequency?: string;
+  friendliness?: string;
+  alternative?: string;
+  retentionRecommendation?: string;
   $createdAt?: string;
   $updatedAt?: string;
 }
@@ -55,6 +60,11 @@ export interface SubscriptionFormData {
   currency?: string;
   continue?: boolean;
   category?: string;
+  purpose?: string;
+  usageFrequency?: string;
+  friendliness?: string;
+  alternative?: string;
+  retentionRecommendation?: string;
 }
 
 export interface SubscriptionDetail {

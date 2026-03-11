@@ -136,6 +136,15 @@ export function useSubscriptions() {
 
   // 計算統計資料
   const stats = (() => {
+    const isAiSubscription = (sub: Subscription) => {
+      const haystack = [
+        sub.category,
+        sub.purpose,
+        sub.name,
+      ].join(" ").toLowerCase();
+      return haystack.includes("ai") || haystack.includes("gpt") || haystack.includes("claude") || haystack.includes("gemini");
+    };
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
@@ -186,12 +195,25 @@ export function useSubscriptions() {
         }, 0)
       : 0;
 
+    const aiMonthlyFee = Array.isArray(subscriptions)
+      ? subscriptions.reduce((sum, s) => isAiSubscription(s) ? sum + convertToTWD(s.price || 0, s.currency) : sum, 0)
+      : 0;
+
+    const nonAiMonthlyFee = Math.max(0, totalTWD - aiMonthlyFee);
+
+    const aiExpiringSoon = Array.isArray(subscriptions)
+      ? subscriptions.filter((s) => isAiSubscription(s) && getDaysFromToday(s.nextdate || '') >= 0 && getDaysFromToday(s.nextdate || '') <= 31).length
+      : 0;
+
     return {
       total: Array.isArray(subscriptions) ? subscriptions.length : 0,
       totalTWD,
       expiringSoon,
       totalMonthlyFee,
       nextMonthFee,
+      aiMonthlyFee,
+      nonAiMonthlyFee,
+      aiExpiringSoon,
     };
   })();
 
