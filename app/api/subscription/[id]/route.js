@@ -46,7 +46,7 @@ export async function PUT(req, context) {
     if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
     // 確保 price 是數字
-    const { name, site, price, nextdate, note, account, currency } = body;
+    const { name, site, price, nextdate, note, account, currency, category } = body;
     const continueValue = body.continue;
     const bodyData = {
       name,
@@ -59,6 +59,7 @@ export async function PUT(req, context) {
     if (note !== undefined) bodyData.note = note || "";
     if (account !== undefined) bodyData.account = account || "";
     if (currency !== undefined) bodyData.currency = currency || "TWD";
+    if (category !== undefined) bodyData.category = category || "";
     if (continueValue !== undefined) bodyData.continue = continueValue;
 
     const res = await databases.updateDocument(

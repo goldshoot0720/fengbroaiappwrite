@@ -138,7 +138,7 @@ function AccountComboBox({ value, onChange, accounts, className = "" }: {
   );
 }
 
-const INITIAL_FORM: SubscriptionFormData = { name: "", site: "", price: 0, nextdate: "", note: "", account: "", currency: "TWD", continue: true };
+const INITIAL_FORM: SubscriptionFormData = { name: "", site: "", price: 0, nextdate: "", note: "", account: "", currency: "TWD", continue: true, category: "" };
 
 function getDraftBillingSummary(form: SubscriptionFormData) {
   const price = Number(form.price || 0);
@@ -262,6 +262,11 @@ function DraftSummaryCard({ form, tone }: { form: SubscriptionFormData; tone: "g
         <div>
           <div className="text-xs text-gray-500 dark:text-gray-400">服務名稱</div>
           <div className="font-semibold text-gray-900 dark:text-gray-100">{form.name || "尚未命名"}</div>
+          {form.category && (
+            <div className="mt-1 inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
+              {form.category}
+            </div>
+          )}
         </div>
         <div>
           <div className="text-xs text-gray-500 dark:text-gray-400">帳單估算</div>
@@ -286,6 +291,9 @@ export default function SubscriptionManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [continueFilter, setContinueFilter] = useState<"all" | "yes" | "no">("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [expiryFilter, setExpiryFilter] = useState<"all" | "expired" | "7days" | "month" | "none">("all");
+  const [noteFilter, setNoteFilter] = useState<"all" | "with" | "without">("all");
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -329,6 +337,13 @@ export default function SubscriptionManagement() {
     return Array.from(months).sort();
   }, [subscriptions]);
 
+  const categoryOptions = useMemo(() => {
+    const categories = subscriptions
+      .map(sub => sub.category)
+      .filter((value): value is string => !!value && value.trim() !== "");
+    return [...new Set(categories)].sort();
+  }, [subscriptions]);
+
   // 搜尋過濾 + 續訂篩選 + 年月篩選
   const filteredSubscriptions = useMemo(() => {
     let result = subscriptions;
@@ -338,6 +353,10 @@ export default function SubscriptionManagement() {
       result = result.filter(sub => sub.continue !== false);
     } else if (continueFilter === "no") {
       result = result.filter(sub => sub.continue === false);
+    }
+
+    if (categoryFilter !== "all") {
+      result = result.filter(sub => (sub.category || "") === categoryFilter);
     }
 
     // 年月篩選
@@ -354,6 +373,23 @@ export default function SubscriptionManagement() {
       }
     }
 
+    if (expiryFilter !== "all") {
+      result = result.filter(sub => {
+        if (!sub.nextdate) return expiryFilter === "none";
+        const days = getSubscriptionExpiryInfo(sub).daysRemaining;
+        if (expiryFilter === "expired") return days < 0;
+        if (expiryFilter === "7days") return days >= 0 && days <= 7;
+        if (expiryFilter === "month") return days >= 0 && days <= 31;
+        return true;
+      });
+    }
+
+    if (noteFilter === "with") {
+      result = result.filter(sub => !!sub.note?.trim());
+    } else if (noteFilter === "without") {
+      result = result.filter(sub => !sub.note?.trim());
+    }
+
     // 搜尋過濾
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -361,7 +397,8 @@ export default function SubscriptionManagement() {
         sub.name?.toLowerCase().includes(query) ||
         sub.site?.toLowerCase().includes(query) ||
         sub.account?.toLowerCase().includes(query) ||
-        sub.note?.toLowerCase().includes(query)
+        sub.note?.toLowerCase().includes(query) ||
+        sub.category?.toLowerCase().includes(query)
       );
     }
 
@@ -569,7 +606,8 @@ export default function SubscriptionManagement() {
       note: sub.note || "",
       account: sub.account || "",
       currency: sub.currency || "TWD",
-      continue: sub.continue !== false
+      continue: sub.continue !== false,
+      category: sub.category || ""
     });
     setInlineEditingId(sub.$id);
   };
@@ -643,7 +681,8 @@ export default function SubscriptionManagement() {
       note: sub.note || "",
       account: sub.account || "",
       currency: sub.currency || "TWD",
-      continue: sub.continue !== false
+      continue: sub.continue !== false,
+      category: sub.category || ""
     });
     setIsInlineAdding(true);
     setInlineEditingId(null);
@@ -1175,6 +1214,39 @@ export default function SubscriptionManagement() {
                 <SelectItem value="no">不續</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={expiryFilter} onValueChange={(value: "all" | "expired" | "7days" | "month" | "none") => setExpiryFilter(value)}>
+              <SelectTrigger className="h-12 rounded-xl w-full lg:w-36 shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部狀態</SelectItem>
+                <SelectItem value="expired">已過期</SelectItem>
+                <SelectItem value="7days">7天內</SelectItem>
+                <SelectItem value="month">本月內</SelectItem>
+                <SelectItem value="none">無日期</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={noteFilter} onValueChange={(value: "all" | "with" | "without") => setNoteFilter(value)}>
+              <SelectTrigger className="h-12 rounded-xl w-full lg:w-36 shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部備註</SelectItem>
+                <SelectItem value="with">有備註</SelectItem>
+                <SelectItem value="without">無備註</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-12 rounded-xl w-full lg:w-36 shrink-0">
+                <SelectValue placeholder="分類" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部分類</SelectItem>
+                {categoryOptions.map(category => (
+                  <SelectItem key={category} value={category}>{category}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       )}
@@ -1303,6 +1375,15 @@ export default function SubscriptionManagement() {
                               onChange={(v) => setInlineAddForm({ ...inlineAddForm, account: v })}
                               accounts={existingAccounts}
                               className="[&_input]:h-9 [&_input]:rounded-lg [&_input]:text-sm"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 w-14 shrink-0">分類</span>
+                            <Input
+                              placeholder="例如：AI / 影音 / 生產力"
+                              value={inlineAddForm.category || ""}
+                              onChange={(e) => setInlineAddForm({ ...inlineAddForm, category: e.target.value })}
+                              className="h-9 rounded-lg text-sm"
                             />
                           </div>
                           <div className="flex items-start gap-2">
@@ -1441,6 +1522,15 @@ export default function SubscriptionManagement() {
                                   className="[&_input]:h-9 [&_input]:rounded-lg [&_input]:text-sm"
                                 />
                               </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-14 shrink-0">分類</span>
+                                <Input
+                                  placeholder="例如：AI / 影音 / 生產力"
+                                  value={inlineEditForm.category || ""}
+                                  onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+                                  className="h-9 rounded-lg text-sm"
+                                />
+                              </div>
                               <div className="flex items-start gap-2">
                                 <span className="text-xs text-gray-500 w-14 shrink-0 pt-2">備註</span>
                                 <Textarea
@@ -1562,12 +1652,9 @@ export default function SubscriptionManagement() {
                                 ) : (
                                   <span className="text-gray-900 dark:text-gray-100">{truncateName(sub.name, sub.$id)}</span>
                                 )}
-                                {isEditMode && (
-                                  <>
-                                    <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg h-7 px-2" title="編輯"><Pencil size={14} /></Button>
-                                    <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg h-7 px-2" title="複製"><Copy size={14} /></Button>
-                                  </>
-                                )}
+                                <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg h-7 px-2" title="編輯"><Pencil size={14} /></Button>
+                                <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg h-7 px-2" title="複製"><Copy size={14} /></Button>
+                                <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50" title="刪除"><Trash2 size={14} /></Button>
                                 {sub.name.length > 37 && (
                                   <Button
                                     type="button"
@@ -1582,6 +1669,11 @@ export default function SubscriptionManagement() {
                               </div>
                               {sub.account && (
                                 <span className="text-sm text-gray-500 dark:text-gray-400">{sub.account}</span>
+                              )}
+                              {sub.category && (
+                                <span className="inline-flex w-fit rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                  {sub.category}
+                                </span>
                               )}
                               {sub.note && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap">📝 {sub.note}</span>
@@ -1707,6 +1799,12 @@ export default function SubscriptionManagement() {
                         accounts={existingAccounts}
                         className="[&_input]:h-10 [&_input]:rounded-lg"
                       />
+                      <Input
+                        placeholder="分類（例如：AI / 影音 / 生產力）"
+                        value={inlineAddForm.category || ""}
+                        onChange={(e) => setInlineAddForm({ ...inlineAddForm, category: e.target.value })}
+                        className="h-10 rounded-lg"
+                      />
                       <div className="flex gap-2">
                         <div className="flex-1 flex items-center gap-1">
                           <Input
@@ -1824,6 +1922,12 @@ export default function SubscriptionManagement() {
                             onChange={(v) => setInlineEditForm({ ...inlineEditForm, account: v })}
                             accounts={existingAccounts}
                             className="[&_input]:h-10 [&_input]:rounded-lg"
+                          />
+                          <Input
+                            placeholder="分類（例如：AI / 影音 / 生產力）"
+                            value={inlineEditForm.category || ""}
+                            onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
+                            className="h-10 rounded-lg"
                           />
                           <div className="flex gap-2">
                             <div className="flex-1 flex items-center gap-1">
@@ -1943,6 +2047,11 @@ export default function SubscriptionManagement() {
                               {sub.account && (
                                 <span className="text-sm text-gray-500 dark:text-gray-400">{sub.account}</span>
                               )}
+                              {sub.category && (
+                                <span className="inline-flex w-fit rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                  {sub.category}
+                                </span>
+                              )}
                               {sub.note && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap">📝 {sub.note}</span>
                               )}
@@ -1977,12 +2086,11 @@ export default function SubscriptionManagement() {
                             </div>
                           )}
                         </div>
-                        {isEditMode && (
-                          <div className="flex gap-2 pt-2">
-                            <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-xl" title="編輯"><Pencil size={14} /></Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
-                          </div>
-                        )}
+                        <div className="flex gap-2 pt-2">
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-xl" title="編輯"><Pencil size={14} /></Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-xl" title="複製"><Copy size={14} /></Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50" title="刪除"><Trash2 size={14} /></Button>
+                        </div>
                       </div>
                     </DataCardItem>
                   );

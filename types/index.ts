@@ -40,6 +40,9 @@ export interface Subscription {
   account?: string;
   currency?: string;
   continue?: boolean;
+  category?: string;
+  $createdAt?: string;
+  $updatedAt?: string;
 }
 
 export interface SubscriptionFormData {
@@ -51,6 +54,7 @@ export interface SubscriptionFormData {
   account?: string;
   currency?: string;
   continue?: boolean;
+  category?: string;
 }
 
 export interface SubscriptionDetail {

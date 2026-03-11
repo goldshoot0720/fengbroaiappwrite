@@ -16,11 +16,25 @@ export function useSubscriptions() {
     try {
       const resData = await fetchApi<Subscription[]>(`${API_ENDPOINTS.SUBSCRIPTION}?t=${Date.now()}`);
       let data: Subscription[] = Array.isArray(resData) ? resData : [];
-      // 按到期日排序，無日期排最後
+      // 按處理優先級排序：已過期 -> 7天內 -> 本月 -> 之後 -> 無日期
       data = data.sort((a, b) => {
         const hasA = !!a.nextdate;
         const hasB = !!b.nextdate;
-        if (!hasA && !hasB) return 0;
+        const daysA = hasA ? getDaysFromToday(a.nextdate!) : Number.POSITIVE_INFINITY;
+        const daysB = hasB ? getDaysFromToday(b.nextdate!) : Number.POSITIVE_INFINITY;
+
+        const bucket = (sub: Subscription, days: number) => {
+          if (!sub.nextdate) return 4;
+          if (days < 0) return 0;
+          if (days <= 7) return 1;
+          if (days <= 31) return 2;
+          return 3;
+        };
+
+        const bucketA = bucket(a, daysA);
+        const bucketB = bucket(b, daysB);
+        if (bucketA !== bucketB) return bucketA - bucketB;
+        if (!hasA && !hasB) return a.name.localeCompare(b.name);
         if (!hasA) return 1;
         if (!hasB) return -1;
         return new Date(a.nextdate!).getTime() - new Date(b.nextdate!).getTime();

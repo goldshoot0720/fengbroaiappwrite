@@ -73,10 +73,11 @@ const TABLE_DEFINITIONS = {
     { key: 'site', type: 'string' },
     { key: 'price', type: 'integer' },
     { key: 'nextdate', type: 'datetime' },
-    { key: 'note', type: 'string', size: 100 },
+    { key: 'note', type: 'string', size: 500 },
     { key: 'account', type: 'string', size: 100 },
     { key: 'currency', type: 'string', size: 100 },
-    { key: 'continue', type: 'boolean' }
+    { key: 'continue', type: 'boolean' },
+    { key: 'category', type: 'string', size: 100 }
   ],
   image: [
     { key: 'name', type: 'string', size: 100 },
