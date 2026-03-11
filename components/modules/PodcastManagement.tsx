@@ -59,6 +59,11 @@ export default function PodcastManagement() {
   const { podcast, loading, error, stats, loadPodcast } = usePodcast();
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingPodcast, setEditingPodcast] = useState<PodcastData | null>(null);
+  const [isInlineCreating, setIsInlineCreating] = useState(false);
+  const [inlineCreateForm, setInlineCreateForm] = useState({ name: '', category: '', note: '', ref: '', cover: '' });
+  const [inlineCreateCoverFile, setInlineCreateCoverFile] = useState<File | null>(null);
+  const [inlineCreateCoverPreview, setInlineCreateCoverPreview] = useState<string>('');
+  const [inlineCreateCoverUploading, setInlineCreateCoverUploading] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedPodcastId, setExpandedPodcastId] = useState<string | null>(null);
@@ -152,7 +157,12 @@ export default function PodcastManagement() {
 
   const handleAdd = () => {
     setEditingPodcast(null);
-    setShowFormModal(true);
+    setShowFormModal(false);
+    setIsInlineCreating(true);
+    setInlineCreateForm({ name: '', category: '', note: '', ref: '', cover: '' });
+    setInlineCreateCoverFile(null);
+    setInlineCreateCoverPreview('');
+    setInlineCreateCoverUploading(false);
   };
 
   const handleEdit = (podcastItem: PodcastData) => {
@@ -260,7 +270,66 @@ export default function PodcastManagement() {
   const handleFormSuccess = () => {
     setShowFormModal(false);
     setEditingPodcast(null);
+    setIsInlineCreating(false);
     loadPodcast(true);
+  };
+
+  const cancelInlineCreate = () => {
+    setIsInlineCreating(false);
+    setInlineCreateForm({ name: '', category: '', note: '', ref: '', cover: '' });
+    setInlineCreateCoverFile(null);
+    setInlineCreateCoverPreview('');
+    setInlineCreateCoverUploading(false);
+  };
+
+  const handleInlineCreateSave = async () => {
+    if (!inlineCreateForm.name.trim()) {
+      alert('請輸入播客名稱');
+      return;
+    }
+
+    setInlineCreateCoverUploading(true);
+    try {
+      let coverUrl = inlineCreateForm.cover;
+
+      if (inlineCreateCoverFile) {
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', inlineCreateCoverFile);
+
+        const response = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: getAppwriteHeaders(),
+          body: formDataUpload,
+        });
+
+        if (!response.ok) throw new Error('封面上傳失敗');
+        const data = await response.json();
+        coverUrl = data.url;
+      }
+
+      const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.PODCAST), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineCreateForm.name,
+          category: inlineCreateForm.category,
+          note: inlineCreateForm.note,
+          ref: inlineCreateForm.ref,
+          cover: coverUrl,
+          file: '',
+          filetype: '',
+          hash: `inline_create_${Date.now()}`,
+        }),
+      });
+
+      if (!response.ok) throw new Error('新增失敗');
+      cancelInlineCreate();
+      loadPodcast(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '新增失敗');
+    } finally {
+      setInlineCreateCoverUploading(false);
+    }
   };
 
   const togglePlay = (id: string) => {
@@ -543,7 +612,7 @@ export default function PodcastManagement() {
       </div>
 
       {/* 搜尋欄位 */}
-      {podcast.length > 0 && (
+      {(podcast.length > 0 || isInlineCreating) && (
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -567,7 +636,67 @@ export default function PodcastManagement() {
       )}
 
       {/* 播客列表 */}
-      {podcast.length === 0 ? (
+      {isInlineCreating && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3">
+          <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">新增中</div>
+          {(inlineCreateCoverPreview || inlineCreateForm.cover) && (
+            <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+              <img
+                src={inlineCreateCoverPreview || inlineCreateForm.cover}
+                alt="封面預覽"
+                className="w-full h-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setInlineCreateCoverFile(null);
+                  setInlineCreateCoverPreview('');
+                  setInlineCreateForm({ ...inlineCreateForm, cover: '' });
+                }}
+                className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+          <Input placeholder="封面圖 URL" value={inlineCreateForm.cover} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, cover: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+            <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+              {inlineCreateCoverUploading ? '上傳中...' : inlineCreateCoverFile ? inlineCreateCoverFile.name : '上傳封面圖 (最大 5MB)'}
+            </span>
+            <input
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                if (!validTypes.includes(file.type)) { alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片'); return; }
+                if (file.size > 5 * 1024 * 1024) { alert('封面圖大小不能超過 5MB'); return; }
+                setInlineCreateCoverFile(file);
+                setInlineCreateCoverPreview(URL.createObjectURL(file));
+              }}
+              disabled={inlineCreateCoverUploading}
+              className="hidden"
+            />
+          </label>
+          <Input placeholder="播客名稱" value={inlineCreateForm.name} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="分類" value={inlineCreateForm.category} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="參考" value={inlineCreateForm.ref} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Textarea placeholder="備註" value={inlineCreateForm.note} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, note: e.target.value })} className="rounded-lg text-sm h-20 resize-none" />
+          <div className="flex gap-2">
+            <Button onClick={handleInlineCreateSave} disabled={inlineCreateCoverUploading} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">
+              {inlineCreateCoverUploading ? '上傳中...' : '新增'}
+            </Button>
+            <Button onClick={cancelInlineCreate} variant="outline" disabled={inlineCreateCoverUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5">
+              取消
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {podcast.length === 0 && !isInlineCreating ? (
         <EmptyState
           icon={<PodcastIcon className="w-12 h-12" />}
           title="尚無播客"

@@ -154,6 +154,8 @@ export default function CommonDocumentManagement() {
   const { commondocument, loading, error, stats, loadCommonDocument } = useCommonDocument();
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingDocument, setEditingDocument] = useState<CommonDocumentData | null>(null);
+  const [isInlineCreating, setIsInlineCreating] = useState(false);
+  const [inlineCreateForm, setInlineCreateForm] = useState({ name: '', file: '', filetype: '', category: '', note: '', ref: '', cover: '', hash: '' });
   const [searchQuery, setSearchQuery] = useState("");
   const [previewDocument, setPreviewDocument] = useState<CommonDocumentData | null>(null);
   const [openInEditMode, setOpenInEditMode] = useState(false);
@@ -613,7 +615,9 @@ export default function CommonDocumentManagement() {
 
   const handleAdd = () => {
     setEditingDocument(null);
-    setShowFormModal(true);
+    setShowFormModal(false);
+    setIsInlineCreating(true);
+    setInlineCreateForm({ name: '', file: '', filetype: '', category: '', note: '', ref: '', cover: '', hash: '' });
   };
 
   const handleEdit = (doc: CommonDocumentData) => {
@@ -757,7 +761,36 @@ export default function CommonDocumentManagement() {
   const handleFormSuccess = () => {
     setShowFormModal(false);
     setEditingDocument(null);
+    setIsInlineCreating(false);
     loadCommonDocument(true);
+  };
+
+  const cancelInlineCreate = () => {
+    setIsInlineCreating(false);
+    setInlineCreateForm({ name: '', file: '', filetype: '', category: '', note: '', ref: '', cover: '', hash: '' });
+  };
+
+  const handleInlineCreateSave = async () => {
+    if (!inlineCreateForm.name.trim()) {
+      alert('請輸入文件名稱');
+      return;
+    }
+
+    try {
+      const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...inlineCreateForm,
+          hash: inlineCreateForm.hash || `inline_create_${Date.now()}`,
+        }),
+      });
+      if (!response.ok) throw new Error('新增失敗');
+      cancelInlineCreate();
+      loadCommonDocument(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '新增失敗');
+    }
   };
 
   const handlePreview = (doc: CommonDocumentData, editMode = false) => {
@@ -817,7 +850,7 @@ export default function CommonDocumentManagement() {
       </div>
 
       {/* 搜尋欄位和視圖切換 */}
-      {commondocument.length > 0 && (
+      {(commondocument.length > 0 || isInlineCreating) && (
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -863,7 +896,29 @@ export default function CommonDocumentManagement() {
       )}
 
       {/* 文件列表 */}
-      {commondocument.length === 0 ? (
+      {isInlineCreating && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3">
+          <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">新增中</div>
+          <Input placeholder="文件名稱" value={inlineCreateForm.name} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="分類" value={inlineCreateForm.category} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Textarea placeholder="備註" value={inlineCreateForm.note} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, note: e.target.value })} className="rounded-lg text-sm h-20 resize-none" />
+          <Input placeholder="參考" value={inlineCreateForm.ref} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="檔案類型 (pdf, md, mp4...)" value={inlineCreateForm.filetype} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, filetype: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="文件 URL" value={inlineCreateForm.file} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, file: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="封面圖 URL" value={inlineCreateForm.cover} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, cover: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="Hash（選填）" value={inlineCreateForm.hash} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, hash: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <div className="flex gap-2">
+            <Button onClick={handleInlineCreateSave} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">
+              新增
+            </Button>
+            <Button onClick={cancelInlineCreate} variant="outline" className="flex-1 gap-1 rounded-lg text-xs py-1.5">
+              取消
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {commondocument.length === 0 && !isInlineCreating ? (
         <EmptyState
           icon={<DocumentIcon className="w-12 h-12" />}
           title="尚無文件"

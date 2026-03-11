@@ -53,6 +53,25 @@ export default function MusicManagement() {
   const { music, loading, error, stats, loadMusic } = useMusic();
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingMusic, setEditingMusic] = useState<MusicData | null>(null);
+  const [isInlineCreating, setIsInlineCreating] = useState(false);
+  const [inlineCreateForm, setInlineCreateForm] = useState({
+    name: '',
+    file: '',
+    category: '',
+    language: '',
+    note: '',
+    ref: '',
+    lyrics: '',
+    cover: '',
+    filetype: '',
+  });
+  const [inlineCreateCoverFile, setInlineCreateCoverFile] = useState<File | null>(null);
+  const [inlineCreateCoverPreview, setInlineCreateCoverPreview] = useState<string>('');
+  const [inlineCreateCoverUploading, setInlineCreateCoverUploading] = useState(false);
+  const [inlineCreateAudioFile, setInlineCreateAudioFile] = useState<File | null>(null);
+  const [inlineCreateAudioPreview, setInlineCreateAudioPreview] = useState<string>('');
+  const [inlineCreateAudioUploading, setInlineCreateAudioUploading] = useState(false);
+  const inlineCreateAudioInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedMusicId, setExpandedMusicId] = useState<string | null>(null);
   const [exportingZip, setExportingZip] = useState(false);
@@ -689,7 +708,25 @@ export default function MusicManagement() {
 
   const handleAdd = () => {
     setEditingMusic(null);
-    setShowFormModal(true);
+    setShowFormModal(false);
+    setIsInlineCreating(true);
+    setInlineCreateForm({
+      name: '',
+      file: '',
+      category: '',
+      language: '',
+      note: '',
+      ref: '',
+      lyrics: '',
+      cover: '',
+      filetype: '',
+    });
+    setInlineCreateCoverFile(null);
+    setInlineCreateCoverPreview('');
+    setInlineCreateCoverUploading(false);
+    setInlineCreateAudioFile(null);
+    setInlineCreateAudioPreview('');
+    setInlineCreateAudioUploading(false);
   };
 
   const handleEdit = (musicItem: MusicData) => {
@@ -724,7 +761,72 @@ export default function MusicManagement() {
   const handleFormSuccess = () => {
     setShowFormModal(false);
     setEditingMusic(null);
+    setIsInlineCreating(false);
     loadMusic(true);
+  };
+
+  const cancelInlineCreate = () => {
+    setIsInlineCreating(false);
+    setInlineCreateForm({ name: '', file: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
+    setInlineCreateCoverFile(null);
+    setInlineCreateCoverPreview('');
+    setInlineCreateCoverUploading(false);
+    setInlineCreateAudioFile(null);
+    setInlineCreateAudioPreview('');
+    setInlineCreateAudioUploading(false);
+  };
+
+  const handleInlineCreateSave = async () => {
+    try {
+      let coverUrl = inlineCreateForm.cover;
+      let fileUrl = inlineCreateForm.file;
+      let filetype = inlineCreateForm.filetype;
+
+      if (!inlineCreateForm.name.trim()) {
+        alert('請輸入音樂名稱');
+        return;
+      }
+
+      if (inlineCreateAudioFile) {
+        setInlineCreateAudioUploading(true);
+        const result = await uploadToAppwriteStorage(inlineCreateAudioFile);
+        fileUrl = result.url;
+        filetype = inlineCreateAudioFile.name.split('.').pop()?.toLowerCase() || filetype;
+        setInlineCreateAudioUploading(false);
+      }
+
+      if (inlineCreateCoverFile) {
+        setInlineCreateCoverUploading(true);
+        const result = await uploadToAppwriteStorage(inlineCreateCoverFile);
+        coverUrl = result.url;
+        setInlineCreateCoverUploading(false);
+      }
+
+      const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.MUSIC), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineCreateForm.name,
+          file: fileUrl,
+          category: inlineCreateForm.category,
+          language: inlineCreateForm.language,
+          note: inlineCreateForm.note,
+          ref: inlineCreateForm.ref,
+          lyrics: inlineCreateForm.lyrics,
+          cover: coverUrl,
+          filetype,
+          hash: `inline_create_${Date.now()}`,
+        }),
+      });
+
+      if (!response.ok) throw new Error('新增失敗');
+      cancelInlineCreate();
+      loadMusic(true);
+    } catch (error) {
+      setInlineCreateCoverUploading(false);
+      setInlineCreateAudioUploading(false);
+      alert(error instanceof Error ? error.message : '新增失敗');
+    }
   };
 
   // 開始行內編輯
@@ -898,7 +1000,7 @@ export default function MusicManagement() {
       )}
 
       {/* 音樂列表 */}
-      {music.length === 0 ? (
+      {music.length === 0 && !isInlineCreating ? (
         <EmptyState
           icon={<MusicIcon className="w-12 h-12" />}
           title="尚無音樂"
@@ -912,6 +1014,99 @@ export default function MusicManagement() {
         />
       ) : (
         <div className="space-y-3">
+          {isInlineCreating && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3">
+              <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">新增中</div>
+              <Input placeholder="歌曲名稱" value={inlineCreateForm.name} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">音樂檔案</label>
+                <Input placeholder="音樂檔案 URL" value={inlineCreateForm.file} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, file: e.target.value })} className="h-9 rounded-lg text-sm" />
+                {(inlineCreateAudioPreview || inlineCreateForm.file) && (
+                  <audio src={inlineCreateAudioPreview || getProxiedMediaUrl(inlineCreateForm.file)} controls className="w-full h-8" />
+                )}
+                <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+                  <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                    {inlineCreateAudioUploading ? '上傳中...' : inlineCreateAudioFile ? inlineCreateAudioFile.name : '上傳音樂檔案'}
+                  </span>
+                  <input
+                    ref={inlineCreateAudioInputRef}
+                    type="file"
+                    accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/aac,audio/flac,audio/m4a"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 50 * 1024 * 1024) { alert('音樂檔案大小不能超過 50MB'); return; }
+                      setInlineCreateAudioFile(file);
+                      setInlineCreateAudioPreview(URL.createObjectURL(file));
+                      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                      setInlineCreateForm({ ...inlineCreateForm, filetype: ext });
+                    }}
+                    disabled={inlineCreateAudioUploading}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="分類" value={inlineCreateForm.category} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
+                <Input placeholder="語言" value={inlineCreateForm.language} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, language: e.target.value })} className="h-9 rounded-lg text-sm" />
+              </div>
+              <Textarea placeholder="歌詞" value={inlineCreateForm.lyrics} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, lyrics: e.target.value })} className="rounded-lg text-sm h-24 resize-none" />
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">封面圖</label>
+                {(inlineCreateCoverPreview || inlineCreateForm.cover) && (
+                  <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500">
+                    <img src={inlineCreateCoverPreview || inlineCreateForm.cover} alt="封面預覽" className="w-full h-full object-contain" />
+                    <button
+                      onClick={() => {
+                        setInlineCreateCoverFile(null);
+                        setInlineCreateCoverPreview('');
+                        setInlineCreateForm({ ...inlineCreateForm, cover: '' });
+                      }}
+                      className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                <Input placeholder="封面圖 URL" value={inlineCreateForm.cover} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, cover: e.target.value })} className="h-9 rounded-lg text-sm" />
+                <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+                  <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                    {inlineCreateCoverUploading ? '上傳中...' : inlineCreateCoverFile ? inlineCreateCoverFile.name : '上傳封面圖'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                      if (!validTypes.includes(file.type)) { alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片'); return; }
+                      if (file.size > 10 * 1024 * 1024) { alert('封面圖大小不能超過 10MB'); return; }
+                      setInlineCreateCoverFile(file);
+                      setInlineCreateCoverPreview(URL.createObjectURL(file));
+                    }}
+                    disabled={inlineCreateCoverUploading || inlineCreateAudioUploading}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              <Textarea placeholder="備註" value={inlineCreateForm.note} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, note: e.target.value })} className="rounded-lg text-sm h-16 resize-none" />
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="參考" value={inlineCreateForm.ref} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
+                <Input placeholder="檔案類型 (mp3, wav...)" value={inlineCreateForm.filetype} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, filetype: e.target.value })} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleInlineCreateSave} disabled={inlineCreateCoverUploading || inlineCreateAudioUploading} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5">
+                  {inlineCreateCoverUploading || inlineCreateAudioUploading ? '上傳中...' : '新增'}
+                </Button>
+                <Button onClick={cancelInlineCreate} variant="outline" disabled={inlineCreateCoverUploading || inlineCreateAudioUploading} className="flex-1 gap-1 rounded-lg text-xs py-1.5">
+                  取消
+                </Button>
+              </div>
+            </div>
+          )}
           {groupedMusic.map((group) => (
             <GroupedMusicCard
               key={group.name}

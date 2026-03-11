@@ -55,6 +55,9 @@ export default function SettingsManagement() {
     apiKey: ''
   });
   const [configSaved, setConfigSaved] = useState(false);
+  const [pushConfig, setPushConfig] = useState({
+    publicKey: ''
+  });
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkIsUpdate, setBulkIsUpdate] = useState(false);
   const [bulkQueue, setBulkQueue] = useState<string[]>([]);
@@ -105,7 +108,22 @@ export default function SettingsManagement() {
       apiKey: localStorage.getItem('APPWRITE_API_KEY') || ''
     };
     setAppwriteConfig(saved);
+    setPushConfig({
+      publicKey: localStorage.getItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY') || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+    });
   }, []);
+
+  const getPushPublicKey = () => {
+    if (typeof window === 'undefined') return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
+    return localStorage.getItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY') || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
+  };
+
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return Uint8Array.from(rawData, (char) => char.charCodeAt(0));
+  };
 
   const handleSaveConfig = () => {
     if (typeof window === 'undefined') return;
@@ -143,6 +161,18 @@ export default function SettingsManagement() {
     setTimeout(() => {
       window.location.reload();
     }, 500);
+  };
+
+  const handleSavePushConfig = () => {
+    if (typeof window === 'undefined') return;
+    const publicKey = pushConfig.publicKey.trim();
+    if (publicKey) {
+      localStorage.setItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY', publicKey);
+    } else {
+      localStorage.removeItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY');
+    }
+    alert('✅ 推播公鑰設定已儲存。\n重新整理後會套用新的推播設定。');
+    window.location.reload();
   };
 
   const handleBulkCreate = () => {
@@ -221,6 +251,7 @@ export default function SettingsManagement() {
     localStorage.removeItem('APPWRITE_DATABASE_ID');
     localStorage.removeItem('APPWRITE_BUCKET_ID');
     localStorage.removeItem('APPWRITE_API_KEY');
+    localStorage.removeItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY');
     localStorage.removeItem('appwrite_custom_config_saved');
     
     // 清除所有快取
@@ -240,7 +271,8 @@ NEXT_PUBLIC_APPWRITE_ENDPOINT=${appwriteConfig.endpoint}
 NEXT_PUBLIC_APPWRITE_PROJECT_ID=${appwriteConfig.projectId}
 APPWRITE_DATABASE_ID=${appwriteConfig.databaseId}
 APPWRITE_BUCKET_ID=${appwriteConfig.bucketId}
-APPWRITE_API_KEY=${appwriteConfig.apiKey}`;
+APPWRITE_API_KEY=${appwriteConfig.apiKey}
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}`;
     
     navigator.clipboard.writeText(envTemplate).then(() => {
       alert('✅ .env 設定已複製到剪貼簿！\n\n請執行以下步驟：\n1. 在專案根目錄建立或開啟 .env 檔案\n2. 貼上複製的內容\n3. 儲存檔案\n4. 重新啟動開發伺服器 (npm run dev)');
@@ -312,9 +344,9 @@ APPWRITE_API_KEY=${appwriteConfig.apiKey}`;
         return;
       }
 
-      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      const vapidKey = getPushPublicKey();
       if (!vapidKey) {
-        alert('推播服務未設定，請聯繫管理員');
+        alert('請先在鋒兄設定填入 NEXT_PUBLIC_VAPID_PUBLIC_KEY，再啟用推播通知');
         return;
       }
 
@@ -322,7 +354,7 @@ APPWRITE_API_KEY=${appwriteConfig.apiKey}`;
       if (!sub) {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: vapidKey,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
         });
       }
       if (sub) {
@@ -1011,6 +1043,24 @@ APPWRITE_API_KEY=${appwriteConfig.apiKey}`;
                     {pushSubscribed ? '已啟用' : '未啟用'}
                   </span>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block">NEXT_PUBLIC_VAPID_PUBLIC_KEY</label>
+                  <Input
+                    value={pushConfig.publicKey}
+                    onChange={(e) => setPushConfig({ publicKey: e.target.value })}
+                    placeholder="請貼上 Web Push VAPID 公鑰"
+                    className="font-mono text-sm"
+                  />
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleSavePushConfig}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      儲存推播設定
+                    </Button>
+                  </div>
+                </div>
                 {notificationPermission === 'denied' && (
                   <div className="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
                     <p className="text-xs text-red-700 dark:text-red-300">
@@ -1050,7 +1100,7 @@ APPWRITE_API_KEY=${appwriteConfig.apiKey}`;
                   <p className="text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
                     <span className="text-base">💡</span>
                     <span>
-                      <strong>每天 17:00（台灣時間）</strong>自動推播到期提醒，即使 APP 完全關閉也能收到通知。
+                      <strong>先儲存推播公鑰，再啟用推播通知。</strong> 每天 17:00（台灣時間）會自動推播到期提醒，即使 APP 完全關閉也能收到通知。
                     </span>
                   </p>
                 </div>
@@ -1072,7 +1122,7 @@ APPWRITE_API_KEY=${appwriteConfig.apiKey}`;
           </div>
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              系統會掃描 Appwrite Storage 中的所有檔案，找出資料庫中未引用的多餘檔案（圖片、影片、音樂、文件、播客）。
+              系統會掃描 Appwrite Storage 中的所有檔案，找出資料庫中未引用的多餘檔案（圖片、影片、音樂、文件、播客）。分段影片會連同 manifest 與所有 PART 一起納入引用判斷。
             </p>
             
             {/* 進度条 - 掃描 */}

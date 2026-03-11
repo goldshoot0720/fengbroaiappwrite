@@ -302,12 +302,12 @@ function SystemArchitecture() {
           <div className="space-y-2">
             <p className="text-gray-700 dark:text-gray-300"><strong>版本</strong>: v1.0.0</p>
             <p className="text-gray-700 dark:text-gray-300"><strong>技術框架</strong>: Next.js 16 / React 19 / Appwrite</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>程式碼規模</strong>: ~76,504 行</p>
+            <p className="text-gray-700 dark:text-gray-300"><strong>程式碼規模</strong>: 約 45,277 行原始碼</p>
           </div>
           <div className="space-y-2">
-            <p className="text-gray-700 dark:text-gray-300"><strong>TypeScript/TSX</strong>: 68,402 行 (182 檔案)</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>CSS/JSON/MD</strong>: 8,102 行 (87 檔案)</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>最後更新</strong>: 2026-03-03</p>
+            <p className="text-gray-700 dark:text-gray-300"><strong>TypeScript/TSX</strong>: 38,783 行</p>
+            <p className="text-gray-700 dark:text-gray-300"><strong>JavaScript/CSS/其他</strong>: 6,494 行</p>
+            <p className="text-gray-700 dark:text-gray-300"><strong>最後更新</strong>: 2026-03-12</p>
           </div>
         </div>
       </div>
@@ -318,7 +318,7 @@ function SystemArchitecture() {
 │                    瀏覽器前端                        │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
 │  │ 模組頁面  │  │ UI 元件   │  │ React Hooks     │  │
-│  │ (15 個)   │  │ (34 個)   │  │ (20 個)         │  │
+│  │ (15 個)   │  │ (35 個)   │  │ (19 個)         │  │
 │  └──────────┘  └──────────┘  └──────────────────┘  │
 │                       │                              │
 │              ┌────────┴────────┐                     │
@@ -329,14 +329,14 @@ function SystemArchitecture() {
                          │ HTTP API
 ┌────────────────────────┴───────────────────────────┐
 │                  Next.js API 路由                    │
-│              (24 個 API 端點群組)                     │
+│              (43 個 API 路由檔案)                     │
 └────────────────────────┬───────────────────────────┘
                          │ Appwrite SDK
 ┌────────────────────────┴───────────────────────────┐
 │                 Appwrite 後端服務                    │
 │  ┌──────────┐  ┌──────────────┐                     │
 │  │ Database │  │   Storage    │                     │
-│  │ (11 表)   │  │ (檔案儲存)   │                    │
+│  │ (多集合)  │  │ (媒體與分段) │                    │
 │  └──────────┘  └──────────────┘                     │
 └────────────────────────────────────────────────────┘`}
         </pre>
@@ -350,6 +350,7 @@ function SystemArchitecture() {
             <li>✅ 響應式設計：支援手機、平板、桌面</li>
             <li>✅ 離線功能：媒體快取與離線瀏覽</li>
             <li>✅ PWA 支援：可安裝為手機 App</li>
+            <li>✅ 大檔影片：支援分段上傳、串流播放、統一下載</li>
           </ul>
         </div>
 
@@ -358,6 +359,7 @@ function SystemArchitecture() {
           <ul className="space-y-2 text-gray-700 dark:text-gray-300 text-sm">
             <li>✅ AI 自動化：智慧化資料處理</li>
             <li>✅ 雲端整合：Appwrite 後端服務</li>
+            <li>✅ 動態設定：可在前端切換 Appwrite 與推播設定</li>
             <li>✅ 動態配置：免重新部署即可切換帳號</li>
             <li>✅ 高效快取：IndexedDB 離線儲存</li>
           </ul>

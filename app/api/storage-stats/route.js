@@ -60,7 +60,70 @@ function createAppwrite(config) {
   const storage = new sdk.Storage(client);
   const databases = new sdk.Databases(client);
 
-  return { storage, databases, bucketId, databaseId };
+  return { storage, databases, bucketId, databaseId, endpoint, projectId, apiKey };
+}
+
+function normalizeEndpoint(endpoint) {
+  if (!endpoint) return '';
+  return endpoint.endsWith('/v1') ? endpoint : `${endpoint.replace(/\/$/, '')}/v1`;
+}
+
+function isMultipartVideoRecord(doc, field) {
+  return field === 'file' && typeof doc?.filetype === 'string' && doc.filetype.endsWith('+part');
+}
+
+async function fetchMultipartManifestFileIds(storageConfig, bucketId, manifestFileId) {
+  try {
+    const endpoint = normalizeEndpoint(storageConfig.endpoint);
+    const url = `${endpoint}/storage/buckets/${bucketId}/files/${manifestFileId}/download?project=${storageConfig.projectId}`;
+    const response = await fetch(url, {
+      headers: {
+        'x-appwrite-key': storageConfig.apiKey,
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      console.warn(`    ⚠️ 讀取 multipart manifest 失敗: ${manifestFileId} HTTP ${response.status}`);
+      return [];
+    }
+
+    const manifest = await response.json();
+    if (!manifest || manifest.type !== 'fengbro-video-manifest' || !Array.isArray(manifest.parts)) {
+      return [];
+    }
+
+    return manifest.parts
+      .map((part) => extractFileId(part.fileId || part.url))
+      .filter(Boolean);
+  } catch (error) {
+    console.warn(`    ⚠️ 解析 multipart manifest 失敗: ${manifestFileId}`, error?.message || error);
+    return [];
+  }
+}
+
+function classifyStorageFile(file) {
+  const mimeType = file.mimeType || '';
+  const fileName = (file.name || '').toLowerCase();
+
+  if (mimeType.startsWith('image/')) return 'images';
+  if (mimeType.startsWith('video/')) return 'videos';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (fileName.includes('.manifest.json') || fileName.includes('.part')) return 'videos';
+
+  if (
+    mimeType === 'application/pdf' ||
+    mimeType === 'text/plain' ||
+    mimeType === 'text/markdown' ||
+    mimeType === 'application/json' ||
+    mimeType.includes('document') ||
+    mimeType.includes('spreadsheet')
+  ) {
+    return 'documents';
+  }
+
+  return 'other';
 }
 
 // Helper function to get all files from storage
@@ -88,7 +151,7 @@ async function getAllStorageFiles(storage, bucketId) {
 }
 
 // Helper function to get all referenced file IDs from database
-async function getAllReferencedFileIds(databases, databaseId) {
+async function getAllReferencedFileIds(databases, databaseId, storageConfig, bucketId) {
   // 所有可能使用檔案的集合與對應欄位 (使用 table name)
   // bank, commonaccount, subscription 不會使用到 storage 檔案
   const collectionFields = {
@@ -132,9 +195,9 @@ async function getAllReferencedFileIds(databases, databaseId) {
 
         collectionTotal += response.documents.length;
 
-        response.documents.forEach(doc => {
+        for (const doc of response.documents) {
           // Extract file IDs from collection-specific fields
-          fields.forEach(field => {
+          for (const field of fields) {
             if (doc[field]) {
               // Extract file ID from URL or use value as-is
               const fileId = extractFileId(doc[field]);
@@ -142,10 +205,18 @@ async function getAllReferencedFileIds(databases, databaseId) {
                 fileIdSet.add(fileId);
                 filesFound++;
                 console.log(`    ✅ ${doc.$id}.${field} = ${fileId}`);
+
+                if (collectionName === 'video' && isMultipartVideoRecord(doc, field)) {
+                  const partIds = await fetchMultipartManifestFileIds(storageConfig, bucketId, fileId);
+                  partIds.forEach((partId) => fileIdSet.add(partId));
+                  if (partIds.length > 0) {
+                    console.log(`    🎬 ${doc.$id} multipart parts = ${partIds.length}`);
+                  }
+                }
               }
             }
-          });
-        });
+          }
+        }
 
         if (response.documents.length < limit) {
           break;
@@ -169,7 +240,7 @@ async function getAllReferencedFileIds(databases, databaseId) {
 // Count orphaned files
 async function countOrphanedFiles(appwriteConfig) {
   try {
-    const { storage, databases, bucketId, databaseId } = createAppwrite(appwriteConfig);
+    const { storage, databases, bucketId, databaseId, endpoint, projectId, apiKey } = createAppwrite(appwriteConfig);
 
     console.log('\n=== 開始 Appwrite Storage 掃描 ===');
     
@@ -180,7 +251,12 @@ async function countOrphanedFiles(appwriteConfig) {
 
     // Get all referenced file IDs
     console.log('\n步驟 2: 掃描資料庫引用...');
-    const { fileIdSet: referencedIds, collectionCounts } = await getAllReferencedFileIds(databases, databaseId);
+    const { fileIdSet: referencedIds, collectionCounts } = await getAllReferencedFileIds(
+      databases,
+      databaseId,
+      { endpoint, projectId, apiKey },
+      bucketId
+    );
     console.log(`✅ 資料庫已引用 ${referencedIds.size} 個檔案`);
     
     // Validate: referenced should not exceed total files
@@ -230,24 +306,18 @@ async function countOrphanedFiles(appwriteConfig) {
     };
 
     orphanedFiles.forEach(file => {
-      const mimeType = file.mimeType || '';
-      if (mimeType.startsWith('image/')) {
+      const kind = classifyStorageFile(file);
+      if (kind === 'images') {
         orphanedByType.images++;
         console.log(`  🖼️ 圖片: ${file.name}`);
-      } else if (mimeType.startsWith('video/')) {
+      } else if (kind === 'videos') {
         orphanedByType.videos++;
         console.log(`  🎥 影片: ${file.name}`);
-      } else if (mimeType.startsWith('audio/')) {
+      } else if (kind === 'audio') {
         orphanedByType.music++;
         orphanedByType.podcasts++;
         console.log(`  🎵 音訊: ${file.name}`);
-      } else if (
-        mimeType === 'application/pdf' ||
-        mimeType === 'text/plain' ||
-        mimeType === 'text/markdown' ||
-        mimeType.includes('document') ||
-        mimeType.includes('spreadsheet')
-      ) {
+      } else if (kind === 'documents') {
         orphanedByType.documents++;
         console.log(`  📄 文件: ${file.name}`);
       } else {
@@ -306,13 +376,18 @@ export async function POST(request) {
       bucketId: searchParams.get('_bucket'),
     };
 
-    const { storage, databases, bucketId, databaseId } = createAppwrite(appwriteConfig);
+    const { storage, databases, bucketId, databaseId, endpoint, projectId, apiKey } = createAppwrite(appwriteConfig);
 
     // Get all storage files
     const allFiles = await getAllStorageFiles(storage, bucketId);
 
     // Get all referenced file IDs
-    const { fileIdSet: referencedIds } = await getAllReferencedFileIds(databases, databaseId);
+    const { fileIdSet: referencedIds } = await getAllReferencedFileIds(
+      databases,
+      databaseId,
+      { endpoint, projectId, apiKey },
+      bucketId
+    );
 
     // Find orphaned files
     const orphanedFiles = allFiles.filter(file => !referencedIds.has(file.$id));
@@ -402,24 +477,19 @@ export async function GET(request) {
     let otherCount = 0;
 
     allFiles.forEach(file => {
-      const mimeType = file.mimeType || '';
       const size = file.sizeOriginal || 0;
+      const kind = classifyStorageFile(file);
 
-      if (mimeType.startsWith('image/')) {
+      if (kind === 'images') {
         imagesSize += size;
         imagesCount++;
-      } else if (mimeType.startsWith('video/')) {
+      } else if (kind === 'videos') {
         videosSize += size;
         videosCount++;
-      } else if (mimeType.startsWith('audio/')) {
+      } else if (kind === 'audio') {
         musicSize += size;
         musicCount++;
-      } else if (
-        mimeType === 'application/pdf' ||
-        mimeType === 'text/plain' ||
-        mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-        mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      ) {
+      } else if (kind === 'documents') {
         documentsSize += size;
         documentsCount++;
       } else {

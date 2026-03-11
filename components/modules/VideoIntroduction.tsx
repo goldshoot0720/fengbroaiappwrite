@@ -150,6 +150,7 @@ export default function VideoIntroduction() {
   const { videos, loading, error, stats, loadVideos } = useVideos();
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingVideo, setEditingVideo] = useState<VideoData | null>(null);
+  const [isInlineCreating, setIsInlineCreating] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -753,7 +754,8 @@ export default function VideoIntroduction() {
 
   const handleAdd = () => {
     setEditingVideo(null);
-    setShowFormModal(true);
+    setShowFormModal(false);
+    setIsInlineCreating(true);
   };
 
   const handleEdit = (video: VideoData) => {
@@ -788,6 +790,7 @@ export default function VideoIntroduction() {
   const handleFormSuccess = () => {
     setShowFormModal(false);
     setEditingVideo(null);
+    setIsInlineCreating(false);
     loadVideos(true);
   };
 
@@ -1034,7 +1037,7 @@ export default function VideoIntroduction() {
       )}
 
       {/* 影片列表 */}
-      {videos.length === 0 ? (
+      {videos.length === 0 && !isInlineCreating ? (
         <EmptyState
           icon={<Play className="w-12 h-12" />}
           title="尚無影片"
@@ -1051,6 +1054,19 @@ export default function VideoIntroduction() {
           ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 lg:gap-4"
           : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-6"
         }>
+          {isInlineCreating && (
+            <div className="relative">
+              <InlineCreateVideoCard
+                existingVideos={videos}
+                compact={viewMode === 'bilibili'}
+                onCancel={() => setIsInlineCreating(false)}
+                onSuccess={() => {
+                  setIsInlineCreating(false);
+                  loadVideos(true);
+                }}
+              />
+            </div>
+          )}
           {filteredVideos.map((video) => (
             <div key={video.$id} className="relative">
               {selectionMode && (
@@ -1695,8 +1711,305 @@ interface VideoManagementCardProps {
   inlineCoverUploading: boolean;
 }
 
+function InlineCreateVideoCard({
+  existingVideos,
+  compact,
+  onCancel,
+  onSuccess,
+}: {
+  existingVideos: VideoData[];
+  compact: boolean;
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [formData, setFormData] = useState({
+    name: '',
+    file: '',
+    filetype: '',
+    note: '',
+    ref: '',
+    category: '',
+    hash: '',
+    cover: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [fileHash, setFileHash] = useState('');
+  const [duplicateWarning, setDuplicateWarning] = useState('');
+  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
+  const [coverPreviewLoading, setCoverPreviewLoading] = useState(false);
+  const [coverUploadProgress, setCoverUploadProgress] = useState(0);
+  const [coverUploadStatus, setCoverUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [useCategorySelect, setUseCategorySelect] = useState(true);
+
+  const existingCategories = Array.from(new Set(existingVideos.map((v) => v.category).filter(Boolean)));
+
+  const calculateFileHash = async (file: File): Promise<string> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      return `fallback_${file.name}_${file.size}_${file.lastModified}`;
+    }
+  };
+
+  const generateThumbnailFromVideo = (videoUrl: string, videoFileName?: string) => {
+    const video = document.createElement('video');
+    video.src = videoUrl;
+    video.crossOrigin = 'anonymous';
+    video.currentTime = 1;
+
+    video.addEventListener('seeked', () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            if (!blob) return;
+            const baseFileName = videoFileName || 'video';
+            const nameWithoutExt = baseFileName.substring(0, baseFileName.lastIndexOf('.')) || baseFileName;
+            const thumbnailName = `${nameWithoutExt}-thumbnail.jpg`;
+            const file = new File([blob], thumbnailName, { type: 'image/jpeg' });
+            setSelectedCoverFile(file);
+            setCoverPreviewUrl(URL.createObjectURL(blob));
+          }, 'image/jpeg', 0.9);
+        }
+      } finally {
+        URL.revokeObjectURL(videoUrl);
+      }
+    });
+
+    video.load();
+  };
+
+  const handleFileSelect = async (file: File | null) => {
+    if (!file) return;
+    const validTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 MP4, WebM, OGG, MOV 格式的影片');
+      return;
+    }
+
+    setPreviewLoading(true);
+    setUploadStatus('idle');
+    setUploadProgress(0);
+    setDuplicateWarning('');
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    const hash = await calculateFileHash(file);
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+    const filetype = file.name.split('.').pop()?.toLowerCase() || '';
+
+    if (!formData.cover && !selectedCoverFile) {
+      generateThumbnailFromVideo(objectUrl, file.name);
+    }
+
+    setFileHash(hash);
+    setFormData((prev) => ({
+      ...prev,
+      name: prev.name || fileNameWithoutExt,
+      hash,
+      filetype,
+    }));
+
+    const duplicateVideo = existingVideos.find((vid) => vid.hash === hash);
+    if (duplicateVideo) {
+      setDuplicateWarning(`警告：此影片與「${duplicateVideo.name}」相同，請勿重複上傳！`);
+    }
+
+    setTimeout(() => setPreviewLoading(false), 300);
+  };
+
+  const handleCoverFileSelect = (file: File | null) => {
+    if (!file) return;
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
+      return;
+    }
+    setCoverPreviewLoading(true);
+    setCoverUploadStatus('idle');
+    setCoverUploadProgress(0);
+    setSelectedCoverFile(file);
+    setCoverPreviewUrl(URL.createObjectURL(file));
+    setTimeout(() => setCoverPreviewLoading(false), 300);
+  };
+
+  const uploadVideoFile = async (file: File): Promise<{ url: string; fileId: string; filetype?: string }> => {
+    setUploadStatus('uploading');
+    setUploadProgress(0);
+    try {
+      const result = file.size > MAX_VIDEO_PART_SIZE
+        ? await uploadVideoInParts(file, setUploadProgress)
+        : await uploadToAppwriteStorage(file, setUploadProgress);
+      setUploadStatus('success');
+      return result;
+    } catch (error) {
+      setUploadStatus('error');
+      throw error;
+    }
+  };
+
+  const uploadCoverFile = async (file: File): Promise<{ url: string; fileId: string }> => {
+    setCoverUploadStatus('uploading');
+    setCoverUploadProgress(0);
+    try {
+      const result = await uploadToAppwriteStorage(file, setCoverUploadProgress);
+      setCoverUploadStatus('success');
+      return result;
+    } catch (error) {
+      setCoverUploadStatus('error');
+      throw error;
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      alert('請輸入影片名稱');
+      return;
+    }
+    if (duplicateWarning) {
+      alert('此影片與既有影片重複，無法上傳！請選擇其他影片。');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const finalFormData = { ...formData };
+
+      if (selectedFile) {
+        const { url, fileId, filetype } = await uploadVideoFile(selectedFile);
+        finalFormData.file = url;
+        finalFormData.filetype = filetype || finalFormData.filetype;
+        finalFormData.hash = fileHash || fileId;
+      } else if (!finalFormData.hash) {
+        finalFormData.hash = `no_file_${Date.now()}`;
+      }
+
+      if (selectedCoverFile) {
+        const { url } = await uploadCoverFile(selectedCoverFile);
+        finalFormData.cover = url;
+      }
+
+      const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalFormData),
+      });
+
+      if (!response.ok) throw new Error('新增失敗');
+      onSuccess();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '操作失敗');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className={`bg-white dark:bg-[#1f1f1f] rounded-xl overflow-hidden shadow-sm border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3 animate-in zoom-in-95 duration-300 ${compact ? '' : ''}`}>
+      <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">新增中</div>
+      <Input placeholder="影片名稱" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+      <Input placeholder="分類" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className={`h-9 rounded-lg text-sm ${useCategorySelect && existingCategories.length > 0 ? 'hidden' : ''}`} />
+      {useCategorySelect && existingCategories.length > 0 ? (
+        <Select
+          value={formData.category}
+          onValueChange={(value) => {
+            if (value === '__custom__') {
+              setUseCategorySelect(false);
+              setFormData({ ...formData, category: '' });
+            } else {
+              setFormData({ ...formData, category: value });
+            }
+          }}
+        >
+          <SelectTrigger className="h-9 rounded-lg text-sm">
+            <SelectValue placeholder="選擇分類" />
+          </SelectTrigger>
+          <SelectContent>
+            {existingCategories.map((cat) => (
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+            ))}
+            <SelectItem value="__custom__">自行輸入...</SelectItem>
+          </SelectContent>
+        </Select>
+      ) : null}
+      {!useCategorySelect && existingCategories.length > 0 && (
+        <Button type="button" variant="outline" size="sm" onClick={() => setUseCategorySelect(true)} className="w-full rounded-lg text-xs">
+          從現有分類中選擇
+        </Button>
+      )}
+      <Input placeholder="參考" value={formData.ref} onChange={(e) => setFormData({ ...formData, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
+      <Textarea placeholder="備註" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className={`rounded-lg text-sm resize-none ${compact ? 'h-16' : 'h-20'}`} />
+      <Input placeholder="影片 URL（選填）" value={formData.file} onChange={(e) => setFormData({ ...formData, file: e.target.value })} className="h-9 rounded-lg text-sm" disabled={submitting} />
+      <label className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
+        <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+          {previewLoading ? '載入中...' : selectedFile ? selectedFile.name : '上傳影片'}
+        </span>
+        <input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" onChange={(e) => handleFileSelect(e.target.files?.[0] || null)} disabled={submitting || previewLoading} className="hidden" />
+      </label>
+      {previewUrl && (
+        <video src={previewUrl} controls className="max-h-40 w-full rounded-lg border border-gray-200 dark:border-gray-700" />
+      )}
+      {duplicateWarning && (
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-sm font-medium text-red-600 dark:text-red-400">{duplicateWarning}</p>
+        </div>
+      )}
+      {(coverPreviewUrl || formData.cover) && (
+        <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+          <img src={coverPreviewUrl || formData.cover} alt="封面預覽" className="w-full h-full object-cover" />
+          <button onClick={() => { setSelectedCoverFile(null); setCoverPreviewUrl(''); setFormData({ ...formData, cover: '' }); }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+      <Input placeholder="封面圖 URL" value={formData.cover} onChange={(e) => setFormData({ ...formData, cover: e.target.value })} className="h-9 rounded-lg text-sm" />
+      <label className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
+        <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+        <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+          {coverPreviewLoading ? '載入中...' : selectedCoverFile ? selectedCoverFile.name : '上傳封面圖'}
+        </span>
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onChange={(e) => handleCoverFileSelect(e.target.files?.[0] || null)} disabled={submitting || coverPreviewLoading} className="hidden" />
+      </label>
+      {uploadStatus === 'uploading' && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400"><span>影片上傳中...</span><span>{uploadProgress}%</span></div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2"><div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} /></div>
+        </div>
+      )}
+      {coverUploadStatus === 'uploading' && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400"><span>封面上傳中...</span><span>{coverUploadProgress}%</span></div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2"><div className="bg-purple-600 h-2 rounded-full transition-all duration-300" style={{ width: `${coverUploadProgress}%` }} /></div>
+        </div>
+      )}
+      <div className="flex gap-2 pt-1">
+        <Button onClick={handleSave} disabled={submitting || !!duplicateWarning} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">
+          {submitting ? '新增中...' : '新增'}
+        </Button>
+        <Button onClick={onCancel} variant="outline" disabled={submitting} className="flex-1 gap-1 rounded-lg text-xs py-1.5">
+          取消
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // 影片管理卡片 (YouTube 2024 首頁風格)
-function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
+function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [showHoverActions, setShowHoverActions] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1869,7 +2182,7 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <button
-                  onClick={onEdit}
+                  onClick={() => onInlineEdit(video)}
                   className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-600 transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
                   title="編輯影片"
                 >

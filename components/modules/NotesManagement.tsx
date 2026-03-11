@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, ChevronUp, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2 } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2 } from "lucide-react";
 import JSZip from "jszip";
 import { FaviconImage } from "@/components/ui/favicon-image";
 
@@ -995,6 +995,12 @@ export default function NotesManagement() {
         showAccountLabel={true}
         action={
           <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => setIsFormCollapsed(false)}
+              className="rounded-xl flex items-center gap-2 h-12 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white"
+            >
+              <Plus size={18} /> 新增筆記
+            </Button>
             <Button onClick={() => document.getElementById('zip-import-notes')?.click()} variant="outline" className="rounded-xl flex items-center gap-2 h-12" title="匯入 ZIP">
               <Upload size={18} /> 匯入 ZIP
             </Button>
@@ -1025,26 +1031,8 @@ export default function NotesManagement() {
         }
       />
 
-      <FormCard
-        title={
-          <div className="flex items-center justify-between w-full border-l-4 border-purple-500 pl-4 py-2">
-            <h2 className="text-lg font-bold bg-gradient-to-r from-purple-500 to-purple-600 bg-clip-text text-transparent">
-              新增筆記
-            </h2>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setIsFormCollapsed(!isFormCollapsed)}
-              className="h-8 px-2 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20"
-            >
-              {isFormCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-            </Button>
-          </div>
-        }
-        accentColor="from-purple-500 to-purple-600"
-      >
-        {!isFormCollapsed && (
+      {!isFormCollapsed && (
+        <FormCard title="新增筆記" accentColor="from-purple-500 to-purple-600">
           <form onSubmit={handleSubmit} className="space-y-4">
             <FormGrid>
               <div className="space-y-1 col-span-2">
@@ -1290,11 +1278,11 @@ export default function NotesManagement() {
               <Button type="submit" className="h-12 px-6 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 rounded-xl font-medium shadow-lg shadow-purple-500/25">
                 新增筆記
               </Button>
-              {!isFormCollapsed && <Button type="button" variant="outline" onClick={() => setIsFormCollapsed(true)} className="h-12 px-6 rounded-xl">關閉</Button>}
+              <Button type="button" variant="outline" onClick={() => setIsFormCollapsed(true)} className="h-12 px-6 rounded-xl">關閉</Button>
             </FormActions>
           </form>
-        )}
-      </FormCard>
+        </FormCard>
+      )}
 
       {/* ZIP 匯入預覽對話框 */}
       {importPreview && (
@@ -1457,7 +1445,7 @@ export default function NotesManagement() {
 
       <DataCard>
         {articles.length === 0 ? (
-          <EmptyState emoji="📝" title="暫無筆記資料" description="點擊上方表單新增第一篇筆記" />
+          <EmptyState emoji="📝" title="暫無筆記資料" description="點擊上方「新增筆記」按鈕新增第一篇筆記" />
         ) : filteredArticles.length === 0 ? (
           <EmptyState emoji="🔍" title="無搜尋結果" description={`找不到「${searchQuery}」相關的筆記`} />
         ) : (

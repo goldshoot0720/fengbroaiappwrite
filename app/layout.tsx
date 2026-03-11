@@ -65,18 +65,36 @@ export default function RootLayout({
             __html: `
               var VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
 
+              function getRuntimeVapidPublicKey() {
+                try {
+                  return localStorage.getItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY') || VAPID_PUBLIC_KEY || '';
+                } catch (_) {
+                  return VAPID_PUBLIC_KEY || '';
+                }
+              }
+
+              function urlBase64ToUint8Array(base64String) {
+                var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+                var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+                var rawData = window.atob(base64);
+                return Uint8Array.from(rawData, function(char) {
+                  return char.charCodeAt(0);
+                });
+              }
+
               // 訂閱 Web Push（僅在已授權通知時執行）
               async function subscribeToPush(registration) {
                 if (!('pushManager' in registration)) return;
                 if (!('Notification' in window)) return;
                 if (Notification.permission !== 'granted') return;
-                if (!VAPID_PUBLIC_KEY) return;
+                var runtimeVapidPublicKey = getRuntimeVapidPublicKey();
+                if (!runtimeVapidPublicKey) return;
                 try {
                   var sub = await registration.pushManager.getSubscription();
                   if (!sub) {
                     sub = await registration.pushManager.subscribe({
                       userVisibleOnly: true,
-                      applicationServerKey: VAPID_PUBLIC_KEY,
+                      applicationServerKey: urlBase64ToUint8Array(runtimeVapidPublicKey),
                     });
                   }
                   if (sub) {
