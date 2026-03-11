@@ -58,6 +58,11 @@ export default function BankManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [transactionOpen, setTransactionOpen] = useState(false);
+  const [transactionType, setTransactionType] = useState<"income" | "expense">("income");
+  const [transactionBankId, setTransactionBankId] = useState("");
+  const [transactionAmount, setTransactionAmount] = useState("");
+  const [transactionSaving, setTransactionSaving] = useState(false);
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -110,6 +115,16 @@ export default function BankManagement() {
       bank.account?.toLowerCase().includes(query)
     );
   }, [banks, searchQuery]);
+
+  const selectedTransactionBank = useMemo(
+    () => banks.find((bank) => bank.$id === transactionBankId) || null,
+    [banks, transactionBankId]
+  );
+
+  const transactionAmountNumber = Number(transactionAmount) || 0;
+  const transactionNextDeposit = selectedTransactionBank
+    ? (Number(selectedTransactionBank.deposit) || 0) + (transactionType === "income" ? transactionAmountNumber : -transactionAmountNumber)
+    : 0;
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -185,6 +200,60 @@ export default function BankManagement() {
     setForm(INITIAL_FORM);
     setEditingId(null);
     setIsFormOpen(false);
+  };
+
+  const resetTransactionForm = () => {
+    setTransactionOpen(false);
+    setTransactionType("income");
+    setTransactionBankId("");
+    setTransactionAmount("");
+    setTransactionSaving(false);
+  };
+
+  const openTransactionModal = (type: "income" | "expense") => {
+    setTransactionType(type);
+    setTransactionBankId("");
+    setTransactionAmount("");
+    setTransactionOpen(true);
+  };
+
+  const handleTransactionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedTransactionBank) {
+      alert("請先選擇銀行");
+      return;
+    }
+
+    if (!Number.isFinite(transactionAmountNumber) || transactionAmountNumber <= 0) {
+      alert("請輸入正確金額");
+      return;
+    }
+
+    const currentDeposit = Number(selectedTransactionBank.deposit) || 0;
+    const nextDeposit = transactionType === "income"
+      ? currentDeposit + transactionAmountNumber
+      : currentDeposit - transactionAmountNumber;
+
+    setTransactionSaving(true);
+
+    try {
+      await updateBank(selectedTransactionBank.$id, {
+        name: selectedTransactionBank.name,
+        deposit: nextDeposit,
+        site: selectedTransactionBank.site || "",
+        address: selectedTransactionBank.address || "",
+        withdrawals: selectedTransactionBank.withdrawals || 0,
+        transfer: selectedTransactionBank.transfer || 0,
+        activity: selectedTransactionBank.activity || "",
+        card: selectedTransactionBank.card || "",
+        account: selectedTransactionBank.account || "",
+      });
+      resetTransactionForm();
+    } catch {
+      setTransactionSaving(false);
+      alert("更新銀行金額失敗，請稍後再試");
+    }
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -401,13 +470,29 @@ export default function BankManagement() {
         }
       />
 
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2 flex-wrap">
         <input type="file" accept=".csv" onChange={handleFileSelect} className="hidden" id="csv-import-bank" />
         <Button onClick={() => document.getElementById('csv-import-bank')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
           <Upload size={18} /> 匯入
         </Button>
         <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV">
           <Download size={18} /> 匯出
+        </Button>
+        <Button
+          onClick={() => openTransactionModal("income")}
+          variant="outline"
+          className="rounded-xl flex items-center gap-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 h-10 px-4"
+        >
+          <Plus size={18} />
+          新增收入
+        </Button>
+        <Button
+          onClick={() => openTransactionModal("expense")}
+          variant="outline"
+          className="rounded-xl flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700 h-10 px-4"
+        >
+          <Minus size={18} />
+          新增支出
         </Button>
         <Button
           onClick={() => setIsFormOpen(!isFormOpen)}
@@ -475,6 +560,109 @@ export default function BankManagement() {
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {transactionOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    {transactionType === "income" ? "新增收入" : "新增支出"}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    先選擇銀行，再確認收入或支出，最後輸入金額並更新實際餘額。
+                  </p>
+                </div>
+                <Button type="button" variant="ghost" size="icon" onClick={resetTransactionForm} className="rounded-xl shrink-0">
+                  <X size={18} />
+                </Button>
+              </div>
+            </div>
+
+            <form onSubmit={handleTransactionSubmit} className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">選擇銀行</label>
+                <Select value={transactionBankId} onValueChange={setTransactionBankId}>
+                  <SelectTrigger className="h-12 rounded-xl">
+                    <SelectValue placeholder="請選擇銀行" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {banks.map((bank) => (
+                      <SelectItem key={bank.$id} value={bank.$id}>
+                        {bank.name} ({formatCurrency(bank.deposit || 0)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">收入 / 支出</label>
+                <Select value={transactionType} onValueChange={(value) => setTransactionType(value as "income" | "expense")}>
+                  <SelectTrigger className="h-12 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="income">收入</SelectItem>
+                    <SelectItem value="expense">支出</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">金額</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="請輸入金額"
+                  value={transactionAmount}
+                  onChange={(e) => setTransactionAmount(e.target.value)}
+                  className="h-12 rounded-xl"
+                  required
+                />
+              </div>
+
+              {selectedTransactionBank && (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 p-4 space-y-2 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">目前餘額</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatCurrency(selectedTransactionBank.deposit || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">本次{transactionType === "income" ? "收入" : "支出"}</span>
+                    <span className={transactionType === "income" ? "font-semibold text-green-600" : "font-semibold text-red-600"}>
+                      {transactionType === "income" ? "+" : "-"}{formatCurrency(transactionAmountNumber)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-4 border-t border-gray-200 dark:border-gray-700 pt-2">
+                    <span className="text-gray-500">更新後餘額</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400">
+                      {formatCurrency(transactionNextDeposit)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={resetTransactionForm} className="rounded-xl" disabled={transactionSaving}>
+                  取消
+                </Button>
+                <Button
+                  type="submit"
+                  className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                  disabled={transactionSaving}
+                >
+                  {transactionSaving ? "更新中..." : "完成"}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
