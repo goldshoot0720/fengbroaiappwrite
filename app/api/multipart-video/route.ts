@@ -148,18 +148,20 @@ function parseRangeHeader(rangeHeader: string | null, totalSize: number) {
   return { start, end, partial: true };
 }
 
-async function fetchPartResponse(partUrl: string, start: number, end: number, searchParams: URLSearchParams) {
-  const response = await fetchWithAuthFallback(ensureProjectParam(partUrl, searchParams), {
-    headers: {
-      range: `bytes=${start}-${end}`,
-    },
-  }, searchParams);
+async function fetchPartBytes(partUrl: string, start: number, end: number, searchParams: URLSearchParams) {
+  const response = await fetchWithAuthFallback(ensureProjectParam(partUrl, searchParams), {}, searchParams);
 
   if (!response.ok) {
     throw new Error(`Part fetch failed: HTTP ${response.status} for range ${start}-${end}`);
   }
 
-  return response;
+  const fullBytes = new Uint8Array(await response.arrayBuffer());
+
+  if (start < 0 || end < start || end >= fullBytes.byteLength) {
+    throw new Error(`Part slice out of bounds for range ${start}-${end} within ${fullBytes.byteLength} bytes`);
+  }
+
+  return fullBytes.slice(start, end + 1);
 }
 
 export async function HEAD(request: NextRequest) {
@@ -208,17 +210,11 @@ export async function GET(request: NextRequest) {
       async start(controller) {
         try {
           for (const [index, part] of partsToRead.entries()) {
-            const response = await fetchPartResponse(part.url, part.start, part.end, searchParams);
-            const reader = response.body?.getReader();
-            if (!reader) {
+            const bytes = await fetchPartBytes(part.url, part.start, part.end, searchParams);
+            if (!bytes.byteLength) {
               throw new Error(`Part response body is empty at index ${index}`);
             }
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              if (value) controller.enqueue(value);
-            }
+            controller.enqueue(bytes);
           }
           controller.close();
         } catch (error) {
