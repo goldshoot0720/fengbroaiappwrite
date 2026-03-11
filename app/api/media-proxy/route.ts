@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+function buildContentDisposition(filename: string) {
+  const asciiFallback = filename.replace(/[^\x20-\x7E]+/g, '_').replace(/"/g, '');
+  const encoded = encodeURIComponent(filename);
+  return `attachment; filename="${asciiFallback || 'download'}"; filename*=UTF-8''${encoded}`;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -58,14 +64,14 @@ export async function GET(request: NextRequest) {
 
         const retryResponse = await fetch(publicUrl, { headers: retryHeaders, cache: 'no-store', redirect: 'follow' });
         if (retryResponse.status < 400) {
-          return createProxiedResponse(retryResponse, publicUrl);
+          return createProxiedResponse(retryResponse, publicUrl, request);
         }
       }
 
       return new NextResponse(`Media fetch failed with status ${response.status}`, { status: response.status });
     }
 
-    return createProxiedResponse(response, url);
+    return createProxiedResponse(response, url, request);
 
   } catch (error) {
     console.error('Media proxy error:', error);
@@ -134,8 +140,9 @@ export async function HEAD(request: NextRequest) {
   }
 }
 
-function createProxiedResponse(response: Response, url: string) {
+function createProxiedResponse(response: Response, url: string, request: NextRequest) {
   const responseHeaders = new Headers();
+  const searchParams = new URL(request.url).searchParams;
 
   // Essential headers for streaming and playback
   const headersToCopy = [
@@ -157,8 +164,12 @@ function createProxiedResponse(response: Response, url: string) {
     responseHeaders.set('accept-ranges', 'bytes');
   }
 
-  // Force inline disposition to prevent download prompts
-  responseHeaders.set('content-disposition', 'inline');
+  if (searchParams.get('download') === '1') {
+    const filename = searchParams.get('filename') || url.split('?')[0].split('/').pop() || 'download';
+    responseHeaders.set('content-disposition', buildContentDisposition(filename));
+  } else {
+    responseHeaders.set('content-disposition', 'inline');
+  }
 
   // Add CORS headers to allow PDF preview and other cross-origin usage
   responseHeaders.set('access-control-allow-origin', '*');

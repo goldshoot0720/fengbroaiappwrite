@@ -124,6 +124,26 @@ export function getProxiedMediaUrl(url: string | undefined | null): string {
   return `/api/media-proxy?${params.toString()}`;
 }
 
+export function getProxiedMediaDownloadUrl(
+  url: string | undefined | null,
+  filename?: string | null
+): string {
+  if (!url) return '';
+
+  const proxiedUrl = getProxiedMediaUrl(getAppwriteDownloadUrl(url));
+  if (!proxiedUrl) return '';
+
+  const separator = proxiedUrl.includes('?') ? '&' : '?';
+  const params = new URLSearchParams();
+  params.set('download', '1');
+
+  if (filename) {
+    params.set('filename', filename);
+  }
+
+  return `${proxiedUrl}${separator}${params.toString()}`;
+}
+
 /**
  * 獲取 Appwrite 的下載 URL（強制下載而非在瀏覽器預覽）
  * @param url 原始 URL
