@@ -18,7 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { VideoItem } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
-import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
+import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getMultipartVideoDownloadUrl, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
@@ -128,32 +128,20 @@ async function downloadVideoToBrowser(video: VideoData): Promise<void> {
     throw new Error("此影片沒有可下載的檔案");
   }
 
-  if (!isMultipartVideoFiletype(video.filetype)) {
-    const downloadUrl = getAppwriteDownloadUrl(video.file);
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = getVideoDownloadFilename({ file: video.file, filetype: video.filetype, name: video.name });
-    link.target = "_blank";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    return;
-  }
-
-  const { blob, fileName } = await resolveVideoBlob({
+  const fileName = getVideoDownloadFilename({
     file: video.file,
     filetype: video.filetype,
     name: video.name,
   });
-
-  const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = objectUrl;
+  link.href = isMultipartVideoFiletype(video.filetype)
+    ? getMultipartVideoDownloadUrl(video.file, fileName)
+    : getAppwriteDownloadUrl(video.file);
   link.download = fileName;
+  link.target = "_blank";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 
@@ -1880,6 +1868,24 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
               >
                 {video.name}
               </h3>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onInlineEdit(video);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                  title="行內編輯"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  編輯資料
+                </button>
+                {!video.file && (
+                  <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
+                    尚未上傳影片
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">鋒兄影片</p>
               <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                 <span>{formatLocalDate(video.$createdAt)}</span>
@@ -1896,7 +1902,8 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
             <div className="relative" ref={menuRef}>
               <button
                 onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                title="更多操作"
               >
                 <MoreVertical className="w-5 h-5 text-gray-700 dark:text-gray-300" />
               </button>

@@ -122,6 +122,12 @@ function buildHeaders(manifest: VideoPartManifest, contentLength: number, conten
   return headers;
 }
 
+function buildContentDisposition(filename: string) {
+  const asciiFallback = filename.replace(/[^\x20-\x7E]+/g, '_').replace(/"/g, '');
+  const encoded = encodeURIComponent(filename);
+  return `attachment; filename="${asciiFallback || 'video.mp4'}"; filename*=UTF-8''${encoded}`;
+}
+
 function parseRangeHeader(rangeHeader: string | null, totalSize: number) {
   if (!rangeHeader?.startsWith('bytes=')) {
     return { start: 0, end: totalSize - 1, partial: false };
@@ -225,9 +231,15 @@ export async function GET(request: NextRequest) {
     });
 
     const contentRange = partial ? `bytes ${start}-${end}/${manifest.originalSize}` : undefined;
+    const headers = buildHeaders(manifest, contentLength, contentRange);
+    if (searchParams.get('download') === '1') {
+      const filename = searchParams.get('filename') || manifest.originalName || `video.${manifest.originalExtension || 'mp4'}`;
+      headers.set('content-disposition', buildContentDisposition(filename));
+    }
+
     return new NextResponse(stream, {
       status: partial ? 206 : 200,
-      headers: buildHeaders(manifest, contentLength, contentRange),
+      headers,
     });
   } catch (error) {
     console.error('[multipart-video][GET]', {

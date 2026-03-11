@@ -161,6 +161,31 @@ export function getMultipartVideoPlaybackUrl(manifestUrl: string | undefined | n
   return `/api/multipart-video?${params.toString()}`;
 }
 
+export function getMultipartVideoDownloadUrl(
+  manifestUrl: string | undefined | null,
+  filename?: string | null
+): string {
+  if (!manifestUrl) return '';
+
+  const params = new URLSearchParams();
+  params.set('manifestUrl', getAppwriteDownloadUrl(manifestUrl));
+  params.set('download', '1');
+
+  if (filename) {
+    params.set('filename', filename);
+  }
+
+  const config = getAppwriteConfig();
+  if (config.apiKey && config.apiKey !== 'undefined' && config.apiKey !== 'null') {
+    params.set('_key', config.apiKey);
+  }
+  if (config.projectId && config.projectId !== 'undefined' && config.projectId !== 'null') {
+    params.set('_project', config.projectId);
+  }
+
+  return `/api/multipart-video?${params.toString()}`;
+}
+
 /**
  * 獲取當前 Appwrite 帳號的友善顯示名稱
  * - 使用 .env 配置時返回 "appwrite-.env"
