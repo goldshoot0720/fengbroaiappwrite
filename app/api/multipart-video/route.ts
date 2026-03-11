@@ -36,20 +36,62 @@ function getAuthHeaders(searchParams: URLSearchParams) {
   return headers;
 }
 
+function ensureProjectParam(url: string, searchParams: URLSearchParams) {
+  if (url.includes('project=')) {
+    return url;
+  }
+
+  const projectId = searchParams.get('_project');
+  if (!projectId || projectId === 'undefined' || projectId === 'null') {
+    return url;
+  }
+
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}project=${projectId}`;
+}
+
+async function fetchWithAuthFallback(
+  url: string,
+  init: RequestInit,
+  searchParams: URLSearchParams
+) {
+  const authHeaders = getAuthHeaders(searchParams);
+  const headers = {
+    ...(init.headers || {}),
+    ...authHeaders,
+  };
+
+  let response = await fetch(url, {
+    ...init,
+    headers,
+    cache: 'no-store',
+    redirect: 'follow',
+  });
+
+  if ((response.status === 401 || response.status === 403) && authHeaders['x-appwrite-key']) {
+    const publicUrl = ensureProjectParam(url, searchParams);
+    response = await fetch(publicUrl, {
+      ...init,
+      headers: init.headers,
+      cache: 'no-store',
+      redirect: 'follow',
+    });
+  }
+
+  return response;
+}
+
 async function fetchManifest(searchParams: URLSearchParams): Promise<VideoPartManifest> {
-  const manifestUrl = searchParams.get('manifestUrl');
+  const manifestUrl = ensureProjectParam(searchParams.get('manifestUrl') || '', searchParams);
   if (!manifestUrl) {
     throw new Error('Missing manifestUrl parameter');
   }
 
-  const response = await fetch(manifestUrl, {
+  const response = await fetchWithAuthFallback(manifestUrl, {
     headers: {
       Accept: 'application/json',
-      ...getAuthHeaders(searchParams),
     },
-    cache: 'no-store',
-    redirect: 'follow',
-  });
+  }, searchParams);
 
   if (!response.ok) {
     throw new Error(`Manifest fetch failed: HTTP ${response.status}`);
@@ -106,15 +148,12 @@ function parseRangeHeader(rangeHeader: string | null, totalSize: number) {
   return { start, end, partial: true };
 }
 
-async function fetchPartResponse(partUrl: string, start: number, end: number, authHeaders: Record<string, string>) {
-  const response = await fetch(partUrl, {
+async function fetchPartResponse(partUrl: string, start: number, end: number, searchParams: URLSearchParams) {
+  const response = await fetchWithAuthFallback(ensureProjectParam(partUrl, searchParams), {
     headers: {
-      ...authHeaders,
       range: `bytes=${start}-${end}`,
     },
-    cache: 'no-store',
-    redirect: 'follow',
-  });
+  }, searchParams);
 
   if (!response.ok) {
     throw new Error(`Part fetch failed: HTTP ${response.status} for range ${start}-${end}`);
@@ -144,7 +183,6 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const manifest = await fetchManifest(searchParams);
-    const authHeaders = getAuthHeaders(searchParams);
     const { start, end, partial } = parseRangeHeader(request.headers.get('range'), manifest.originalSize);
 
     const partsToRead: Array<{ url: string; start: number; end: number }> = [];
@@ -170,7 +208,7 @@ export async function GET(request: NextRequest) {
       async start(controller) {
         try {
           for (const [index, part] of partsToRead.entries()) {
-            const response = await fetchPartResponse(part.url, part.start, part.end, authHeaders);
+            const response = await fetchPartResponse(part.url, part.start, part.end, searchParams);
             const reader = response.body?.getReader();
             if (!reader) {
               throw new Error(`Part response body is empty at index ${index}`);
