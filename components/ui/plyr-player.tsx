@@ -32,6 +32,7 @@ interface PlyrPlayerProps {
   loop?: boolean;
   autoplay?: boolean;
   className?: string;
+  onEnded?: () => void;
   tracks?: Array<{
     kind: 'captions' | 'subtitles';
     label: string;
@@ -48,6 +49,7 @@ export function PlyrPlayer({
   loop = false,
   autoplay = false,
   className = "",
+  onEnded,
   tracks = []
 }: PlyrPlayerProps) {
   const [isMounted, setIsMounted] = useState(false);
@@ -136,6 +138,14 @@ export function PlyrPlayer({
       return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
     }
   }, [type, src]);
+
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (!media || !onEnded) return;
+
+    media.addEventListener('ended', onEnded);
+    return () => media.removeEventListener('ended', onEnded);
+  }, [onEnded, src, type]);
 
   if (!isMounted) {
     return (
