@@ -18,7 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { VideoItem } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
-import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getMultipartVideoDownloadUrl, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
+import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getMultipartVideoDownloadUrl, getProxiedMediaUrl, getProxiedMediaDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
@@ -136,7 +136,7 @@ async function downloadVideoToBrowser(video: VideoData): Promise<void> {
   const link = document.createElement("a");
   link.href = isMultipartVideoFiletype(video.filetype)
     ? getMultipartVideoDownloadUrl(video.file, fileName)
-    : getAppwriteDownloadUrl(video.file);
+    : getProxiedMediaDownloadUrl(video.file, fileName);
   link.download = fileName;
   link.target = "_blank";
   document.body.appendChild(link);
@@ -1696,12 +1696,10 @@ interface VideoManagementCardProps {
 }
 
 // 影片管理卡片 (YouTube 2024 首頁風格)
-function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
+function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDownload, onDirectDownload, onDeleteCache, onAddToQueue, isInQueue, isEditing, inlineEditForm, setInlineEditForm, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading }: VideoManagementCardProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const [showMenu, setShowMenu] = useState(false);
   const [showHoverActions, setShowHoverActions] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const inlineCoverInputRef = useRef<HTMLInputElement>(null);
 
   // 處理行內編輯封面上傳
@@ -1714,15 +1712,6 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
     setInlineCoverFile(file);
     setInlineCoverPreview(URL.createObjectURL(file));
   };
-
-  // 點擊外部關閉選單
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
-    };
-    if (showMenu) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showMenu]);
 
   useEffect(() => {
     if (!video.cover && video.file) {
@@ -1868,24 +1857,6 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
               >
                 {video.name}
               </h3>
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onInlineEdit(video);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                  title="行內編輯"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                  編輯資料
-                </button>
-                {!video.file && (
-                  <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
-                    尚未上傳影片
-                  </span>
-                )}
-              </div>
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">鋒兄影片</p>
               <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                 <span>{formatLocalDate(video.$createdAt)}</span>
@@ -1896,67 +1867,75 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
                   <span className="text-orange-600 dark:text-orange-400">尚未上傳</span>
                 )}
               </div>
-            </div>
-
-            {/* 垂直三點選單按鈕 */}
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                title="更多操作"
-              >
-                <MoreVertical className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-              </button>
-
-              {/* 下拉選單 */}
-              {showMenu && (
-                <div className="absolute right-0 top-8 z-20 w-48 bg-white dark:bg-[#282828] rounded-xl shadow-xl border dark:border-white/10 py-2 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={onEdit}
+                  className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-600 transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                  title="編輯影片"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  編輯
+                </button>
+                {video.file && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); setShowMenu(false); onInlineEdit(video); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                    onClick={onDirectDownload}
+                    className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
+                    title="下載影片"
                   >
-                    <Edit className="w-4 h-4" /> 編輯
+                    <Download className="w-3.5 h-3.5" />
+                    下載
                   </button>
-                  {video.file && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowMenu(false);
-                        onDirectDownload();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
-                    >
-                      <Download className="w-4 h-4" /> 下載
-                    </button>
-                  )}
-                  {video.file && onAddToQueue && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onAddToQueue(); }}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-white/10 transition-colors ${isInQueue ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-200'}`}
-                    >
-                      <ListPlus className="w-4 h-4" /> {isInQueue ? '已在佇列中' : '加入佇列'}
-                    </button>
-                  )}
-                  {video.file && (
-                    cacheStatus?.cached ? (
-                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDeleteCache(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-orange-600 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                        <HardDrive className="w-4 h-4" /> 刪除快取
-                      </button>
-                    ) : (
-                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDownload(); }} disabled={cacheStatus?.downloading} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                        <HardDrive className="w-4 h-4" /> 快取到本地
-                      </button>
-                    )
-                  )}
-                  <div className="border-t dark:border-white/10 my-1" />
+                )}
+                {video.file && onAddToQueue && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDelete(); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    onClick={onAddToQueue}
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                      isInQueue
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                        : 'bg-black/5 text-gray-700 hover:bg-black/10 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15'
+                    }`}
+                    title={isInQueue ? '已在佇列中' : '加入佇列'}
                   >
-                    <Trash2 className="w-4 h-4" /> 刪除
+                    <ListPlus className="w-3.5 h-3.5" />
+                    {isInQueue ? '已加入' : '佇列'}
                   </button>
-                </div>
-              )}
+                )}
+                {video.file && (
+                  cacheStatus?.cached ? (
+                    <button
+                      onClick={onDeleteCache}
+                      className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 transition-colors hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/50"
+                      title="刪除快取"
+                    >
+                      <HardDrive className="w-3.5 h-3.5" />
+                      刪快取
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onDownload}
+                      disabled={cacheStatus?.downloading}
+                      className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-1 text-[11px] font-medium text-purple-600 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                      title="快取到本地"
+                    >
+                      <HardDrive className="w-3.5 h-3.5" />
+                      {cacheStatus?.downloading ? '快取中' : '快取'}
+                    </button>
+                  )
+                )}
+                <button
+                  onClick={onDelete}
+                  className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
+                  title="刪除影片"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  刪除
+                </button>
+                {!video.file && (
+                  <span className="inline-flex items-center rounded-md bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
+                    尚未上傳影片
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
