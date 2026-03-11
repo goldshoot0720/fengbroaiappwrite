@@ -21,6 +21,12 @@ interface VideoPartManifest {
   parts: VideoPartManifestEntry[];
 }
 
+function isVideoPartManifest(value: unknown): value is VideoPartManifest {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<VideoPartManifest>;
+  return candidate.type === 'fengbro-video-manifest' && Array.isArray(candidate.parts);
+}
+
 function getAuthHeaders(searchParams: URLSearchParams) {
   const headers: Record<string, string> = {};
   const apiKey = searchParams.get('_key');
@@ -49,12 +55,17 @@ async function fetchManifest(searchParams: URLSearchParams): Promise<VideoPartMa
     throw new Error(`Manifest fetch failed: HTTP ${response.status}`);
   }
 
-  const manifest = await response.json();
-  if (manifest?.type !== 'fengbro-video-manifest' || !Array.isArray(manifest?.parts)) {
+  let manifest: unknown;
+  try {
+    manifest = await response.json();
+  } catch {
+    throw new Error('Manifest JSON parse failed');
+  }
+  if (!isVideoPartManifest(manifest)) {
     throw new Error('Invalid multipart video manifest');
   }
 
-  return manifest as VideoPartManifest;
+  return manifest;
 }
 
 function buildHeaders(manifest: VideoPartManifest, contentLength: number, contentRange?: string) {
@@ -106,7 +117,7 @@ async function fetchPartResponse(partUrl: string, start: number, end: number, au
   });
 
   if (!response.ok) {
-    throw new Error(`Part fetch failed: HTTP ${response.status}`);
+    throw new Error(`Part fetch failed: HTTP ${response.status} for range ${start}-${end}`);
   }
 
   return response;
@@ -121,6 +132,7 @@ export async function HEAD(request: NextRequest) {
       headers: buildHeaders(manifest, manifest.originalSize),
     });
   } catch (error) {
+    console.error('[multipart-video][HEAD]', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to load multipart video metadata' },
       { status: 500 }
@@ -157,11 +169,11 @@ export async function GET(request: NextRequest) {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          for (const part of partsToRead) {
+          for (const [index, part] of partsToRead.entries()) {
             const response = await fetchPartResponse(part.url, part.start, part.end, authHeaders);
             const reader = response.body?.getReader();
             if (!reader) {
-              throw new Error('Part response body is empty');
+              throw new Error(`Part response body is empty at index ${index}`);
             }
 
             while (true) {
@@ -172,6 +184,7 @@ export async function GET(request: NextRequest) {
           }
           controller.close();
         } catch (error) {
+          console.error('[multipart-video][stream]', error);
           controller.error(error instanceof Error ? error : new Error('Failed to stream multipart video'));
         }
       }
@@ -183,6 +196,11 @@ export async function GET(request: NextRequest) {
       headers: buildHeaders(manifest, contentLength, contentRange),
     });
   } catch (error) {
+    console.error('[multipart-video][GET]', {
+      error: error instanceof Error ? error.message : error,
+      range: request.headers.get('range'),
+      manifestUrl: new URL(request.url).searchParams.get('manifestUrl'),
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to stream multipart video' },
       { status: 500 }
