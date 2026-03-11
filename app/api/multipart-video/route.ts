@@ -75,8 +75,18 @@ function parseRangeHeader(rangeHeader: string | null, totalSize: number) {
   }
 
   const [rawStart, rawEnd] = rangeHeader.replace('bytes=', '').split('-');
-  const start = rawStart ? Number.parseInt(rawStart, 10) : 0;
-  const end = rawEnd ? Number.parseInt(rawEnd, 10) : totalSize - 1;
+  let start = rawStart ? Number.parseInt(rawStart, 10) : 0;
+  let end = rawEnd ? Number.parseInt(rawEnd, 10) : totalSize - 1;
+
+  // Support suffix-byte-range-spec, e.g. "bytes=-65536"
+  if (!rawStart && rawEnd) {
+    const suffixLength = Number.parseInt(rawEnd, 10);
+    if (Number.isNaN(suffixLength) || suffixLength <= 0) {
+      throw new Error('Invalid range request');
+    }
+    start = Math.max(totalSize - suffixLength, 0);
+    end = totalSize - 1;
+  }
 
   if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || end < start || end >= totalSize) {
     throw new Error('Invalid range request');
@@ -85,7 +95,7 @@ function parseRangeHeader(rangeHeader: string | null, totalSize: number) {
   return { start, end, partial: true };
 }
 
-async function fetchPartBytes(partUrl: string, start: number, end: number, authHeaders: Record<string, string>) {
+async function fetchPartResponse(partUrl: string, start: number, end: number, authHeaders: Record<string, string>) {
   const response = await fetch(partUrl, {
     headers: {
       ...authHeaders,
@@ -95,11 +105,11 @@ async function fetchPartBytes(partUrl: string, start: number, end: number, authH
     redirect: 'follow',
   });
 
-  if (!response.ok && response.status !== 206) {
+  if (!response.ok) {
     throw new Error(`Part fetch failed: HTTP ${response.status}`);
   }
 
-  return new Uint8Array(await response.arrayBuffer());
+  return response;
 }
 
 export async function HEAD(request: NextRequest) {
@@ -125,8 +135,8 @@ export async function GET(request: NextRequest) {
     const authHeaders = getAuthHeaders(searchParams);
     const { start, end, partial } = parseRangeHeader(request.headers.get('range'), manifest.originalSize);
 
+    const partsToRead: Array<{ url: string; start: number; end: number }> = [];
     let currentOffset = 0;
-    const chunks: Uint8Array[] = [];
 
     for (const part of manifest.parts) {
       const partStart = currentOffset;
@@ -139,22 +149,38 @@ export async function GET(request: NextRequest) {
 
       const fetchStart = Math.max(0, start - partStart);
       const fetchEnd = Math.min(part.size - 1, end - partStart);
-      chunks.push(await fetchPartBytes(part.url, fetchStart, fetchEnd, authHeaders));
+      partsToRead.push({ url: part.url, start: fetchStart, end: fetchEnd });
       currentOffset += part.size;
     }
 
-    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-    const body = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      body.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
+    const contentLength = end - start + 1;
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for (const part of partsToRead) {
+            const response = await fetchPartResponse(part.url, part.start, part.end, authHeaders);
+            const reader = response.body?.getReader();
+            if (!reader) {
+              throw new Error('Part response body is empty');
+            }
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value) controller.enqueue(value);
+            }
+          }
+          controller.close();
+        } catch (error) {
+          controller.error(error instanceof Error ? error : new Error('Failed to stream multipart video'));
+        }
+      }
+    });
 
     const contentRange = partial ? `bytes ${start}-${end}/${manifest.originalSize}` : undefined;
-    return new NextResponse(body, {
+    return new NextResponse(stream, {
       status: partial ? 206 : 200,
-      headers: buildHeaders(manifest, body.byteLength, contentRange),
+      headers: buildHeaders(manifest, contentLength, contentRange),
     });
   } catch (error) {
     return NextResponse.json(
