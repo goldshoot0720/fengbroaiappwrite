@@ -1,7 +1,8 @@
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { getProxiedMediaUrl } from "@/lib/utils";
 
-export const MAX_VIDEO_PART_SIZE = 50 * 1024 * 1024;
+// Keep each uploaded part comfortably below common Appwrite Cloud/bucket limits.
+export const MAX_VIDEO_PART_SIZE = 20 * 1024 * 1024;
 export const MULTIPART_VIDEO_SUFFIX = "+part";
 const MANIFEST_TYPE = "fengbro-video-manifest";
 
