@@ -896,7 +896,9 @@ export default function SubscriptionManagement() {
             {renewalLabel}
           </span>
         </TableCell>
-        <TableCell className="max-w-[260px] text-sm text-gray-600 dark:text-gray-300">{sub.note || "-"}</TableCell>
+        <TableCell className="max-w-[260px] whitespace-pre-wrap break-words text-sm text-gray-600 dark:text-gray-300">
+          {sub.note || "-"}
+        </TableCell>
         <TableCell>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg">
@@ -1269,7 +1271,9 @@ export default function SubscriptionManagement() {
                       <span className="text-gray-500 dark:text-gray-400">帳號</span>
                       <span className="text-gray-900 dark:text-gray-100">{sub.account || "-"}</span>
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-300">{sub.note || "無備註"}</div>
+                    <div className="whitespace-pre-wrap break-words text-sm text-gray-600 dark:text-gray-300">
+                      {sub.note || "無備註"}
+                    </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg">
