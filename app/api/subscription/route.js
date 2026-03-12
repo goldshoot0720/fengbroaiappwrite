@@ -4,11 +4,23 @@ const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
 
-async function getCollectionId(databases, databaseId, name) {
+async function getCollection(databases, databaseId, name) {
   const allCollections = await databases.listCollections(databaseId);
   const col = allCollections.collections.find(c => c.name === name);
   if (!col) throw new Error(`Collection ${name} not found`);
-  return col.$id;
+  return col;
+}
+
+function filterPayloadByAttributes(payload, collection) {
+  const availableKeys = new Set(
+    (collection.attributes || [])
+      .filter((attr) => (attr.status === 'available' || !attr.status) && !String(attr.key || '').startsWith('$'))
+      .map((attr) => attr.key)
+  );
+
+  return Object.fromEntries(
+    Object.entries(payload).filter(([key]) => key === 'name' || key === 'price' || availableKeys.has(key))
+  );
 }
 
 function createAppwrite(searchParams) {
@@ -75,7 +87,8 @@ export async function POST(req) {
   try {
     const { searchParams } = new URL(req.url);
     const { databases, databaseId } = createAppwrite(searchParams);
-    const collectionId = await getCollectionId(databases, databaseId, "subscription");
+    const collection = await getCollection(databases, databaseId, "subscription");
+    const collectionId = collection.$id;
 
     const body = await req.json();
 
@@ -108,11 +121,13 @@ export async function POST(req) {
     if (archived !== undefined) payload.archived = !!archived;
     if (continueValue !== undefined) payload.continue = continueValue;
 
+    const filteredPayload = filterPayloadByAttributes(payload, collection);
+
     const res = await databases.createDocument(
       databaseId,
       collectionId,
       sdk.ID.unique(),
-      payload
+      filteredPayload
     );
 
     return NextResponse.json(res);

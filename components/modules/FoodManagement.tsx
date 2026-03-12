@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, Refrigerator, CalendarClock, Flame, ShoppingBasket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SectionHeader } from "@/components/ui/section-header";
 import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
-import { DataCard, DataCardList, DataCardItem } from "@/components/ui/data-card";
+import { DataCard } from "@/components/ui/data-card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -20,6 +21,38 @@ import { formatDate, formatDaysRemaining } from "@/lib/formatters";
 import { getExportFilename } from "@/lib/utils";
 
 const INITIAL_FORM: FoodFormData = { name: "", amount: 0, todate: "", photo: "", price: 0, shop: "", photohash: "" };
+const QUICK_ADD_PRESETS: Record<string, { label: string; amount?: number; days: number; shop?: string }> = {
+  milk: { label: "牛奶", amount: 1, days: 7, shop: "冷藏" },
+  egg: { label: "雞蛋", amount: 10, days: 14, shop: "冷藏" },
+  bread: { label: "吐司", amount: 1, days: 3, shop: "常溫" },
+  yogurt: { label: "優格", amount: 1, days: 7, shop: "冷藏" },
+  rice: { label: "即食飯", amount: 1, days: 30, shop: "常溫" },
+};
+
+type FilterMode = "all" | "expired" | "today" | "3days" | "7days" | "normal";
+type CleanupAction = "eat" | "discard" | "delete";
+
+function addDaysToDate(baseDate: string, days: number) {
+  if (!baseDate) return "";
+  const date = new Date(baseDate);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split("T")[0];
+}
+
+function getSuggestedExpiryDate(days: number) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split("T")[0];
+}
+
+function getExpiryBucket(daysRemaining: number): FilterMode {
+  if (daysRemaining < 0) return "expired";
+  if (daysRemaining === 0) return "today";
+  if (daysRemaining <= 3) return "3days";
+  if (daysRemaining <= 7) return "7days";
+  return "normal";
+}
 
 export default function FoodManagement() {
   const { foods, loading, error, createFood, updateFood, deleteFood, updateAmount, loadFoods } = useFoods();
@@ -30,6 +63,12 @@ export default function FoodManagement() {
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>("");
   const [photoUploading, setPhotoUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [quickAddForm, setQuickAddForm] = useState<FoodFormData>({
+    ...INITIAL_FORM,
+    amount: 1,
+    todate: getSuggestedExpiryDate(7),
+  });
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -47,6 +86,7 @@ export default function FoodManagement() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [cleanupAction, setCleanupAction] = useState<CleanupAction>("discard");
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [deleteTotal, setDeleteTotal] = useState(0);
@@ -72,15 +112,83 @@ export default function FoodManagement() {
     return Array.from(new Set(names)).sort();
   }, [foods]);
 
-  // 搜尋過濾
-  const filteredFoods = useMemo(() => {
-    if (!searchQuery.trim()) return foods;
-    const query = searchQuery.toLowerCase();
-    return foods.filter(food =>
-      food.name?.toLowerCase().includes(query) ||
-      food.shop?.toLowerCase().includes(query)
+  const filterCounts = useMemo(() => {
+    return foods.reduce(
+      (acc, food) => {
+        const bucket = getExpiryBucket(getFoodExpiryInfo(food).daysRemaining);
+        acc.all += 1;
+        acc[bucket] += 1;
+        return acc;
+      },
+      { all: 0, expired: 0, today: 0, "3days": 0, "7days": 0, normal: 0 } as Record<FilterMode, number>
     );
-  }, [foods, searchQuery]);
+  }, [foods]);
+
+  // 搜尋 + 分區過濾
+  const filteredFoods = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return foods.filter((food) => {
+      const matchesQuery = !searchQuery.trim() ||
+        food.name?.toLowerCase().includes(query) ||
+        food.shop?.toLowerCase().includes(query);
+      const bucket = getExpiryBucket(getFoodExpiryInfo(food).daysRemaining);
+      const matchesFilter = filterMode === "all" ? true : bucket === filterMode;
+      return matchesQuery && matchesFilter;
+    });
+  }, [foods, searchQuery, filterMode]);
+
+  const dashboardStats = useMemo(() => {
+    const expired = foods.filter((food) => getFoodExpiryInfo(food).daysRemaining < 0);
+    const today = foods.filter((food) => getFoodExpiryInfo(food).daysRemaining === 0);
+    const expiring3Days = foods.filter((food) => {
+      const days = getFoodExpiryInfo(food).daysRemaining;
+      return days >= 0 && days <= 3;
+    });
+    const expiring7Days = foods.filter((food) => {
+      const days = getFoodExpiryInfo(food).daysRemaining;
+      return days >= 0 && days <= 7;
+    });
+    const lowStock = foods.filter((food) => (food.amount || 0) <= 1);
+    const totalValue = foods.reduce((sum, food) => sum + (food.price || 0) * (food.amount || 0), 0);
+
+    return {
+      expired,
+      today,
+      expiring3Days,
+      expiring7Days,
+      lowStock,
+      totalValue,
+    };
+  }, [foods]);
+
+  const aiInsights = useMemo(() => {
+    const urgentFoods = foods
+      .map((food) => ({ food, info: getFoodExpiryInfo(food) }))
+      .filter(({ info }) => info.daysRemaining <= 3)
+      .sort((a, b) => a.info.daysRemaining - b.info.daysRemaining)
+      .slice(0, 3);
+    const lowStockFoods = foods
+      .filter((food) => (food.amount || 0) <= 1)
+      .slice(0, 3);
+
+    const suggestions = [
+      urgentFoods.length > 0
+        ? `這週先吃 ${urgentFoods.map(({ food }) => food.name).join("、")}，避免先買後忘。`
+        : "目前沒有 3 天內到期的食品，庫存壓力低。",
+      dashboardStats.expiring3Days.length >= 5
+        ? `3 天內到期共有 ${dashboardStats.expiring3Days.length} 項，建議今天做一次批次清理。`
+        : `7 天內到期 ${dashboardStats.expiring7Days.length} 項，還有時間安排料理。`,
+      lowStockFoods.length > 0
+        ? `可順手補貨 ${lowStockFoods.map((food) => food.name).join("、")}。`
+        : "目前沒有明顯低庫存項目。",
+    ];
+
+    return {
+      urgentFoods,
+      lowStockFoods,
+      suggestions,
+    };
+  }, [foods, dashboardStats.expiring3Days.length, dashboardStats.expiring7Days.length]);
 
   // Selection helpers (after filteredFoods)
   const isAllSelected = filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id));
@@ -113,6 +221,7 @@ export default function FoodManagement() {
     setSelectionMode(false);
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
+    setCleanupAction("discard");
     loadFoods(true);
   };
   const deleteSelected = () => setBulkDeleteOpen(true);
@@ -223,6 +332,60 @@ export default function FoodManagement() {
     }
   };
 
+  const handleQuickAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickAddForm.name.trim()) {
+      alert("請輸入食品名稱");
+      return;
+    }
+
+    try {
+      await createFood({
+        ...quickAddForm,
+        amount: quickAddForm.amount || 1,
+        photo: quickAddForm.photo || "",
+        price: quickAddForm.price || 0,
+        shop: quickAddForm.shop || "",
+        photohash: quickAddForm.photohash || "",
+      });
+      setQuickAddForm({
+        ...INITIAL_FORM,
+        amount: 1,
+        todate: quickAddForm.todate || getSuggestedExpiryDate(7),
+        shop: quickAddForm.shop || "",
+      });
+    } catch (err) {
+      alert("快速新增失敗：" + (err instanceof Error ? err.message : "請稍後再試"));
+    }
+  };
+
+  const applyQuickPreset = (presetKey: keyof typeof QUICK_ADD_PRESETS) => {
+    const preset = QUICK_ADD_PRESETS[presetKey];
+    setQuickAddForm((prev) => ({
+      ...prev,
+      name: preset.label,
+      amount: preset.amount ?? prev.amount ?? 1,
+      todate: getSuggestedExpiryDate(preset.days),
+      shop: preset.shop ?? prev.shop,
+    }));
+  };
+
+  const handleQuickCleanup = async (food: Food, action: CleanupAction) => {
+    const labels: Record<CleanupAction, string> = {
+      eat: "標記吃完",
+      discard: "標記丟棄",
+      delete: "永久刪除",
+    };
+
+    if (!confirm(`確定要${labels[action]}「${food.name}」嗎？`)) return;
+
+    try {
+      await deleteFood(food.$id);
+    } catch {
+      alert(`${labels[action]}失敗，請稍後再試`);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
     try {
@@ -230,22 +393,6 @@ export default function FoodManagement() {
     } catch {
       alert("刪除失敗，請稍後再試");
     }
-  };
-
-  const handleEdit = (food: Food) => {
-    setForm({
-      name: food.name,
-      amount: food.amount,
-      todate: formatDate(food.todate),
-      photo: food.photo || '',
-      price: food.price || 0,
-      shop: food.shop || '',
-      photohash: food.photohash || '',
-    });
-    setEditingId(food.$id);
-    setIsFormOpen(true);
-    // 滾動到頁面頂部讓用戶看到編輯表單
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetForm = () => {
@@ -332,8 +479,6 @@ export default function FoodManagement() {
   const CSV_HEADERS = ['name', 'amount', 'todate', 'photo', 'price', 'shop', 'photohash'];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length; // 7 欄
 
-  const SUPABASE_FOOD_HEADERS = ['食物名稱', '數量', '價格(NT$)', '購買商店', '到期日期', '照片網址'];
-
   const convertSupabaseFood = (text: string): string => {
     const rows = parseFullCSV(text);
     if (rows.length < 1) return text;
@@ -376,16 +521,6 @@ export default function FoodManagement() {
     link.download = getExportFilename('food');
     link.click();
     URL.revokeObjectURL(link.href);
-  };
-
-  const parseCSVLine = (line: string): string[] => {
-    const result: string[] = []; let current = ''; let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (inQuotes) { if (char === '"') { if (line[i + 1] === '"') { current += '"'; i++; } else { inQuotes = false; } } else { current += char; } }
-      else { if (char === '"') { inQuotes = true; } else if (char === ',') { result.push(current); current = ''; } else { current += char; } }
-    }
-    result.push(current); return result;
   };
 
   // 解析完整 CSV（處理多行欄位）
@@ -542,6 +677,132 @@ export default function FoodManagement() {
         </Button>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-4">
+        <Card className="border-red-200 bg-gradient-to-br from-red-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-red-600"><Flame size={16} /> 已過期</CardDescription>
+            <CardTitle className="text-3xl text-red-700">{dashboardStats.expired.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-red-700/80">
+            {dashboardStats.expired.length > 0 ? "優先批次處理，避免舊品持續堆積。" : "目前沒有過期食品。"}
+          </CardContent>
+        </Card>
+        <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-orange-600"><CalendarClock size={16} /> 3 天內到期</CardDescription>
+            <CardTitle className="text-3xl text-orange-700">{dashboardStats.expiring3Days.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-orange-700/80">
+            今天最需要決策的區塊，先吃清單會以這裡為主。
+          </CardContent>
+        </Card>
+        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-amber-600"><Refrigerator size={16} /> 7 天內到期</CardDescription>
+            <CardTitle className="text-3xl text-amber-700">{dashboardStats.expiring7Days.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-amber-700/80">
+            適合提前排菜單與分批消耗，避免臨期一起爆量。
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-emerald-600"><ShoppingBasket size={16} /> 低庫存 / 庫存價值</CardDescription>
+            <CardTitle className="text-3xl text-emerald-700">{dashboardStats.lowStock.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-emerald-700/80">
+            約 NT$ {dashboardStats.totalValue.toLocaleString()} 在庫，低庫存 {dashboardStats.lowStock.length} 項。
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+        <Card className="border-blue-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardDescription className="flex items-center gap-2 text-blue-600"><PackageOpen size={16} /> 快速新增模式</CardDescription>
+            <CardTitle>常用食品一筆完成</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {Object.entries(QUICK_ADD_PRESETS).map(([key, preset]) => (
+                <Button key={key} type="button" variant="outline" className="rounded-full border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => applyQuickPreset(key as keyof typeof QUICK_ADD_PRESETS)}>
+                  {preset.label} +{preset.days}天
+                </Button>
+              ))}
+            </div>
+            <form onSubmit={handleQuickAdd} className="grid gap-3 md:grid-cols-4">
+              <div className="md:col-span-2">
+                <Input
+                  list="food-name-suggestions"
+                  placeholder="食品名稱"
+                  value={quickAddForm.name}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
+                  className="h-12 rounded-xl"
+                />
+              </div>
+              <Input
+                type="date"
+                value={quickAddForm.todate}
+                onChange={(e) => setQuickAddForm({ ...quickAddForm, todate: e.target.value })}
+                className="h-12 rounded-xl"
+              />
+              <Input
+                type="number"
+                min="0"
+                placeholder="數量"
+                value={quickAddForm.amount || ""}
+                onChange={(e) => setQuickAddForm({ ...quickAddForm, amount: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+                className="h-12 rounded-xl"
+              />
+              <Input
+                placeholder="位置 / 商店"
+                value={quickAddForm.shop || ""}
+                onChange={(e) => setQuickAddForm({ ...quickAddForm, shop: e.target.value })}
+                className="h-12 rounded-xl"
+              />
+              <div className="md:col-span-3 flex flex-wrap gap-2">
+                {[1, 3, 7].map((days) => (
+                  <Button key={days} type="button" variant="outline" className="rounded-full" onClick={() => setQuickAddForm((prev) => ({ ...prev, todate: addDaysToDate(prev.todate || getSuggestedExpiryDate(0), days) }))}>
+                    到期 +{days} 天
+                  </Button>
+                ))}
+              </div>
+              <Button type="submit" className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
+                <Plus size={16} /> 立即新增
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardDescription className="flex items-center gap-2 text-amber-700"><Sparkles size={16} /> Friendly AI 建議</CardDescription>
+            <CardTitle>今天先處理什麼</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+            <div className="space-y-2">
+              {aiInsights.suggestions.map((suggestion, index) => (
+                <div key={index} className="rounded-2xl border border-amber-200 bg-white/80 px-4 py-3">
+                  {suggestion}
+                </div>
+              ))}
+            </div>
+            {aiInsights.urgentFoods.length > 0 && (
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3">
+                <div className="mb-2 font-semibold text-orange-700">優先消耗</div>
+                <div className="flex flex-wrap gap-2">
+                  {aiInsights.urgentFoods.map(({ food, info }) => (
+                    <span key={food.$id} className="rounded-full bg-white px-3 py-1 text-orange-700 border border-orange-200">
+                      {food.name} {formatDaysRemaining(info.daysRemaining)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Supabase 格式確認對話框 */}
       {importFormat === 'supabase' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -678,27 +939,62 @@ export default function FoodManagement() {
         />
       )}
 
+      <datalist id="food-name-suggestions">
+        {existingNames.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+
       {/* 搜尋欄位 */}
       {foods.length > 0 && (
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋食品名稱、商店..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
+        <div className="space-y-3 mb-4">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "全部" },
+              { key: "expired", label: "已過期" },
+              { key: "today", label: "今天到期" },
+              { key: "3days", label: "3 天內" },
+              { key: "7days", label: "7 天內" },
+              { key: "normal", label: "正常庫存" },
+            ].map((item) => (
+              <Button
+                key={item.key}
+                type="button"
+                variant="outline"
+                onClick={() => setFilterMode(item.key as FilterMode)}
+                className={`rounded-full ${filterMode === item.key ? "border-blue-500 bg-blue-50 text-blue-700" : ""}`}
+              >
+                {item.label} ({filterCounts[item.key as FilterMode]})
+              </Button>
+            ))}
           </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id)) ? "取消全選" : "全選"}
-          </Button>
-          {selectedIds.size > 0 && (
-            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={18} />
-              刪除選取 ({selectedIds.size})
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-[240px] flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="搜尋食品名稱、商店..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-12 rounded-xl"
+              />
+            </div>
+            <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
+              {selectionMode && filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id)) ? "取消全選" : "全選"}
             </Button>
-          )}
+            {selectedIds.size > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => { setCleanupAction("eat"); setBulkDeleteOpen(true); }} className="h-12 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white">
+                  標記吃完 ({selectedIds.size})
+                </Button>
+                <Button onClick={() => { setCleanupAction("discard"); setBulkDeleteOpen(true); }} className="h-12 px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white">
+                  標記丟棄 ({selectedIds.size})
+                </Button>
+                <Button onClick={() => { setCleanupAction("delete"); setBulkDeleteOpen(true); }} className="h-12 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white">
+                  真刪除 ({selectedIds.size})
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -712,6 +1008,7 @@ export default function FoodManagement() {
             <DesktopTable
               foods={filteredFoods}
               onDelete={handleDelete}
+              onQuickCleanup={handleQuickCleanup}
               onAmountChange={updateAmount}
               inlineEditingId={inlineEditingId}
               inlineEditForm={inlineEditForm}
@@ -736,6 +1033,7 @@ export default function FoodManagement() {
             <MobileList
               foods={filteredFoods}
               onDelete={handleDelete}
+              onQuickCleanup={handleQuickCleanup}
               onAmountChange={updateAmount}
               inlineEditingId={inlineEditingId}
               inlineEditForm={inlineEditForm}
@@ -767,11 +1065,15 @@ export default function FoodManagement() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-6 border-b border-gray-100 dark:border-gray-800">
               <div className="flex items-center gap-3 mb-3">
-                <AlertTriangle className="text-red-500" size={24} />
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">確認批次刪除</h3>
+                <AlertTriangle className={`${cleanupAction === "delete" ? "text-red-500" : cleanupAction === "discard" ? "text-orange-500" : "text-emerald-500"}`} size={24} />
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {cleanupAction === "eat" ? "確認批次標記吃完" : cleanupAction === "discard" ? "確認批次標記丟棄" : "確認批次刪除"}
+                </h3>
               </div>
               <p className="text-gray-600 dark:text-gray-400">
-                即將刪除 <span className="font-bold text-red-600">{selectedIds.size}</span> 筆資料，此操作無法復原
+                {cleanupAction === "eat" && <>即將把 <span className="font-bold text-emerald-600">{selectedIds.size}</span> 筆食品從庫存移除，代表已吃完。</>}
+                {cleanupAction === "discard" && <>即將把 <span className="font-bold text-orange-600">{selectedIds.size}</span> 筆食品從庫存移除，代表已丟棄。</>}
+                {cleanupAction === "delete" && <>即將永久刪除 <span className="font-bold text-red-600">{selectedIds.size}</span> 筆資料，此操作無法復原。</>}
               </p>
             </div>
             {isDeleting ? (
@@ -803,13 +1105,13 @@ export default function FoodManagement() {
               </div>
             )}
             <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }} disabled={isDeleting}>取消</Button>
+              <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); setCleanupAction("discard"); }} disabled={isDeleting}>取消</Button>
               <Button
                 onClick={handleBulkDelete}
                 disabled={bulkDeleteInput !== "DELETE food" || isDeleting}
-                className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+                className={`${cleanupAction === "delete" ? "bg-red-600 hover:bg-red-700" : cleanupAction === "discard" ? "bg-orange-600 hover:bg-orange-700" : "bg-emerald-600 hover:bg-emerald-700"} text-white disabled:opacity-50`}
               >
-                {isDeleting ? '刪除中...' : `確認刪除 (${selectedIds.size} 筆)`}
+                {isDeleting ? '處理中...' : `${cleanupAction === "eat" ? "確認標記吃完" : cleanupAction === "discard" ? "確認標記丟棄" : "確認刪除"} (${selectedIds.size} 筆)`}
               </Button>
             </div>
           </div>
@@ -1113,6 +1415,7 @@ function FoodForm({
 interface TableProps {
   foods: Food[];
   onDelete: (id: string) => void;
+  onQuickCleanup: (food: Food, action: CleanupAction) => void;
   onAmountChange: (food: Food, delta: number) => void;
   inlineEditingId: string | null;
   inlineEditForm: FoodFormData;
@@ -1136,7 +1439,7 @@ interface TableProps {
   startInlineAdd: () => void;
 }
 
-function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
+function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="hidden lg:block">
@@ -1322,6 +1625,7 @@ function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inline
               key={food.$id}
               food={food}
               onDelete={onDelete}
+              onQuickCleanup={onQuickCleanup}
               onAmountChange={onAmountChange}
               isEditing={inlineEditingId === food.$id}
               inlineEditForm={inlineEditForm}
@@ -1343,6 +1647,7 @@ function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inline
 interface FoodTableRowProps {
   food: Food;
   onDelete: (id: string) => void;
+  onQuickCleanup: (food: Food, action: CleanupAction) => void;
   onAmountChange: (food: Food, delta: number) => void;
   isEditing: boolean;
   inlineEditForm: FoodFormData;
@@ -1355,7 +1660,7 @@ interface FoodTableRowProps {
   toggleSelect: (id: string) => void;
 }
 
-function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
+function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
   const rowClass = isExpired ? "bg-red-50 dark:bg-red-900/20" : isExpiringSoon ? "bg-yellow-50 dark:bg-yellow-900/20" : "";
 
@@ -1490,8 +1795,22 @@ function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditFor
       </TableCell>
       {!isEditMode && (
         <TableCell>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg">編輯</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => onQuickCleanup(food, "eat")} className="rounded-lg border-emerald-200 text-emerald-700 hover:bg-emerald-50">吃完</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => onQuickCleanup(food, "discard")} className="rounded-lg border-orange-200 text-orange-700 hover:bg-orange-50">丟棄</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => {
+              onInlineEdit(food);
+              setInlineEditForm({
+                name: food.name,
+                amount: food.amount,
+                todate: addDaysToDate(formatDate(food.todate), 3),
+                photo: food.photo || '',
+                price: food.price || 0,
+                shop: food.shop || '',
+                photohash: food.photohash || '',
+              });
+            }} className="rounded-lg border-blue-200 text-blue-700 hover:bg-blue-50">+3天</Button>
             <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} className="rounded-lg">刪除</Button>
           </div>
         </TableCell>
@@ -1501,7 +1820,7 @@ function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditFor
 }
 
 // 手機版列表
-function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
+function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="lg:hidden">
@@ -1671,6 +1990,7 @@ function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEd
             key={food.$id}
             food={food}
             onDelete={onDelete}
+            onQuickCleanup={onQuickCleanup}
             onAmountChange={onAmountChange}
             isEditing={inlineEditingId === food.$id}
             inlineEditForm={inlineEditForm}
@@ -1691,6 +2011,7 @@ function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEd
 interface FoodMobileCardProps {
   food: Food;
   onDelete: (id: string) => void;
+  onQuickCleanup: (food: Food, action: CleanupAction) => void;
   onAmountChange: (food: Food, delta: number) => void;
   isEditing: boolean;
   inlineEditForm: FoodFormData;
@@ -1703,7 +2024,7 @@ interface FoodMobileCardProps {
   toggleSelect: (id: string) => void;
 }
 
-function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
+function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
 
   if (isEditing) {
@@ -1850,6 +2171,24 @@ function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditF
               className="h-11 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 font-bold"
             >
               編輯
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onQuickCleanup(food, "eat")}
+              className="h-11 rounded-xl font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+            >
+              吃完
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onQuickCleanup(food, "discard")}
+              className="h-11 rounded-xl font-bold text-orange-700 border-orange-200 hover:bg-orange-50"
+            >
+              丟棄
             </Button>
             <Button
               type="button"
