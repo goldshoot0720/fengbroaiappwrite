@@ -21,7 +21,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { SubscriptionFormData, Subscription } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatDate, formatDaysRemaining, formatCurrency, formatCurrencyWithExchange, convertToTWD } from "@/lib/formatters";
-import { getExportFilename } from "@/lib/utils";
+import { getAppwriteConfig, getExportFilename } from "@/lib/utils";
 
 // 帳號下拉選單組件：可選擇已有帳號或自行輸入（使用 Portal 避免被父層裁切）
 function AccountComboBox({ value, onChange, accounts, className = "" }: {
@@ -295,6 +295,7 @@ function DraftSummaryCard({ form, tone }: { form: SubscriptionFormData; tone: "g
 
 export default function SubscriptionManagement() {
   const { subscriptions, loading, error, stats, createSubscription, createSubscriptionSilent, updateSubscription, updateSubscriptionSilent, deleteSubscription, loadSubscriptions } = useSubscriptions();
+  const [initializingTable, setInitializingTable] = useState(false);
   const [canAskNotification, setCanAskNotification] = useState(false);
   const [notificationEnabled, setNotificationEnabled] = useState(false);
   const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
@@ -333,6 +334,54 @@ export default function SubscriptionManagement() {
       newSet.add(id);
     }
     setSelectedIds(newSet);
+  };
+
+  const handleInitializeSubscriptionTable = async () => {
+    const confirmed = confirm("確定要立即初始化 subscription 表嗎？");
+    if (!confirmed) return;
+
+    setInitializingTable(true);
+
+    try {
+      const config = getAppwriteConfig();
+      const params = new URLSearchParams({ table: "subscription" });
+      if (config.endpoint) params.set("_endpoint", config.endpoint);
+      if (config.projectId) params.set("_project", config.projectId);
+      if (config.databaseId) params.set("_database", config.databaseId);
+      if (config.apiKey) params.set("_key", config.apiKey);
+
+      await new Promise<void>((resolve, reject) => {
+        const eventSource = new EventSource(`/api/create-table?${params.toString()}`);
+
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "complete") {
+              eventSource.close();
+              resolve();
+            } else if (data.type === "error") {
+              eventSource.close();
+              reject(new Error(data.message || "初始化失敗"));
+            }
+          } catch (parseError) {
+            eventSource.close();
+            reject(parseError);
+          }
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+          reject(new Error("初始化連線中斷"));
+        };
+      });
+
+      await loadSubscriptions();
+      alert("subscription 表初始化完成");
+    } catch (initError) {
+      alert(`初始化失敗：${initError instanceof Error ? initError.message : "未知錯誤"}`);
+    } finally {
+      setInitializingTable(false);
+    }
   };
 
   // 從訂閱資料中取得可用的年月選項
@@ -1127,8 +1176,15 @@ export default function SubscriptionManagement() {
   return (
     <div className="space-y-4 lg:space-y-6">
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-600 dark:text-red-400">
-          {error}
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-600 dark:text-red-400 space-y-3">
+          <div>{error}</div>
+          {error.includes("Table subscription 不存在") && (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleInitializeSubscriptionTable} disabled={initializingTable} className="bg-red-600 hover:bg-red-700 text-white rounded-xl">
+                {initializingTable ? "初始化中..." : "立即初始化 subscription 表"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
