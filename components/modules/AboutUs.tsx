@@ -1,56 +1,130 @@
 "use client";
 
 import { useState } from "react";
-import { Package, BarChart3, Info, Phone, Book, FileText, Menu, ChevronRight } from "lucide-react";
+import { BarChart3, Book, ChevronRight, FileText, Info, Menu, Package } from "lucide-react";
 import { DataCard } from "@/components/ui/data-card";
 import { PageTitle } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
 
-export default function AboutUs() {
-  const [activeSection, setActiveSection] = useState<string>("company");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+const NAV_SECTIONS = [
+  { id: "updates", title: "更新內容", icon: Info },
+  { id: "system", title: "系統架構", icon: Package },
+  { id: "modules", title: "功能模組", icon: BarChart3 },
+  { id: "docs", title: "技術文件", icon: FileText },
+  { id: "guide", title: "完整文件", icon: Book },
+] as const;
 
-  const sections = [
-    { id: "company", title: "公司簡介", icon: Info },
-    { id: "system", title: "系統架構", icon: Package },
-    { id: "modules", title: "功能模組", icon: BarChart3 },
-    { id: "docs", title: "技術文件", icon: FileText },
-    { id: "guide", title: "使用手冊", icon: Book },
-  ];
+const MODULES = [
+  { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與 15 個模組快速入口" },
+  { num: 2, name: "鋒兄儀表", category: "總覽", desc: "跨模組統計、異常提醒與摘要卡" },
+  { num: 3, name: "鋒兄訂閱", category: "生活", desc: "訂閱、扣款日、CSV 匯入匯出與 AI 整理提醒" },
+  { num: 4, name: "鋒兄食品", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
+  { num: 5, name: "鋒兄筆記", category: "知識", desc: "快速筆記、模板、AI 摘要與釘選工作台" },
+  { num: 6, name: "鋒兄常用", category: "入口", desc: "常用站點、複製、置頂與最近使用控制台" },
+  { num: 7, name: "鋒兄圖片", category: "媒體", desc: "圖片管理、標籤整理與工作台摘要" },
+  { num: 8, name: "鋒兄影片", category: "媒體", desc: "影片播放、封面管理與工作台骨架" },
+  { num: 9, name: "鋒兄音樂", category: "媒體", desc: "音樂播放、歌詞、整理摘要與媒體控制" },
+  { num: 10, name: "鋒兄文件", category: "知識", desc: "文件預覽、分類、匯入匯出與技術內容整理" },
+  { num: 11, name: "鋒兄播客", category: "媒體", desc: "播客節目、集數與摘要式管理" },
+  { num: 12, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、餘額、異常提醒與整理入口" },
+  { num: 13, name: "鋒兄例行", category: "任務", desc: "例行事項、排程節奏與週期追蹤" },
+  { num: 14, name: "鋒兄設定", category: "維運", desc: "Appwrite 設定、Table 初始化、資料統計與 system config" },
+  { num: 15, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、模組總覽與文件中心" },
+];
+
+const DOC_GROUPS = [
+  {
+    title: "核心導覽文件",
+    items: [
+      ["INDEX.md", "整體文件入口與模組對照"],
+      ["USER_GUIDE.md", "完整使用者操作手冊"],
+      ["SYSTEM_ARCHITECTURE.md", "系統分層、資料流與技術結構"],
+      ["00_company_introduction.md", "專案定位與模組導讀"],
+    ],
+  },
+  {
+    title: "模組文件",
+    items: [
+      ["03_subscription.md", "訂閱 schema、篩選、CSV 與到期邏輯"],
+      ["04_food.md", "食品工作台、到期分區與批次清理"],
+      ["05_notes.md", "筆記模板、AI 摘要與知識整理"],
+      ["06_common_accounts.md", "常用入口、置頂與最近使用"],
+      ["14_settings.md", "設定頁、初始化、統計與維運工具"],
+      ["15_about.md", "關於頁與文件中心規格"],
+    ],
+  },
+  {
+    title: "程式碼重點檔案",
+    items: [
+      ["components/ui/friendly-ai-crud-shell.tsx", "共用友善 AI CRUD 工作台殼層"],
+      ["components/modules/SubscriptionManagement.tsx", "訂閱頁最新平衡版 UI 與 CSV 功能"],
+      ["components/modules/SettingsManagement.tsx", "Table 初始化、collection id 與系統設定"],
+      ["hooks/useSubscriptions.ts", "訂閱資料存取、統計與到期資訊"],
+    ],
+  },
+];
+
+const RELEASE_ITEMS = [
+  {
+    date: "2026-03-12",
+    title: "鋒兄關於改版為文件中心",
+    bullets: [
+      "把舊版公司宣傳內容改成產品文件導向的關於頁。",
+      "整理成更新內容、系統架構、功能模組、技術文件、完整文件五大分頁。",
+      "讓關於頁本身可以作為交接與規劃入口，而不是靜態介紹頁。",
+    ],
+  },
+  {
+    date: "2026-03-12",
+    title: "友善 AI CRUD 工作台第一輪完成",
+    bullets: [
+      "圖片、影片、音樂、文件、播客、銀行、例行七個模組已統一第一輪工作台骨架。",
+      "食品、筆記、常用、訂閱都已往快速新增、摘要卡、AI 建議、批次整理方向收斂。",
+      "共用殼層已抽出，後續可以再往共用卡片與 Drawer 編輯器推進。",
+    ],
+  },
+  {
+    date: "2026-03-12",
+    title: "訂閱模組依真實 schema 收斂",
+    bullets: [
+      "以 `name / site / price / nextdate / note / account / currency / continue` 為準重做 CRUD。",
+      "補上 document ID 搜尋、CSV 匯入匯出、collection id 顯示、日期 ±30 天快捷鍵。",
+      "AI 定位改成整理助理，新增重複提醒與未設定扣款日快捷篩選。",
+    ],
+  },
+];
+
+export default function AboutUs() {
+  const [activeSection, setActiveSection] = useState<string>("updates");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="space-y-4 lg:space-y-6">
-      <CopyrightBanner />
+      <AboutBanner />
+      <PageTitle title="鋒兄關於" description="產品更新、系統架構、模組導覽與技術文件中心" />
 
-      <PageTitle title="鋒兄關於" description="鋒兄塗哥公關資訊 — 完整系統文件" />
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
-        {/* 側邊欄導航 */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:gap-6">
         <div className="lg:col-span-1">
-          <DataCard className="p-4 sticky top-4">
-            <div className="flex items-center justify-between lg:hidden mb-4">
-              <h3 className="font-bold text-gray-900 dark:text-gray-100">導航選單</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden"
-              >
+          <DataCard className="sticky top-4 p-4">
+            <div className="mb-4 flex items-center justify-between lg:hidden">
+              <h3 className="font-bold text-gray-900 dark:text-gray-100">文件導航</h3>
+              <Button variant="outline" size="sm" onClick={() => setMobileMenuOpen((value) => !value)} className="lg:hidden">
                 <Menu size={16} />
               </Button>
             </div>
-            <nav className={`space-y-2 ${mobileMenuOpen ? 'block' : 'hidden lg:block'}`}>
-              {sections.map((section) => (
+            <nav className={`space-y-2 ${mobileMenuOpen ? "block" : "hidden lg:block"}`}>
+              {NAV_SECTIONS.map((section) => (
                 <button
                   key={section.id}
                   onClick={() => {
                     setActiveSection(section.id);
                     setMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeSection === section.id
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                    }`}
+                  className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-all ${
+                    activeSection === section.id
+                      ? "bg-slate-900 text-white shadow-lg dark:bg-slate-100 dark:text-slate-900"
+                      : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  }`}
                 >
                   <section.icon size={18} />
                   <span className="font-medium">{section.title}</span>
@@ -61,11 +135,10 @@ export default function AboutUs() {
           </DataCard>
         </div>
 
-        {/* 主要內容區域 */}
         <div className="lg:col-span-3">
           <DataCard className="p-6 lg:p-8">
-            <div className="max-w-4xl mx-auto space-y-8">
-              {activeSection === "company" && <CompanySection />}
+            <div className="mx-auto max-w-5xl space-y-8">
+              {activeSection === "updates" && <UpdatesSection />}
               {activeSection === "system" && <SystemArchitecture />}
               {activeSection === "modules" && <ModulesOverview />}
               {activeSection === "docs" && <TechnicalDocs />}
@@ -78,681 +151,333 @@ export default function AboutUs() {
   );
 }
 
-// 版權橫幅
-function CopyrightBanner() {
+function AboutBanner() {
   return (
-    <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl text-white shadow-lg">
-      <div className="text-center space-y-2">
-        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-wide">鋒兄塗哥公關資訊</h2>
-        <div className="text-sm sm:text-base opacity-90">© 版權所有 2025～2125</div>
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-xs sm:text-sm opacity-80">
-          <span>前端使用 React (Next.js)</span>
-          <span className="hidden sm:inline text-white/50">|</span>
-          <span>後端使用 Appwrite</span>
-          <span className="hidden sm:inline text-white/50">|</span>
-          <span>網頁存放於 Vercel</span>
+    <div className="rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-900 p-6 text-white shadow-xl sm:p-8">
+      <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+        <div className="space-y-3">
+          <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Fengbro System Docs</p>
+          <h2 className="text-2xl font-bold sm:text-3xl">鋒兄系統文件中心</h2>
+          <p className="max-w-2xl text-sm text-slate-200 sm:text-base">
+            這裡不是品牌介紹頁，而是專案現況入口。你可以直接看到最近改了什麼、系統怎麼分層、15 個模組目前各自負責什麼，以及後續實作應該從哪份文件接手。
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <MetricCard label="模組數" value="15" detail="入口、生活、知識、媒體、財務、維運" />
+          <MetricCard label="文件頁" value="18+" detail="模組文件、使用手冊、架構文件" />
+          <MetricCard label="最新日期" value="2026-03-12" detail="本輪關於頁與工作台文件同步更新" />
+          <MetricCard label="技術骨架" value="AI CRUD" detail="統一摘要卡、搜尋、批次操作與 AI 建議" />
         </div>
       </div>
     </div>
   );
 }
 
-// 公司標誌與介紹
-function CompanyHeader() {
+function UpdatesSection() {
   return (
-    <div className="text-center">
-      <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-        <span className="text-white font-bold text-3xl">鋒塗</span>
+    <div className="space-y-6">
+      <SectionHeader
+        title="更新內容"
+        description="這一區只講最近真的變了什麼，方便你快速掌握專案現況。"
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <InfoCard title="工作台收斂" body="多個模組已改成摘要卡 + 搜尋 + 篩選 + AI 建議的共同骨架，不再各自長相。" />
+        <InfoCard title="訂閱頁落地" body="subscription schema、CSV、ID 搜尋、collection id 顯示與日期快捷鍵都已同步到位。" />
+        <InfoCard title="文件開始同步" body="關於頁與 docs 將以實際程式狀態為準，後續改版有明確入口可回頭查。" />
       </div>
 
-      <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">鋒兄塗哥公關資訊</h2>
-      <p className="text-gray-600 dark:text-gray-300 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-        我們是專業的公關團隊，致力於為客戶提供最優質的公關服務和智能管理解決方案。
-        透過創新技術和專業服務，幫助企業和個人實現更高效的管理目標。
-      </p>
-    </div>
-  );
-}
-
-// 團隊成員
-function TeamMembers() {
-  const members = [
-    {
-      name: "鋒兄",
-      role: "技術總監 & 創新領袖",
-      description: "專精於系統架構設計與技術創新，擁有豐富的軟體開發經驗，致力於打造用戶友好的智能管理解決方案。",
-      gradient: "from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20",
-      avatarGradient: "from-blue-500 to-blue-600",
-      roleColor: "text-blue-600 dark:text-blue-400",
-    },
-    {
-      name: "塗哥",
-      role: "公關總監 & 策略專家",
-      description: "擅長品牌策略規劃與公關活動執行，具備敏銳的市場洞察力，專注於建立企業與客戶之間的良好關係。",
-      gradient: "from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20",
-      avatarGradient: "from-purple-500 to-purple-600",
-      roleColor: "text-purple-600 dark:text-purple-400",
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-      {members.map((member) => (
-        <div key={member.name} className={`bg-gradient-to-br ${member.gradient} rounded-2xl p-6 text-center`}>
-          <div className={`w-20 h-20 bg-gradient-to-r ${member.avatarGradient} rounded-full flex items-center justify-center mx-auto mb-4`}>
-            <span className="text-white font-bold text-xl">{member.name[0]}</span>
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">{member.name}</h3>
-          <p className={`${member.roleColor} font-medium mb-3`}>{member.role}</p>
-          <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">{member.description}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// 服務特色
-function ServiceFeatures() {
-  const features = [
-    { icon: Package, title: "智能管理", description: "提供全方位的智能管理解決方案，讓生活更有序", gradient: "from-green-400 to-green-500" },
-    { icon: BarChart3, title: "數據洞察", description: "深度數據分析，提供精準的決策支援", gradient: "from-orange-400 to-orange-500" },
-    { icon: Info, title: "專業服務", description: "24/7 專業客服支援，確保最佳使用體驗", gradient: "from-pink-400 to-pink-500" },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
-      {features.map((feature) => (
-        <div key={feature.title} className="text-center">
-          <div className={`w-16 h-16 bg-gradient-to-r ${feature.gradient} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-            <feature.icon className="text-white" size={28} />
-          </div>
-          <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-2">{feature.title}</h3>
-          <p className="text-gray-600 dark:text-gray-300 text-sm">{feature.description}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// 聯絡資訊
-function ContactInfo() {
-  const contacts = [
-    { icon: Phone, title: "業務洽詢", value: "+886-2-1234-5678", color: "bg-blue-500" },
-    { icon: "📧", title: "電子郵件", value: "contact@fengtuge.com", color: "bg-green-500" },
-    { icon: "🌐", title: "官方網站", value: "www.fengtuge.com", color: "bg-purple-500" },
-    { icon: "📍", title: "公司地址", value: "台北市信義區信義路五段7號", color: "bg-orange-500" },
-  ];
-
-  return (
-    <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-2xl p-6 sm:p-8">
-      <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6 text-center">聯絡我們</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-        {contacts.map((contact) => (
-          <div key={contact.title} className="flex items-center gap-3">
-            <div className={`w-10 h-10 ${contact.color} rounded-xl flex items-center justify-center`}>
-              {typeof contact.icon === "string" ? (
-                <span className="text-white text-sm">{contact.icon}</span>
-              ) : (
-                <contact.icon className="text-white" size={20} />
-              )}
+      <div className="space-y-4">
+        {RELEASE_ITEMS.map((item) => (
+          <DataCard key={`${item.date}-${item.title}`} className="border-slate-200 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{item.date}</div>
+                <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{item.title}</h3>
+              </div>
+              <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                已更新
+              </span>
             </div>
-            <div>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{contact.title}</p>
-              <p className="text-gray-600 dark:text-gray-300 text-sm">{contact.value}</p>
-            </div>
-          </div>
+            <ul className="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
+              {item.bullets.map((bullet) => (
+                <li key={bullet}>• {bullet}</li>
+              ))}
+            </ul>
+          </DataCard>
         ))}
       </div>
     </div>
   );
 }
 
-// 版權資訊
-function Copyright() {
-  return (
-    <div className="text-center border-t border-gray-200 dark:border-gray-700 pt-8">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-        <h3 className="text-2xl font-bold mb-4">鋒兄管理資訊系統</h3>
-      </div>
-      <div className="space-y-2 text-gray-600 dark:text-gray-300">
-        <p className="text-lg font-medium">鋒兄塗哥公關資訊有限公司</p>
-        <p className="flex items-center justify-center gap-2">
-          <span className="text-xl">©</span>
-          <span className="font-medium">2025 ～ 2125</span>
-          <span>版權所有</span>
-        </p>
-        <p className="text-sm">Feng & Tu Public Relations Information Co., Ltd.</p>
-        <p className="text-sm">All Rights Reserved</p>
-      </div>
-
-      <div className="mt-6 flex flex-wrap justify-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-        <span>鋒兄管理資訊系統 v2.0.0</span>
-        <span className="hidden sm:inline">•</span>
-        <span>Next.js + TypeScript</span>
-        <span className="hidden sm:inline">•</span>
-        <span>Made with ❤️ in Taiwan</span>
-      </div>
-    </div>
-  );
-}
-
-// 公司簡介區塊
-function CompanySection() {
-  return (
-    <div className="space-y-8">
-      <CompanyHeader />
-      <TeamMembers />
-
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl p-6 sm:p-8">
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">🏋️ 員工福利</h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h4 className="font-bold text-lg text-gray-900 dark:text-gray-100 mb-3">公司環境設施</h4>
-            <ul className="space-y-2 text-gray-700 dark:text-gray-300">
-              <li>🏊 <strong>游泳池</strong> — 員工專屬休閒空間</li>
-              <li>🏋️ <strong>健身房</strong> — 完整健身器材與設備</li>
-              <li>☕ <strong>咖啡吧</strong> — 免費咖啡與飲品供應</li>
-              <li>🍰 <strong>下午茶</strong> — 每日下午茶點心供應</li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-bold text-lg text-gray-900 dark:text-gray-100 mb-3">工作制度</h4>
-            <ul className="space-y-2 text-gray-700 dark:text-gray-300">
-              <li>⏰ <strong>工作時數</strong> — 每日 8 小時</li>
-              <li>❌ <strong>打卡制度</strong> — 不用打卡</li>
-              <li>❌ <strong>加班制度</strong> — 不用加班</li>
-              <li>💰 <strong>年終獎金</strong> — 4.6 個月</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-2xl p-6 sm:p-8">
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">📈 公司規模</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">市值</p>
-            <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">一兆總統</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">年產利</p>
-            <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">百億市長</p>
-          </div>
-        </div>
-      </div>
-
-      <ServiceFeatures />
-      <ContactInfo />
-      <Copyright />
-    </div>
-  );
-}
-
-// 系統架構區塊
 function SystemArchitecture() {
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">系統架構</h2>
+      <SectionHeader
+        title="系統架構"
+        description="目前專案的主軸是以 Next.js + Appwrite 建立 15 模組的個人資料工作台，前端逐步收斂成同一套友善 AI CRUD 骨架。"
+      />
 
-      <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-2xl p-6">
-        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">💻 技術規格</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <p className="text-gray-700 dark:text-gray-300"><strong>版本</strong>: v1.0.0</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>技術框架</strong>: Next.js 16 / React 19 / Appwrite</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>程式碼規模</strong>: 約 45,277 行原始碼</p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-gray-700 dark:text-gray-300"><strong>TypeScript/TSX</strong>: 38,783 行</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>JavaScript/CSS/其他</strong>: 6,494 行</p>
-            <p className="text-gray-700 dark:text-gray-300"><strong>最後更新</strong>: 2026-03-12</p>
-          </div>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <DataCard className="p-5">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">前端層</h3>
+          <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <li>• Next.js App Router + React 19 + TypeScript</li>
+            <li>• `components/modules/` 內維護 15 個主模組頁</li>
+            <li>• `components/ui/` 逐步抽出共用工作台元件</li>
+            <li>• 目前已導入 `friendly-ai-crud-shell.tsx` 作為第一層共用骨架</li>
+          </ul>
+        </DataCard>
+
+        <DataCard className="p-5">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">資料與 API 層</h3>
+          <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <li>• Next.js API routes 負責 CRUD、檔案操作與 table 初始化</li>
+            <li>• Appwrite Database 儲存結構化資料</li>
+            <li>• Appwrite Storage 管理圖片、影片、音樂、文件、播客等媒體</li>
+            <li>• schema 目前採模組獨立 collection，設定頁可初始化與檢查狀態</li>
+          </ul>
+        </DataCard>
       </div>
 
-      <div className="bg-gray-900 dark:bg-gray-950 rounded-2xl p-6 overflow-x-auto">
-        <pre className="text-green-400 text-xs sm:text-sm font-mono">
-          {`┌────────────────────────────────────────────────────┐
-│                    瀏覽器前端                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │
-│  │ 模組頁面  │  │ UI 元件   │  │ React Hooks     │  │
-│  │ (15 個)   │  │ (35 個)   │  │ (19 個)         │  │
-│  └──────────┘  └──────────┘  └──────────────────┘  │
-│                       │                              │
-│              ┌────────┴────────┐                     │
-│              │  IndexedDB 快取  │                     │
-│              │  (離線瀏覽支援)   │                    │
-│              └─────────────────┘                     │
-└────────────────────────┬───────────────────────────┘
-                         │ HTTP API
-┌────────────────────────┴───────────────────────────┐
-│                  Next.js API 路由                    │
-│              (43 個 API 路由檔案)                     │
-└────────────────────────┬───────────────────────────┘
-                         │ Appwrite SDK
-┌────────────────────────┴───────────────────────────┐
-│                 Appwrite 後端服務                    │
-│  ┌──────────┐  ┌──────────────┐                     │
-│  │ Database │  │   Storage    │                     │
-│  │ (多集合)  │  │ (媒體與分段) │                    │
-│  └──────────┘  └──────────────┘                     │
-└────────────────────────────────────────────────────┘`}
+      <div className="rounded-2xl bg-slate-950 p-5 text-slate-100">
+        <pre className="overflow-x-auto text-xs leading-6 text-emerald-300 sm:text-sm">
+{`Browser / PWA
+  -> Module Pages (15)
+  -> Shared UI Shell + Hooks
+  -> Next.js API Routes
+  -> Appwrite Database / Storage
+
+核心資料流：
+搜尋 / 篩選 / 批次操作 / AI 提醒
+        ↓
+模組 hook 計算摘要與狀態
+        ↓
+API 與 Appwrite 寫入真實 schema
+        ↓
+設定頁負責初始化、校正與統計`}
         </pre>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6">
-          <h4 className="font-bold text-lg text-blue-900 dark:text-blue-100 mb-3">✨ 核心特色</h4>
-          <ul className="space-y-2 text-gray-700 dark:text-gray-300 text-sm">
-            <li>✅ 三種主題模式：亮色 / 暗色 / 跟隨系統</li>
-            <li>✅ 響應式設計：支援手機、平板、桌面</li>
-            <li>✅ 離線功能：媒體快取與離線瀏覽</li>
-            <li>✅ PWA 支援：可安裝為手機 App</li>
-            <li>✅ 大檔影片：支援分段上傳、串流播放、統一下載</li>
-          </ul>
-        </div>
-
-        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-6">
-          <h4 className="font-bold text-lg text-purple-900 dark:text-purple-100 mb-3">🚀 技術優勢</h4>
-          <ul className="space-y-2 text-gray-700 dark:text-gray-300 text-sm">
-            <li>✅ AI 自動化：智慧化資料處理</li>
-            <li>✅ 雲端整合：Appwrite 後端服務</li>
-            <li>✅ 動態設定：可在前端切換 Appwrite 與推播設定</li>
-            <li>✅ 動態配置：免重新部署即可切換帳號</li>
-            <li>✅ 高效快取：IndexedDB 離線儲存</li>
-          </ul>
-        </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <InfoCard title="設計原則" body="人先做決策，AI 先做整理。AI 不取代表單，只負責分類、提醒、排序與異常發現。" />
+        <InfoCard title="UI 原則" body="各模組盡量共用搜尋列、摘要卡、AI 建議、批次工具列與卡片/表格視圖切換。" />
+        <InfoCard title="資料原則" body="前端 UI 不能假設 schema，像 subscription 已改成完全依真實欄位收斂。" />
       </div>
     </div>
   );
 }
 
-// 功能模組區塊
 function ModulesOverview() {
-  const modules = [
-    { num: 1, name: "鋒兄首頁", desc: "系統概覽與快速入口" },
-    { num: 2, name: "鋒兄儀表", desc: "詳細數據統計與分析圖表" },
-    { num: 3, name: "鋒兄訂閱", desc: "訂閱服務與定期支出管理" },
-    { num: 4, name: "鋒兄食品", desc: "食品庫存、分類與過期管理" },
-    { num: 5, name: "鋒兄筆記", desc: "多功能筆記系統，支援附件與預覽" },
-    { num: 6, name: "鋒兄常用", desc: "常用帳號、網站與連結管理" },
-    { num: 7, name: "鋒兄圖片", desc: "圖片上傳、瀏覽與藝廊管理" },
-    { num: 8, name: "鋒兄影片", desc: "影片播放與簡介管理" },
-    { num: 9, name: "鋒兄音樂", desc: "音樂播放、歌詞顯示與專輯管理" },
-    { num: 10, name: "鋒兄文件", desc: "綜合文件管理（PDF、Office、ZIP）" },
-    { num: 11, name: "鋒兄播客", desc: "播客音訊播放與進度管理" },
-    { num: 12, name: "鋒兄銀行", desc: "銀行帳戶、餘額與財務記錄" },
-    { num: 13, name: "鋒兄例行", desc: "例行公事、週期性任務管理" },
-    { num: 14, name: "鋒兄設定", desc: "系統配置、API 設定與主題切換" },
-    { num: 15, name: "鋒兄關於", desc: "系統版本與專案資訊" },
-  ];
-
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">功能模組一覽</h2>
+      <SectionHeader
+        title="功能模組一覽"
+        description="15 個模組不是 15 個獨立表單頁，而是同一套資料工作台在不同資料型別上的實作。"
+      />
 
-      <p className="text-gray-600 dark:text-gray-400">
-        鋒兄AI Appwrite 管理系統包含 15 大功能模組，幫助您集中管理日常生活中的各種資料。
-      </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {modules.map((module) => (
-          <div
-            key={module.num}
-            className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-4 hover:shadow-lg transition-shadow"
-          >
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {MODULES.map((module) => (
+          <DataCard key={module.num} className="p-4">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-sm">{module.num}</span>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-bold text-white dark:bg-slate-100 dark:text-slate-900">
+                {module.num}
               </div>
-              <div>
-                <h4 className="font-bold text-gray-900 dark:text-gray-100 mb-1">{module.name}</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{module.desc}</p>
+              <div className="space-y-2">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{module.category}</div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{module.name}</h3>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{module.desc}</p>
               </div>
             </div>
-          </div>
+          </DataCard>
         ))}
       </div>
+
+      <DataCard className="p-5">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">目前統一中的共通能力</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <BulletList
+            title="CRUD 骨架"
+            items={[
+              "快速新增 + 完整新增",
+              "卡片 / 表格雙視圖",
+              "列表快改 + 詳細編輯",
+              "單筆刪除 + 批次刪除 + 安全提醒",
+            ]}
+          />
+          <BulletList
+            title="AI 輔助"
+            items={[
+              "自動摘要與狀態整理",
+              "重複提醒與異常提示",
+              "建議下一步與優先順序",
+              "批次整理與後續 schema 擴充入口",
+            ]}
+          />
+        </div>
+      </DataCard>
     </div>
   );
 }
 
-// 技術文件區塊
 function TechnicalDocs() {
-  const docs = [
-    { name: "INDEX.md", desc: "選單結構索引" },
-    { name: "USER_GUIDE.md", desc: "完整使用者教學手冊 (600+ 行)" },
-    { name: "00_company_introduction.md", desc: "公司簡介" },
-    { name: "01_home.md", desc: "首頁說明" },
-    { name: "02_dashboard.md", desc: "儀表板說明" },
-    { name: "03_subscription.md", desc: "訂閱管理說明" },
-    { name: "04_food.md", desc: "食品管理說明" },
-    { name: "05_notes.md", desc: "筆記管理說明" },
-    { name: "06_common_accounts.md", desc: "常用帳號說明" },
-    { name: "07_images.md", desc: "圖片管理說明" },
-    { name: "08_videos.md", desc: "影片管理說明" },
-    { name: "09_music.md", desc: "音樂管理說明" },
-    { name: "10_documents.md", desc: "文件管理說明" },
-    { name: "11_podcast.md", desc: "播客管理說明" },
-    { name: "12_bank.md", desc: "銀行管理說明" },
-    { name: "13_routine.md", desc: "例行管理說明" },
-    { name: "14_settings.md", desc: "系統設定說明" },
-    { name: "15_about.md", desc: "關於系統說明" },
-  ];
-
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">技術文件</h2>
+      <SectionHeader
+        title="技術文件"
+        description="這一區給開發與維護使用。你可以從 docs 看規格，也可以直接對照目前最重要的程式檔案。"
+      />
 
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
-        <p className="text-sm text-gray-700 dark:text-gray-300">
-          📚 完整的技術文件位於 <code className="bg-yellow-100 dark:bg-yellow-900 px-2 py-1 rounded">\fengbroaiappwrite-main\docs</code> 目錄
-        </p>
+      <DataCard className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+        `docs/` 目錄目前是正式文件入口；`components/modules/` 與 `hooks/` 則反映最新實作狀態。規格若與程式不一致，以實際程式與設定頁驗證結果為準，再回補文件。
+      </DataCard>
+
+      <div className="space-y-4">
+        {DOC_GROUPS.map((group) => (
+          <DataCard key={group.title} className="p-5">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{group.title}</h3>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {group.items.map(([name, desc]) => (
+                <div key={name} className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-900/40">
+                  <div className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{name}</div>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </DataCard>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {docs.map((doc) => (
-          <div key={doc.name} className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-start gap-3">
-              <FileText className="w-5 h-5 text-blue-500 flex-shrink-0 mt-1" />
-              <div>
-                <h4 className="font-mono text-sm text-gray-900 dark:text-gray-100 mb-1">{doc.name}</h4>
-                <p className="text-xs text-gray-600 dark:text-gray-400">{doc.desc}</p>
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="grid gap-4 md:grid-cols-3">
+        <InfoCard title="文件維護原則" body="先改實作，再補 docs；但對外顯示的關於頁與 docs/15_about.md 要一起更新。" />
+        <InfoCard title="高風險區" body="settings、subscription、storage 相關檔案一旦 schema 或 bucket 變動，要同步更新說明。" />
+        <InfoCard title="推薦讀法" body="先看 INDEX，再看 About、Settings、對應模組文件，最後再進 hooks 與 API routes。" />
       </div>
     </div>
   );
 }
 
-// 使用手冊區塊
 function UserGuide() {
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">完整文件內容</h2>
+      <SectionHeader
+        title="完整文件內容"
+        description="這一區不是把所有文件全文貼上，而是給你最快的閱讀順序、操作流程和維護清單。"
+      />
 
-      <div className="prose dark:prose-invert max-w-none space-y-8">
-        {/* USER_GUIDE.md 內容 */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl p-6">
-          <div className="space-y-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">鋒兄AI Appwrite 管理系統 — 使用者教學手冊</h1>
-            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <p><strong>版本</strong>: v1.0.0</p>
-              <p><strong>技術框架</strong>: Next.js 16 / React 19 / Appwrite</p>
-              <p><strong>最後更新</strong>: 2026-02-22</p>
-            </div>
-          </div>
-        </div>
-
-        {/* 1. 系統簡介 */}
-        <section className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">1. 系統簡介</h2>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            <strong>鋒兄AI Appwrite</strong> 是一套個人資訊管理系統，幫助您集中管理日常生活中的各種資料。
-          </p>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">功能模組</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">用途</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">食品管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">追蹤食品庫存與到期日，避免浪費</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">訂閱管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">管理各種訂閱服務與付費週期</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">筆記管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">撰寫、整理個人筆記與文章</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">常用帳號</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">收藏常用網站連結與備忘</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">圖片管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">瀏覽與管理圖片庫</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">影片管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">管理與播放影片收藏</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">音樂管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">音樂庫管理與播放</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">播客管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">管理 Podcast 內容</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">文件管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">上傳與管理各類文件</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">銀行管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">記錄銀行帳戶與存款資訊</td></tr>
-                <tr><td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">例行管理</td><td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">管理日常例行事務</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p className="text-gray-700 dark:text-gray-300 mt-4">
-            系統支援 <strong>亮色 / 暗色 / 跟隨系統</strong> 三種主題模式，並提供 <strong>手機、平板、桌面</strong> 三種裝置的響應式佈局。
-          </p>
-        </section>
-
-        {/* 2. 快速開始 */}
-        <section className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">2. 快速開始</h2>
-
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3 mt-6">2.1 環境需求</h3>
-          <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">
-            <li><strong>Node.js</strong>: 18 以上版本</li>
-            <li><strong>瀏覽器</strong>: Chrome、Firefox、Safari、Edge（現代瀏覽器）</li>
-            <li><strong>Appwrite</strong>: 需要一個 Appwrite 雲端或自架帳號</li>
-          </ul>
-
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3 mt-6">2.2 安裝步驟</h3>
-          <div className="bg-gray-900 dark:bg-gray-950 rounded-xl p-4 overflow-x-auto mb-4">
-            <pre className="text-green-400 text-sm font-mono">{`# 1. 安裝套件
-npm install
-
-# 2. 複製環境設定檔
-cp .env.example .env.local
-
-# 3. 編輯 .env.local，填入你的 Appwrite 設定
-
-# 4. 啟動開發伺服器
-npm run dev`}</pre>
-          </div>
-          <p className="text-gray-700 dark:text-gray-300">
-            啟動後在瀏覽器開啟 <code className="bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">http://localhost:3000</code> 即可使用。
-          </p>
-
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3 mt-6">2.3 首次使用：初始化資料庫</h3>
-          <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
-            <li>點擊左側選單的 <strong>「鋒兄設定」</strong></li>
-            <li>找到 <strong>「資料庫欄位統計」</strong> 區塊</li>
-            <li>紅色標示的表格代表尚未建立</li>
-            <li>點擊 <strong>「一鍵建立所有缺失 Table」</strong> 按鈕</li>
-            <li>等待所有表格建立完成（會顯示進度）</li>
-            <li>建立完成後，回到其他模組即可開始使用</li>
+      <div className="grid gap-4 md:grid-cols-2">
+        <DataCard className="p-5">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">第一次接手專案</h3>
+          <ol className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <li>1. 看 `docs/INDEX.md` 了解模組與文件對照。</li>
+            <li>2. 看 `docs/15_about.md` 掌握最新改版方向。</li>
+            <li>3. 到「鋒兄設定」確認 Appwrite 連線與 table 狀態。</li>
+            <li>4. 若缺表，直接用設定頁或模組內初始化按鈕建立。</li>
+            <li>5. 再進對應模組頁確認 schema、操作流程與實際 UI 是否一致。</li>
           </ol>
-        </section>
+        </DataCard>
 
-        {/* 各模組說明 - 簡化版本 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ModuleDocCard
-            title="3. 首頁與儀表板"
-            content={
-              <div className="space-y-2 text-sm">
-                <p><strong>首頁（鋒兄首頁）</strong></p>
-                <p>首頁顯示系統標題資訊，是進入系統後的預設畫面。</p>
-                <p><strong>儀表板（鋒兄儀表）</strong></p>
-                <p>儀表板彙整了所有模組的關鍵統計數據，讓你一眼掌握重要資訊。</p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>食品區塊：總數、正常、7天內到期、30天內到期、已過期</li>
-                  <li>訂閱區塊：總數、3天內到期、7天內到期、已逾期</li>
-                  <li>財務概覽：年費總計、月費總計、下月預估費、銀行總存款</li>
-                  <li>多媒體儲存：圖片、影片、音樂、文件、播客的數量與佔用空間</li>
-                </ul>
-              </div>
-            }
-          />
-
-          <ModuleDocCard
-            title="4. 食品管理"
-            content={
-              <div className="space-y-2 text-sm">
-                <p>食品管理模組幫助你追蹤家中食品的庫存與到期日期。</p>
-                <p><strong>到期狀態說明：</strong></p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>🟢 正常：距離到期日超過 7 天</li>
-                  <li>🟡 即將到期：距離到期日在 3-7 天內</li>
-                  <li>🟠 緊急：距離到期日在 3 天內</li>
-                  <li>🔴 已過期：已超過到期日</li>
-                </ul>
-              </div>
-            }
-          />
-
-          <ModuleDocCard
-            title="5. 訂閱管理"
-            content={
-              <div className="space-y-2 text-sm">
-                <p>管理你的各種付費訂閱服務，追蹤續費日期與費用。</p>
-                <p><strong>幣別換算：</strong></p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>USD（美元）：1 USD = 35 TWD</li>
-                  <li>EUR（歐元）：1 EUR = 40 TWD</li>
-                  <li>JPY（日圓）：1 JPY = 0.35 TWD</li>
-                  <li>CNY（人民幣）：1 CNY = 4.5 TWD</li>
-                  <li>HKD（港幣）：1 HKD = 4 TWD</li>
-                </ul>
-                <p className="text-xs text-gray-500">注意：匯率為固定值，非即時匯率，僅供預估參考。</p>
-              </div>
-            }
-          />
-
-          <ModuleDocCard
-            title="6. 筆記管理"
-            content={
-              <div className="space-y-2 text-sm">
-                <p>筆記管理模組讓你撰寫與整理個人筆記和文章。</p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>標題、內容、日期</li>
-                  <li>附件連結：最多可附加 3 個外部網址</li>
-                  <li>附件檔案：最多可附加 3 個檔案</li>
-                  <li>筆記預設依 <strong>日期由新到舊</strong> 排列</li>
-                </ul>
-              </div>
-            }
-          />
-
-          <ModuleDocCard
-            title="7-11. 多媒體模組"
-            content={
-              <div className="space-y-2 text-sm">
-                <p><strong>7. 常用帳號</strong>：最多 37 個常用網站連結、Favicon 自動顯示</p>
-                <p><strong>8. 圖片管理</strong>：上傳、瀏覽、分類、離線快取 (500MB)</p>
-                <p><strong>9. 影片管理</strong>：播放佇列、串流播放、離線快取</p>
-                <p><strong>10. 音樂管理</strong>：歌詞顯示、播放佇列、離線快取</p>
-                <p><strong>11. 播客管理</strong>：音訊/視訊 Podcast、離線快取</p>
-              </div>
-            }
-          />
-
-          <ModuleDocCard
-            title="12. 文件管理"
-            content={
-              <div className="space-y-2 text-sm">
-                <p>上傳與管理各類文件。</p>
-                <p><strong>支援的檔案格式：</strong></p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>文件：PDF、DOC、DOCX</li>
-                  <li>試算表：XLS、XLSX</li>
-                  <li>簡報：PPT、PPTX</li>
-                  <li>文字：TXT、MD、JSON、XML、HTML、CSS、JS</li>
-                  <li>壓縮：ZIP</li>
-                  <li>圖片：JPG、PNG、GIF、WEBP</li>
-                </ul>
-                <p>支援 ZIP 匯出、CSV 匯出、ZIP 匯入</p>
-              </div>
-            }
-          />
-
-          <ModuleDocCard
-            title="13-14. 銀行與例行"
-            content={
-              <div className="space-y-2 text-sm">
-                <p><strong>13. 銀行管理</strong></p>
-                <p>記錄與追蹤銀行帳戶資訊：銀行名稱、存款金額、網站、地址、提款資訊、轉帳資訊、卡片、帳號。</p>
-                <p><strong>14. 例行管理</strong></p>
-                <p>管理日常的例行事務與定期任務：最近例行之一、之二、之三，支援日期遞移功能。</p>
-              </div>
-            }
-          />
-
-          <ModuleDocCard
-            title="15. 系統設定"
-            content={
-              <div className="space-y-2 text-sm">
-                <p><strong>Appwrite 帳號切換</strong>：支援動態切換不同的 Appwrite 後端</p>
-                <p><strong>資料庫管理</strong>：一鍵建立表格、個別重建、結構修正</p>
-                <p><strong>儲存空間管理</strong>：孤立檔案檢測、批次清除、分類統計</p>
-                <p><strong>主題切換</strong>：☀ 亮色模式 / 🌙 暗色模式 / 💻 跟隨系統</p>
-              </div>
-            }
-          />
-        </div>
-
-        {/* 常見問題 */}
-        <section className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">16. 常見問題</h2>
-          <div className="space-y-4 text-sm">
-            <FAQItem
-              q="Q1: 開啟模組時顯示「Table xxx 不存在」"
-              a="解決方式：到「鋒兄設定」→「資料庫欄位統計」，點擊「一鍵建立所有缺失 Table」建立缺失的資料表。"
-            />
-            <FAQItem
-              q="Q2: 資料沒有更新 / 顯示舊資料"
-              a="解決方式：1) 嘗試重新整理瀏覽器頁面（Ctrl+F5 / Cmd+Shift+R） 2) 如果仍有問題，到「鋒兄設定」切換帳號再切回來，會強制清除快取。"
-            />
-            <FAQItem
-              q="Q3: 影片/音樂無法播放"
-              a="可能原因與解決方式：1) 確認檔案已上傳到 Appwrite Storage 2) 確認 Appwrite Bucket 的權限設定為公開讀取 3) 嘗試清除瀏覽器快取後重新載入 4) 確認網路連線正常。"
-            />
-            <FAQItem
-              q="Q4: 檔案上傳失敗"
-              a="可能原因：1) Appwrite 免費方案有頻寬限制，超過後會暫時無法上傳 2) 確認 API Key 有正確的寫入權限 3) 確認 Bucket ID 設定正確。"
-            />
-            <FAQItem
-              q="Q5: 如何備份資料？"
-              a="目前資料儲存在 Appwrite 雲端，可透過 Appwrite Console 進行資料備份。文件管理模組支援 ZIP 匯出功能。"
-            />
-            <FAQItem
-              q="Q6: 支援哪些瀏覽器？"
-              a="支援所有現代瀏覽器：Google Chrome 90+、Mozilla Firefox 90+、Apple Safari 14+、Microsoft Edge 90+。"
-            />
-            <FAQItem
-              q="Q7: 可以安裝為手機 App 嗎？"
-              a="系統為 PWA（漸進式網頁應用），可以透過瀏覽器的「加到主畫面」功能安裝到手機：iOS：Safari → 分享 → 加入主畫面 / Android：Chrome → 選單 → 安裝應用程式。"
-            />
-            <FAQItem
-              q="Q8: 離線可以使用嗎？"
-              a="部分功能支援離線使用：已快取的影片、音樂、圖片、文件可離線瀏覽/播放，新增/修改/刪除等操作需要網路連線。"
-            />
-            <FAQItem
-              q="Q9: 匯率不正確怎麼辦？"
-              a="系統使用固定匯率作為預估參考。如需精確匯率，請以實際銀行匯率為準。目前匯率設定為硬編碼，需修改程式碼才能更新。"
-            />
-            <FAQItem
-              q="Q10: 儲存空間滿了怎麼辦？"
-              a="1) 到「鋒兄設定」檢查「孤立檔案」並清除 2) 刪除不需要的影片、音樂、圖片等媒體檔案 3) 清除瀏覽器的離線快取（每種媒體類型上限 500MB） 4) 考慮升級 Appwrite 方案以獲得更多儲存空間。"
-            />
-          </div>
-        </section>
+        <DataCard className="p-5">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">目前最重要的維護流程</h3>
+          <ol className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <li>1. 先確認真實 Appwrite schema，不要只看前端欄位。</li>
+            <li>2. 調整模組 UI 時，優先維持共用工作台骨架一致。</li>
+            <li>3. 涉及 collection id、table 初始化、匯入匯出時，要順手檢查設定頁。</li>
+            <li>4. 完成後同步更新對應 docs，至少補 About 與模組文件。</li>
+          </ol>
+        </DataCard>
       </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <BulletList
+          title="使用者視角"
+          items={[
+            "新增要快",
+            "搜尋要強",
+            "編輯要輕",
+            "刪除要安心",
+            "AI 只做整理與提醒",
+          ]}
+        />
+        <BulletList
+          title="開發者視角"
+          items={[
+            "先看真實 schema",
+            "避免前後端欄位漂移",
+            "抽共用 UI，不重複造輪子",
+            "先做可用，再做完整 AI",
+            "修改後同步文件",
+          ]}
+        />
+        <BulletList
+          title="接下來可做"
+          items={[
+            "共用 Drawer 編輯器",
+            "垃圾桶 / 封存統一化",
+            "重複檢查與批次整理深化",
+            "更多模組對齊友善 AI CRUD",
+            "docs 與 settings 持續同步",
+          ]}
+        />
+      </div>
+
+      <DataCard className="p-5">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">完整文件閱讀順序</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-900/40">
+            <div className="font-semibold text-gray-900 dark:text-gray-100">產品與架構</div>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">`00_company_introduction.md` → `15_about.md` → `SYSTEM_ARCHITECTURE.md`</p>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-900/40">
+            <div className="font-semibold text-gray-900 dark:text-gray-100">模組與操作</div>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">`INDEX.md` → 模組文件 → `USER_GUIDE.md` → 實際模組頁程式碼</p>
+          </div>
+        </div>
+      </DataCard>
     </div>
   );
 }
 
-// 輔助元件
-function ModuleDocCard({ title, content }: { title: string; content: React.ReactNode }) {
+function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-      <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">{title}</h3>
-      <div className="text-gray-700 dark:text-gray-300">{content}</div>
+    <div className="space-y-2">
+      <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{title}</h2>
+      <p className="text-gray-600 dark:text-gray-400">{description}</p>
     </div>
   );
 }
 
-function FAQItem({ q, a }: { q: string; a: string }) {
+function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="border-l-4 border-orange-400 pl-4">
-      <p className="font-bold text-gray-900 dark:text-gray-100 mb-1">{q}</p>
-      <p className="text-gray-700 dark:text-gray-300">{a}</p>
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+      <div className="text-xs text-slate-300">{label}</div>
+      <div className="mt-2 text-2xl font-bold text-white">{value}</div>
+      <div className="mt-1 text-xs text-slate-400">{detail}</div>
     </div>
+  );
+}
+
+function InfoCard({ title, body }: { title: string; body: string }) {
+  return (
+    <DataCard className="p-5">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{title}</h3>
+      <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-400">{body}</p>
+    </DataCard>
+  );
+}
+
+function BulletList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <DataCard className="p-5">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{title}</h3>
+      <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+        {items.map((item) => (
+          <li key={item}>• {item}</li>
+        ))}
+      </ul>
+    </DataCard>
   );
 }
