@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionHeader } from "@/components/ui/section-header";
 import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
-import { DataCard, DataCardList, DataCardItem } from "@/components/ui/data-card";
+import { DataCard } from "@/components/ui/data-card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatCard } from "@/components/ui/stat-card";
@@ -19,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2 } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit } from "lucide-react";
 import JSZip from "jszip";
 import { FaviconImage } from "@/components/ui/favicon-image";
 
@@ -42,8 +43,28 @@ const INITIAL_FORM: ArticleFormData = {
   file3type: "",
 };
 
+const NOTE_TEMPLATES: Record<string, { title: string; category: string; content: string }> = {
+  meeting: { title: "會議紀錄", category: "專案", content: "會議主題：\n參與者：\n重點：\n待辦：\n下一步：" },
+  todo: { title: "待辦事項", category: "待辦", content: "- [ ] 事項一\n- [ ] 事項二\n- [ ] 事項三" },
+  study: { title: "讀書筆記", category: "學習", content: "主題：\n重點摘要：\n重要觀念：\n複習提醒：" },
+  idea: { title: "靈感", category: "想法", content: "這個想法是什麼：\n為什麼有趣：\n下一步可以做什麼：" },
+};
+
+type NoteFilterMode = "all" | "recent" | "pinned" | "withFiles";
+
+function summarizeContent(content: string) {
+  const normalized = (content || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "空白筆記，建議補上重點或待辦。";
+  if (normalized.length <= 90) return normalized;
+  return `${normalized.slice(0, 90)}...`;
+}
+
+function extractTodoCount(content: string) {
+  return (content.match(/- \[ \]|TODO|待辦/gi) || []).length;
+}
+
 // TXT 預覽元件 - 支援 UTF-8 編碼
-function TxtPreview({ url, title }: { url: string; title: string }) {
+function TxtPreview({ url }: { url: string; title: string }) {
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +109,7 @@ interface ZipEntry {
   size: number;
 }
 
-function ZipPreview({ url, title }: { url: string; title: string }) {
+function ZipPreview({ url }: { url: string; title: string }) {
   const [entries, setEntries] = useState<ZipEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,6 +197,8 @@ export default function NotesManagement() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [noteFilterMode, setNoteFilterMode] = useState<NoteFilterMode>("all");
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
 
   // ZIP/CSV 匯入/匯出功能
   const [importPreview, setImportPreview] = useState<{ data: ArticleFormData[], zipFile?: JSZip | null, errors: string[] } | null>(null);
@@ -222,6 +245,22 @@ export default function NotesManagement() {
   // 分類篩選狀態
   const [categoryFilter, setCategoryFilter] = useState("");
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = localStorage.getItem("notes_pinned_ids");
+    if (!raw) return;
+    try {
+      setPinnedIds(new Set(JSON.parse(raw)));
+    } catch {
+      setPinnedIds(new Set());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("notes_pinned_ids", JSON.stringify(Array.from(pinnedIds)));
+  }, [pinnedIds]);
+
   // 搜尋過濾（包含分類）
   const filteredArticles = useMemo(() => {
     let result = articles;
@@ -234,12 +273,53 @@ export default function NotesManagement() {
     }
     if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
-    return result.filter(article =>
+    result = result.filter(article =>
       article.title?.toLowerCase().includes(query) ||
       article.content?.toLowerCase().includes(query) ||
       article.category?.toLowerCase().includes(query)
     );
-  }, [articles, searchQuery, categoryFilter]);
+    if (noteFilterMode === "recent") {
+      result = result.filter((article) => {
+        const diff = Date.now() - new Date(article.$updatedAt || article.newDate).getTime();
+        return diff <= 7 * 24 * 60 * 60 * 1000;
+      });
+    } else if (noteFilterMode === "pinned") {
+      result = result.filter((article) => pinnedIds.has(article.$id));
+    } else if (noteFilterMode === "withFiles") {
+      result = result.filter((article) => article.file1 || article.file2 || article.file3);
+    }
+    return result;
+  }, [articles, searchQuery, categoryFilter, noteFilterMode, pinnedIds]);
+
+  const dashboardStats = useMemo(() => {
+    const recent = articles.filter((article) => {
+      const diff = Date.now() - new Date(article.$updatedAt || article.newDate).getTime();
+      return diff <= 7 * 24 * 60 * 60 * 1000;
+    });
+    const withFiles = articles.filter((article) => article.file1 || article.file2 || article.file3);
+    const uncategorized = articles.filter((article) => !article.category);
+    return {
+      recent,
+      pinned: articles.filter((article) => pinnedIds.has(article.$id)),
+      withFiles,
+      uncategorized,
+    };
+  }, [articles, pinnedIds]);
+
+  const aiWorkbench = useMemo(() => {
+    const topRecent = [...articles]
+      .sort((a, b) => new Date(b.$updatedAt || b.newDate).getTime() - new Date(a.$updatedAt || a.newDate).getTime())
+      .slice(0, 3);
+
+    return {
+      suggestions: [
+        topRecent[0] ? `最近最值得回顧的是「${topRecent[0].title}」：${summarizeContent(topRecent[0].content)}` : "目前還沒有筆記，可以先用快速模板開始。",
+        dashboardStats.uncategorized.length > 0 ? `還有 ${dashboardStats.uncategorized.length} 篇未分類筆記，建議先整理分類。` : "分類覆蓋良好，找筆記會比較快。",
+        dashboardStats.withFiles.length > 0 ? `${dashboardStats.withFiles.length} 篇筆記有附件，適合當成知識索引入口。` : "目前沒有附件型筆記。",
+      ],
+      topRecent,
+    };
+  }, [articles, dashboardStats.uncategorized.length, dashboardStats.withFiles.length]);
 
   // File upload handlers
   const handleFileSelect = (fileNumber: 1 | 2 | 3, file: File | null) => {
@@ -430,7 +510,7 @@ export default function NotesManagement() {
   };
 
   const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`確定刪除 ${title}？`)) return;
+    if (!confirm(`確定刪除筆記「${title}」嗎？\n\n目前這一版仍是直接刪除，尚未提供垃圾桶復原。`)) return;
     try {
       await deleteArticle(id);
       setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
@@ -463,7 +543,7 @@ export default function NotesManagement() {
 
     const confirmText = `DELETE 鋒兄筆記`;
     const userInput = prompt(
-      `確定要刪除所選的 ${selectedIds.size} 篇筆記嗎？\n\n此操作無法復原！\n\n請輸入以下文字以確認刪除：\n${confirmText}`
+      `確定要刪除所選的 ${selectedIds.size} 篇筆記嗎？\n\n目前這一版仍是直接刪除，尚未提供垃圾桶復原。\n\n請輸入以下文字以確認刪除：\n${confirmText}`
     );
     if (userInput !== confirmText) {
       if (userInput !== null) {
@@ -564,6 +644,27 @@ export default function NotesManagement() {
       console.error("複製失敗:", err);
       alert("複製失敗，請再試一次");
     }
+  };
+
+  const togglePinned = (id: string) => {
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const applyTemplate = (templateKey: keyof typeof NOTE_TEMPLATES) => {
+    const template = NOTE_TEMPLATES[templateKey];
+    setForm((prev) => ({
+      ...prev,
+      title: template.title,
+      category: template.category,
+      content: template.content,
+      newDate: prev.newDate || new Date().toISOString().split("T")[0],
+    }));
+    setIsFormCollapsed(false);
   };
 
   // ZIP Export function - 匯出 ZIP（含附件檔案 + CSV）
@@ -1031,6 +1132,82 @@ export default function NotesManagement() {
         }
       />
 
+      <div className="grid gap-4 lg:grid-cols-4">
+        <Card className="border-sky-200 bg-gradient-to-br from-sky-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-sky-700"><Clock3 size={16} /> 最近 7 天</CardDescription>
+            <CardTitle className="text-3xl text-sky-800">{dashboardStats.recent.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-sky-800/80">最近更新的筆記，適合當成回顧入口。</CardContent>
+        </Card>
+        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-amber-700"><Pin size={16} /> 釘選筆記</CardDescription>
+            <CardTitle className="text-3xl text-amber-800">{dashboardStats.pinned.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-amber-800/80">把常用與高價值筆記固定在前面。</CardContent>
+        </Card>
+        <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-emerald-700"><FolderOpen size={16} /> 有附件筆記</CardDescription>
+            <CardTitle className="text-3xl text-emerald-800">{dashboardStats.withFiles.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-emerald-800/80">附件型筆記適合做成知識索引與素材倉庫。</CardContent>
+        </Card>
+        <Card className="border-rose-200 bg-gradient-to-br from-rose-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-rose-700"><BrainCircuit size={16} /> 待整理</CardDescription>
+            <CardTitle className="text-3xl text-rose-800">{dashboardStats.uncategorized.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-rose-800/80">未分類筆記愈少，之後愈找得到。</CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+        <Card className="border-purple-200 bg-gradient-to-br from-purple-50 via-white to-fuchsia-50 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardDescription className="flex items-center gap-2 text-purple-700"><Plus size={16} /> 快速新增與模板</CardDescription>
+            <CardTitle>先記下來，再慢慢整理</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(NOTE_TEMPLATES).map(([key, template]) => (
+                <Button key={key} type="button" variant="outline" className="rounded-full border-purple-200 text-purple-700 hover:bg-purple-50" onClick={() => applyTemplate(key as keyof typeof NOTE_TEMPLATES)}>
+                  {template.title}
+                </Button>
+              ))}
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <Input placeholder="快速標題" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="h-11 rounded-xl md:col-span-2" />
+              <Input placeholder="分類" value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-11 rounded-xl" />
+              <Textarea placeholder="快速記錄內容" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="min-h-[120px] rounded-xl md:col-span-3" />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" className="rounded-xl bg-purple-600 hover:bg-purple-700 text-white" onClick={() => setIsFormCollapsed(false)}>
+                打開完整編輯器
+              </Button>
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => setForm({ ...INITIAL_FORM, newDate: new Date().toISOString().split('T')[0] })}>
+                清空草稿
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardDescription className="flex items-center gap-2 text-amber-700"><Sparkles size={16} /> Friendly AI 整理區</CardDescription>
+            <CardTitle>今天值得整理什麼</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+            {aiWorkbench.suggestions.map((suggestion, index) => (
+              <div key={index} className="rounded-2xl border border-amber-200 bg-white/80 px-4 py-3">
+                {suggestion}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
       {!isFormCollapsed && (
         <FormCard title="新增筆記" accentColor="from-purple-500 to-purple-600">
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -1385,6 +1562,24 @@ export default function NotesManagement() {
       {/* 搜尋欄位 + 分類篩選 + 全選/批次刪除 */}
       {articles.length > 0 && (
         <div className="space-y-3 mb-4">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "全部" },
+              { key: "recent", label: "最近筆記" },
+              { key: "pinned", label: "釘選" },
+              { key: "withFiles", label: "有附件" },
+            ].map((item) => (
+              <Button
+                key={item.key}
+                type="button"
+                variant="outline"
+                onClick={() => setNoteFilterMode(item.key as NoteFilterMode)}
+                className={`rounded-full ${noteFilterMode === item.key ? "border-purple-500 bg-purple-50 text-purple-700" : ""}`}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -1454,10 +1649,14 @@ export default function NotesManagement() {
               const isEditing = editingId === article.$id;
               const isExpanded = expandedArticles.has(article.$id);
               const hasUrls = article.url1 || article.url2 || article.url3;
+              const isPinned = pinnedIds.has(article.$id);
+              const aiSummary = summarizeContent(article.content);
+              const todoCount = extractTodoCount(article.content);
 
               return (
                 <div key={article.$id} className={cn(
                   "bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm",
+                  isPinned && "border-amber-300 bg-amber-50/40 dark:bg-amber-900/10",
                   isEditing && "ring-2 ring-purple-500"
                 )}>
                   {isEditing ? (
@@ -1612,12 +1811,22 @@ export default function NotesManagement() {
                           />
                           <FileText className="text-purple-600 dark:text-purple-400" size={20} />
                           <div className="flex flex-col gap-0.5 min-w-0">
-                            <h3 className="font-semibold text-gray-900 dark:text-gray-100">{article.title}</h3>
-                            {article.category && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
-                                {article.category}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{article.title}</h3>
+                              {isPinned && <Pin className="text-amber-500" size={14} />}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {article.category && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
+                                  {article.category}
+                                </span>
+                              )}
+                              {todoCount > 0 && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                  TODO {todoCount}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1637,6 +1846,13 @@ export default function NotesManagement() {
                           </Button>
                           <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(article.newDate)}</span>
                         </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-2">
+                        <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-amber-700">
+                          <Sparkles size={12} /> AI 摘要
+                        </div>
+                        <p className="text-sm text-amber-900/80">{aiSummary}</p>
                       </div>
 
                       <div className="text-sm text-gray-600 dark:text-gray-300">
@@ -1844,8 +2060,17 @@ export default function NotesManagement() {
                         </div>
                       )}
 
-                      <div className="flex gap-2 pt-2">
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        <Button type="button" size="sm" variant="outline" onClick={() => togglePinned(article.$id)} className="rounded-xl">
+                          {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                          {isPinned ? "取消釘選" : "釘選"}
+                        </Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(article)} className="flex-1 rounded-xl">編輯</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => handleCopyContent(`摘要：${aiSummary}\n\n${article.content}`, article.$id)} className="rounded-xl">
+                          <Sparkles size={14} />
+                          AI 摘要
+                        </Button>
+                        <Button type="button" size="sm" variant="destructive" onClick={() => handleDelete(article.$id, article.title)} className="rounded-xl">刪除</Button>
                       </div>
                     </div>
                   )}
