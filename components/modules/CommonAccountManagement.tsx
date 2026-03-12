@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, Search, AlertTriangle, Copy, CopyPlus, Download, Upload } from "lucide-react";
+import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, Search, AlertTriangle, Copy, CopyPlus, Download, Upload, Sparkles, Pin, PinOff, Clock3, Wand2 } from "lucide-react";
 import { CommonAccount, CommonAccountFormData } from "@/types";
 import { Input, Textarea, DataCard, Button, SectionHeader, FormCard, FormActions } from "@/components/ui";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
-  SelectValue
+  SelectTrigger
 } from "@/components/ui/select";
 import { useCrud, fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
@@ -166,6 +166,13 @@ const INITIAL_FORM: CommonAccountFormData = {
   ...Object.fromEntries([...Array(37)].map((_, i) => [`note${(i + 1).toString().padStart(2, '0')}`, ""]))
 } as CommonAccountFormData;
 
+type CommonFilterMode = "all" | "pinned" | "recent";
+
+function summarizeEntry(siteName: string, note: string) {
+  const base = note?.trim() || siteName || "尚無內容";
+  return base.length > 48 ? `${base.slice(0, 48)}...` : base;
+}
+
 export default function CommonAccountManagement() {
   const { items: accounts, loading, fetchAll, create, update, remove, error } = useCrud<CommonAccount>(API_ENDPOINTS.COMMON_ACCOUNT);
 
@@ -196,10 +203,32 @@ export default function CommonAccountManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [deleteTotal, setDeleteTotal] = useState(0);
+  const [filterMode, setFilterMode] = useState<CommonFilterMode>("all");
+  const [pinnedSites, setPinnedSites] = useState<Set<string>>(new Set());
+  const [recentSites, setRecentSites] = useState<string[]>([]);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedPinned = JSON.parse(localStorage.getItem('common_pinned_sites') || '[]');
+      const savedRecent = JSON.parse(localStorage.getItem('common_recent_sites') || '[]');
+      setPinnedSites(new Set(savedPinned));
+      setRecentSites(Array.isArray(savedRecent) ? savedRecent : []);
+    } catch {
+      setPinnedSites(new Set());
+      setRecentSites([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('common_pinned_sites', JSON.stringify(Array.from(pinnedSites)));
+    localStorage.setItem('common_recent_sites', JSON.stringify(recentSites));
+  }, [pinnedSites, recentSites]);
 
   // Collect all unique site names from all accounts
   const allSiteNames = useMemo(() => {
@@ -237,8 +266,40 @@ export default function CommonAccountManagement() {
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
+    if (filterMode === 'pinned') {
+      filtered = filtered.filter(account =>
+        [...Array(37)].some((_, i) => {
+          const siteKey = `site${(i + 1).toString().padStart(2, '0')}` as keyof CommonAccount;
+          const siteName = account[siteKey] as string;
+          return !!siteName && pinnedSites.has(siteName);
+        })
+      );
+    } else if (filterMode === 'recent') {
+      filtered = filtered.filter(account =>
+        [...Array(37)].some((_, i) => {
+          const siteKey = `site${(i + 1).toString().padStart(2, '0')}` as keyof CommonAccount;
+          const siteName = account[siteKey] as string;
+          return !!siteName && recentSites.includes(siteName);
+        })
+      );
+    }
+
     return filtered;
-  }, [accounts, siteFilter, searchQuery, sortOrder]);
+  }, [accounts, siteFilter, searchQuery, sortOrder, filterMode, pinnedSites, recentSites]);
+
+  const dashboardStats = useMemo(() => {
+    const totalSites = accounts.reduce((sum, account) => sum + [...Array(37)].filter((_, i) => {
+      const siteKey = `site${(i + 1).toString().padStart(2, '0')}` as keyof CommonAccount;
+      return !!(account[siteKey] as string)?.trim();
+    }).length, 0);
+
+    return {
+      totalSites,
+      pinned: Array.from(pinnedSites).length,
+      recent: recentSites.length,
+      aiSuggested: allSiteNames.filter(name => !pinnedSites.has(name)).slice(0, 3),
+    };
+  }, [accounts, pinnedSites, recentSites, allSiteNames]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -384,7 +445,7 @@ export default function CommonAccountManagement() {
       // Try modern Clipboard API first
       try {
         await navigator.clipboard.writeText(text);
-      } catch (clipboardError) {
+      } catch {
         // Fallback method for non-secure contexts or blocked Clipboard API
         const textArea = document.createElement('textarea');
         textArea.value = text;
@@ -458,6 +519,29 @@ export default function CommonAccountManagement() {
       console.error('Failed to copy:', err);
       alert('❌ 複製失敗：' + (err instanceof Error ? err.message : '未知錯誤'));
     }
+  };
+
+  const markSiteUsed = (siteName: string) => {
+    setRecentSites((prev) => [siteName, ...prev.filter((item) => item !== siteName)].slice(0, 8));
+  };
+
+  const togglePinnedSite = (siteName: string) => {
+    setPinnedSites((prev) => {
+      const next = new Set(prev);
+      if (next.has(siteName)) next.delete(siteName);
+      else next.add(siteName);
+      return next;
+    });
+  };
+
+  const handleOpenSite = (siteName: string) => {
+    const url = getSiteUrl(siteName);
+    if (!url) {
+      alert(`「${siteName}」不是有效網址，無法直接開啟`);
+      return;
+    }
+    markSiteUsed(siteName);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Toggle single account selection
@@ -562,44 +646,6 @@ export default function CommonAccountManagement() {
   const [importPreview, setImportPreview] = useState<{ data: CommonAccountFormData[], errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
-  const fileInputRef = useState<HTMLInputElement | null>(null);
-
-  // 解析單行 CSV（處理引號內的逗號）
-  const parseCSVLine = (line: string): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-
-      if (inQuotes) {
-        if (char === '"') {
-          if (line[i + 1] === '"') {
-            current += '"';
-            i++; // 跳過轉義的引號
-          } else {
-            inQuotes = false;
-          }
-        } else {
-          current += char;
-        }
-      } else {
-        if (char === '"') {
-          inQuotes = true;
-        } else if (char === ',') {
-          result.push(current);
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-    }
-    result.push(current);
-
-    return result;
-  };
-
   // 解析完整 CSV（處理多行欄位）
   const parseFullCSV = (text: string): string[][] => {
     const rows: string[][] = [];
@@ -842,7 +888,7 @@ export default function CommonAccountManagement() {
     if (inlineEdit.siteName.trim() !== "") {
       const otherSites = Object.entries(account)
         .filter(([key, val]) => key.startsWith('site') && key !== siteKey && key !== 'name' && val)
-        .map(([_, val]) => (val as string).trim());
+        .map(([, val]) => (val as string).trim());
 
       if (otherSites.includes(inlineEdit.siteName.trim())) {
         alert(`此帳號已有重複的站點名稱: 「${inlineEdit.siteName.trim()}」，請修改名稱後再儲存`);
@@ -944,6 +990,86 @@ export default function CommonAccountManagement() {
           </div>
         }
       />
+
+      <div className="grid gap-4 lg:grid-cols-4">
+        <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-blue-700"><Star size={16} /> 常用入口總數</CardDescription>
+            <CardTitle className="text-3xl text-blue-800">{dashboardStats.totalSites}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-blue-800/80">把常用連結、帳號與備註集中到同一頁。</CardContent>
+        </Card>
+        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-amber-700"><Pin size={16} /> 置頂項目</CardDescription>
+            <CardTitle className="text-3xl text-amber-800">{dashboardStats.pinned}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-amber-800/80">把一秒內要叫出來的項目釘在前面。</CardContent>
+        </Card>
+        <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-emerald-700"><Clock3 size={16} /> 最近使用</CardDescription>
+            <CardTitle className="text-3xl text-emerald-800">{dashboardStats.recent}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-emerald-800/80">最近打開或複製過的入口會優先浮上來。</CardContent>
+        </Card>
+        <Card className="border-fuchsia-200 bg-gradient-to-br from-fuchsia-50 to-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2 text-fuchsia-700"><Sparkles size={16} /> AI 推薦</CardDescription>
+            <CardTitle className="text-3xl text-fuchsia-800">{dashboardStats.aiSuggested.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-fuchsia-800/80">根據常見站點推薦可置頂的入口。</CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+        <Card className="border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardDescription className="flex items-center gap-2 text-sky-700"><Wand2 size={16} /> 快速操作中心</CardDescription>
+            <CardTitle>先找到，再一鍵打開或複製</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'all', label: '全部' },
+                { key: 'pinned', label: '置頂' },
+                { key: 'recent', label: '最近使用' },
+              ].map((item) => (
+                <Button
+                  key={item.key}
+                  type="button"
+                  variant="outline"
+                  onClick={() => setFilterMode(item.key as CommonFilterMode)}
+                  className={`rounded-full ${filterMode === item.key ? 'border-sky-500 bg-sky-50 text-sky-700' : ''}`}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">這頁現在偏向入口控制台，先用搜尋、置頂和最近使用把最常碰的東西提到前面。</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardDescription className="flex items-center gap-2 text-amber-700"><Sparkles size={16} /> Friendly AI 建議</CardDescription>
+            <CardTitle>接下來可以整理什麼</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+            <div className="rounded-2xl border border-amber-200 bg-white/80 px-4 py-3">
+              搜尋是這頁的核心，先把常用的站點釘選起來，能比記憶更快叫出來。
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-white/80 px-4 py-3">
+              最近使用共有 {dashboardStats.recent} 項，適合當成下一版的自動排序依據。
+            </div>
+            {dashboardStats.aiSuggested.length > 0 && (
+              <div className="rounded-2xl border border-amber-200 bg-white/80 px-4 py-3">
+                可優先置頂：{dashboardStats.aiSuggested.join('、')}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* 匯入預覽對話框 */}
       {importPreview && (
@@ -1289,7 +1415,7 @@ export default function CommonAccountManagement() {
             </Button>
             {allSiteNames.map(siteName => {
               const count = accounts.filter(account => {
-                return [...Array(37)].some((_, i) => {
+                return [...Array(37)].some((__, i) => {
                   const siteKey = `site${(i + 1).toString().padStart(2, '0')}` as keyof CommonAccount;
                   const name = account[siteKey] as string;
                   return name?.trim() === siteName.trim();
@@ -1306,6 +1432,15 @@ export default function CommonAccountManagement() {
                   >
                     {siteUrl && <FaviconImage siteUrl={siteUrl} siteName={siteName} size={14} />}
                     {siteName} ({count})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => togglePinnedSite(siteName)}
+                    className={`h-8 w-8 p-0 rounded-lg ${pinnedSites.has(siteName) ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20'}`}
+                    title={pinnedSites.has(siteName) ? '取消置頂' : '置頂此站點'}
+                  >
+                    {pinnedSites.has(siteName) ? <Pin size={14} /> : <PinOff size={14} />}
                   </Button>
                   <Button
                     size="sm"
@@ -1417,6 +1552,7 @@ export default function CommonAccountManagement() {
                     <>
                       {visibleItems.map(({ idx, siteName, note }) => {
                         const isInlineEditing = inlineEdit?.accountId === account.$id && inlineEdit?.idx === idx;
+                        const isPinned = !!siteName && pinnedSites.has(siteName);
 
                         return (
                           <div key={idx} className="group/item relative bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-blue-200 dark:hover:border-blue-800/50 transition-colors">
@@ -1478,7 +1614,15 @@ export default function CommonAccountManagement() {
                               </div>
                             ) : (
                               // Display Mode
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                              <div className="flex flex-col gap-3">
+                                <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2">
+                                  <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                                    <Sparkles size={12} />
+                                    AI 摘要
+                                  </div>
+                                  <p className="text-xs text-amber-900/80">{summarizeEntry(siteName || '', note || '')}</p>
+                                </div>
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                                 {siteName && (() => {
                                   const siteUrl = getSiteUrl(siteName);
                                   return (
@@ -1486,10 +1630,12 @@ export default function CommonAccountManagement() {
                                       {siteUrl ? (
                                         <>
                                           <FaviconImage siteUrl={siteUrl} siteName={siteName} size={16} />
+                                          {isPinned && <Pin className="text-amber-500" size={12} />}
                                           <a
                                             href={siteUrl}
                                             target="_blank"
                                             rel="noreferrer"
+                                            onClick={() => markSiteUsed(siteName)}
                                             className="truncate max-w-[150px] sm:max-w-[200px] text-blue-600 dark:text-blue-400 hover:underline"
                                           >
                                             {siteName}
@@ -1511,11 +1657,33 @@ export default function CommonAccountManagement() {
                                     </span>
                                   )}
                                   <div className="flex items-center gap-1 shrink-0">
+                                    {siteName && (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => handleOpenSite(siteName)}
+                                          className="h-7 w-7 p-0 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
+                                          title="打開站點"
+                                        >
+                                          <LinkIcon size={14} />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => togglePinnedSite(siteName)}
+                                          className="h-7 w-7 p-0 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg"
+                                          title={isPinned ? "取消置頂" : "置頂此站點"}
+                                        >
+                                          {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                                        </Button>
+                                      </>
+                                    )}
                                     {note && (
                                       <Button
                                         size="sm"
                                         variant="ghost"
-                                        onClick={() => handleCopyNote(note)}
+                                        onClick={() => { if (siteName) markSiteUsed(siteName); handleCopyNote(note); }}
                                         className="h-7 w-7 p-0 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
                                         title="複製備註"
                                       >
@@ -1533,6 +1701,7 @@ export default function CommonAccountManagement() {
                                     </Button>
                                   </div>
                                 </div>
+                              </div>
                               </div>
                             )}
                           </div>
