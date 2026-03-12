@@ -4,6 +4,11 @@ const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
 
+async function getCollectionId(databases, databaseId, name) {
+  const collection = await getCollection(databases, databaseId, name);
+  return collection.$id;
+}
+
 async function getCollection(databases, databaseId, name) {
   const allCollections = await databases.listCollections(databaseId);
   const normalizedName = String(name).toLowerCase();
@@ -100,9 +105,8 @@ export async function POST(req) {
     const body = await req.json();
 
     // 驗證必填欄位（site 和 nextdate 為可選）
-    const { name, site, price, nextdate, note, account, currency, category, purpose, usageFrequency, friendliness, alternative, retentionRecommendation } = body;
+    const { name, site, price, nextdate, note, account, currency } = body;
     const continueValue = body.continue;
-    const archived = body.archived;
     if (!name || price == null) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
@@ -119,13 +123,6 @@ export async function POST(req) {
     if (note) payload.note = note;
     if (account) payload.account = account;
     if (currency) payload.currency = currency || "TWD";
-    if (category) payload.category = category;
-    if (purpose) payload.purpose = purpose;
-    if (usageFrequency) payload.usageFrequency = usageFrequency;
-    if (friendliness) payload.friendliness = friendliness;
-    if (alternative) payload.alternative = alternative;
-    if (retentionRecommendation) payload.retentionRecommendation = retentionRecommendation;
-    if (archived !== undefined) payload.archived = !!archived;
     if (continueValue !== undefined) payload.continue = continueValue;
 
     const filteredPayload = filterPayloadByAttributes(payload, collection);
