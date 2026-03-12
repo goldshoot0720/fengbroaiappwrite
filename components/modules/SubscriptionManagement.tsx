@@ -188,6 +188,10 @@ function getDraftSummary(form: SubscriptionFormData) {
   };
 }
 
+function normalizeSubscriptionValue(value?: string | null) {
+  return (value || "").trim().toLowerCase();
+}
+
 function SubscriptionFormCard({
   title,
   form,
@@ -353,6 +357,27 @@ export default function SubscriptionManagement() {
     [subscriptions]
   );
 
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map<string, Subscription[]>();
+
+    subscriptions.forEach((sub) => {
+      const normalizedName = normalizeSubscriptionValue(sub.name);
+      const normalizedAccount = normalizeSubscriptionValue(sub.account);
+      const normalizedSite = normalizeSubscriptionValue(sub.site);
+      const key = [normalizedName, normalizedAccount || normalizedSite].join("::");
+
+      if (!normalizedName || !key.replace(/:/g, "")) return;
+
+      const current = groups.get(key) || [];
+      current.push(sub);
+      groups.set(key, current);
+    });
+
+    return Array.from(groups.values())
+      .filter((group) => group.length > 1)
+      .sort((left, right) => right.length - left.length);
+  }, [subscriptions]);
+
   const filteredSubscriptions = useMemo(() => {
     let result = subscriptions;
 
@@ -418,6 +443,44 @@ export default function SubscriptionManagement() {
     setInlineEditForm(INITIAL_FORM);
     setIsInlineAdding(false);
     setInlineAddForm(INITIAL_FORM);
+  };
+
+  const applyQuickFilter = (type: "all" | "dueSoon" | "noDate" | "stopped" | "duplicates") => {
+    if (type === "all") {
+      setDueFilter("all");
+      setRenewalFilter("all");
+      setMonthFilter("all");
+      setSearchQuery("");
+      return;
+    }
+
+    setMonthFilter("all");
+
+    if (type === "dueSoon") {
+      setDueFilter("7days");
+      setRenewalFilter("all");
+      setSearchQuery("");
+      return;
+    }
+
+    if (type === "noDate") {
+      setDueFilter("nodate");
+      setRenewalFilter("all");
+      setSearchQuery("");
+      return;
+    }
+
+    if (type === "stopped") {
+      setDueFilter("all");
+      setRenewalFilter("stopped");
+      setSearchQuery("");
+      return;
+    }
+
+    const topDuplicate = duplicateGroups[0];
+    setDueFilter("all");
+    setRenewalFilter("all");
+    setSearchQuery(topDuplicate?.[0]?.name || "");
   };
 
   const handleInitializeSubscriptionTable = async () => {
@@ -868,12 +931,16 @@ export default function SubscriptionManagement() {
           expiredSubscriptions.length > 0
             ? { title: "先處理已過期", body: `目前有 ${expiredSubscriptions.length} 筆已過期訂閱，先確認是否已停用或只是還沒更新下次扣款日。`, tone: "red" }
             : { title: "到期狀態正常", body: "目前沒有已過期訂閱，重點可放在 7 天內的項目。", tone: "green" },
-          dueSoonSubscriptions.length > 0
-            ? { title: "短期決策區", body: `有 ${dueSoonSubscriptions.length} 筆 7 天內要扣款，最適合先做續訂或停用決策。`, tone: "amber" }
-            : { title: "短期壓力低", body: "接下來 7 天沒有即將扣款的壓力，可先補帳號與備註。", tone: "blue" },
+          duplicateGroups.length > 0
+            ? { title: "重複訂閱提醒", body: `目前有 ${duplicateGroups.length} 組可能重複的訂閱，先確認是否為不同方案，避免以為取消了其實還有別筆。`, tone: "amber" }
+            : dueSoonSubscriptions.length > 0
+              ? { title: "短期決策區", body: `有 ${dueSoonSubscriptions.length} 筆 7 天內要扣款，最適合先做續訂或停用決策。`, tone: "amber" }
+              : { title: "短期壓力低", body: "接下來 7 天沒有即將扣款的壓力，可先補帳號與備註。", tone: "blue" },
           noDateSubscriptions.length > 0
             ? { title: "資料待補", body: `有 ${noDateSubscriptions.length} 筆沒有下次扣款日期，提醒與排序都會不準。`, tone: "neutral" }
-            : { title: "日期完整度", body: "扣款日期完整度不錯，之後最值得強化的是搜尋與批次整理。", tone: "green" },
+            : stoppedSubscriptions.length > 0
+              ? { title: "待清理不續訂", body: `目前有 ${stoppedSubscriptions.length} 筆標成不續訂，適合再確認是否仍要保留備註與帳號資料。`, tone: "blue" }
+              : { title: "日期完整度", body: "扣款日期完整度不錯，之後最值得強化的是搜尋與批次整理。", tone: "green" },
         ]}
         toolbar={
           <>
@@ -909,7 +976,26 @@ export default function SubscriptionManagement() {
       />
 
       <DataCard className="p-4">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4 dark:border-gray-800">
+          <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("all")}>
+            全部
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("dueSoon")}>
+            7 天內 ({dueSoonSubscriptions.length})
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("noDate")}>
+            未設定扣款日 ({noDateSubscriptions.length})
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("stopped")}>
+            不續訂 ({stoppedSubscriptions.length})
+          </Button>
+          {duplicateGroups.length > 0 && (
+            <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("duplicates")}>
+              重複提醒 ({duplicateGroups.length})
+            </Button>
+          )}
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
           <Select value={renewalFilter} onValueChange={(value: "all" | "renewing" | "stopped") => setRenewalFilter(value)}>
             <SelectTrigger>
               <SelectValue placeholder="續訂狀態" />
@@ -941,6 +1027,48 @@ export default function SubscriptionManagement() {
           </Button>
         </div>
       </DataCard>
+
+      {duplicateGroups.length > 0 && (
+        <DataCard className="border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">AI 重複訂閱提醒</h3>
+              <p className="mt-1 text-sm text-amber-800/90 dark:text-amber-300/90">
+                這裡只做提醒，不直接幫你刪。先確認是不是不同方案、不同帳號，避免誤清理。
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" className="border-amber-300 bg-white/80 text-amber-900 hover:bg-white dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200" onClick={() => applyQuickFilter("duplicates")}>
+              查看第一組重複
+            </Button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {duplicateGroups.slice(0, 3).map((group) => (
+              <div key={group.map((sub) => sub.$id).join("-")} className="rounded-2xl border border-amber-200 bg-white/80 p-4 shadow-sm dark:border-amber-900 dark:bg-gray-900/40">
+                <div className="font-semibold text-gray-900 dark:text-gray-100">{group[0]?.name}</div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {group.length} 筆 / {group.map((sub) => sub.account || "無帳號").join("、")}
+                </div>
+                <div className="mt-3 space-y-2">
+                  {group.map((sub) => (
+                    <div key={sub.$id} className="flex items-center justify-between gap-3 rounded-xl bg-amber-50/60 px-3 py-2 text-sm dark:bg-amber-950/10">
+                      <div className="min-w-0">
+                        <div className="truncate text-gray-900 dark:text-gray-100">{sub.account || sub.site || sub.$id}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatCurrencyWithExchange(sub.price || 0, sub.currency || "TWD")}
+                          {sub.nextdate ? ` / ${formatDate(sub.nextdate)}` : " / 未設定日期"}
+                        </div>
+                      </div>
+                      <Button type="button" size="sm" variant="outline" className="shrink-0 rounded-lg" onClick={() => handleInlineEdit(sub)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DataCard>
+      )}
 
       {importPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
