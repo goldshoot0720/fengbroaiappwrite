@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { SectionHeader, PageTitle } from "@/components/ui/section-header";
 import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataCard } from "@/components/ui/data-card";
@@ -15,6 +14,7 @@ import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useCrud, fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getExportFilename } from "@/lib/utils";
+import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 interface Routine {
   $id: string;
@@ -61,6 +61,7 @@ export default function RoutineManagement() {
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>("");
   const [photoUploading, setPhotoUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "dated" | "linked" | "withPhoto">("all");
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -77,13 +78,24 @@ export default function RoutineManagement() {
 
   // 搜尋過濾
   const filteredRoutines = useMemo(() => {
-    if (!searchQuery.trim()) return routines;
+    const modeFiltered = routines.filter((routine) => {
+      if (workbenchMode === "dated") return Boolean(routine.lastdate1);
+      if (workbenchMode === "linked") return Boolean(routine.link);
+      if (workbenchMode === "withPhoto") return Boolean(routine.photo);
+      return true;
+    });
+
+    if (!searchQuery.trim()) return modeFiltered;
     const query = searchQuery.toLowerCase();
-    return routines.filter(routine =>
+    return modeFiltered.filter(routine =>
       routine.name?.toLowerCase().includes(query) ||
       routine.note?.toLowerCase().includes(query)
     );
-  }, [routines, searchQuery]);
+  }, [routines, searchQuery, workbenchMode]);
+
+  const routinesWithDate = useMemo(() => routines.filter((routine) => Boolean(routine.lastdate1)), [routines]);
+  const routinesWithLink = useMemo(() => routines.filter((routine) => Boolean(routine.link)), [routines]);
+  const routinesWithPhoto = useMemo(() => routines.filter((routine) => Boolean(routine.photo)), [routines]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -484,14 +496,60 @@ export default function RoutineManagement() {
 
   return (
     <div className="space-y-6">
-      <PageTitle
+      <FriendlyAiCrudShell
         title="鋒兄例行"
-        description="管理日常例行事項"
-        showAccountLabel={true}
-        badge={
-          <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full text-sm font-medium">
-            {routines.length}
-          </span>
+        description="把日常任務、最近完成時間與整理節奏放在同一個工作台，先看得出哪些有紀錄、哪些還缺上下文。"
+        searchPlaceholder="搜尋名稱、備註..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeMode={workbenchMode}
+        onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
+        modeItems={[
+          { key: "all", label: "全部", count: routines.length },
+          { key: "dated", label: "有最近日期", count: routinesWithDate.length },
+          { key: "linked", label: "有連結", count: routinesWithLink.length },
+          { key: "withPhoto", label: "有圖片", count: routinesWithPhoto.length },
+        ]}
+        summaries={[
+          { label: "例行總數", value: routines.length, tone: "blue" },
+          { label: "有日期", value: routinesWithDate.length, detail: "可追蹤最近完成", tone: "green" },
+          { label: "有連結", value: routinesWithLink.length, detail: "可快速跳轉", tone: "neutral" },
+          { label: "有圖片", value: routinesWithPhoto.length, detail: "辨識更直覺", tone: "amber" },
+        ]}
+        suggestions={[
+          routines.length === 0
+            ? { title: "先建立節奏", body: "先把每週或每天最常做的 3 到 5 個例行建進來，之後再慢慢補日期與連結。", tone: "green" }
+            : { title: "優先補日期", body: `目前有 ${Math.max(routines.length - routinesWithDate.length, 0)} 筆沒有最近日期，AI 很難判斷哪些最久沒做。`, tone: routines.length - routinesWithDate.length > 0 ? "amber" : "green" },
+          routinesWithLink.length < routines.length
+            ? { title: "加快操作", body: "有操作流程的例行項目可補上連結，之後從清單就能直接跳轉。", tone: "blue" }
+            : { title: "入口完整", body: "大多數例行都有對應入口，之後可再補提醒與排程邏輯。", tone: "green" },
+          routinesWithPhoto.length > 0
+            ? { title: "視覺整理", body: `已有 ${routinesWithPhoto.length} 筆使用圖片，可優先把高頻例行補圖，手機上更好辨識。`, tone: "neutral" }
+            : { title: "手機優化", body: "如果常在手機上用，替高頻例行補圖會讓辨識和點擊都更快。", tone: "neutral" },
+        ]}
+        toolbar={
+          <>
+            <input type="file" accept=".csv" onChange={handleCSVFileSelect} className="hidden" id="csv-import-routine" />
+            <Button onClick={() => document.getElementById('csv-import-routine')?.click()} variant="outline" className="rounded-xl flex items-center gap-2">
+              <Upload size={18} /> 匯入
+            </Button>
+            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2">
+              <Download size={18} /> 匯出
+            </Button>
+            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl flex items-center gap-2">
+              {selectionMode && filteredRoutines.length > 0 && filteredRoutines.every((routine) => selectedIds.has(routine.$id)) ? "取消全選" : "全選"}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={18} />
+                刪除選取 ({selectedIds.size})
+              </Button>
+            )}
+            <Button onClick={() => setIsFormOpen(!isFormOpen)} className="w-full md:w-auto">
+              <Plus size={18} className="mr-2" />
+              {isFormOpen ? "收起表單" : "新增例行事項"}
+            </Button>
+          </>
         }
       />
 
@@ -503,29 +561,6 @@ export default function RoutineManagement() {
 
       {!error && (
         <>
-          <div className="flex justify-end gap-2 flex-wrap">
-            <input type="file" accept=".csv" onChange={handleCSVFileSelect} className="hidden" id="csv-import-routine" />
-            <Button onClick={() => document.getElementById('csv-import-routine')?.click()} variant="outline" className="rounded-xl flex items-center gap-2">
-              <Upload size={18} /> 匯入
-            </Button>
-            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2">
-              <Download size={18} /> 匯出
-            </Button>
-            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl flex items-center gap-2">
-              {selectionMode && filteredRoutines.length > 0 && filteredRoutines.every(r => selectedIds.has(r.$id)) ? '取消全選' : '全選'}
-            </Button>
-            {selectedIds.size > 0 && (
-              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white">
-                <Trash2 size={18} />
-                刪除選取 ({selectedIds.size})
-              </Button>
-            )}
-            <Button onClick={() => setIsFormOpen(!isFormOpen)} className="w-full md:w-auto">
-              <Plus size={18} className="mr-2" />
-              {isFormOpen ? '收起表單' : '新增例行事項'}
-            </Button>
-          </div>
-
           {importPreview && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
@@ -824,27 +859,6 @@ export default function RoutineManagement() {
             />
           ) : (
             <>
-              {/* 搜尋欄位 */}
-              {routines.length > 0 && (
-                <div className="flex gap-2 mb-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                      placeholder="搜尋名稱、備註..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 h-12 rounded-xl"
-                    />
-                  </div>
-                  {selectedIds.size > 0 && (
-                    <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-                      <Trash2 size={18} />
-                      刪除選取 ({selectedIds.size})
-                    </Button>
-                  )}
-                </div>
-              )}
-
               {filteredRoutines.length === 0 ? (
                 <EmptyState
                   icon={<Search size={48} />}

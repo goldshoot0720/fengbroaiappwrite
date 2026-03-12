@@ -25,6 +25,7 @@ import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
 import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { VideoScreenshotButton } from "@/components/ui/video-screenshot-button";
 import JSZip from "jszip";
+import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -154,6 +155,7 @@ export default function VideoIntroduction() {
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "withFile" | "missingCover" | "multipart">("all");
   const [viewMode, setViewMode] = useState<'youtube' | 'bilibili'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('video-view-mode') as 'youtube' | 'bilibili') || 'youtube';
@@ -681,14 +683,25 @@ export default function VideoIntroduction() {
   };
 
   // 搜尋過濾
+  const videosWithFile = useMemo(() => videos.filter((video) => Boolean(video.file)), [videos]);
+  const videosMissingCover = useMemo(() => videos.filter((video) => !video.cover), [videos]);
+  const multipartVideos = useMemo(() => videos.filter((video) => isMultipartVideoFiletype(video.filetype)), [videos]);
+
   const filteredVideos = useMemo(() => {
-    if (!searchQuery.trim()) return videos;
+    const modeFiltered = videos.filter((video) => {
+      if (workbenchMode === "withFile") return Boolean(video.file);
+      if (workbenchMode === "missingCover") return !video.cover;
+      if (workbenchMode === "multipart") return isMultipartVideoFiletype(video.filetype);
+      return true;
+    });
+
+    if (!searchQuery.trim()) return modeFiltered;
     const query = searchQuery.toLowerCase();
-    return videos.filter(video =>
+    return modeFiltered.filter(video =>
       video.name?.toLowerCase().includes(query) ||
       video.note?.toLowerCase().includes(query)
     );
-  }, [videos, searchQuery]);
+  }, [videos, searchQuery, workbenchMode]);
 
   // Bulk delete state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -1020,12 +1033,33 @@ export default function VideoIntroduction() {
         </div>
       )}
 
-      <SectionHeader
+      <FriendlyAiCrudShell
         title="鋒兄影片"
-        subtitle="觀看精彩影片內容，支援本地快取減少流量使用"
-        showAccountLabel={true}
-        action={
-          <div className="flex items-center gap-2 flex-wrap">
+        description="影片收藏、快取、上傳狀態與版型切換整合成一個工作台，先看出哪些可播、哪些該補封面。"
+        searchPlaceholder="搜尋影片名稱、備註..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeMode={workbenchMode}
+        onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
+        modeItems={[
+          { key: "all", label: "全部影片", count: videos.length },
+          { key: "withFile", label: "可播放", count: videosWithFile.length },
+          { key: "missingCover", label: "缺封面", count: videosMissingCover.length },
+          { key: "multipart", label: "分段影片", count: multipartVideos.length },
+        ]}
+        suggestions={[
+          videosMissingCover.length > 0
+            ? { title: "先補封面", body: `有 ${videosMissingCover.length} 部影片缺封面，列表辨識與分享都會比較弱。`, tone: "amber" }
+            : { title: "封面完整", body: "封面狀態不錯，接下來適合補分類與章節。", tone: "green" },
+          videosWithFile.length < videos.length
+            ? { title: "媒體待補", body: `有 ${videos.length - videosWithFile.length} 筆只有資料沒有影片檔，建議先和可播放內容分開。`, tone: "red" }
+            : { title: "播放狀態", body: "目前大多可直接播放，接下來可以整理摘要與重點片段。", tone: "blue" },
+          multipartVideos.length > 0
+            ? { title: "分段管理", body: `有 ${multipartVideos.length} 部影片使用分段格式，建議優先檢查封面與快取策略。`, tone: "neutral" }
+            : { title: "檔案結構", body: "目前沒有分段影片，匯入與快取管理會單純很多。", tone: "neutral" },
+        ]}
+        toolbar={
+          <>
             <Button
               onClick={handleExportZip}
               disabled={loading || exportingZip || importingZip || videos.length === 0}
@@ -1033,7 +1067,7 @@ export default function VideoIntroduction() {
               title="匯出所有影片為 ZIP"
             >
               <Download size={16} className={exportingZip ? "animate-bounce" : ""} />
-              <span className="hidden sm:inline">{exportingZip ? '匯出中...' : '匯出 ZIP'}</span>
+              <span className="hidden sm:inline">{exportingZip ? "匯出中..." : "匯出 ZIP"}</span>
             </Button>
             <Button
               onClick={() => importZipInputRef.current?.click()}
@@ -1042,7 +1076,7 @@ export default function VideoIntroduction() {
               title="從 ZIP 匯入影片"
             >
               <FolderUp size={16} className={importingZip ? "animate-bounce" : ""} />
-              <span className="hidden sm:inline">{importingZip ? '匯入中...' : '匯入 ZIP'}</span>
+              <span className="hidden sm:inline">{importingZip ? "匯入中..." : "匯入 ZIP"}</span>
             </Button>
             <input
               ref={importZipInputRef}
@@ -1051,11 +1085,44 @@ export default function VideoIntroduction() {
               onChange={handleImportZip}
               className="hidden"
             />
+            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
+              {selectionMode && filteredVideos.length > 0 && filteredVideos.every((video) => selectedIds.has(video.$id)) ? "取消全選" : "全選"}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={18} />
+                刪除選取 ({selectedIds.size})
+              </Button>
+            )}
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1">
+              <button
+                onClick={() => setViewMode("youtube")}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === "youtube"
+                  ? "bg-red-500 text-white shadow-sm"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  }`}
+                title="YouTube 風格"
+              >
+                <Tv className="w-4 h-4" />
+                <span className="hidden sm:inline">YouTube</span>
+              </button>
+              <button
+                onClick={() => setViewMode("bilibili")}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === "bilibili"
+                  ? "bg-[#00a1d6] text-white shadow-sm"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  }`}
+                title="Bilibili 風格"
+              >
+                <Monitor className="w-4 h-4" />
+                <span className="hidden sm:inline">Bilibili</span>
+              </button>
+            </div>
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
               <Plus size={16} />
               新增影片
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -1081,55 +1148,6 @@ export default function VideoIntroduction() {
             onClose={() => setShowPlayer(false)}
           />
         )
-      )}
-
-      {/* 搜尋欄位 + 模式切換 */}
-      {videos.length > 0 && (
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋影片名稱、備註..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
-          </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredVideos.length > 0 && filteredVideos.every(v => selectedIds.has(v.$id)) ? '取消全選' : '全選'}
-          </Button>
-          {selectedIds.size > 0 && (
-            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={18} />
-              刪除選取 ({selectedIds.size})
-            </Button>
-          )}
-          {/* 介面風格切換 */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1">
-            <button
-              onClick={() => setViewMode('youtube')}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'youtube'
-                ? 'bg-red-500 text-white shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              title="YouTube 風格"
-            >
-              <Tv className="w-4 h-4" />
-              <span className="hidden sm:inline">YouTube</span>
-            </button>
-            <button
-              onClick={() => setViewMode('bilibili')}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'bilibili'
-                ? 'bg-[#00a1d6] text-white shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              title="Bilibili 風格"
-            >
-              <Monitor className="w-4 h-4" />
-              <span className="hidden sm:inline">Bilibili</span>
-            </button>
-          </div>
-        </div>
       )}
 
       {/* 影片列表 */}
@@ -1470,6 +1488,7 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
   const [repeatMode, setRepeatMode] = useState(false);
+  const [showDescription, setShowDescription] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set([video.$id]));
   const modalRef = useRef<HTMLDivElement>(null);
@@ -1582,8 +1601,6 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
       </div>
     );
   }
-
-  const [showDescription, setShowDescription] = useState(false);
 
   // 統一橫式影片布局（YouTube 2024 風格）
   return (

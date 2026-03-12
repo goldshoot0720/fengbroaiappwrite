@@ -21,6 +21,7 @@ import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import JSZip from "jszip";
+import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -73,6 +74,7 @@ export default function MusicManagement() {
   const [inlineCreateAudioUploading, setInlineCreateAudioUploading] = useState(false);
   const inlineCreateAudioInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "withLyrics" | "missingCover" | "missingAudio">("all");
   const [expandedMusicId, setExpandedMusicId] = useState<string | null>(null);
   const [exportingZip, setExportingZip] = useState(false);
   const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
@@ -640,15 +642,35 @@ export default function MusicManagement() {
       };
     });
 
+    const modeFiltered = musicWithComputedLyrics.filter((item) => {
+      if (workbenchMode === "withLyrics") return Boolean(item.lyrics || item.computedLyrics);
+      if (workbenchMode === "missingCover") return !item.cover;
+      if (workbenchMode === "missingAudio") return !item.file;
+      return true;
+    });
+
     // 然後進行搜尋過濾
-    if (!searchQuery.trim()) return musicWithComputedLyrics;
+    if (!searchQuery.trim()) return modeFiltered;
     const query = searchQuery.toLowerCase();
-    return musicWithComputedLyrics.filter(item =>
+    return modeFiltered.filter(item =>
       item.name?.toLowerCase().includes(query) ||
       item.lyrics?.toLowerCase().includes(query) ||
       item.computedLyrics?.toLowerCase().includes(query)
     );
-  }, [music, searchQuery]);
+  }, [music, searchQuery, workbenchMode]);
+
+  const tracksWithLyrics = useMemo(
+    () => music.filter((item) => Boolean(item.lyrics)),
+    [music]
+  );
+  const tracksMissingCover = useMemo(
+    () => music.filter((item) => !item.cover),
+    [music]
+  );
+  const tracksMissingAudio = useMemo(
+    () => music.filter((item) => !item.file),
+    [music]
+  );
 
   // 按名稱分組音樂
   const groupedMusic = useMemo(() => {
@@ -945,12 +967,33 @@ export default function MusicManagement() {
         </div>
       )}
 
-      <SectionHeader
+      <FriendlyAiCrudShell
         title="鋒兄音樂"
-        subtitle="管理音樂收藏，支援歌詞和多語言"
-        showAccountLabel={true}
-        action={
-          <div className="flex items-center gap-2 flex-wrap">
+        description="音樂檔、歌詞與封面整理成同一個控制台，先找出缺檔、缺封面和可優先補歌詞的曲目。"
+        searchPlaceholder="搜尋音樂名稱、歌詞..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeMode={workbenchMode}
+        onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
+        modeItems={[
+          { key: "all", label: "全部音樂", count: music.length },
+          { key: "withLyrics", label: "有歌詞", count: tracksWithLyrics.length },
+          { key: "missingCover", label: "缺封面", count: tracksMissingCover.length },
+          { key: "missingAudio", label: "缺音檔", count: tracksMissingAudio.length },
+        ]}
+        suggestions={[
+          tracksMissingAudio.length > 0
+            ? { title: "先補音檔", body: `有 ${tracksMissingAudio.length} 筆只有資料沒有音檔，建議先和真正可播放曲目分開。`, tone: "red" }
+            : { title: "播放狀態", body: "目前清單大多可直接播放，接下來適合補歌詞與封面。", tone: "green" },
+          tracksMissingCover.length > 0
+            ? { title: "補封面", body: `有 ${tracksMissingCover.length} 首沒有封面，手機上很難一眼辨識。`, tone: "amber" }
+            : { title: "封面狀態", body: "封面完整度不錯，後續可以強化分類與情緒標籤。", tone: "blue" },
+          tracksWithLyrics.length < music.length
+            ? { title: "歌詞整理", body: "如果常靠關鍵詞找歌，優先補歌詞比補備註更有價值。", tone: "neutral" }
+            : { title: "知識化程度", body: "大部分音樂已有歌詞，下一步可做主題摘要與情緒整理。", tone: "neutral" },
+        ]}
+        toolbar={
+          <>
             <Button onClick={handleExportZip} disabled={exportingZip || music.length === 0} className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl">
               <FolderUp size={16} />
               匯出 ZIP
@@ -960,11 +1003,20 @@ export default function MusicManagement() {
               匯入 ZIP
             </Button>
             <input ref={importZipInputRef} type="file" accept=".zip" onChange={handleImportZip} className="hidden" />
+            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
+              {selectionMode && filteredMusic.length > 0 && filteredMusic.every((item) => selectedIds.has(item.$id)) ? "取消全選" : "全選"}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={18} />
+                刪除選取 ({selectedIds.size})
+              </Button>
+            )}
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
               <Plus size={16} />
               新增音樂
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -974,30 +1026,6 @@ export default function MusicManagement() {
         <StatCard title="已快取" value={cacheStats.cachedMusic} icon={Check} />
         <StatCard title="快取大小" value={formatFileSize(cacheStats.totalSize)} icon={HardDrive} />
       </div>
-
-      {/* 搜尋欄位 */}
-      {music.length > 0 && (
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋音樂名稱、歌詞..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
-          </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredMusic.length > 0 && filteredMusic.every(m => selectedIds.has(m.$id)) ? "取消全選" : "全選"}
-          </Button>
-          {selectedIds.size > 0 && (
-            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={18} />
-              刪除選取 ({selectedIds.size})
-            </Button>
-          )}
-        </div>
-      )}
 
       {/* 音樂列表 */}
       {music.length === 0 && !isInlineCreating ? (

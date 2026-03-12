@@ -23,6 +23,7 @@ import { ImageEditor } from "@/components/ui/image-editor";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import JSZip from "jszip";
+import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -174,6 +175,7 @@ export default function CommonDocumentManagement() {
 
   // View mode state (grid or table)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "previewable" | "missingCover" | "uncategorized">("all");
 
   // Cover upload state
   const [uploadingCoverId, setUploadingCoverId] = useState<string | null>(null);
@@ -562,16 +564,38 @@ export default function CommonDocumentManagement() {
     } catch (error) { console.error('ZIP import error:', error); alert('匯入失敗，請確認 ZIP 檔案格式正確'); setImportingZip(false); setImportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 }); }
   };
 
+  const previewableDocuments = useMemo(
+    () => commondocument.filter((document) => canPreviewFile(document.name || document.file || "", document.filetype)),
+    [commondocument]
+  );
+
+  const documentsMissingCover = useMemo(
+    () => commondocument.filter((document) => !document.cover),
+    [commondocument]
+  );
+
+  const uncategorizedDocuments = useMemo(
+    () => commondocument.filter((document) => !document.category),
+    [commondocument]
+  );
+
   // 搜尋過濾
   const filteredDocuments = useMemo(() => {
-    if (!searchQuery.trim()) return commondocument;
+    const modeFiltered = commondocument.filter((item) => {
+      if (workbenchMode === "previewable") return canPreviewFile(item.name || item.file || "", item.filetype);
+      if (workbenchMode === "missingCover") return !item.cover;
+      if (workbenchMode === "uncategorized") return !item.category;
+      return true;
+    });
+
+    if (!searchQuery.trim()) return modeFiltered;
     const query = searchQuery.toLowerCase();
-    return commondocument.filter(item =>
+    return modeFiltered.filter(item =>
       item.name?.toLowerCase().includes(query) ||
       item.note?.toLowerCase().includes(query) ||
       item.category?.toLowerCase().includes(query)
     );
-  }, [commondocument, searchQuery]);
+  }, [commondocument, searchQuery, workbenchMode]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -821,24 +845,75 @@ export default function CommonDocumentManagement() {
         </div>
       )}
 
-      <SectionHeader
+      <FriendlyAiCrudShell
         title="鋒兄文件"
-        subtitle="管理文件收藏，支援 PDF、Word、Excel、PowerPoint、TXT、MD、ZIP、影片"
-        showAccountLabel={true}
-        action={
-          <div className="flex items-center gap-2 flex-wrap">
+        description="文件收藏、可預覽內容與待補封面整理成同一個知識工作台，先把看得到的入口整理好，再進入摘要與問答。"
+        searchPlaceholder="搜尋文件名稱、備註、分類..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeMode={workbenchMode}
+        onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
+        modeItems={[
+          { key: "all", label: "全部文件", count: commondocument.length },
+          { key: "previewable", label: "可預覽", count: previewableDocuments.length },
+          { key: "missingCover", label: "缺封面", count: documentsMissingCover.length },
+          { key: "uncategorized", label: "未分類", count: uncategorizedDocuments.length },
+        ]}
+        suggestions={[
+          documentsMissingCover.length > 0
+            ? { title: "補封面優先", body: `有 ${documentsMissingCover.length} 份文件沒有封面，列表辨識速度會明顯下降。`, tone: "amber" }
+            : { title: "封面狀態", body: "封面狀態不錯，接下來可補 AI 摘要與重點。", tone: "green" },
+          uncategorizedDocuments.length > 0
+            ? { title: "分類清理", body: "先把未分類文件分到主題資料夾，後續搜尋和 AI 關聯才會更準。", tone: "blue" }
+            : { title: "分類完成度", body: "分類已有基礎，之後可把重點放在內容摘要與問答。", tone: "green" },
+          previewableDocuments.length > 0
+            ? { title: "快速回顧", body: `目前有 ${previewableDocuments.length} 份文件可直接預覽，適合先整理高頻查閱的內容。`, tone: "neutral" }
+            : { title: "可讀性提醒", body: "如果常用的是圖片或掃描檔，之後很值得補 OCR 與摘要。", tone: "neutral" },
+        ]}
+        toolbar={
+          <>
             <Button onClick={handleExportZip} disabled={loading || exportingZip || importingZip || commondocument.length === 0} className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50" title="匯出所有文件為 ZIP">
               <Download size={16} className={exportingZip ? "animate-bounce" : ""} />
-              <span className="hidden sm:inline">{exportingZip ? '匯出中...' : '匯出 ZIP'}</span>
+              <span className="hidden sm:inline">{exportingZip ? "匯出中..." : "匯出 ZIP"}</span>
             </Button>
             <Button onClick={() => importZipInputRef.current?.click()} disabled={loading || exportingZip || importingZip} className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl disabled:opacity-50" title="從 ZIP 匯入文件">
               <FolderUp size={16} className={importingZip ? "animate-bounce" : ""} />
-              <span className="hidden sm:inline">{importingZip ? '匯入中...' : '匯入 ZIP'}</span>
+              <span className="hidden sm:inline">{importingZip ? "匯入中..." : "匯入 ZIP"}</span>
             </Button>
             <input ref={importZipInputRef} type="file" accept=".zip" onChange={handleImportZip} className="hidden" />
-
+            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
+              {selectionMode && filteredDocuments.length > 0 && filteredDocuments.every((document) => selectedIds.has(document.$id)) ? "取消全選" : "全選"}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={18} />
+                刪除選取 ({selectedIds.size})
+              </Button>
+            )}
+            <div className="flex bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "grid"
+                  ? "bg-blue-500 text-white"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+              >
+                <LayoutGrid size={16} />
+                卡片
+              </button>
+              <button
+                onClick={() => setViewMode("table")}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "table"
+                  ? "bg-blue-500 text-white"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+              >
+                <TableIcon size={16} />
+                表格
+              </button>
+            </div>
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl"><Plus size={16} />新增文件</Button>
-          </div>
+          </>
         }
       />
 
@@ -848,52 +923,6 @@ export default function CommonDocumentManagement() {
         <StatCard title="已快取" value={cacheStats.cachedDocuments} icon={Check} />
         <StatCard title="快取大小" value={formatFileSize(cacheStats.totalSize)} icon={HardDrive} />
       </div>
-
-      {/* 搜尋欄位和視圖切換 */}
-      {(commondocument.length > 0 || isInlineCreating) && (
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋文件名稱、備註、分類..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
-          </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredDocuments.length > 0 && filteredDocuments.every(d => selectedIds.has(d.$id)) ? '取消全選' : '全選'}
-          </Button>
-          {selectedIds.size > 0 && (
-            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={18} />
-              刪除選取 ({selectedIds.size})
-            </Button>
-          )}
-          <div className="flex bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === 'grid'
-                ? 'bg-blue-500 text-white'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-            >
-              <LayoutGrid size={16} />
-              卡片
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === 'table'
-                ? 'bg-blue-500 text-white'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-            >
-              <TableIcon size={16} />
-              表格
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 文件列表 */}
       {isInlineCreating && (

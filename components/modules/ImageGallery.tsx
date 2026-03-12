@@ -17,6 +17,7 @@ import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import JSZip from "jszip";
+import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -71,6 +72,7 @@ export default function ImageGallery() {
   const [inlineCreateDuplicateWarning, setInlineCreateDuplicateWarning] = useState('');
   const [inlineCreateUseCategorySelect, setInlineCreateUseCategorySelect] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "duplicates" | "uncategorized" | "annotated">("all");
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' });
   const [importing, setImporting] = useState(false);
@@ -114,15 +116,47 @@ export default function ImageGallery() {
   };
 
   // 搜尋過濾
+  const imageHashCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    images.forEach((image) => {
+      if (image.hash) {
+        counts.set(image.hash, (counts.get(image.hash) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [images]);
+
+  const duplicateImages = useMemo(
+    () => images.filter((image) => image.hash && (imageHashCounts.get(image.hash) || 0) > 1),
+    [images, imageHashCounts]
+  );
+
+  const uncategorizedImages = useMemo(
+    () => images.filter((image) => !image.category),
+    [images]
+  );
+
+  const annotatedImages = useMemo(
+    () => images.filter((image) => Boolean(image.note)),
+    [images]
+  );
+
   const filteredImages = useMemo(() => {
-    if (!searchQuery.trim()) return images;
+    const modeFiltered = images.filter((image) => {
+      if (workbenchMode === "duplicates") return image.hash && (imageHashCounts.get(image.hash) || 0) > 1;
+      if (workbenchMode === "uncategorized") return !image.category;
+      if (workbenchMode === "annotated") return Boolean(image.note);
+      return true;
+    });
+
+    if (!searchQuery.trim()) return modeFiltered;
     const query = searchQuery.toLowerCase();
-    return images.filter(image =>
+    return modeFiltered.filter(image =>
       image.name?.toLowerCase().includes(query) ||
       image.note?.toLowerCase().includes(query) ||
       image.category?.toLowerCase().includes(query)
     );
-  }, [images, searchQuery]);
+  }, [images, searchQuery, workbenchMode, imageHashCounts]);
 
   const existingCategories = useMemo(
     () => Array.from(new Set(images.map((img) => img.category).filter(Boolean))),
@@ -767,12 +801,33 @@ export default function ImageGallery() {
         </div>
       )}
 
-      <SectionHeader
+      <FriendlyAiCrudShell
         title="鋒兄圖片"
-        subtitle={loading ? "載入中..." : `共 ${images.length} 張圖片`}
-        showAccountLabel={true}
-        action={
-          <div className="flex gap-2 flex-wrap">
+        description="圖片資產、重複檢查與快速整理入口放在同一個工作台，先看出哪些該補分類、哪些可能重複。"
+        searchPlaceholder="搜尋圖片名稱、備註、分類..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeMode={workbenchMode}
+        onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
+        modeItems={[
+          { key: "all", label: "全部圖片", count: images.length },
+          { key: "duplicates", label: "重複疑慮", count: duplicateImages.length },
+          { key: "uncategorized", label: "未分類", count: uncategorizedImages.length },
+          { key: "annotated", label: "有備註", count: annotatedImages.length },
+        ]}
+        suggestions={[
+          duplicateImages.length > 0
+            ? { title: "先清重複", body: `目前有 ${duplicateImages.length} 張圖片 hash 重複，建議先批次清理再做標註。`, tone: "red" }
+            : { title: "重複狀態", body: "目前沒有明顯重複圖，之後可以把重心放到分類與備註。", tone: "green" },
+          uncategorizedImages.length > 0
+            ? { title: "補分類", body: `有 ${uncategorizedImages.length} 張圖片沒有分類，之後語意搜尋和批次整理會變慢。`, tone: "amber" }
+            : { title: "分類完整度", body: "圖片分類已經有基礎，後續可再補 AI 標籤或 OCR。", tone: "blue" },
+          annotatedImages.length < images.length
+            ? { title: "上下文不足", body: "若是工作或生活紀錄圖，替關鍵圖片補備註會比只看檔名更容易回想。", tone: "neutral" }
+            : { title: "上下文充足", body: "大多數圖片已有備註，接下來適合做語意搜尋和批次整理。", tone: "green" },
+        ]}
+        toolbar={
+          <>
             <Button
               onClick={handleExportZip}
               disabled={loading || exporting || importing || images.length === 0}
@@ -780,7 +835,7 @@ export default function ImageGallery() {
               title="匯出所有圖片為 ZIP"
             >
               <Download size={16} className={exporting ? "animate-bounce" : ""} />
-              <span className="hidden sm:inline">{exporting ? '匯出中...' : '匯出 ZIP'}</span>
+              <span className="hidden sm:inline">{exporting ? "匯出中..." : "匯出 ZIP"}</span>
             </Button>
             <Button
               onClick={() => importInputRef.current?.click()}
@@ -789,7 +844,7 @@ export default function ImageGallery() {
               title="從 ZIP 匯入圖片"
             >
               <FolderUp size={16} className={importing ? "animate-bounce" : ""} />
-              <span className="hidden sm:inline">{importing ? '匯入中...' : '匯入 ZIP'}</span>
+              <span className="hidden sm:inline">{importing ? "匯入中..." : "匯入 ZIP"}</span>
             </Button>
             <input
               ref={importInputRef}
@@ -798,6 +853,15 @@ export default function ImageGallery() {
               onChange={handleImportZip}
               className="hidden"
             />
+            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
+              {selectionMode && filteredImages.length > 0 && filteredImages.every((image) => selectedIds.has(image.$id)) ? "取消全選" : "全選"}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={18} />
+                刪除選取 ({selectedIds.size})
+              </Button>
+            )}
             <Button onClick={handleAdd} className="gap-2 bg-green-500 hover:bg-green-600 rounded-xl">
               <Plus size={16} />
               <span className="hidden sm:inline">新增圖片</span>
@@ -806,7 +870,7 @@ export default function ImageGallery() {
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               <span className="hidden sm:inline">重新載入</span>
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -875,30 +939,6 @@ export default function ImageGallery() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* 搜尋欄位 */}
-      {images.length > 0 && (
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋圖片名稱、備註、分類..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
-          </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredImages.length > 0 && filteredImages.every(img => selectedIds.has(img.$id)) ? '取消全選' : '全選'}
-          </Button>
-          {selectedIds.size > 0 && (
-            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={18} />
-              刪除選取 ({selectedIds.size})
-            </Button>
-          )}
         </div>
       )}
 

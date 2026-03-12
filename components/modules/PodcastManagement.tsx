@@ -19,6 +19,7 @@ import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import JSZip from "jszip";
+import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -66,6 +67,7 @@ export default function PodcastManagement() {
   const [inlineCreateCoverUploading, setInlineCreateCoverUploading] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "withMedia" | "missingCover" | "uncategorized">("all");
   const [expandedPodcastId, setExpandedPodcastId] = useState<string | null>(null);
   const [exportingZip, setExportingZip] = useState(false);
   const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
@@ -107,13 +109,24 @@ export default function PodcastManagement() {
   }, [updateCacheStats]);
 
   // 搜尋過濾
+  const podcastsWithMedia = useMemo(() => podcast.filter((item) => Boolean(item.file)), [podcast]);
+  const podcastsMissingCover = useMemo(() => podcast.filter((item) => !item.cover), [podcast]);
+  const uncategorizedPodcasts = useMemo(() => podcast.filter((item) => !item.category), [podcast]);
+
   const filteredPodcast = useMemo(() => {
-    if (!searchQuery.trim()) return podcast;
+    const modeFiltered = podcast.filter((item) => {
+      if (workbenchMode === "withMedia") return Boolean(item.file);
+      if (workbenchMode === "missingCover") return !item.cover;
+      if (workbenchMode === "uncategorized") return !item.category;
+      return true;
+    });
+
+    if (!searchQuery.trim()) return modeFiltered;
     const query = searchQuery.toLowerCase();
-    return podcast.filter(item =>
+    return modeFiltered.filter(item =>
       item.name?.toLowerCase().includes(query)
     );
-  }, [podcast, searchQuery]);
+  }, [podcast, searchQuery, workbenchMode]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -581,12 +594,33 @@ export default function PodcastManagement() {
         </div>
       )}
 
-      <SectionHeader
+      <FriendlyAiCrudShell
         title="鋒兄播客"
-        subtitle="管理播客收藏"
-        showAccountLabel={true}
-        action={
-          <div className="flex gap-2">
+        description="節目收藏、快取狀態與待補封面都放在同一個控制台，先決定要補哪一批，再進入細節編輯。"
+        searchPlaceholder="搜尋播客名稱..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeMode={workbenchMode}
+        onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
+        modeItems={[
+          { key: "all", label: "全部播客", count: podcast.length },
+          { key: "withMedia", label: "有媒體", count: podcastsWithMedia.length },
+          { key: "missingCover", label: "缺封面", count: podcastsMissingCover.length },
+          { key: "uncategorized", label: "未分類", count: uncategorizedPodcasts.length },
+        ]}
+        suggestions={[
+          podcastsMissingCover.length > 0
+            ? { title: "先補封面", body: `有 ${podcastsMissingCover.length} 筆播客缺封面，列表辨識和手機點選都會比較吃力。`, tone: "amber" }
+            : { title: "封面完整", body: "播客封面狀態不錯，接下來可以補分類或節目摘要。", tone: "green" },
+          podcastsWithMedia.length < podcast.length
+            ? { title: "媒體待補", body: `還有 ${podcast.length - podcastsWithMedia.length} 筆沒有上傳音檔或影片，收藏和可播放要分清楚。`, tone: "red" }
+            : { title: "可播放度", body: "目前清單大多可以直接播放，之後可以強化逐字稿和摘要。", tone: "blue" },
+          uncategorizedPodcasts.length > 0
+            ? { title: "分類整理", body: "先把節目分成新聞、訪談、知識型等分類，後續 AI 才能推薦下一步。", tone: "neutral" }
+            : { title: "下一步", body: "分類已經有基礎，接下來最值得做的是補封面和近期收聽重點。", tone: "neutral" },
+        ]}
+        toolbar={
+          <>
             <Button onClick={handleExportZip} disabled={exportingZip || podcast.length === 0} className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl">
               <FolderUp size={16} />
               匯出 ZIP
@@ -596,11 +630,20 @@ export default function PodcastManagement() {
               匯入 ZIP
             </Button>
             <input ref={importZipInputRef} type="file" accept=".zip" onChange={handleImportZip} className="hidden" />
+            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
+              {selectionMode && filteredPodcast.length > 0 && filteredPodcast.every((item) => selectedIds.has(item.$id)) ? "取消全選" : "全選"}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={18} />
+                刪除選取 ({selectedIds.size})
+              </Button>
+            )}
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
               <Plus size={16} />
               新增播客
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -610,30 +653,6 @@ export default function PodcastManagement() {
         <StatCard title="已快取" value={cacheStats.cachedPodcasts} icon={Check} />
         <StatCard title="快取大小" value={formatFileSize(cacheStats.totalSize)} icon={HardDrive} />
       </div>
-
-      {/* 搜尋欄位 */}
-      {(podcast.length > 0 || isInlineCreating) && (
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋播客名稱..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
-          </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredPodcast.length > 0 && filteredPodcast.every(p => selectedIds.has(p.$id)) ? "取消全選" : "全選"}
-          </Button>
-          {selectedIds.size > 0 && (
-            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={18} />
-              刪除選取 ({selectedIds.size})
-            </Button>
-          )}
-        </div>
-      )}
 
       {/* 播客列表 */}
       {isInlineCreating && (

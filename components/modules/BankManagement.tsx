@@ -26,12 +26,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SectionHeader } from "@/components/ui/section-header";
 import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
 import { DataCard, DataCardList, DataCardItem } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
-import { StatCard } from "@/components/ui/stat-card";
 import { useBanks } from "@/hooks/useBanks";
 import { BankFormData, Bank } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
@@ -39,6 +37,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getExportFilename } from "@/lib/utils";
+import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 const INITIAL_FORM: BankFormData = {
   name: "",
@@ -58,6 +57,7 @@ export default function BankManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "active" | "missingInfo" | "zeroBalance">("all");
   const [transactionOpen, setTransactionOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<"income" | "expense">("income");
   const [transactionBankId, setTransactionBankId] = useState("");
@@ -105,16 +105,35 @@ export default function BankManagement() {
 
   // 搜尋過濾
   const filteredBanks = useMemo(() => {
-    if (!searchQuery.trim()) return banks;
+    const modeFiltered = banks.filter((bank) => {
+      if (workbenchMode === "active") return (bank.deposit || 0) > 0;
+      if (workbenchMode === "missingInfo") return !bank.site || !bank.account;
+      if (workbenchMode === "zeroBalance") return (bank.deposit || 0) === 0;
+      return true;
+    });
+
+    if (!searchQuery.trim()) return modeFiltered;
     const query = searchQuery.toLowerCase();
-    return banks.filter(bank =>
+    return modeFiltered.filter(bank =>
       bank.name?.toLowerCase().includes(query) ||
       bank.site?.toLowerCase().includes(query) ||
       bank.address?.toLowerCase().includes(query) ||
       bank.card?.toLowerCase().includes(query) ||
       bank.account?.toLowerCase().includes(query)
     );
-  }, [banks, searchQuery]);
+  }, [banks, searchQuery, workbenchMode]);
+
+  const banksMissingInfo = useMemo(
+    () => banks.filter((bank) => !bank.site || !bank.account),
+    [banks]
+  );
+
+  const zeroBalanceBanks = useMemo(
+    () => banks.filter((bank) => (bank.deposit || 0) === 0),
+    [banks]
+  );
+
+  const topBank = banks[0];
 
   const selectedTransactionBank = useMemo(
     () => banks.find((bank) => bank.$id === transactionBankId) || null,
@@ -458,51 +477,86 @@ export default function BankManagement() {
         </div>
       )}
 
-      <SectionHeader
+      <FriendlyAiCrudShell
         title="鋒兄銀行"
-        subtitle={`管理您的銀行帳戶、資產與相關資訊`}
-        showAccountLabel={true}
-        action={
-          <div className="flex gap-4">
-            <StatCard title="總資產" value={formatCurrency(stats.totalDeposit)} gradient="from-blue-500 to-blue-600" className="min-w-[160px]" />
-            <StatCard title="帳戶數" value={stats.total} gradient="from-purple-500 to-purple-600" className="min-w-[160px]" />
-          </div>
+        description="資產總覽、帳戶工作台與異常整理入口都集中在同一頁，先找得到，再快速更新餘額與資訊。"
+        searchPlaceholder="搜尋名稱、網站、地址、卡號、帳號..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeMode={workbenchMode}
+        onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
+        modeItems={[
+          { key: "all", label: "全部帳戶", count: banks.length },
+          { key: "active", label: "有餘額", count: banks.filter((bank) => (bank.deposit || 0) > 0).length },
+          { key: "missingInfo", label: "待補資訊", count: banksMissingInfo.length },
+          { key: "zeroBalance", label: "零餘額", count: zeroBalanceBanks.length },
+        ]}
+        summaries={[
+          { label: "總資產", value: formatCurrency(stats.totalDeposit), tone: "blue" },
+          { label: "帳戶數", value: stats.total, tone: "green" },
+          { label: "待補欄位", value: banksMissingInfo.length, detail: "缺網站或帳號", tone: banksMissingInfo.length > 0 ? "amber" : "neutral" },
+          { label: "零餘額", value: zeroBalanceBanks.length, detail: "可考慮封存或隱藏", tone: zeroBalanceBanks.length > 0 ? "red" : "neutral" },
+        ]}
+        suggestions={[
+          topBank
+            ? { title: "資產重心", body: `目前最高餘額是「${topBank.name}」，可優先確認是否仍是主要資金帳戶。`, tone: "blue" }
+            : { title: "開始建立", body: "先建立主要帳戶，之後再補卡號、地址與網站。", tone: "green" },
+          banksMissingInfo.length > 0
+            ? { title: "欄位待補", body: `有 ${banksMissingInfo.length} 筆帳戶缺網站或帳號，之後搜尋與辨識會不夠快。`, tone: "amber" }
+            : { title: "資料完整度", body: "主要欄位已齊，後續可把常用帳戶再做釘選或命名統一。", tone: "green" },
+          zeroBalanceBanks.length > 0
+            ? { title: "清理建議", body: `有 ${zeroBalanceBanks.length} 筆零餘額帳戶，可以考慮封存，避免列表越來越雜。`, tone: "red" }
+            : { title: "維護節奏", body: "目前沒有零餘額帳戶，下一步可固定更新活存與交割戶金額。", tone: "neutral" },
+        ]}
+        toolbar={
+          <>
+            <input type="file" accept=".csv" onChange={handleFileSelect} className="hidden" id="csv-import-bank" />
+            <Button onClick={() => document.getElementById('csv-import-bank')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
+              <Upload size={18} /> 匯入
+            </Button>
+            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV">
+              <Download size={18} /> 匯出
+            </Button>
+            <Button
+              onClick={() => openTransactionModal("income")}
+              variant="outline"
+              className="rounded-xl flex items-center gap-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 h-10 px-4"
+            >
+              <Plus size={18} />
+              新增收入
+            </Button>
+            <Button
+              onClick={() => openTransactionModal("expense")}
+              variant="outline"
+              className="rounded-xl flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700 h-10 px-4"
+            >
+              <Minus size={18} />
+              新增支出
+            </Button>
+            <Button
+              onClick={handleSelectAll}
+              variant="outline"
+              className="rounded-xl flex items-center gap-2 h-10 px-4"
+            >
+              {selectionMode && filteredBanks.length > 0 && filteredBanks.every((bank) => selectedIds.has(bank.$id)) ? "取消全選" : "全選"}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl flex items-center gap-2 h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={18} />
+                刪除選取 ({selectedIds.size})
+              </Button>
+            )}
+            <Button
+              onClick={() => setIsFormOpen(!isFormOpen)}
+              variant="outline"
+              className="rounded-xl flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-10 px-4"
+            >
+              {isFormOpen ? <ChevronUp size={18} /> : <Plus size={18} />}
+              {isFormOpen ? "收起表單" : "新增銀行資料"}
+            </Button>
+          </>
         }
       />
-
-      <div className="flex justify-end gap-2 flex-wrap">
-        <input type="file" accept=".csv" onChange={handleFileSelect} className="hidden" id="csv-import-bank" />
-        <Button onClick={() => document.getElementById('csv-import-bank')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
-          <Upload size={18} /> 匯入
-        </Button>
-        <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV">
-          <Download size={18} /> 匯出
-        </Button>
-        <Button
-          onClick={() => openTransactionModal("income")}
-          variant="outline"
-          className="rounded-xl flex items-center gap-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 h-10 px-4"
-        >
-          <Plus size={18} />
-          新增收入
-        </Button>
-        <Button
-          onClick={() => openTransactionModal("expense")}
-          variant="outline"
-          className="rounded-xl flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700 h-10 px-4"
-        >
-          <Minus size={18} />
-          新增支出
-        </Button>
-        <Button
-          onClick={() => setIsFormOpen(!isFormOpen)}
-          variant="outline"
-          className="rounded-xl flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-10 px-4"
-        >
-          {isFormOpen ? <ChevronUp size={18} /> : <Plus size={18} />}
-          {isFormOpen ? "收起表單" : "新增銀行資料"}
-        </Button>
-      </div>
 
       {importPreview && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -920,29 +974,6 @@ export default function BankManagement() {
             </FormActions>
           </form>
         </FormCard>
-      )}
-
-      {banks.length > 0 && (
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="搜尋名稱、網站、地址、卡號、帳號..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
-          </div>
-          <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-            {selectionMode && filteredBanks.length > 0 && filteredBanks.every(b => selectedIds.has(b.$id)) ? '取消全選' : '全選'}
-          </Button>
-          {selectedIds.size > 0 && (
-            <Button onClick={() => setBulkDeleteOpen(true)} className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0 bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={18} />
-              刪除選取 ({selectedIds.size})
-            </Button>
-          )}
-        </div>
       )}
 
       <DataCard>
