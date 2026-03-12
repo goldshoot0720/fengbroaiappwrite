@@ -6,7 +6,14 @@ export const dynamic = 'force-dynamic';
 
 async function getCollection(databases, databaseId, name) {
   const allCollections = await databases.listCollections(databaseId);
-  const col = allCollections.collections.find(c => c.name === name);
+  const normalizedName = String(name).toLowerCase();
+  const col =
+    allCollections.collections.find((c) => c.name === name) ||
+    allCollections.collections.find((c) => c.$id === name) ||
+    allCollections.collections.find((c) => String(c.name || "").toLowerCase() === normalizedName) ||
+    allCollections.collections.find((c) => String(c.$id || "").toLowerCase() === normalizedName) ||
+    allCollections.collections.find((c) => String(c.name || "").toLowerCase().includes(normalizedName)) ||
+    allCollections.collections.find((c) => String(c.$id || "").toLowerCase().includes(normalizedName));
   if (!col) throw new Error(`Collection ${name} not found`);
   return col;
 }
