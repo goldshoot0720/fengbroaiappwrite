@@ -192,6 +192,13 @@ function normalizeSubscriptionValue(value?: string | null) {
   return (value || "").trim().toLowerCase();
 }
 
+function shiftDateByDays(dateValue: string | undefined, offsetDays: number) {
+  const baseDate = dateValue ? new Date(dateValue) : new Date();
+  if (Number.isNaN(baseDate.getTime())) return dateValue || "";
+  baseDate.setDate(baseDate.getDate() + offsetDays);
+  return baseDate.toISOString().slice(0, 10);
+}
+
 function SubscriptionFormCard({
   title,
   form,
@@ -252,6 +259,26 @@ function SubscriptionFormCard({
           value={form.nextdate || ""}
           onChange={(event) => onChange({ ...form, nextdate: event.target.value })}
         />
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, -30) })}
+          >
+            -30 天
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, 30) })}
+          >
+            +30 天
+          </Button>
+        </div>
         <AccountComboBox
           value={form.account || ""}
           onChange={(value) => onChange({ ...form, account: value })}
