@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, Pencil, Plus, Search, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -197,6 +197,21 @@ function shiftDateByDays(dateValue: string | undefined, offsetDays: number) {
   if (Number.isNaN(baseDate.getTime())) return dateValue || "";
   baseDate.setDate(baseDate.getDate() + offsetDays);
   return baseDate.toISOString().slice(0, 10);
+}
+
+function getSubscriptionSiteHref(site?: string | null) {
+  const trimmed = site?.trim();
+  if (!trimmed) return null;
+
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function SubscriptionFormCard({
@@ -836,6 +851,7 @@ export default function SubscriptionManagement() {
   const renderSubscriptionRow = (sub: Subscription) => {
     const expiry = getSubscriptionExpiryInfo(sub);
     const isEditing = inlineEditingId === sub.$id;
+    const siteHref = getSubscriptionSiteHref(sub.site);
     const renewalLabel = sub.continue === false ? "不續訂" : "續訂中";
     const dueLabel = !sub.nextdate
       ? "未設定"
@@ -878,7 +894,19 @@ export default function SubscriptionManagement() {
           <div className="flex items-center gap-3">
             <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
             <div>
-              <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
+              {siteHref ? (
+                <a
+                  href={siteHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {sub.name}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              ) : (
+                <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
+              )}
               <div className="text-xs text-gray-500 dark:text-gray-400">{sub.$id}</div>
             </div>
           </div>
@@ -1217,6 +1245,7 @@ export default function SubscriptionManagement() {
             {filteredSubscriptions.map((sub) => {
               const expiry = getSubscriptionExpiryInfo(sub);
               const isEditing = inlineEditingId === sub.$id;
+              const siteHref = getSubscriptionSiteHref(sub.site);
 
               if (isEditing) {
                 return (
@@ -1247,7 +1276,19 @@ export default function SubscriptionManagement() {
                       <div>
                         <div className="flex items-center gap-2">
                           <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
-                          <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
+                          {siteHref ? (
+                            <a
+                              href={siteHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                            >
+                              {sub.name}
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : (
+                            <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
+                          )}
                         </div>
                         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{sub.$id}</div>
                       </div>
