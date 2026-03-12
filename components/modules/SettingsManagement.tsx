@@ -11,6 +11,7 @@ interface CollectionStats {
   name: string;
   columnCount: number;
   documentCount: number;
+  collectionId?: string;
   error?: boolean;
   schemaMismatch?: boolean;
   schemaDetails?: {
@@ -859,17 +860,26 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}`;
                       : "Table 存在但無資料";
                   return (
                     <div key={col.name} className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                      <div className="flex items-center gap-2">
-                        <span 
-                          className={`w-2.5 h-2.5 rounded-full ${statusColor}`} 
+                      <div className="flex items-start gap-2">
+                        <span
+                          className={`mt-1 w-2.5 h-2.5 rounded-full ${statusColor}`}
                           title={statusTitle}
                         />
-                        <span className="font-mono text-gray-600 dark:text-gray-400">{col.name}</span>
-                        {col.schemaMismatch && !col.error && (
-                          <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded" title="結構不一致">
-                            ❗
-                          </span>
-                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-gray-600 dark:text-gray-400">{col.name}</span>
+                            {col.schemaMismatch && !col.error && (
+                              <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded" title="結構不一致">
+                                ❗
+                              </span>
+                            )}
+                          </div>
+                          {col.name === "subscription" && col.collectionId && (
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              ID: <span className="font-mono">{col.collectionId}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-gray-400">{col.columnCount} 欄位</span>

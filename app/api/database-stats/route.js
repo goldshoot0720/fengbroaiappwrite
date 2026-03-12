@@ -289,6 +289,7 @@ export async function GET(request) {
           
           return {
             name,
+            collectionId: collection.$id,
             columnCount,
             documentCount: docs.total,
             schemaMismatch
@@ -302,6 +303,7 @@ export async function GET(request) {
           
           return {
             name,
+            collectionId: collection.$id,
             columnCount,
             documentCount: 0,
             error: true,
