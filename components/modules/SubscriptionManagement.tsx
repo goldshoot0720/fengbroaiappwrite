@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, CheckSquare, ChevronDown, Copy, Pencil, Plus, Search, Square, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, Pencil, Plus, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +17,7 @@ import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscrip
 import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatCurrency, formatCurrencyWithExchange, formatDate } from "@/lib/formatters";
-import { getAppwriteConfig } from "@/lib/utils";
+import { getAppwriteConfig, getExportFilename } from "@/lib/utils";
 import { Subscription, SubscriptionFormData } from "@/types";
 
 const INITIAL_FORM: SubscriptionFormData = {
@@ -308,6 +308,13 @@ export default function SubscriptionManagement() {
   const [isInlineAdding, setIsInlineAdding] = useState(false);
   const [inlineAddForm, setInlineAddForm] = useState<SubscriptionFormData>(INITIAL_FORM);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [importPreview, setImportPreview] = useState<{ data: SubscriptionFormData[]; errors: string[] } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
+  const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
 
   const monthOptions = useMemo(() => {
     const values = new Set<string>();
@@ -536,6 +543,191 @@ export default function SubscriptionManagement() {
     await loadSubscriptions();
   };
 
+  const exportToCSV = () => {
+    const escapeCSV = (value: string | number | boolean | null | undefined) => {
+      if (value === null || value === undefined) return "";
+      const stringValue = String(value);
+      if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n")) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    };
+
+    const rows = [CSV_HEADERS.join(",")];
+    subscriptions.forEach((sub) => {
+      rows.push([
+        escapeCSV(sub.name),
+        escapeCSV(sub.site || ""),
+        escapeCSV(sub.price || 0),
+        escapeCSV(sub.nextdate ? formatDate(sub.nextdate) : ""),
+        escapeCSV(sub.note || ""),
+        escapeCSV(sub.account || ""),
+        escapeCSV(sub.currency || "TWD"),
+        escapeCSV(sub.continue !== false),
+      ].join(","));
+    });
+
+    const blob = new Blob([`\uFEFF${rows.join("\n")}`], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = getExportFilename("subscription");
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const parseFullCSV = (text: string): string[][] => {
+    const rows: string[][] = [];
+    const cleanText = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    let currentRow: string[] = [];
+    let currentField = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < cleanText.length; i++) {
+      const char = cleanText[i];
+      if (inQuotes) {
+        if (char === '"') {
+          if (cleanText[i + 1] === '"') {
+            currentField += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          currentField += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ",") {
+          currentRow.push(currentField);
+          currentField = "";
+        } else if (char === "\n") {
+          currentRow.push(currentField);
+          if (currentRow.some((field) => field.trim())) rows.push(currentRow);
+          currentRow = [];
+          currentField = "";
+        } else {
+          currentField += char;
+        }
+      }
+    }
+
+    if (currentField || currentRow.length > 0) {
+      currentRow.push(currentField);
+      if (currentRow.some((field) => field.trim())) rows.push(currentRow);
+    }
+
+    return rows;
+  };
+
+  const parseCSV = (text: string): { data: SubscriptionFormData[]; errors: string[] } => {
+    const errors: string[] = [];
+    const data: SubscriptionFormData[] = [];
+    const rows = parseFullCSV(text);
+
+    if (rows.length < 2) {
+      errors.push("CSV 檔案至少需要表頭和一行資料");
+      return { data, errors };
+    }
+
+    const headerValues = rows[0].map((value) => value.trim());
+    if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
+      errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
+      return { data, errors };
+    }
+
+    for (let i = 0; i < CSV_HEADERS.length; i++) {
+      if (headerValues[i] !== CSV_HEADERS[i]) {
+        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${CSV_HEADERS[i]}"，實際 "${headerValues[i]}"`);
+      }
+    }
+    if (errors.length > 0) return { data, errors };
+
+    for (let i = 1; i < rows.length; i++) {
+      const values = rows[i];
+      const lineNum = i + 1;
+      if (values.length !== EXPECTED_COLUMN_COUNT) {
+        errors.push(`第 ${lineNum} 行: 欄位數量錯誤`);
+        continue;
+      }
+      if (!values[0]?.trim()) {
+        errors.push(`第 ${lineNum} 行: name 欄位不能為空`);
+        continue;
+      }
+      const continueValue = values[7]?.trim().toLowerCase();
+      data.push({
+        name: values[0].trim(),
+        site: values[1]?.trim() || "",
+        price: Number(values[2]) || 0,
+        nextdate: values[3]?.trim() || "",
+        note: values[4]?.trim() || "",
+        account: values[5]?.trim() || "",
+        currency: values[6]?.trim().toUpperCase() || "TWD",
+        continue: continueValue === "false" ? false : true,
+      });
+    }
+
+    return { data, errors };
+  };
+
+  const handleCsvFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith(".csv")) {
+      alert("請選擇 CSV 檔案");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      setImportPreview(parseCSV(loadEvent.target?.result as string));
+    };
+    reader.readAsText(file, "UTF-8");
+    event.target.value = "";
+  };
+
+  const executeImport = async () => {
+    if (!importPreview || importPreview.data.length === 0) return;
+
+    setImporting(true);
+    setImportProgress({ current: 0, total: importPreview.data.length });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < importPreview.data.length; i++) {
+      const formData = importPreview.data[i];
+      setImportProgress({ current: i + 1, total: importPreview.data.length });
+      try {
+        const existing = subscriptions.find((sub) =>
+          sub.name === formData.name && (sub.account || "") === (formData.account || "")
+        ) || subscriptions.find((sub) => sub.name === formData.name);
+
+        if (existing) {
+          await fetchApi(`${API_ENDPOINTS.SUBSCRIPTION}/${existing.$id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formData),
+          });
+        } else {
+          await fetchApi(API_ENDPOINTS.SUBSCRIPTION, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formData),
+          });
+        }
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setImporting(false);
+    setImportProgress({ current: 0, total: 0 });
+    setImportPreview(null);
+    await loadSubscriptions();
+    alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
+  };
+
   const handleCopy = (sub: Subscription) => {
     setIsInlineAdding(true);
     setInlineEditingId(null);
@@ -685,6 +877,15 @@ export default function SubscriptionManagement() {
         ]}
         toolbar={
           <>
+            <input ref={importInputRef} type="file" accept=".csv" onChange={handleCsvFileSelect} className="hidden" />
+            <Button variant="outline" onClick={() => importInputRef.current?.click()} className="rounded-xl">
+              <Upload className="mr-1 h-4 w-4" />
+              匯入 CSV
+            </Button>
+            <Button variant="outline" onClick={exportToCSV} className="rounded-xl">
+              <Download className="mr-1 h-4 w-4" />
+              匯出 CSV
+            </Button>
             <Button variant="outline" onClick={toggleSelectAll} className="rounded-xl">
               {isAllSelected ? "取消全選" : "全選"}
             </Button>
@@ -740,6 +941,74 @@ export default function SubscriptionManagement() {
           </Button>
         </div>
       </DataCard>
+
+      {importPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+            <div className="border-b border-gray-200 p-6 dark:border-gray-700">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">匯入預覽</h3>
+              <p className="mt-1 text-sm text-gray-500">請確認 subscription CSV 內容是否正確</p>
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto p-6">
+              {importPreview.errors.length > 0 && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                  <h4 className="mb-2 font-semibold text-red-600 dark:text-red-400">格式錯誤</h4>
+                  <ul className="space-y-1 text-sm text-red-600 dark:text-red-400">
+                    {importPreview.errors.map((error, index) => (
+                      <li key={index}>• {error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {importPreview.data.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-gray-700 dark:text-gray-300">將匯入 {importPreview.data.length} 筆資料</h4>
+                  {importPreview.data.map((item, index) => {
+                    const existing = subscriptions.find((sub) =>
+                      sub.name === item.name && (sub.account || "") === (item.account || "")
+                    ) || subscriptions.find((sub) => sub.name === item.name);
+                    return (
+                      <div key={`${item.name}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {item.account || "無帳號"} / {formatCurrencyWithExchange(item.price || 0, item.currency || "TWD")}
+                          </div>
+                        </div>
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${existing ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"}`}>
+                          {existing ? "更新" : "新增"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 border-t border-gray-200 p-6 dark:border-gray-700">
+              {importing ? (
+                <div className="flex items-center gap-3">
+                  <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      className="h-full bg-blue-600 transition-all duration-300"
+                      style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    匯入中 {importProgress.current}/{importProgress.total}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={() => setImportPreview(null)}>取消</Button>
+                  <Button onClick={executeImport} disabled={importPreview.data.length === 0 || importPreview.errors.length > 0}>
+                    確認匯入 ({importPreview.data.length} 筆)
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isInlineAdding && (
         <SubscriptionFormCard
