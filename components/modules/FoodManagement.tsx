@@ -563,23 +563,43 @@ export default function FoodManagement() {
     const errors: string[] = []; const data: FoodFormData[] = [];
     const rows = parseFullCSV(text);
     if (rows.length < 2) { errors.push('CSV 檔案至少需要表頭和一行資料'); return { data, errors }; }
+
     const headerValues = rows[0].map(h => h.trim());
     if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
       errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
       return { data, errors };
     }
-    for (let i = 0; i < CSV_HEADERS.length; i++) {
-      if (headerValues[i] !== CSV_HEADERS[i]) {
-        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${CSV_HEADERS[i]}"，實際 "${headerValues[i]}"`);
-        if (errors.length >= 5) { errors.push('...更多錯誤已省略'); break; }
-      }
+
+    const missingHeaders = CSV_HEADERS.filter(header => !headerValues.includes(header));
+    if (missingHeaders.length > 0) {
+      errors.push(`表頭缺少欄位: ${missingHeaders.join(', ')}`);
+      return { data, errors };
     }
-    if (errors.length > 0) return { data, errors };
+
+    const unexpectedHeaders = headerValues.filter(header => !CSV_HEADERS.includes(header));
+    if (unexpectedHeaders.length > 0) {
+      errors.push(`表頭包含未知欄位: ${unexpectedHeaders.join(', ')}`);
+      return { data, errors };
+    }
+
+    const headerIndexMap = Object.fromEntries(headerValues.map((header, index) => [header, index])) as Record<string, number>;
+
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i]; const lineNum = i + 1;
       if (values.length !== EXPECTED_COLUMN_COUNT) { errors.push(`第 ${lineNum} 行: 欄位數量錯誤`); continue; }
-      if (!values[0]?.trim()) { errors.push(`第 ${lineNum} 行: name 欄位不能為空`); continue; }
-      data.push({ name: values[0].trim(), amount: parseFloat(values[1]) || 0, todate: values[2]?.trim() || '', photo: values[3]?.trim() || '', price: parseFloat(values[4]) || 0, shop: values[5]?.trim() || '', photohash: values[6]?.trim() || '' });
+
+      const name = values[headerIndexMap.name]?.trim() || '';
+      if (!name) { errors.push(`第 ${lineNum} 行: name 欄位不能為空`); continue; }
+
+      data.push({
+        name,
+        amount: parseFloat(values[headerIndexMap.amount]) || 0,
+        todate: values[headerIndexMap.todate]?.trim() || '',
+        photo: values[headerIndexMap.photo]?.trim() || '',
+        price: parseFloat(values[headerIndexMap.price]) || 0,
+        shop: values[headerIndexMap.shop]?.trim() || '',
+        photohash: values[headerIndexMap.photohash]?.trim() || '',
+      });
     }
     return { data, errors };
   };
