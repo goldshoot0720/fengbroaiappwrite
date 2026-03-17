@@ -2661,6 +2661,13 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
   });
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{
+    file: File;
+    hash: string;
+    filetype: string;
+    defaultName: string;
+    duplicateMusicName?: string;
+  }>>([]);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -2709,59 +2716,77 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // 檢查檔案大小 (50MB = 50 * 1024 * 1024 bytes)
-    // Note: Direct upload to Appwrite Storage, no Next.js 4MB limit!
     const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      alert('音樂檔案大小不能超過 50MB');
+    const oversizedFile = files.find((file) => file.size > maxSize);
+    if (oversizedFile) {
+      alert(`音樂檔案「${oversizedFile.name}」大小不能超過 50MB`);
       return;
     }
 
-    // 檢查檔案類型
     const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/m4a'];
-    if (!validTypes.includes(file.type)) {
-      alert('只支援 MP3, WAV, OGG, AAC, FLAC, M4A 格式的音樂');
+    const invalidTypeFile = files.find((file) => !validTypes.includes(file.type));
+    if (invalidTypeFile) {
+      alert(`檔案「${invalidTypeFile.name}」格式不支援，只支援 MP3, WAV, OGG, AAC, FLAC, M4A`);
       return;
     }
 
-    // 顯示預覽載入狀態
     setPreviewLoading(true);
     setUploadStatus('idle');
     setUploadProgress(0);
-    setDuplicateWarning(''); // 清除之前的警告
+    setDuplicateWarning('');
 
-    // 儲存檔案並產生預覽 URL
-    setSelectedFile(file);
-    const objectUrl = URL.createObjectURL(file);
+    const preparedFiles = await Promise.all(files.map(async (file) => {
+      const hash = await calculateFileHash(file);
+      const filetype = file.name.split('.').pop()?.toLowerCase() || '';
+      const defaultName = file.name.replace(/\.[^/.]+$/, '');
+      const duplicateMusic = existingMusic.find(m =>
+        m.hash === hash && (!music || m.$id !== music.$id)
+      );
+
+      return {
+        file,
+        hash,
+        filetype,
+        defaultName,
+        duplicateMusicName: duplicateMusic?.name,
+      };
+    }));
+
+    const firstFile = preparedFiles[0];
+    const objectUrl = URL.createObjectURL(firstFile.file);
+    const duplicateCount = preparedFiles.filter((item) => item.duplicateMusicName).length;
+
+    setSelectedFiles(preparedFiles);
+    setSelectedFile(firstFile.file);
     setPreviewUrl(objectUrl);
+    setFileHash(firstFile.hash);
 
-    // 如果名稱為空，預設採用檔名（去除副檔名）
-    const autoName = !formData.name ? file.name.replace(/\.[^/.]+$/, '') : formData.name;
-    if (!formData.name) {
-      setUseNameSelect(false); // 切換到文字輸入模式讓使用者編輯
+    if (preparedFiles.length === 1) {
+      const autoName = !formData.name ? firstFile.defaultName : formData.name;
+      if (!formData.name) {
+        setUseNameSelect(false);
+      }
+      setFormData({ ...formData, name: autoName, hash: firstFile.hash, filetype: firstFile.filetype });
+
+      if (firstFile.duplicateMusicName) {
+        setDuplicateWarning(`警告：此音樂與「${firstFile.duplicateMusicName}」相同，請勿重複上傳！`);
+      }
+    } else {
+      setUseNameSelect(false);
+      setFormData((prev) => ({
+        ...prev,
+        name: '',
+        hash: '',
+        filetype: '',
+      }));
+      if (duplicateCount > 0) {
+        setDuplicateWarning(`提醒：${duplicateCount} 首音樂與既有音樂重複，儲存時會自動跳過。`);
+      }
     }
 
-    // 取得檔案類型
-    const filetype = file.name.split('.').pop()?.toLowerCase() || '';
-
-    // 計算檔案 hash
-    const hash = await calculateFileHash(file);
-    setFileHash(hash);
-    setFormData({ ...formData, name: autoName, hash, filetype });
-
-    // 檢查是否有重複的 hash
-    const duplicateMusic = existingMusic.find(m =>
-      m.hash === hash && (!music || m.$id !== music.$id)
-    );
-
-    if (duplicateMusic) {
-      setDuplicateWarning(`警告：此音樂與「${duplicateMusic.name}」相同，請勿重複上傳！`);
-    }
-
-    // 模擬預覽載入完成
     setTimeout(() => setPreviewLoading(false), 300);
   };
 
@@ -2894,13 +2919,12 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
+    if (!selectedFiles.length && !formData.name.trim()) {
       alert('請輸入音樂名稱');
       return;
     }
 
-    // 檢查是否有重複
-    if (duplicateWarning) {
+    if (selectedFiles.length <= 1 && duplicateWarning) {
       alert('此音樂與既有音樂重複，無法上傳！請選擇其他音樂。');
       return;
     }
@@ -2909,8 +2933,68 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     try {
       let finalFormData = { ...formData };
 
-      // 如果有選擇新檔案，先上傳到 Appwrite
-      if (selectedFile) {
+      if (selectedFiles.length > 1 && !music) {
+        const uploadableFiles = selectedFiles.filter((item) => !item.duplicateMusicName);
+        let successCount = 0;
+        let skippedCount = selectedFiles.length - uploadableFiles.length;
+        let failedCount = 0;
+
+        let sharedCoverUrl = formData.cover;
+        if (selectedCoverFile) {
+          if (coverDuplicateInfo?.found && coverDuplicateInfo.existingUrl && formData.cover === coverDuplicateInfo.existingUrl) {
+            sharedCoverUrl = coverDuplicateInfo.existingUrl;
+          } else if (coverDuplicateInfo?.found) {
+            throw new Error(`此封面圖已被「${coverDuplicateInfo.musicName}」使用，請使用現有封面或選擇其他圖片`);
+          } else {
+            try {
+              const { url } = await uploadCoverFileToAppwrite(selectedCoverFile);
+              sharedCoverUrl = url;
+
+              if (coverFileHash) {
+                const coverHashMap = JSON.parse(localStorage.getItem('coverHashMap') || '{ }');
+                coverHashMap[coverFileHash] = { url, musicName: '批次上傳音樂' };
+                localStorage.setItem('coverHashMap', JSON.stringify(coverHashMap));
+              }
+            } catch (coverError) {
+              throw new Error(`封面圖上傳失敗: ${coverError instanceof Error ? coverError.message : '未知錯誤'}`);
+            }
+          }
+        }
+
+        for (const item of uploadableFiles) {
+          try {
+            const { url, fileId } = await uploadFileToAppwrite(item.file);
+            const payload = {
+              ...formData,
+              name: item.defaultName,
+              file: url,
+              filetype: item.filetype,
+              hash: item.hash || fileId,
+              cover: sharedCoverUrl || '',
+            };
+
+            const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.MUSIC), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            if (response.ok) successCount++;
+            else failedCount++;
+          } catch {
+            failedCount++;
+          }
+        }
+
+        if (successCount === 0 && skippedCount > 0 && failedCount === 0) {
+          throw new Error('選取的音樂都與既有音樂重複，沒有新增任何資料。');
+        }
+        if (successCount === 0 && failedCount > 0) {
+          throw new Error('批次上傳失敗，沒有新增任何音樂。');
+        }
+
+        alert(`批次上傳完成\n成功：${successCount} 首\n跳過重複：${skippedCount} 首\n失敗：${failedCount} 首`);
+      } else if (selectedFile) {
         try {
           const { url, fileId } = await uploadFileToAppwrite(selectedFile);
           finalFormData.file = url;
@@ -3024,9 +3108,10 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="請輸入音樂名稱 / Music Name"
+                  placeholder={selectedFiles.length > 1 ? "多首上傳時會自動使用各自檔名" : "請輸入音樂名稱 / Music Name"}
                   required
                   className="h-12 rounded-xl"
+                  disabled={submitting || selectedFiles.length > 1}
                 />
                 {existingNames.length > 0 && (
                   <Button
@@ -3068,18 +3153,24 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
                   <div className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg cursor-pointer transition-colors">
                     <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                     <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
-                      {previewLoading ? '載入中...' : selectedFile ? `已選擇: ${selectedFile.name}` : '上傳音樂 (最大 50MB) / Upload (Max 50MB)'}
+                      {previewLoading ? '載入中...' : selectedFiles.length > 1 ? `已選擇 ${selectedFiles.length} 首音樂` : selectedFile ? `已選擇: ${selectedFile.name}` : '上傳音樂 (最大 50MB) / Upload (Max 50MB)'}
                     </span>
                   </div>
                   <input
                     type="file"
                     accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/aac,audio/flac,audio/m4a"
+                    multiple={!music}
                     onChange={handleFileSelect}
                     disabled={submitting || previewLoading}
                     className="hidden"
                   />
                 </label>
               </div>
+              {selectedFiles.length > 1 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  將建立 {selectedFiles.length} 筆音樂資料，並共用下方的歌詞、語言、分類、備註、參考與封面設定。
+                </p>
+              )}
               <div className="px-1 h-4">
                 {formData.file || selectedFile ? (
                   <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已備妥 / Ready</span>
@@ -3407,7 +3498,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
             </Button>
             <Button
               type="submit"
-              disabled={submitting || !!duplicateWarning}
+              disabled={submitting || (selectedFiles.length <= 1 && !!duplicateWarning)}
               className="flex-1 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? '處理中...' : (music ? '更新' : '新增')}
