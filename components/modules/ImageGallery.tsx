@@ -63,6 +63,13 @@ export default function ImageGallery() {
     cover: false,
   });
   const [inlineCreateFile, setInlineCreateFile] = useState<File | null>(null);
+  const [inlineCreateFiles, setInlineCreateFiles] = useState<Array<{
+    file: File;
+    hash: string;
+    filetype: string;
+    defaultName: string;
+    duplicateImageName?: string;
+  }>>([]);
   const [inlineCreatePreviewUrl, setInlineCreatePreviewUrl] = useState('');
   const [inlineCreateSubmitting, setInlineCreateSubmitting] = useState(false);
   const [inlineCreatePreviewLoading, setInlineCreatePreviewLoading] = useState(false);
@@ -212,6 +219,7 @@ export default function ImageGallery() {
       cover: false,
     });
     setInlineCreateFile(null);
+    setInlineCreateFiles([]);
     setInlineCreatePreviewUrl('');
     setInlineCreateSubmitting(false);
     setInlineCreatePreviewLoading(false);
@@ -240,6 +248,7 @@ export default function ImageGallery() {
       cover: false,
     });
     setInlineCreateFile(null);
+    setInlineCreateFiles([]);
     setInlineCreatePreviewUrl('');
     setInlineCreateSubmitting(false);
     setInlineCreatePreviewLoading(false);
@@ -384,18 +393,21 @@ export default function ImageGallery() {
     setInlineEditDuplicateWarning('');
   };
 
-  const handleInlineCreateFileSelect = async (file: File | null) => {
-    if (!file) return;
+  const handleInlineCreateFileSelect = async (files: File[]) => {
+    if (files.length === 0) return;
 
     const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      alert('檔案大小不能超過 50MB');
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+
+    const invalidSizeFile = files.find((file) => file.size > maxSize);
+    if (invalidSizeFile) {
+      alert(`檔案「${invalidSizeFile.name}」大小不能超過 50MB`);
       return;
     }
 
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      alert('只支援 JPG, PNG, GIF, WEBP 格式的圖片');
+    const invalidTypeFile = files.find((file) => !validTypes.includes(file.type));
+    if (invalidTypeFile) {
+      alert(`檔案「${invalidTypeFile.name}」格式不支援，僅支援 JPG, PNG, GIF, WEBP`);
       return;
     }
 
@@ -404,24 +416,37 @@ export default function ImageGallery() {
     setInlineCreateUploadProgress(0);
     setInlineCreateDuplicateWarning('');
 
-    setInlineCreateFile(file);
-    setInlineCreatePreviewUrl(URL.createObjectURL(file));
+    const preparedFiles = await Promise.all(files.map(async (file) => {
+      const hash = await calculateFileHash(await file.arrayBuffer());
+      const filetype = file.name.split('.').pop()?.toLowerCase() || '';
+      const defaultName = file.name.replace(/\.[^/.]+$/, '');
+      const duplicateImage = images.find((img) => img.hash === hash);
 
-    const hash = await calculateFileHash(await file.arrayBuffer());
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
-    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-
-    setInlineCreateFileHash(hash);
-    setInlineCreateForm((prev) => ({
-      ...prev,
-      name: prev.name.trim() ? prev.name : fileNameWithoutExt,
-      hash,
-      filetype: fileExt,
+      return {
+        file,
+        hash,
+        filetype,
+        defaultName,
+        duplicateImageName: duplicateImage?.name,
+      };
     }));
 
-    const duplicateImage = images.find((img) => img.hash === hash);
-    if (duplicateImage) {
-      setInlineCreateDuplicateWarning(`警告：此圖片與「${duplicateImage.name}」相同，請勿重複上傳！`);
+    const firstFile = preparedFiles[0];
+    const duplicateCount = preparedFiles.filter((item) => item.duplicateImageName).length;
+
+    setInlineCreateFiles(preparedFiles);
+    setInlineCreateFile(firstFile.file);
+    setInlineCreatePreviewUrl(URL.createObjectURL(firstFile.file));
+    setInlineCreateFileHash(firstFile.hash);
+    setInlineCreateForm((prev) => ({
+      ...prev,
+      name: preparedFiles.length === 1 ? (prev.name.trim() ? prev.name : firstFile.defaultName) : '',
+      hash: preparedFiles.length === 1 ? firstFile.hash : '',
+      filetype: preparedFiles.length === 1 ? firstFile.filetype : '',
+    }));
+
+    if (duplicateCount > 0) {
+      setInlineCreateDuplicateWarning(`提醒：${duplicateCount} 張圖片與既有圖片重複，儲存時會自動跳過。`);
     }
 
     setTimeout(() => setInlineCreatePreviewLoading(false), 300);
@@ -445,12 +470,12 @@ export default function ImageGallery() {
   };
 
   const handleInlineCreateSave = async () => {
-    if (!inlineCreateForm.name.trim()) {
+    if (!inlineCreateFiles.length && !inlineCreateForm.name.trim()) {
       alert('請輸入圖片名稱');
       return;
     }
 
-    if (inlineCreateDuplicateWarning) {
+    if (inlineCreateFiles.length === 1 && inlineCreateFiles[0]?.duplicateImageName) {
       alert('此圖片與既有圖片重複，無法上傳！請選擇其他圖片。');
       return;
     }
@@ -458,23 +483,61 @@ export default function ImageGallery() {
     setInlineCreateSubmitting(true);
 
     try {
-      const finalFormData = { ...inlineCreateForm };
+      if (inlineCreateFiles.length > 1) {
+        const uploadableFiles = inlineCreateFiles.filter((item) => !item.duplicateImageName);
+        let successCount = 0;
+        let skippedCount = inlineCreateFiles.length - uploadableFiles.length;
+        let failedCount = 0;
 
-      if (inlineCreateFile) {
-        const { url, fileId } = await uploadInlineCreateFileToAppwrite(inlineCreateFile);
-        finalFormData.file = url;
-        finalFormData.hash = inlineCreateFileHash || fileId;
-      } else if (!finalFormData.hash) {
-        finalFormData.hash = `no_file_${Date.now()}`;
+        for (let i = 0; i < uploadableFiles.length; i++) {
+          const item = uploadableFiles[i];
+          const { url, fileId } = await uploadInlineCreateFileToAppwrite(item.file);
+          const payload = {
+            ...inlineCreateForm,
+            name: item.defaultName,
+            file: url,
+            filetype: item.filetype,
+            hash: item.hash || fileId,
+          };
+
+          const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (response.ok) successCount++;
+          else failedCount++;
+        }
+
+        if (successCount === 0 && skippedCount > 0 && failedCount === 0) {
+          throw new Error('選取的圖片都與既有圖片重複，沒有新增任何資料。');
+        }
+
+        if (successCount === 0 && failedCount > 0) {
+          throw new Error('批次上傳失敗，沒有新增任何圖片。');
+        }
+
+        alert(`批次上傳完成\n成功：${successCount} 張\n跳過重複：${skippedCount} 張\n失敗：${failedCount} 張`);
+      } else {
+        const finalFormData = { ...inlineCreateForm };
+
+        if (inlineCreateFile) {
+          const { url, fileId } = await uploadInlineCreateFileToAppwrite(inlineCreateFile);
+          finalFormData.file = url;
+          finalFormData.hash = inlineCreateFileHash || fileId;
+        } else if (!finalFormData.hash) {
+          finalFormData.hash = `no_file_${Date.now()}`;
+        }
+
+        const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(finalFormData),
+        });
+
+        if (!response.ok) throw new Error('新增失敗');
       }
-
-      const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.IMAGE), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalFormData),
-      });
-
-      if (!response.ok) throw new Error('新增失敗');
 
       handleInlineCreateCancel();
       loadImages(true);
@@ -963,6 +1026,7 @@ export default function ImageGallery() {
           inlineCreateUseCategorySelect={inlineCreateUseCategorySelect}
           setInlineCreateUseCategorySelect={setInlineCreateUseCategorySelect}
           existingCategories={existingCategories}
+          inlineCreateFileCount={inlineCreateFiles.length}
           onInlineCreateFileSelect={handleInlineCreateFileSelect}
           onInlineCreateSave={handleInlineCreateSave}
           onInlineCreateCancel={handleInlineCreateCancel}
@@ -1081,7 +1145,8 @@ interface ImageGridProps {
   inlineCreateUseCategorySelect: boolean;
   setInlineCreateUseCategorySelect: (value: boolean) => void;
   existingCategories: string[];
-  onInlineCreateFileSelect: (file: File | null) => void;
+  inlineCreateFileCount: number;
+  onInlineCreateFileSelect: (files: File[]) => void;
   onInlineCreateSave: () => void;
   onInlineCreateCancel: () => void;
   inlineEditingId: string | null;
@@ -1101,7 +1166,7 @@ interface ImageGridProps {
   onToggleSelect?: (id: string) => void;
 }
 
-function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInlineCreating, inlineCreateForm, setInlineCreateForm, inlineCreatePreviewUrl, inlineCreatePreviewLoading, inlineCreateSubmitting, inlineCreateUploadProgress, inlineCreateUploadStatus, inlineCreateDuplicateWarning, inlineCreateUseCategorySelect, setInlineCreateUseCategorySelect, existingCategories, onInlineCreateFileSelect, onInlineCreateSave, onInlineCreateCancel, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineEditPreviewUrl, inlineEditPreviewLoading, inlineEditUploadProgress, inlineEditUploadStatus, inlineEditDuplicateWarning, onInlineEditFileSelect, selectionMode, selectedIds, onToggleSelect }: ImageGridProps) {
+function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInlineCreating, inlineCreateForm, setInlineCreateForm, inlineCreatePreviewUrl, inlineCreatePreviewLoading, inlineCreateSubmitting, inlineCreateUploadProgress, inlineCreateUploadStatus, inlineCreateDuplicateWarning, inlineCreateUseCategorySelect, setInlineCreateUseCategorySelect, existingCategories, inlineCreateFileCount, onInlineCreateFileSelect, onInlineCreateSave, onInlineCreateCancel, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineEditPreviewUrl, inlineEditPreviewLoading, inlineEditUploadProgress, inlineEditUploadStatus, inlineEditDuplicateWarning, onInlineEditFileSelect, selectionMode, selectedIds, onToggleSelect }: ImageGridProps) {
   if (loading) return <FullPageLoading text="載入圖片中..." />;
   if (images.length === 0 && !isInlineCreating) return <EmptyState icon={<ImageIcon className="text-gray-400" size={32} />} title="沒有找到圖片" />;
 
@@ -1121,6 +1186,7 @@ function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInline
             useCategorySelect={inlineCreateUseCategorySelect}
             setUseCategorySelect={setInlineCreateUseCategorySelect}
             existingCategories={existingCategories}
+            fileCount={inlineCreateFileCount}
             onFileSelect={onInlineCreateFileSelect}
             onSave={onInlineCreateSave}
             onCancel={onInlineCreateCancel}
@@ -1167,6 +1233,7 @@ function InlineCreateImageCard({
   useCategorySelect,
   setUseCategorySelect,
   existingCategories,
+  fileCount,
   onFileSelect,
   onSave,
   onCancel,
@@ -1182,22 +1249,28 @@ function InlineCreateImageCard({
   useCategorySelect: boolean;
   setUseCategorySelect: (value: boolean) => void;
   existingCategories: string[];
-  onFileSelect: (file: File | null) => void;
+  fileCount: number;
+  onFileSelect: (files: File[]) => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
   return (
     <div className="bg-white dark:bg-[#1f1f1f] rounded-xl overflow-hidden shadow-sm border-2 border-green-500 dark:border-green-400 p-4 space-y-3 animate-in zoom-in-95 duration-300">
       <div className="text-sm font-semibold text-green-600 dark:text-green-400 mb-1">新增中</div>
-      <Input placeholder="圖片名稱" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+      <Input placeholder={fileCount > 1 ? "多張上傳時會自動使用各自檔名" : "圖片名稱"} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9 rounded-lg text-sm" disabled={submitting || fileCount > 1} />
       <Input placeholder="圖片 URL（選填）" value={form.file} onChange={(e) => setForm({ ...form, file: e.target.value })} className="h-9 rounded-lg text-sm" disabled={submitting} />
       <label className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
         <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
         <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-          {previewLoading ? '載入中...' : previewUrl ? '已選擇圖片' : '上傳圖片 (最大 50MB)'}
+          {previewLoading ? '載入中...' : fileCount > 1 ? `已選擇 ${fileCount} 張圖片` : previewUrl ? '已選擇圖片' : '上傳圖片 (最大 50MB)'}
         </span>
-        <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onChange={(e) => onFileSelect(e.target.files?.[0] || null)} disabled={submitting || previewLoading} className="hidden" />
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" multiple onChange={(e) => onFileSelect(Array.from(e.target.files || []))} disabled={submitting || previewLoading} className="hidden" />
       </label>
+      {fileCount > 1 && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          將建立 {fileCount} 筆圖片資料，並共用下方的分類、備註與參考連結。
+        </p>
+      )}
       {previewUrl && (
         <img src={previewUrl} alt="Preview" className="max-h-40 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" />
       )}
