@@ -1324,7 +1324,7 @@ function InlineCreateImageCard({
       {uploadStatus === 'success' && <p className="text-sm text-green-600 dark:text-green-400">✓ 上傳成功</p>}
       {uploadStatus === 'error' && <p className="text-sm text-red-600 dark:text-red-400">✗ 上傳失敗</p>}
       <div className="flex gap-2 pt-1">
-        <Button onClick={onSave} disabled={submitting || !!duplicateWarning} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">
+        <Button onClick={onSave} disabled={submitting || (fileCount <= 1 && !!duplicateWarning)} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">
           {submitting ? '新增中...' : '新增'}
         </Button>
         <Button onClick={onCancel} variant="outline" disabled={submitting} className="flex-1 gap-1 rounded-lg text-xs py-1.5">
