@@ -1865,6 +1865,13 @@ function InlineCreateVideoCard({
   });
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{
+    file: File;
+    hash: string;
+    filetype: string;
+    defaultName: string;
+    duplicateVideoName?: string;
+  }>>([]);
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -1923,11 +1930,12 @@ function InlineCreateVideoCard({
     video.load();
   };
 
-  const handleFileSelect = async (file: File | null) => {
-    if (!file) return;
+  const handleFileSelect = async (files: File[]) => {
+    if (files.length === 0) return;
     const validTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
-    if (!validTypes.includes(file.type)) {
-      alert('只支援 MP4, WebM, OGG, MOV 格式的影片');
+    const invalidTypeFile = files.find((file) => !validTypes.includes(file.type));
+    if (invalidTypeFile) {
+      alert(`檔案「${invalidTypeFile.name}」格式不支援，只支援 MP4, WebM, OGG, MOV`);
       return;
     }
 
@@ -1935,29 +1943,57 @@ function InlineCreateVideoCard({
     setUploadStatus('idle');
     setUploadProgress(0);
     setDuplicateWarning('');
-    setSelectedFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
 
-    const hash = await calculateFileHash(file);
-    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-    const filetype = file.name.split('.').pop()?.toLowerCase() || '';
+    const preparedFiles = await Promise.all(files.map(async (file) => {
+      const hash = await calculateFileHash(file);
+      const filetype = file.name.split('.').pop()?.toLowerCase() || '';
+      const defaultName = file.name.replace(/\.[^/.]+$/, '');
+      const duplicateVideo = existingVideos.find((vid) => vid.hash === hash);
 
-    if (!formData.cover && !selectedCoverFile) {
-      generateThumbnailFromVideo(objectUrl, file.name);
-    }
-
-    setFileHash(hash);
-    setFormData((prev) => ({
-      ...prev,
-      name: prev.name || fileNameWithoutExt,
-      hash,
-      filetype,
+      return {
+        file,
+        hash,
+        filetype,
+        defaultName,
+        duplicateVideoName: duplicateVideo?.name,
+      };
     }));
 
-    const duplicateVideo = existingVideos.find((vid) => vid.hash === hash);
-    if (duplicateVideo) {
-      setDuplicateWarning(`警告：此影片與「${duplicateVideo.name}」相同，請勿重複上傳！`);
+    const firstFile = preparedFiles[0];
+    const objectUrl = URL.createObjectURL(firstFile.file);
+    const duplicateCount = preparedFiles.filter((item) => item.duplicateVideoName).length;
+
+    setSelectedFiles(preparedFiles);
+    setSelectedFile(firstFile.file);
+    setPreviewUrl(objectUrl);
+    setFileHash(firstFile.hash);
+
+    if (!formData.cover && !selectedCoverFile) {
+      generateThumbnailFromVideo(objectUrl, firstFile.file.name);
+    }
+
+    if (preparedFiles.length === 1) {
+      setFormData((prev) => ({
+        ...prev,
+        name: prev.name || firstFile.defaultName,
+        hash: firstFile.hash,
+        filetype: firstFile.filetype,
+      }));
+
+      if (firstFile.duplicateVideoName) {
+        setDuplicateWarning(`警告：此影片與「${firstFile.duplicateVideoName}」相同，請勿重複上傳！`);
+      }
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        name: '',
+        hash: '',
+        filetype: '',
+      }));
+
+      if (duplicateCount > 0) {
+        setDuplicateWarning(`提醒：${duplicateCount} 部影片與既有影片重複，儲存時會自動跳過。`);
+      }
     }
 
     setTimeout(() => setPreviewLoading(false), 300);
@@ -2007,40 +2043,88 @@ function InlineCreateVideoCard({
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
+    if (!selectedFiles.length && !formData.name.trim()) {
       alert('請輸入影片名稱');
       return;
     }
-    if (duplicateWarning) {
+    if (selectedFiles.length <= 1 && duplicateWarning) {
       alert('此影片與既有影片重複，無法上傳！請選擇其他影片。');
       return;
     }
 
     setSubmitting(true);
     try {
-      const finalFormData = { ...formData };
+      if (selectedFiles.length > 1) {
+        const uploadableFiles = selectedFiles.filter((item) => !item.duplicateVideoName);
+        let successCount = 0;
+        let skippedCount = selectedFiles.length - uploadableFiles.length;
+        let failedCount = 0;
+        let sharedCoverUrl = formData.cover;
 
-      if (selectedFile) {
-        const { url, fileId, filetype } = await uploadVideoFile(selectedFile);
-        finalFormData.file = url;
-        finalFormData.filetype = filetype || finalFormData.filetype;
-        finalFormData.hash = fileHash || fileId;
-      } else if (!finalFormData.hash) {
-        finalFormData.hash = `no_file_${Date.now()}`;
+        if (selectedCoverFile) {
+          const { url } = await uploadCoverFile(selectedCoverFile);
+          sharedCoverUrl = url;
+        }
+
+        for (const item of uploadableFiles) {
+          try {
+            const { url, fileId, filetype } = await uploadVideoFile(item.file);
+            const payload = {
+              ...formData,
+              name: item.defaultName,
+              file: url,
+              filetype: filetype || item.filetype,
+              hash: item.hash || fileId,
+              cover: sharedCoverUrl || '',
+            };
+
+            const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            if (response.ok) successCount++;
+            else failedCount++;
+          } catch {
+            failedCount++;
+          }
+        }
+
+        if (successCount === 0 && skippedCount > 0 && failedCount === 0) {
+          throw new Error('選取的影片都與既有影片重複，沒有新增任何資料。');
+        }
+
+        if (successCount === 0 && failedCount > 0) {
+          throw new Error('批次上傳失敗，沒有新增任何影片。');
+        }
+
+        alert(`批次上傳完成\n成功：${successCount} 部\n跳過重複：${skippedCount} 部\n失敗：${failedCount} 部`);
+      } else {
+        const finalFormData = { ...formData };
+
+        if (selectedFile) {
+          const { url, fileId, filetype } = await uploadVideoFile(selectedFile);
+          finalFormData.file = url;
+          finalFormData.filetype = filetype || finalFormData.filetype;
+          finalFormData.hash = fileHash || fileId;
+        } else if (!finalFormData.hash) {
+          finalFormData.hash = `no_file_${Date.now()}`;
+        }
+
+        if (selectedCoverFile) {
+          const { url } = await uploadCoverFile(selectedCoverFile);
+          finalFormData.cover = url;
+        }
+
+        const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(finalFormData),
+        });
+
+        if (!response.ok) throw new Error('新增失敗');
       }
-
-      if (selectedCoverFile) {
-        const { url } = await uploadCoverFile(selectedCoverFile);
-        finalFormData.cover = url;
-      }
-
-      const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalFormData),
-      });
-
-      if (!response.ok) throw new Error('新增失敗');
       onSuccess();
     } catch (error) {
       alert(error instanceof Error ? error.message : '操作失敗');
@@ -2051,7 +2135,7 @@ function InlineCreateVideoCard({
   return (
     <div className={`bg-white dark:bg-[#1f1f1f] rounded-xl overflow-hidden shadow-sm border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3 animate-in zoom-in-95 duration-300 ${compact ? '' : ''}`}>
       <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">新增中</div>
-      <Input placeholder="影片名稱" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-9 rounded-lg text-sm" />
+      <Input placeholder={selectedFiles.length > 1 ? "多部上傳時會自動使用各自檔名" : "影片名稱"} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-9 rounded-lg text-sm" disabled={submitting || selectedFiles.length > 1} />
       <Input placeholder="分類" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className={`h-9 rounded-lg text-sm ${useCategorySelect && existingCategories.length > 0 ? 'hidden' : ''}`} />
       {useCategorySelect && existingCategories.length > 0 ? (
         <Select
@@ -2087,10 +2171,15 @@ function InlineCreateVideoCard({
       <label className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
         <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
         <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-          {previewLoading ? '載入中...' : selectedFile ? selectedFile.name : '上傳影片'}
+          {previewLoading ? '載入中...' : selectedFiles.length > 1 ? `已選擇 ${selectedFiles.length} 部影片` : selectedFile ? selectedFile.name : '上傳影片'}
         </span>
-        <input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" onChange={(e) => handleFileSelect(e.target.files?.[0] || null)} disabled={submitting || previewLoading} className="hidden" />
+        <input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" multiple onChange={(e) => handleFileSelect(Array.from(e.target.files || []))} disabled={submitting || previewLoading} className="hidden" />
       </label>
+      {selectedFiles.length > 1 && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          將建立 {selectedFiles.length} 筆影片資料，並共用下方的分類、備註、參考與封面設定。
+        </p>
+      )}
       {previewUrl && (
         <video src={previewUrl} controls className="max-h-40 w-full rounded-lg border border-gray-200 dark:border-gray-700" />
       )}
@@ -2128,7 +2217,7 @@ function InlineCreateVideoCard({
         </div>
       )}
       <div className="flex gap-2 pt-1">
-        <Button onClick={handleSave} disabled={submitting || !!duplicateWarning} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">
+        <Button onClick={handleSave} disabled={submitting || (selectedFiles.length <= 1 && !!duplicateWarning)} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">
           {submitting ? '新增中...' : '新增'}
         </Button>
         <Button onClick={onCancel} variant="outline" disabled={submitting} className="flex-1 gap-1 rounded-lg text-xs py-1.5">
