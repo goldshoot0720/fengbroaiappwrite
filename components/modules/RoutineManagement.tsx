@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Calendar, Search, ChevronDown, Download, Upload, ArrowRight, X, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Calendar, Search, Download, Upload, ArrowRight, X, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -465,12 +465,17 @@ export default function RoutineManagement() {
   };
 
   const calculateDaysDiff = (date1: string | null, date2: string | null): string => {
-    if (!date1 || !date2) return "-";
-    let start = new Date(date1);
-    let end = new Date(date2);
+    if (!date1) return "-";
+
+    const start = new Date(date1);
+    const end = date2 ? new Date(date2) : new Date();
+
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return "-";
 
-    if (start > end) [start, end] = [end, start];
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    if (end < start) return "-";
 
     let years = end.getFullYear() - start.getFullYear();
     let months = end.getMonth() - start.getMonth();
@@ -623,27 +628,27 @@ export default function RoutineManagement() {
           {isFormOpen && (
             <FormCard title={editingId ? "編輯例行事項" : "新增例行事項"}>
               <form onSubmit={handleSubmit}>
-                <FormGrid>
+                <FormGrid columns={1} className="md:grid-cols-2">
                   <div className="space-y-1">
                     <label className="block text-sm font-medium mb-2">
                       名稱 / Name <span className="text-red-500">*</span>
                     </label>
-                    <div className="flex gap-1 items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
                         placeholder="名稱 / Name (例如：晨跑、閱讀)"
                         maxLength={100}
                         required
-                        className="h-12 rounded-xl flex-1"
+                        className="h-12 rounded-xl sm:flex-1"
                       />
                       {existingNames.length > 0 && (
                         <Select
                           value=""
                           onValueChange={(val) => val && setForm({ ...form, name: val })}
                         >
-                          <SelectTrigger className="h-12 w-12 rounded-xl px-0 justify-center">
-                            <ChevronDown className="h-4 w-4" />
+                          <SelectTrigger className="h-12 w-full rounded-xl sm:w-36">
+                            <SelectValue placeholder="套用既有名稱" />
                           </SelectTrigger>
                           <SelectContent>
                             {existingNames.map(name => (
@@ -683,12 +688,12 @@ export default function RoutineManagement() {
 
                   <div className="space-y-1">
                     <label className="block text-sm font-medium mb-2">最近例行日期之一 / Last Date 1 (Recent)</label>
-                    <div className="flex gap-1 items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         type="date"
                         value={form.lastdate1}
                         onChange={(e) => setForm({ ...form, lastdate1: e.target.value })}
-                        className="h-12 rounded-xl flex-1"
+                        className="h-12 rounded-xl sm:flex-1"
                       />
                       {form.lastdate1 && (
                         <Button
@@ -696,7 +701,7 @@ export default function RoutineManagement() {
                           variant="outline"
                           size="sm"
                           onClick={() => setForm({ ...form, lastdate1: "" })}
-                          className="h-12 w-12 rounded-xl px-0"
+                          className="h-12 w-full rounded-xl px-0 sm:w-12"
                           title="清空日期"
                         >
                           <X size={16} />
@@ -714,12 +719,12 @@ export default function RoutineManagement() {
 
                   <div className="space-y-1">
                     <label className="block text-sm font-medium mb-2">最近例行日期之二 / Last Date 2</label>
-                    <div className="flex gap-1 items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         type="date"
                         value={form.lastdate2}
                         onChange={(e) => setForm({ ...form, lastdate2: e.target.value })}
-                        className="h-12 rounded-xl flex-1"
+                        className="h-12 rounded-xl sm:flex-1"
                       />
                       {form.lastdate2 && (
                         <Button
@@ -727,7 +732,7 @@ export default function RoutineManagement() {
                           variant="outline"
                           size="sm"
                           onClick={() => setForm({ ...form, lastdate2: "" })}
-                          className="h-12 w-12 rounded-xl px-0"
+                          className="h-12 w-full rounded-xl px-0 sm:w-12"
                           title="清空日期"
                         >
                           <X size={16} />
@@ -745,12 +750,12 @@ export default function RoutineManagement() {
 
                   <div className="space-y-1">
                     <label className="block text-sm font-medium mb-2">最近例行日期之三 / Last Date 3 (Oldest)</label>
-                    <div className="flex gap-1 items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         type="date"
                         value={form.lastdate3}
                         onChange={(e) => setForm({ ...form, lastdate3: e.target.value })}
-                        className="h-12 rounded-xl flex-1"
+                        className="h-12 rounded-xl sm:flex-1"
                       />
                       {form.lastdate3 && (
                         <Button
@@ -758,7 +763,7 @@ export default function RoutineManagement() {
                           variant="outline"
                           size="sm"
                           onClick={() => setForm({ ...form, lastdate3: "" })}
-                          className="h-12 w-12 rounded-xl px-0"
+                          className="h-12 w-full rounded-xl px-0 sm:w-12"
                           title="清空日期"
                         >
                           <X size={16} />
@@ -792,7 +797,7 @@ export default function RoutineManagement() {
                     </div>
                   </div>
 
-                  <div className="col-span-2">
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium mb-2">圖片</label>
                     <div className="space-y-3">
                       {/* URL 輸入 */}
