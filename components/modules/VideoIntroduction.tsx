@@ -2850,6 +2850,13 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
   });
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{
+    file: File;
+    hash: string;
+    filetype: string;
+    defaultName: string;
+    duplicateVideoName?: string;
+  }>>([]);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -2928,58 +2935,70 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // 檢查檔案類型
     const validTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
-    if (!validTypes.includes(file.type)) {
-      alert('只支援 MP4, WebM, OGG, MOV 格式的影片');
+    const invalidTypeFile = files.find((file) => !validTypes.includes(file.type));
+    if (invalidTypeFile) {
+      alert(`檔案「${invalidTypeFile.name}」格式不支援，只支援 MP4, WebM, OGG, MOV`);
       return;
     }
 
-    // 顯示預覽載入狀態
     setPreviewLoading(true);
     setUploadStatus('idle');
     setUploadProgress(0);
-    setDuplicateWarning(''); // 清除之前的警告
+    setDuplicateWarning('');
 
-    // 儲存檔案並產生預覽 URL
-    setSelectedFile(file);
-    const objectUrl = URL.createObjectURL(file);
+    const preparedFiles = await Promise.all(files.map(async (file) => {
+      const hash = await calculateFileHash(file);
+      const filetype = file.name.split('.').pop()?.toLowerCase() || '';
+      const defaultName = file.name.replace(/\.[^/.]+$/, '');
+      const duplicateVideo = existingVideos.find(vid =>
+        vid.hash === hash && (!video || vid.$id !== video.$id)
+      );
+
+      return {
+        file,
+        hash,
+        filetype,
+        defaultName,
+        duplicateVideoName: duplicateVideo?.name,
+      };
+    }));
+
+    const firstFile = preparedFiles[0];
+    const objectUrl = URL.createObjectURL(firstFile.file);
+    const duplicateCount = preparedFiles.filter((item) => item.duplicateVideoName).length;
+
+    setSelectedFiles(preparedFiles);
+    setSelectedFile(firstFile.file);
     setPreviewUrl(objectUrl);
+    setFileHash(firstFile.hash);
 
-    // 新增模式：永遠使用檔名作為預設名稱；編輯模式：僅在名稱為空時自動填入
-    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-    const autoName = !video ? fileNameWithoutExt : (formData.name || fileNameWithoutExt);
+    if (preparedFiles.length === 1) {
+      const autoName = !video ? firstFile.defaultName : (formData.name || firstFile.defaultName);
+      setFormData({ ...formData, name: autoName, hash: firstFile.hash, filetype: firstFile.filetype });
 
-    // 計算檔案 hash
-    const hash = await calculateFileHash(file);
-    setFileHash(hash);
+      if (!formData.cover && !selectedCoverFile) {
+        generateThumbnailFromVideo(objectUrl, firstFile.file.name);
+      }
 
-    // 如果沒有封面圖，從影片第 1 秒生成縮圖
-    if (!formData.cover && !selectedCoverFile) {
-      generateThumbnailFromVideo(objectUrl, file.name);
+      if (firstFile.duplicateVideoName) {
+        setDuplicateWarning(`警告：此影片與「${firstFile.duplicateVideoName}」相同，請勿重複上傳！`);
+      }
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        name: '',
+        hash: '',
+        filetype: '',
+      }));
+      if (duplicateCount > 0) {
+        setDuplicateWarning(`提醒：${duplicateCount} 部影片與既有影片重複，儲存時會自動跳過。`);
+      }
     }
 
-    // 取得檔案類型（副檔名）
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
-    const filetype = fileExt; // e.g., 'mp4', 'webm', 'mov'
-
-    // 檢查是否與現有影片重複
-    setFileHash(hash);
-    setFormData({ ...formData, name: autoName, hash, filetype });
-
-    // 檢查是否有重複的 hash
-    const duplicateVideo = existingVideos.find(vid =>
-      vid.hash === hash && (!video || vid.$id !== video.$id)
-    );
-
-    if (duplicateVideo) {
-      setDuplicateWarning(`警告：此影片與「${duplicateVideo.name}」相同，請勿重複上傳！`);
-    }
-
-    // 模擬預覽載入完成
     setTimeout(() => setPreviewLoading(false), 300);
   };
 
@@ -3056,13 +3075,12 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
+    if (!selectedFiles.length && !formData.name.trim()) {
       alert('請輸入影片名稱');
       return;
     }
 
-    // 檢查是否有重複
-    if (duplicateWarning) {
+    if (selectedFiles.length <= 1 && duplicateWarning) {
       alert('此影片與既有影片重複，無法上傳！請選擇其他影片。');
       return;
     }
@@ -3071,8 +3089,56 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     try {
       let finalFormData = { ...formData };
 
-      // 如果有選擇新檔案，先上傳到 Appwrite
-      if (selectedFile) {
+      if (selectedFiles.length > 1 && !video) {
+        const uploadableFiles = selectedFiles.filter((item) => !item.duplicateVideoName);
+        let successCount = 0;
+        let skippedCount = selectedFiles.length - uploadableFiles.length;
+        let failedCount = 0;
+
+        let sharedCoverUrl = formData.cover;
+        if (selectedCoverFile) {
+          try {
+            const { url } = await uploadCoverFileToAppwrite(selectedCoverFile);
+            sharedCoverUrl = url;
+          } catch (coverError) {
+            throw new Error(`封面圖上傳失敗: ${coverError instanceof Error ? coverError.message : '未知錯誤'}`);
+          }
+        }
+
+        for (const item of uploadableFiles) {
+          try {
+            const { url, fileId, filetype } = await uploadFileToAppwrite(item.file);
+            const payload = {
+              ...formData,
+              name: item.defaultName,
+              file: url,
+              filetype: filetype || item.filetype,
+              hash: item.hash || fileId,
+              cover: sharedCoverUrl || '',
+            };
+
+            const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            if (response.ok) successCount++;
+            else failedCount++;
+          } catch {
+            failedCount++;
+          }
+        }
+
+        if (successCount === 0 && skippedCount > 0 && failedCount === 0) {
+          throw new Error('選取的影片都與既有影片重複，沒有新增任何資料。');
+        }
+        if (successCount === 0 && failedCount > 0) {
+          throw new Error('批次上傳失敗，沒有新增任何影片。');
+        }
+
+        alert(`批次上傳完成\n成功：${successCount} 部\n跳過重複：${skippedCount} 部\n失敗：${failedCount} 部`);
+      } else if (selectedFile) {
         try {
           const { url, fileId, filetype } = await uploadFileToAppwrite(selectedFile);
           finalFormData.file = url;
@@ -3139,10 +3205,11 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
             <Input
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="請輸入影片名稱 / Video Name"
+              placeholder={selectedFiles.length > 1 ? "多支上傳時會自動使用各自檔名" : "請輸入影片名稱 / Video Name"}
               required
               maxLength={100}
               className="h-12 rounded-xl"
+              disabled={submitting || selectedFiles.length > 1}
             />
             <div className="px-1 h-4">
               {formData.name ? (
@@ -3171,18 +3238,24 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
                   <div className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
                     <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {previewLoading ? '載入中...' : selectedFile ? `已選擇: ${selectedFile.name}` : '上傳影片 (會自動分段，每段 20MB)'}
+                      {previewLoading ? '載入中...' : selectedFiles.length > 1 ? `已選擇 ${selectedFiles.length} 部影片` : selectedFile ? `已選擇: ${selectedFile.name}` : '上傳影片 (會自動分段，每段 20MB)'}
                     </span>
                   </div>
                   <input
                     type="file"
                     accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                    multiple={!video}
                     onChange={handleFileSelect}
                     disabled={submitting || previewLoading}
                     className="hidden"
                   />
                 </label>
               </div>
+              {selectedFiles.length > 1 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  將建立 {selectedFiles.length} 筆影片資料，並共用下方的分類、備註、參考與封面設定。
+                </p>
+              )}
               <div className="px-1 h-4">
                 {formData.file || selectedFile ? (
                   <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已備妥 / Ready</span>
@@ -3404,7 +3477,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
             </Button>
             <Button
               type="submit"
-              disabled={submitting || !!duplicateWarning}
+              disabled={submitting || (selectedFiles.length <= 1 && !!duplicateWarning)}
               className="flex-1 bg-blue-500 hover:bg-blue-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? '處理中...' : (video ? '更新' : '新增')}
