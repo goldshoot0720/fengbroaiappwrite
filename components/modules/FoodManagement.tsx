@@ -73,10 +73,16 @@ export default function FoodManagement() {
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
   const [inlineEditForm, setInlineEditForm] = useState<FoodFormData>(INITIAL_FORM);
+  const [inlineSelectedPhotoFile, setInlineSelectedPhotoFile] = useState<File | null>(null);
+  const [inlinePhotoPreviewUrl, setInlinePhotoPreviewUrl] = useState<string>("");
+  const [inlinePhotoUploading, setInlinePhotoUploading] = useState(false);
 
   // Inline add state
   const [isInlineAdding, setIsInlineAdding] = useState(false);
   const [inlineAddForm, setInlineAddForm] = useState<FoodFormData>(INITIAL_FORM);
+  const [inlineAddSelectedPhotoFile, setInlineAddSelectedPhotoFile] = useState<File | null>(null);
+  const [inlineAddPhotoPreviewUrl, setInlineAddPhotoPreviewUrl] = useState<string>("");
+  const [inlineAddPhotoUploading, setInlineAddPhotoUploading] = useState(false);
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -232,8 +238,14 @@ export default function FoodManagement() {
       if (photoPreviewUrl && photoPreviewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(photoPreviewUrl);
       }
+      if (inlinePhotoPreviewUrl && inlinePhotoPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(inlinePhotoPreviewUrl);
+      }
+      if (inlineAddPhotoPreviewUrl && inlineAddPhotoPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(inlineAddPhotoPreviewUrl);
+      }
     };
-  }, [photoPreviewUrl]);
+  }, [photoPreviewUrl, inlinePhotoPreviewUrl, inlineAddPhotoPreviewUrl]);
 
   const getAppwriteHeaders = () => {
     if (typeof window === 'undefined') return {};
@@ -276,8 +288,88 @@ export default function FoodManagement() {
     setForm({ ...form, photo: "" });
   };
 
-  const uploadPhotoToAppwrite = async (file: File): Promise<string> => {
-    setPhotoUploading(true);
+  const resetInlinePhotoState = () => {
+    setInlineSelectedPhotoFile(null);
+    setInlinePhotoUploading(false);
+    setInlinePhotoPreviewUrl((prev) => {
+      if (prev && prev.startsWith('blob:')) {
+        URL.revokeObjectURL(prev);
+      }
+      return "";
+    });
+  };
+
+  const resetInlineAddPhotoState = () => {
+    setInlineAddSelectedPhotoFile(null);
+    setInlineAddPhotoUploading(false);
+    setInlineAddPhotoPreviewUrl((prev) => {
+      if (prev && prev.startsWith('blob:')) {
+        URL.revokeObjectURL(prev);
+      }
+      return "";
+    });
+  };
+
+  const handleInlinePhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert(`圖片大小超過限制：${Math.round(file.size / 1024 / 1024)}MB > 50MB`);
+      return;
+    }
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG、PNG、GIF、WEBP 圖片格式');
+      return;
+    }
+
+    setInlineSelectedPhotoFile(file);
+    setInlinePhotoPreviewUrl((prev) => {
+      if (prev && prev.startsWith('blob:')) {
+        URL.revokeObjectURL(prev);
+      }
+      return URL.createObjectURL(file);
+    });
+    setInlineEditForm((prev) => ({ ...prev, photo: "" }));
+  };
+
+  const handleInlineAddPhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert(`圖片大小超過限制：${Math.round(file.size / 1024 / 1024)}MB > 50MB`);
+      return;
+    }
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('只支援 JPG、PNG、GIF、WEBP 圖片格式');
+      return;
+    }
+
+    setInlineAddSelectedPhotoFile(file);
+    setInlineAddPhotoPreviewUrl((prev) => {
+      if (prev && prev.startsWith('blob:')) {
+        URL.revokeObjectURL(prev);
+      }
+      return URL.createObjectURL(file);
+    });
+    setInlineAddForm((prev) => ({ ...prev, photo: "" }));
+  };
+
+  const uploadPhotoToAppwrite = async (file: File, mode: "form" | "inline" | "inlineAdd" = "form"): Promise<string> => {
+    if (mode === "form") {
+      setPhotoUploading(true);
+    } else if (mode === "inline") {
+      setInlinePhotoUploading(true);
+    } else {
+      setInlineAddPhotoUploading(true);
+    }
     const formDataUpload = new FormData();
     formDataUpload.append('file', file);
 
@@ -298,7 +390,9 @@ export default function FoodManagement() {
     } catch (error) {
       throw error;
     } finally {
-      setPhotoUploading(false);
+      if (mode === "form") setPhotoUploading(false);
+      if (mode === "inline") setInlinePhotoUploading(false);
+      if (mode === "inlineAdd") setInlineAddPhotoUploading(false);
     }
   };
 
@@ -406,6 +500,7 @@ export default function FoodManagement() {
 
   // 開始行內編輯
   const handleInlineEdit = (food: Food) => {
+    resetInlinePhotoState();
     setInlineEditForm({
       name: food.name,
       amount: food.amount,
@@ -422,7 +517,16 @@ export default function FoodManagement() {
   const handleInlineSave = async () => {
     if (!inlineEditingId) return;
     try {
-      await updateFood(inlineEditingId, inlineEditForm);
+      let finalPhoto = inlineEditForm.photo || '';
+      if (inlineSelectedPhotoFile) {
+        finalPhoto = await uploadPhotoToAppwrite(inlineSelectedPhotoFile, "inline");
+      }
+
+      await updateFood(inlineEditingId, {
+        ...inlineEditForm,
+        photo: finalPhoto,
+      });
+      resetInlinePhotoState();
       setInlineEditingId(null);
       setInlineEditForm(INITIAL_FORM);
     } catch (error) {
@@ -434,6 +538,7 @@ export default function FoodManagement() {
 
   // 取消行內編輯
   const cancelInlineEdit = () => {
+    resetInlinePhotoState();
     setInlineEditingId(null);
     setInlineEditForm(INITIAL_FORM);
   };
@@ -443,6 +548,8 @@ export default function FoodManagement() {
     setIsInlineAdding(true);
     setInlineAddForm(INITIAL_FORM);
     // 關閉其他編輯狀態
+    resetInlinePhotoState();
+    resetInlineAddPhotoState();
     setInlineEditingId(null);
     setInlineEditForm(INITIAL_FORM);
   };
@@ -454,8 +561,17 @@ export default function FoodManagement() {
       return;
     }
     try {
-      await createFood(inlineAddForm);
+      let finalPhoto = inlineAddForm.photo || '';
+      if (inlineAddSelectedPhotoFile) {
+        finalPhoto = await uploadPhotoToAppwrite(inlineAddSelectedPhotoFile, "inlineAdd");
+      }
+
+      await createFood({
+        ...inlineAddForm,
+        photo: finalPhoto,
+      });
       setIsInlineAdding(false);
+      resetInlineAddPhotoState();
       setInlineAddForm(INITIAL_FORM);
     } catch (error) {
       console.error('Inline add failed:', error);
@@ -467,6 +583,7 @@ export default function FoodManagement() {
   // 取消行內新增
   const cancelInlineAdd = () => {
     setIsInlineAdding(false);
+    resetInlineAddPhotoState();
     setInlineAddForm(INITIAL_FORM);
   };
 
@@ -1036,6 +1153,9 @@ export default function FoodManagement() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
+              onInlinePhotoFileSelect={handleInlinePhotoFileSelect}
+              inlinePhotoPreviewUrl={inlinePhotoPreviewUrl}
+              inlinePhotoUploading={inlinePhotoUploading}
               isEditMode={isEditMode || selectionMode}
               setIsEditMode={setIsEditMode}
               selectedIds={selectedIds}
@@ -1046,6 +1166,9 @@ export default function FoodManagement() {
               isInlineAdding={isInlineAdding}
               inlineAddForm={inlineAddForm}
               setInlineAddForm={setInlineAddForm}
+              onInlineAddPhotoFileSelect={handleInlineAddPhotoFileSelect}
+              inlineAddPhotoPreviewUrl={inlineAddPhotoPreviewUrl}
+              inlineAddPhotoUploading={inlineAddPhotoUploading}
               onInlineAddSave={handleInlineAddSave}
               onInlineAddCancel={cancelInlineAdd}
               startInlineAdd={startInlineAdd}
@@ -1061,6 +1184,9 @@ export default function FoodManagement() {
               onInlineEdit={handleInlineEdit}
               onInlineSave={handleInlineSave}
               onInlineCancel={cancelInlineEdit}
+              onInlinePhotoFileSelect={handleInlinePhotoFileSelect}
+              inlinePhotoPreviewUrl={inlinePhotoPreviewUrl}
+              inlinePhotoUploading={inlinePhotoUploading}
               isEditMode={isEditMode || selectionMode}
               setIsEditMode={setIsEditMode}
               selectedIds={selectedIds}
@@ -1071,6 +1197,9 @@ export default function FoodManagement() {
               isInlineAdding={isInlineAdding}
               inlineAddForm={inlineAddForm}
               setInlineAddForm={setInlineAddForm}
+              onInlineAddPhotoFileSelect={handleInlineAddPhotoFileSelect}
+              inlineAddPhotoPreviewUrl={inlineAddPhotoPreviewUrl}
+              inlineAddPhotoUploading={inlineAddPhotoUploading}
               onInlineAddSave={handleInlineAddSave}
               onInlineAddCancel={cancelInlineAdd}
               startInlineAdd={startInlineAdd}
@@ -1443,6 +1572,9 @@ interface TableProps {
   onInlineEdit: (food: Food) => void;
   onInlineSave: () => void;
   onInlineCancel: () => void;
+  onInlinePhotoFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  inlinePhotoPreviewUrl: string;
+  inlinePhotoUploading: boolean;
   isEditMode: boolean;
   setIsEditMode: (value: boolean) => void;
   selectedIds: Set<string>;
@@ -1454,12 +1586,15 @@ interface TableProps {
   isInlineAdding: boolean;
   inlineAddForm: FoodFormData;
   setInlineAddForm: (form: FoodFormData) => void;
+  onInlineAddPhotoFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  inlineAddPhotoPreviewUrl: string;
+  inlineAddPhotoUploading: boolean;
   onInlineAddSave: () => void;
   onInlineAddCancel: () => void;
   startInlineAdd: () => void;
 }
 
-function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
+function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="hidden lg:block">
@@ -1577,6 +1712,35 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
                       className="h-9 rounded-lg text-sm"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Input
+                      type="url"
+                      placeholder="圖片網址"
+                      value={inlineAddForm.photo || ""}
+                      onChange={(e) => setInlineAddForm({ ...inlineAddForm, photo: e.target.value })}
+                      className="h-9 rounded-lg text-sm"
+                    />
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={onInlineAddPhotoFileSelect}
+                      className="h-9 rounded-lg text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:font-medium file:text-blue-700"
+                    />
+                    {inlineAddPhotoUploading && (
+                      <div className="text-xs text-blue-600">圖片上傳中...</div>
+                    )}
+                    {inlineAddPhotoPreviewUrl || inlineAddForm.photo ? (
+                      <img
+                        src={inlineAddPhotoPreviewUrl || inlineAddForm.photo}
+                        alt="圖片預覽"
+                        className="w-16 h-16 object-cover rounded-xl border border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 flex items-center justify-center text-gray-400 border border-dashed border-gray-300 rounded-xl text-xs">
+                        NO IMAGE
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 pt-2">
                     <Button type="button" size="sm" onClick={onInlineAddSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">新增</Button>
                     <Button type="button" size="sm" variant="outline" onClick={onInlineAddCancel} className="rounded-xl">取消</Button>
@@ -1634,8 +1798,34 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
                 />
               </TableCell>
               <TableCell>
-                <div className="w-16 h-16 flex items-center justify-center text-gray-400 border border-dashed border-gray-300 rounded-xl text-xs">
-                  NO IMAGE
+                <div className="space-y-2 min-w-[220px]">
+                  <Input
+                    type="url"
+                    placeholder="圖片網址"
+                    value={inlineAddForm.photo || ""}
+                    onChange={(e) => setInlineAddForm({ ...inlineAddForm, photo: e.target.value })}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={onInlineAddPhotoFileSelect}
+                    className="h-9 rounded-lg text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:font-medium file:text-blue-700"
+                  />
+                  {inlineAddPhotoUploading && (
+                    <div className="text-xs text-blue-600">圖片上傳中...</div>
+                  )}
+                  {inlineAddPhotoPreviewUrl || inlineAddForm.photo ? (
+                    <img
+                      src={inlineAddPhotoPreviewUrl || inlineAddForm.photo}
+                      alt="圖片預覽"
+                      className="w-16 h-16 object-cover rounded-xl border border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 flex items-center justify-center text-gray-400 border border-dashed border-gray-300 rounded-xl text-xs">
+                      NO IMAGE
+                    </div>
+                  )}
                 </div>
               </TableCell>
             </TableRow>
@@ -1653,6 +1843,9 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
               onInlineEdit={onInlineEdit}
               onInlineSave={onInlineSave}
               onInlineCancel={onInlineCancel}
+              onInlinePhotoFileSelect={onInlinePhotoFileSelect}
+              inlinePhotoPreviewUrl={inlinePhotoPreviewUrl}
+              inlinePhotoUploading={inlinePhotoUploading}
               isEditMode={isEditMode}
               isSelected={selectedIds.has(food.$id)}
               toggleSelect={toggleSelect}
@@ -1675,12 +1868,15 @@ interface FoodTableRowProps {
   onInlineEdit: (food: Food) => void;
   onInlineSave: () => void;
   onInlineCancel: () => void;
+  onInlinePhotoFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  inlinePhotoPreviewUrl: string;
+  inlinePhotoUploading: boolean;
   isEditMode: boolean;
   isSelected: boolean;
   toggleSelect: (id: string) => void;
 }
 
-function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
+function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
   const rowClass = isExpired ? "bg-red-50 dark:bg-red-900/20" : isExpiringSoon ? "bg-yellow-50 dark:bg-yellow-900/20" : "";
 
@@ -1720,9 +1916,9 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
               />
             </div>
             <div className="flex items-center gap-2 pt-2">
-              <Button type="button" size="sm" onClick={onInlineSave} className="rounded-lg bg-green-500 hover:bg-green-600 text-white h-8 w-8 p-0" title="儲存"><Check size={16} /></Button>
-              <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} className="rounded-lg h-8 w-8 p-0" title="取消"><X size={16} /></Button>
-              <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} className="rounded-lg h-8 w-8 p-0" title="刪除"><Trash2 size={16} /></Button>
+              <Button type="button" size="sm" onClick={onInlineSave} disabled={inlinePhotoUploading} className="rounded-lg bg-green-500 hover:bg-green-600 text-white h-8 w-8 p-0" title="儲存"><Check size={16} /></Button>
+              <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} disabled={inlinePhotoUploading} className="rounded-lg h-8 w-8 p-0" title="取消"><X size={16} /></Button>
+              <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} disabled={inlinePhotoUploading} className="rounded-lg h-8 w-8 p-0" title="刪除"><Trash2 size={16} /></Button>
             </div>
           </div>
         </TableCell>
@@ -1774,7 +1970,30 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
           />
         </TableCell>
         <TableCell>
-          <FoodImage food={food} />
+          <div className="space-y-2 min-w-[220px]">
+            <Input
+              type="url"
+              placeholder="圖片網址"
+              value={inlineEditForm.photo || ""}
+              onChange={(e) => setInlineEditForm({ ...inlineEditForm, photo: e.target.value })}
+              className="h-9 rounded-lg text-sm"
+            />
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={onInlinePhotoFileSelect}
+              className="h-9 rounded-lg text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:font-medium file:text-blue-700"
+            />
+            {inlinePhotoUploading && (
+              <div className="text-xs text-blue-600">圖片上傳中...</div>
+            )}
+            <FoodImage
+              food={{
+                ...food,
+                photo: inlinePhotoPreviewUrl || inlineEditForm.photo || food.photo,
+              }}
+            />
+          </div>
         </TableCell>
       </TableRow>
     );
@@ -1840,7 +2059,7 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
 }
 
 // 手機版列表
-function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
+function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="lg:hidden">
@@ -1998,6 +2217,38 @@ function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEdi
                   className="h-10 rounded-lg flex-1"
                 />
               </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 w-12 shrink-0">圖片</span>
+                  <Input
+                    type="url"
+                    placeholder="圖片網址"
+                    value={inlineAddForm.photo || ""}
+                    onChange={(e) => setInlineAddForm({ ...inlineAddForm, photo: e.target.value })}
+                    className="h-10 rounded-lg flex-1"
+                  />
+                </div>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={onInlineAddPhotoFileSelect}
+                  className="h-10 rounded-lg file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:font-medium file:text-blue-700"
+                />
+                {inlineAddPhotoUploading && (
+                  <div className="text-xs text-blue-600">圖片上傳中...</div>
+                )}
+                {inlineAddPhotoPreviewUrl || inlineAddForm.photo ? (
+                  <img
+                    src={inlineAddPhotoPreviewUrl || inlineAddForm.photo}
+                    alt="圖片預覽"
+                    className="w-24 h-24 object-cover rounded-xl border border-gray-200"
+                  />
+                ) : (
+                  <div className="w-24 h-24 flex items-center justify-center text-gray-400 border border-dashed border-gray-300 rounded-xl text-xs">
+                    NO IMAGE
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-2 pt-2">
                 <Button type="button" size="sm" onClick={onInlineAddSave} className="rounded-lg bg-green-500 hover:bg-green-600 text-white h-10 px-4 flex items-center gap-1 font-bold"><Check size={16} /> 新增</Button>
                 <Button type="button" size="sm" variant="outline" onClick={onInlineAddCancel} className="rounded-lg h-10 px-4 flex items-center gap-1 font-bold"><X size={16} /> 取消</Button>
@@ -2018,6 +2269,9 @@ function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEdi
             onInlineEdit={onInlineEdit}
             onInlineSave={onInlineSave}
             onInlineCancel={onInlineCancel}
+            onInlinePhotoFileSelect={onInlinePhotoFileSelect}
+            inlinePhotoPreviewUrl={inlinePhotoPreviewUrl}
+            inlinePhotoUploading={inlinePhotoUploading}
             isEditMode={isEditMode}
             isSelected={selectedIds.has(food.$id)}
             toggleSelect={toggleSelect}
@@ -2039,12 +2293,15 @@ interface FoodMobileCardProps {
   onInlineEdit: (food: Food) => void;
   onInlineSave: () => void;
   onInlineCancel: () => void;
+  onInlinePhotoFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  inlinePhotoPreviewUrl: string;
+  inlinePhotoUploading: boolean;
   isEditMode: boolean;
   isSelected: boolean;
   toggleSelect: (id: string) => void;
 }
 
-function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
+function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
 
   if (isEditing) {
@@ -2131,10 +2388,38 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
               className="h-10 rounded-lg flex-1"
             />
           </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-12 shrink-0">圖片</span>
+              <Input
+                type="url"
+                placeholder="圖片網址"
+                value={inlineEditForm.photo || ""}
+                onChange={(e) => setInlineEditForm({ ...inlineEditForm, photo: e.target.value })}
+                className="h-10 rounded-lg flex-1"
+              />
+            </div>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={onInlinePhotoFileSelect}
+              className="h-10 rounded-lg file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:font-medium file:text-blue-700"
+            />
+            {inlinePhotoUploading && (
+              <div className="text-xs text-blue-600">圖片上傳中...</div>
+            )}
+            <FoodImage
+              food={{
+                ...food,
+                photo: inlinePhotoPreviewUrl || inlineEditForm.photo || food.photo,
+              }}
+              className="w-24 h-24"
+            />
+          </div>
           <div className="flex items-center gap-2 pt-2">
-            <Button type="button" size="sm" onClick={onInlineSave} className="rounded-lg bg-green-500 hover:bg-green-600 text-white h-10 px-4 flex items-center gap-1 font-bold"><Check size={16} /> 儲存</Button>
-            <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} className="rounded-lg h-10 px-4 flex items-center gap-1 font-bold"><X size={16} /> 取消</Button>
-            <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} className="rounded-lg h-10 px-4 flex items-center gap-1 font-bold"><Trash2 size={16} /> 刪除</Button>
+            <Button type="button" size="sm" onClick={onInlineSave} disabled={inlinePhotoUploading} className="rounded-lg bg-green-500 hover:bg-green-600 text-white h-10 px-4 flex items-center gap-1 font-bold"><Check size={16} /> 儲存</Button>
+            <Button type="button" size="sm" variant="outline" onClick={onInlineCancel} disabled={inlinePhotoUploading} className="rounded-lg h-10 px-4 flex items-center gap-1 font-bold"><X size={16} /> 取消</Button>
+            <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(food.$id)} disabled={inlinePhotoUploading} className="rounded-lg h-10 px-4 flex items-center gap-1 font-bold"><Trash2 size={16} /> 刪除</Button>
           </div>
         </div>
       </div>
