@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, Search, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1009,6 +1009,10 @@ export default function SubscriptionManagement() {
             <Button variant="outline" onClick={exportToCSV} className="rounded-xl">
               <Download className="mr-1 h-4 w-4" />
               匯出 CSV
+            </Button>
+            <Button variant="outline" onClick={() => loadSubscriptions()} className="rounded-xl" disabled={loading}>
+              <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              重新整理鋒兄訂閱
             </Button>
             <Button variant="outline" onClick={toggleSelectAll} className="rounded-xl">
               {isAllSelected ? "取消全選" : "全選"}
