@@ -4,13 +4,12 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus, AlertTriangle, RefreshCw } from "lucide-react";
 import { useCommonDocument, CommonDocumentData } from "@/hooks/useCommonDocument";
 import { useDocumentCache } from "@/hooks/useDocumentCache";
-import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { FullPageLoading, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
@@ -829,12 +828,7 @@ export default function CommonDocumentManagement() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-4 lg:space-y-6">
-        <SectionHeader title="鋒兄文件" subtitle="文件管理" showAccountLabel={true} />
-        <LoadingSpinner />
-      </div>
-    );
+    return <FullPageLoading text="載入文件資料中..." />;
   }
 
   return (

@@ -6,14 +6,13 @@ import SimpleVideoPlayer from "@/components/ui/simple-video-player";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
 import { useVideos, VideoData } from "@/hooks/useVideos";
-import { SectionHeader } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { SimpleStatCard, StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { VideoItem } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
@@ -1017,12 +1016,7 @@ export default function VideoIntroduction() {
   const currentVideoData = videos.find(v => v.$id === currentVideo);
 
   if (loading) {
-    return (
-      <div className="space-y-4 lg:space-y-6">
-        <SectionHeader title="鋒兄影片" subtitle="影片管理" showAccountLabel={true} />
-        <LoadingSpinner />
-      </div>
-    );
+    return <FullPageLoading text="載入影片資料中..." />;
   }
 
   return (

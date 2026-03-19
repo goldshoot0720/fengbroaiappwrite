@@ -5,14 +5,13 @@ import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, Ch
 import { useMusic, MusicData } from "@/hooks/useMusic";
 import { useMusicQueue, QueueItem } from "@/hooks/useMusicQueue";
 import { useMusicCache } from "@/hooks/useMusicCache";
-import { SectionHeader } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { MusicQueuePanel } from "@/components/ui/music-queue-panel";
@@ -951,12 +950,7 @@ export default function MusicManagement() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-4 lg:space-y-6">
-        <SectionHeader title="鋒兄音樂" subtitle="音樂管理" showAccountLabel={true} />
-        <LoadingSpinner />
-      </div>
-    );
+    return <FullPageLoading text="載入音樂資料中..." />;
   }
 
   return (

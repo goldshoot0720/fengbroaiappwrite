@@ -4,14 +4,13 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Podcast as PodcastIcon, Plus, Edit, Trash2, X, Upload, Calendar, Play, Pause, Search, ChevronDown, Repeat, HardDrive, Check, FolderUp, AlertTriangle, RefreshCw } from "lucide-react";
 import { usePodcast, PodcastData } from "@/hooks/usePodcast";
 import { usePodcastCache } from "@/hooks/usePodcastCache";
-import { SectionHeader } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { API_ENDPOINTS } from "@/lib/constants";
@@ -578,12 +577,7 @@ export default function PodcastManagement() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-4 lg:space-y-6">
-        <SectionHeader title="鋒兄播客" subtitle="播客管理" showAccountLabel={true} />
-        <LoadingSpinner />
-      </div>
-    );
+    return <FullPageLoading text="載入播客資料中..." />;
   }
 
   return (
