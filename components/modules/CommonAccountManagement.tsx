@@ -924,7 +924,7 @@ export default function CommonAccountManagement() {
         action={
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => fetchAll()}
+              onClick={() => fetchAll(true)}
               variant="outline"
               className="rounded-xl flex items-center gap-2"
               title="重新整理"

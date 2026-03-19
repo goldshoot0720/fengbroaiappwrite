@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus, AlertTriangle } from "lucide-react";
+import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus, AlertTriangle, RefreshCw } from "lucide-react";
 import { useCommonDocument, CommonDocumentData } from "@/hooks/useCommonDocument";
 import { useDocumentCache } from "@/hooks/useDocumentCache";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -872,6 +872,16 @@ export default function CommonDocumentManagement() {
         ]}
         toolbar={
           <>
+            <Button
+              onClick={() => loadCommonDocument(true)}
+              disabled={loading || exportingZip || importingZip}
+              variant="outline"
+              className="gap-2 rounded-xl h-10 px-4"
+              title="重新整理"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              <span className="hidden sm:inline">重新整理</span>
+            </Button>
             <Button onClick={handleExportZip} disabled={loading || exportingZip || importingZip || commondocument.length === 0} className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50" title="匯出所有文件為 ZIP">
               <Download size={16} className={exportingZip ? "animate-bounce" : ""} />
               <span className="hidden sm:inline">{exportingZip ? "匯出中..." : "匯出 ZIP"}</span>

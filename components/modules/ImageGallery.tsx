@@ -939,10 +939,6 @@ export default function ImageGallery() {
               <Plus size={16} />
               <span className="hidden sm:inline">新增圖片</span>
             </Button>
-            <Button onClick={() => loadImages(true)} disabled={loading} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-              <span className="hidden sm:inline">重新載入</span>
-            </Button>
           </>
         }
       />
