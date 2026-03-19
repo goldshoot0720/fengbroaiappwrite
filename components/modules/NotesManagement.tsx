@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw } from "lucide-react";
 import JSZip from "jszip";
 import { FaviconImage } from "@/components/ui/favicon-image";
 
@@ -1096,6 +1096,9 @@ export default function NotesManagement() {
         showAccountLabel={true}
         action={
           <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={() => loadArticles(true)} variant="outline" className="rounded-xl flex items-center gap-2 h-12" disabled={loading}>
+              <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 重新整理
+            </Button>
             <Button
               onClick={() => setIsFormCollapsed(false)}
               className="rounded-xl flex items-center gap-2 h-12 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white"

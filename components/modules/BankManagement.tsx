@@ -19,6 +19,7 @@ import {
   Search,
   Download,
   Upload,
+  RefreshCw,
   X,
   Trash2,
   Edit2,
@@ -511,6 +512,9 @@ export default function BankManagement() {
         toolbar={
           <>
             <input type="file" accept=".csv" onChange={handleFileSelect} className="hidden" id="csv-import-bank" />
+            <Button onClick={() => loadBanks()} variant="outline" className="rounded-xl flex items-center gap-2" title="重新整理" disabled={loading}>
+              <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 重新整理
+            </Button>
             <Button onClick={() => document.getElementById('csv-import-bank')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
               <Upload size={18} /> 匯入
             </Button>

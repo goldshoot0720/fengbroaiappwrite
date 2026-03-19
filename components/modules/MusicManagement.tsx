@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Repeat, FileText, Download, ListPlus, HardDrive, Check, FolderUp, Copy, AlertTriangle } from "lucide-react";
+import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Repeat, FileText, Download, ListPlus, HardDrive, Check, FolderUp, Copy, AlertTriangle, RefreshCw } from "lucide-react";
 import { useMusic, MusicData } from "@/hooks/useMusic";
 import { useMusicQueue, QueueItem } from "@/hooks/useMusicQueue";
 import { useMusicCache } from "@/hooks/useMusicCache";
@@ -994,6 +994,10 @@ export default function MusicManagement() {
         ]}
         toolbar={
           <>
+            <Button onClick={() => loadMusic(true)} disabled={loading || exportingZip || importingZip} variant="outline" className="gap-2 rounded-xl h-10 px-4">
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              重新整理
+            </Button>
             <Button onClick={handleExportZip} disabled={exportingZip || music.length === 0} className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl">
               <FolderUp size={16} />
               匯出 ZIP

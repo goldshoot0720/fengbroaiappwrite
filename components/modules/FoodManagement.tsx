@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, Refrigerator, CalendarClock, Flame, ShoppingBasket } from "lucide-react";
+import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, Refrigerator, CalendarClock, Flame, ShoppingBasket, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -798,6 +798,9 @@ export default function FoodManagement() {
 
       <div className="flex justify-end gap-2">
         <input type="file" accept=".csv" onChange={handleCSVFileSelect} className="hidden" id="csv-import-food" />
+        <Button onClick={() => loadFoods(true)} variant="outline" className="rounded-xl flex items-center gap-2" title="重新整理" disabled={loading}>
+          <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 重新整理
+        </Button>
         <Button onClick={() => document.getElementById('csv-import-food')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
           <Upload size={18} /> 匯入
         </Button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, Search, AlertTriangle, Copy, CopyPlus, Download, Upload, Sparkles, Pin, PinOff, Clock3, Wand2 } from "lucide-react";
+import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, Search, AlertTriangle, Copy, CopyPlus, Download, Upload, Sparkles, Pin, PinOff, Clock3, Wand2, RefreshCw } from "lucide-react";
 import { CommonAccount, CommonAccountFormData } from "@/types";
 import { Input, Textarea, DataCard, Button, SectionHeader, FormCard, FormActions } from "@/components/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -923,6 +923,16 @@ export default function CommonAccountManagement() {
         showAccountLabel={true}
         action={
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => fetchAll()}
+              variant="outline"
+              className="rounded-xl flex items-center gap-2"
+              title="重新整理"
+              disabled={loading}
+            >
+              <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+              重新整理
+            </Button>
             <input
               type="file"
               accept=".csv"

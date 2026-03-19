@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Calendar, Search, Download, Upload, ArrowRight, X, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Calendar, Search, Download, Upload, ArrowRight, X, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -535,6 +535,9 @@ export default function RoutineManagement() {
         toolbar={
           <>
             <input type="file" accept=".csv" onChange={handleCSVFileSelect} className="hidden" id="csv-import-routine" />
+            <Button onClick={() => fetchAll()} variant="outline" className="rounded-xl flex items-center gap-2" disabled={loading}>
+              <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 重新整理
+            </Button>
             <Button onClick={() => document.getElementById('csv-import-routine')?.click()} variant="outline" className="rounded-xl flex items-center gap-2">
               <Upload size={18} /> 匯入
             </Button>

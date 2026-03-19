@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize, AlertTriangle } from "lucide-react";
+import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize, AlertTriangle, RefreshCw } from "lucide-react";
 import SimpleVideoPlayer from "@/components/ui/simple-video-player";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
@@ -1060,6 +1060,16 @@ export default function VideoIntroduction() {
         ]}
         toolbar={
           <>
+            <Button
+              onClick={() => loadVideos(true)}
+              disabled={loading || exportingZip || importingZip}
+              variant="outline"
+              className="gap-2 rounded-xl h-10 px-4"
+              title="重新整理"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              <span className="hidden sm:inline">重新整理</span>
+            </Button>
             <Button
               onClick={handleExportZip}
               disabled={loading || exportingZip || importingZip || videos.length === 0}

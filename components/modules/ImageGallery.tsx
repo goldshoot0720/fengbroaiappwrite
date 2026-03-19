@@ -892,6 +892,16 @@ export default function ImageGallery() {
         toolbar={
           <>
             <Button
+              onClick={() => loadImages(true)}
+              disabled={loading || exporting || importing}
+              variant="outline"
+              className="gap-2 rounded-xl h-10 px-4"
+              title="重新整理"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              <span className="hidden sm:inline">重新整理</span>
+            </Button>
+            <Button
               onClick={handleExportZip}
               disabled={loading || exporting || importing || images.length === 0}
               className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl disabled:opacity-50"

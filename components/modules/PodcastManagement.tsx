@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Podcast as PodcastIcon, Plus, Edit, Trash2, X, Upload, Calendar, Play, Pause, Search, ChevronDown, Repeat, HardDrive, Check, FolderUp, AlertTriangle } from "lucide-react";
+import { Podcast as PodcastIcon, Plus, Edit, Trash2, X, Upload, Calendar, Play, Pause, Search, ChevronDown, Repeat, HardDrive, Check, FolderUp, AlertTriangle, RefreshCw } from "lucide-react";
 import { usePodcast, PodcastData } from "@/hooks/usePodcast";
 import { usePodcastCache } from "@/hooks/usePodcastCache";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -621,6 +621,10 @@ export default function PodcastManagement() {
         ]}
         toolbar={
           <>
+            <Button onClick={() => loadPodcast(true)} disabled={loading || exportingZip || importingZip} variant="outline" className="gap-2 rounded-xl h-10 px-4">
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              重新整理
+            </Button>
             <Button onClick={handleExportZip} disabled={exportingZip || podcast.length === 0} className="gap-2 bg-purple-500 hover:bg-purple-600 rounded-xl">
               <FolderUp size={16} />
               匯出 ZIP
