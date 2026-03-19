@@ -1012,7 +1012,7 @@ export default function SubscriptionManagement() {
             </Button>
             <Button variant="outline" onClick={() => loadSubscriptions()} className="rounded-xl" disabled={loading}>
               <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              重新整理鋒兄訂閱
+              重新整理
             </Button>
             <Button variant="outline" onClick={toggleSelectAll} className="rounded-xl">
               {isAllSelected ? "取消全選" : "全選"}
