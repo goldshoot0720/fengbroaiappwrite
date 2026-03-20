@@ -33,6 +33,15 @@ interface PlyrPlayerProps {
   autoplay?: boolean;
   className?: string;
   onEnded?: () => void;
+  persistOnUnmount?: boolean;
+  onPersistPlayback?: (state: {
+    src: string;
+    currentTime: number;
+    volume: number;
+    playbackRate: number;
+    loop: boolean;
+    muted: boolean;
+  }) => void;
   tracks?: Array<{
     kind: 'captions' | 'subtitles';
     label: string;
@@ -50,12 +59,35 @@ export function PlyrPlayer({
   autoplay = false,
   className = "",
   onEnded,
+  persistOnUnmount = false,
+  onPersistPlayback,
   tracks = []
 }: PlyrPlayerProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<'landscape' | 'portrait' | 'square'>('landscape');
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const plyrRef = useRef<any>(null);
+
+  const getPersistentMedia = useCallback((mediaType: "audio" | "video") => {
+    if (typeof window === "undefined") return null;
+
+    const persistentKey = mediaType === "video" ? "__fengbroPersistentVideo" : "__fengbroPersistentAudio";
+    let persistentMedia = (window as any)[persistentKey] as HTMLMediaElement | undefined;
+
+    if (!persistentMedia) {
+      persistentMedia = document.createElement(mediaType);
+      persistentMedia.preload = "auto";
+      persistentMedia.className = "hidden";
+      persistentMedia.setAttribute("data-persistent-media", mediaType);
+      if (mediaType === "video") {
+        (persistentMedia as HTMLVideoElement).playsInline = true;
+      }
+      document.body.appendChild(persistentMedia);
+      (window as any)[persistentKey] = persistentMedia;
+    }
+
+    return persistentMedia;
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -102,12 +134,41 @@ export function PlyrPlayer({
     initPlyr();
 
     return () => {
+      const media = mediaRef.current;
+      if (
+        persistOnUnmount &&
+        media &&
+        !media.paused &&
+        media.currentSrc
+      ) {
+        onPersistPlayback?.({
+          src: media.currentSrc,
+          currentTime: media.currentTime,
+          volume: media.volume,
+          playbackRate: media.playbackRate,
+          loop: media.loop,
+          muted: media.muted,
+        });
+        const persistentMedia = getPersistentMedia(type);
+        if (persistentMedia) {
+          persistentMedia.src = media.currentSrc;
+          persistentMedia.currentTime = media.currentTime;
+          persistentMedia.volume = media.volume;
+          persistentMedia.playbackRate = media.playbackRate;
+          persistentMedia.loop = media.loop;
+          persistentMedia.muted = media.muted;
+          if (type === "video" && persistentMedia instanceof HTMLVideoElement && media instanceof HTMLVideoElement) {
+            persistentMedia.poster = media.poster;
+          }
+          persistentMedia.play().catch(() => {});
+        }
+      }
       if (plyrInstance) {
         try { plyrInstance.destroy(); } catch {}
       }
       plyrRef.current = null;
     };
-  }, [isMounted, src, type]);
+  }, [getPersistentMedia, isMounted, onPersistPlayback, persistOnUnmount, src, type]);
 
   // 更新 loop 設定
   useEffect(() => {

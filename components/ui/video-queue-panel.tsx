@@ -15,7 +15,7 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const lastPlayedIdRef = useRef<string | null>(null);
+  const lastPlayedKeyRef = useRef<string | null>(null);
   const { 
     queue, 
     currentIndex, 
@@ -31,9 +31,10 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
   useEffect(() => {
     if (currentItem && currentItem.file && videoRef.current) {
       // 只有當影片變化時才播放（避免重複播放）
-      if (lastPlayedIdRef.current !== currentItem.id) {
+      const playbackKey = currentItem.playbackKey || currentItem.id;
+      if (lastPlayedKeyRef.current !== playbackKey) {
         console.log('播放影片:', currentItem.name, currentItem.file);
-        lastPlayedIdRef.current = currentItem.id;
+        lastPlayedKeyRef.current = playbackKey;
         
         const video = videoRef.current;
         // 先暫停並重置，避免衝突
@@ -46,6 +47,21 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
         
         // 使用 canplay 事件確保影片已載入
         const handleCanPlay = () => {
+          if (typeof currentItem.startTime === 'number' && Number.isFinite(currentItem.startTime)) {
+            video.currentTime = currentItem.startTime;
+          }
+          if (typeof currentItem.volume === 'number') {
+            video.volume = currentItem.volume;
+          }
+          if (typeof currentItem.playbackRate === 'number') {
+            video.playbackRate = currentItem.playbackRate;
+          }
+          if (typeof currentItem.loop === 'boolean') {
+            video.loop = currentItem.loop;
+          }
+          if (typeof currentItem.muted === 'boolean') {
+            video.muted = currentItem.muted;
+          }
           video.play().then(() => {
             console.log('影片播放成功:', currentItem.name);
             setIsExpanded(true);

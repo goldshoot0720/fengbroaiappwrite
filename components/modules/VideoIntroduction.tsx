@@ -191,7 +191,7 @@ export default function VideoIntroduction() {
   const [inlineCoverUploading, setInlineCoverUploading] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { addToQueue, isInQueue } = useVideoQueue();
+  const { addToQueue, isInQueue, handoffPlayback } = useVideoQueue();
 
   // 接下來播放 - 加入佇列
   const handleAddToQueue = useCallback((video: VideoData) => {
@@ -211,6 +211,29 @@ export default function VideoIntroduction() {
       alert('此影片已在播放佇列中');
     }
   }, [addToQueue]);
+
+  const handlePersistVideoPlayback = useCallback((video: VideoData, playback: {
+    src: string;
+    currentTime: number;
+    volume: number;
+    playbackRate: number;
+    loop: boolean;
+    muted: boolean;
+  }) => {
+    handoffPlayback({
+      id: video.$id,
+      name: video.name,
+      category: video.category || '',
+      file: playback.src,
+      cover: typeof video.cover === 'string' ? video.cover : '',
+      startTime: playback.currentTime,
+      volume: playback.volume,
+      playbackRate: playback.playbackRate,
+      loop: playback.loop,
+      muted: playback.muted,
+      playbackKey: `${video.$id}:${Date.now()}`,
+    });
+  }, [handoffPlayback]);
 
   // CSV 匹出/匯入
   const CSV_HEADERS = ['name', 'category', 'note', 'ref'];
@@ -1142,12 +1165,14 @@ export default function VideoIntroduction() {
           <BilibiliPlayerModal
             video={currentVideoData}
             videoRef={videoRef}
+            onPersistPlayback={handlePersistVideoPlayback}
             onClose={() => setShowPlayer(false)}
           />
         ) : (
           <VideoPlayerModal
             video={currentVideoData}
             videoRef={videoRef}
+            onPersistPlayback={handlePersistVideoPlayback}
             onClose={() => setShowPlayer(false)}
           />
         )
@@ -1485,7 +1510,7 @@ export default function VideoIntroduction() {
 }
 
 // 影片播放器模態框 - 終極重構版（完全模仿 Sora/YouTube 設計）
-function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; videoRef: React.RefObject<HTMLVideoElement | null>; onClose: () => void }) {
+function VideoPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { video: VideoData; videoRef: React.RefObject<HTMLVideoElement | null>; onClose: () => void; onPersistPlayback: (video: VideoData, playback: { src: string; currentTime: number; volume: number; playbackRate: number; loop: boolean; muted: boolean; }) => void; }) {
   const { videos } = useVideos();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
@@ -1596,6 +1621,8 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
               poster={currentVideo.cover}
               autoplay={true}
               onEnded={handleVideoEnded}
+              persistOnUnmount
+              onPersistPlayback={(playback) => onPersistPlayback(currentVideo, playback)}
               className="w-full h-full"
             />
           )}
@@ -1657,6 +1684,8 @@ function VideoPlayerModal({ video, videoRef, onClose }: { video: VideoData; vide
                   poster={currentVideo.cover}
                   autoplay={true}
                   onEnded={handleVideoEnded}
+                  persistOnUnmount
+                  onPersistPlayback={(playback) => onPersistPlayback(currentVideo, playback)}
                   className="w-full h-full"
                 />
               )}
@@ -2694,7 +2723,7 @@ function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDow
 }
 
 // Bilibili 風格播放器模態框
-function BilibiliPlayerModal({ video, videoRef, onClose }: { video: VideoData; videoRef: React.RefObject<HTMLVideoElement | null>; onClose: () => void }) {
+function BilibiliPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { video: VideoData; videoRef: React.RefObject<HTMLVideoElement | null>; onClose: () => void; onPersistPlayback: (video: VideoData, playback: { src: string; currentTime: number; volume: number; playbackRate: number; loop: boolean; muted: boolean; }) => void; }) {
   const { videos } = useVideos();
   const [autoPlay, setAutoPlay] = useState(true);
   const [repeatMode, setRepeatMode] = useState(false);
@@ -2790,6 +2819,8 @@ function BilibiliPlayerModal({ video, videoRef, onClose }: { video: VideoData; v
                   poster={currentVideo.cover}
                   autoplay={true}
                   onEnded={handleVideoEnded}
+                  persistOnUnmount
+                  onPersistPlayback={(playback) => onPersistPlayback(currentVideo, playback)}
                   className="w-full h-full"
                 />
               )}
@@ -3588,6 +3619,7 @@ function VideoPlayer({ video, videoRef }: { video: VideoItem; videoRef: React.Re
         <PlyrPlayer
           type="video"
           src={getProxiedMediaUrl(videoRef.current?.src || video.url || `/videos/${video.filename}`)}
+          persistOnUnmount
           className="w-full"
         />
       </div>

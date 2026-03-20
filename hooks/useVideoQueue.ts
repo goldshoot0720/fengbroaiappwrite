@@ -8,6 +8,12 @@ export interface VideoQueueItem {
   category?: string;
   file: string;
   cover?: string;
+  startTime?: number;
+  volume?: number;
+  playbackRate?: number;
+  loop?: boolean;
+  muted?: boolean;
+  playbackKey?: string;
 }
 
 // 全域播放佇列狀態
@@ -111,6 +117,26 @@ export function useVideoQueue() {
     notifyVideoListeners();
   }, []);
 
+  const handoffPlayback = useCallback((item: VideoQueueItem) => {
+    const existingIndex = globalVideoQueue.findIndex(q => q.id === item.id);
+
+    if (existingIndex >= 0) {
+      globalVideoQueue[existingIndex] = {
+        ...globalVideoQueue[existingIndex],
+        ...item,
+      };
+      globalVideoCurrentIndex = existingIndex;
+    } else if (globalVideoCurrentIndex >= 0 && globalVideoCurrentIndex < globalVideoQueue.length) {
+      globalVideoQueue.splice(globalVideoCurrentIndex + 1, 0, item);
+      globalVideoCurrentIndex += 1;
+    } else {
+      globalVideoQueue = [item];
+      globalVideoCurrentIndex = 0;
+    }
+
+    notifyVideoListeners();
+  }, []);
+
   const skipToNext = useCallback(() => {
     playNextInVideoQueue();
   }, []);
@@ -124,6 +150,7 @@ export function useVideoQueue() {
     clearQueue,
     moveInQueue,
     playNow,
+    handoffPlayback,
     skipToNext,
     isInQueue: (id: string) => globalVideoQueue.some(q => q.id === id),
     queueLength: globalVideoQueue.length,
