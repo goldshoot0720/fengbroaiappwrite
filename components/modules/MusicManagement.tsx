@@ -1472,6 +1472,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
       language: item.language,
       file: fileUrl,
       cover: item.cover || undefined,
+      lyrics: item.computedLyrics || item.lyrics || '',
     });
   };
 
@@ -1978,6 +1979,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                             language: selectedItem.language,
                             file: fileUrl,
                             cover: selectedItem.cover || displayCover || undefined,
+                            lyrics: selectedItem.computedLyrics || selectedItem.lyrics || '',
                           });
                           if (!added) {
                             alert('該歌曲已在播放佇列中');
@@ -2153,6 +2155,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
       language: music.language,
       file: fileUrl,
       cover: music.cover || undefined,
+      lyrics: music.computedLyrics || music.lyrics || '',
     });
   };
 
@@ -2455,6 +2458,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                           language: music.language,
                           file: fileUrl,
                           cover: music.cover,
+                          lyrics: music.computedLyrics || music.lyrics || '',
                         });
                         if (!added) {
                           alert('該歌曲已在播放佇列中');

@@ -192,6 +192,12 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
                 />
                 <span className="text-xs text-gray-500 w-10 text-right">{formatTime(duration)}</span>
               </div>
+
+              {currentItem.lyrics && (
+                <div className="mt-2 rounded-xl bg-purple-50 dark:bg-purple-900/20 px-3 py-2 text-xs leading-5 text-purple-700 dark:text-purple-200 line-clamp-2 whitespace-pre-line">
+                  {currentItem.lyrics}
+                </div>
+              )}
             </div>
           )}
           
@@ -299,6 +305,17 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
                   )}
                 </div>
               </div>
+
+              {currentItem.lyrics && (
+                <div className="mt-3 rounded-xl bg-white/80 dark:bg-gray-900/40 border border-purple-100 dark:border-purple-800 px-3 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-purple-600 dark:text-purple-300 mb-2">
+                    目前歌詞
+                  </div>
+                  <div className="max-h-40 overflow-y-auto whitespace-pre-line text-xs leading-6 text-gray-700 dark:text-gray-200 pr-1">
+                    {currentItem.lyrics}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

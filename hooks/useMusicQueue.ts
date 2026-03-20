@@ -8,6 +8,7 @@ export interface QueueItem {
   language?: string;
   file: string;
   cover?: string;
+  lyrics?: string;
 }
 
 // 全域播放佇列狀態
