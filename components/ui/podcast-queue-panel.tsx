@@ -239,8 +239,8 @@ export function PodcastQueuePanel() {
             className="self-end rounded-full bg-amber-500 px-4 py-3 text-white shadow-lg transition-all hover:bg-amber-600"
           >
             <span className="flex items-center gap-2">
-              <ListMusic className="h-5 w-5" />
-              <span className="font-medium">播客佇列</span>
+              <ChevronUp className="h-5 w-5" />
+              <span className="font-medium">展開播放器</span>
               <span className="rounded-full bg-white/20 px-2 py-0.5 text-sm">{queueLength}</span>
             </span>
           </button>
@@ -267,8 +267,9 @@ export function PodcastQueuePanel() {
                 type="button"
                 onClick={() => setIsExpanded(false)}
                 className="rounded-lg p-1.5 transition-colors hover:bg-white/20"
+                title="收合播放器"
               >
-                <X className="h-4 w-4" />
+                <ChevronDown className="h-4 w-4" />
               </button>
             </div>
           </div>
