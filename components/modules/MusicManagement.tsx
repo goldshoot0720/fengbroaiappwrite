@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Repeat, FileText, Download, ListPlus, HardDrive, Check, FolderUp, Copy, AlertTriangle, RefreshCw } from "lucide-react";
+import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Play, FileText, Download, ListPlus, HardDrive, Check, FolderUp, Copy, AlertTriangle, RefreshCw } from "lucide-react";
 import { useMusic, MusicData } from "@/hooks/useMusic";
 import { useMusicQueue, QueueItem } from "@/hooks/useMusicQueue";
 import { useMusicCache } from "@/hooks/useMusicCache";
@@ -13,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
@@ -1429,7 +1428,6 @@ interface GroupedMusicCardProps {
 }
 
 function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading, inlineAudioFile, setInlineAudioFile, inlineAudioPreview, setInlineAudioPreview, inlineAudioUploading, inlineAudioInputRef, selectionMode, selectedIds, onToggleSelect }: GroupedMusicCardProps) {
-  const [isLooping, setIsLooping] = useState(false);
   const inlineCoverInputRef = useRef<HTMLInputElement>(null);
 
   // 處理行內編輯封面上傳
@@ -1459,9 +1457,23 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
   const [copiedLyricsId, setCopiedLyricsId] = useState<string | null>(null);
   const [selectedBaseLanguage, setSelectedBaseLanguage] = useState<string | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
-  const { addToQueue, isInQueue } = useMusicQueue();
+  const { addToQueue, isInQueue, playNow } = useMusicQueue();
   const { cacheStatus, downloadAndCacheMusic, checkMusicCache, loadMusicFromCache } = useMusicCache();
   const [cachedItems, setCachedItems] = useState<Set<string>>(new Set());
+
+  const handlePlayNow = async (item: MusicData) => {
+    if (!item.file) return;
+    const cachedUrl = await loadMusicFromCache(item.$id);
+    const fileUrl = cachedUrl || getProxiedMediaUrl(item.file);
+
+    playNow({
+      id: item.$id,
+      name: item.name,
+      language: item.language,
+      file: fileUrl,
+      cover: item.cover || undefined,
+    });
+  };
 
   // 檢查所有項目的快取狀態
   useEffect(() => {
@@ -1602,17 +1614,6 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
             </div>
           </div>
 
-          {/* 循環播放按鈕 */}
-          <button
-            onClick={() => setIsLooping(!isLooping)}
-            className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 flex-shrink-0 ${isLooping
-              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            title={isLooping ? '重複播放' : '單次播放'}
-          >
-            <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
         </div>
       </div>
 
@@ -1957,6 +1958,17 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                       <button
                         onClick={async () => {
                           // Check if music is cached first
+                          await handlePlayNow(selectedItem);
+                        }}
+                        className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 transition-all"
+                        title="立即播放"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                      </button>
+                    )}
+                    {selectedItem.file && (
+                      <button
+                        onClick={async () => {
                           const cachedUrl = await loadMusicFromCache(selectedItem.$id);
                           const fileUrl = cachedUrl || getProxiedMediaUrl(selectedItem.file);
 
@@ -2001,14 +2013,8 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                 </div>
 
                 {selectedItem.file ? (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg p-2">
-                    <PlyrPlayer
-                      key={selectedItem.$id}
-                      type="audio"
-                      src={getProxiedMediaUrl(selectedItem.file)}
-                      loop={isLooping}
-                      className="w-full"
-                    />
+                  <div className="rounded-lg border border-dashed border-purple-200 dark:border-purple-800 bg-purple-50/70 dark:bg-purple-900/10 px-3 py-3 text-xs sm:text-sm text-purple-700 dark:text-purple-300">
+                    使用右下角共用播放器播放這首歌，頁面內只保留一個時間軸。
                   </div>
                 ) : (
                   <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
@@ -2130,12 +2136,25 @@ interface MusicCardProps {
 }
 
 function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineCoverFile, setInlineCoverFile, inlineCoverPreview, setInlineCoverPreview, inlineCoverUploading, inlineAudioFile, setInlineAudioFile, inlineAudioPreview, setInlineAudioPreview, inlineAudioUploading, inlineAudioInputRef, selectionMode, isSelected, onToggleSelect }: MusicCardProps) {
-  const [isLooping, setIsLooping] = useState(false);
   const [copiedLyrics, setCopiedLyrics] = useState(false);
-  const { addToQueue, isInQueue } = useMusicQueue();
+  const { addToQueue, isInQueue, playNow } = useMusicQueue();
   const { cacheStatus, downloadAndCacheMusic, checkMusicCache, loadMusicFromCache } = useMusicCache();
   const [isCached, setIsCached] = useState(false);
   const inlineCoverInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePlayNow = async () => {
+    if (!music.file) return;
+    const cachedUrl = await loadMusicFromCache(music.$id);
+    const fileUrl = cachedUrl || getProxiedMediaUrl(music.file);
+
+    playNow({
+      id: music.$id,
+      name: music.name,
+      language: music.language,
+      file: fileUrl,
+      cover: music.cover || undefined,
+    });
+  };
 
   // 處理行內編輯封面上傳
   const handleInlineCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2418,14 +2437,11 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                 {music.file && (
                   <>
                     <button
-                      onClick={() => setIsLooping(!isLooping)}
-                      className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 ${isLooping
-                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      title={isLooping ? '重複播放' : '單次播放'}
+                      onClick={handlePlayNow}
+                      className="p-1.5 sm:p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-all duration-200"
+                      title="立即播放"
                     >
-                      <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                     </button>
                     <button
                       onClick={async () => {
@@ -2519,16 +2535,11 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
               </div>
             </div>
 
-            {/* 播放器 - 獨立一行 */}
+            {/* 共用播放器提示 */}
             {music.file ? (
               <div className="mt-2 sm:mt-3">
-                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-1.5 sm:p-2">
-                  <PlyrPlayer
-                    type="audio"
-                    src={getProxiedMediaUrl(music.file)}
-                    loop={isLooping}
-                    className="w-full"
-                  />
+                <div className="rounded-lg border border-dashed border-purple-200 dark:border-purple-800 bg-purple-50/70 dark:bg-purple-900/10 px-3 py-2 text-[10px] sm:text-xs text-purple-700 dark:text-purple-300">
+                  使用右下角共用播放器播放，這裡不再顯示每張卡片的獨立時間軸。
                 </div>
               </div>
             ) : (
