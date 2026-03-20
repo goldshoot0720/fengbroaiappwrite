@@ -37,48 +37,55 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
     if (currentItem && currentItem.file && videoRef.current) {
       // 只有當影片變化時才播放（避免重複播放）
       const playbackKey = currentItem.playbackKey || currentItem.id;
-      if (lastPlayedKeyRef.current !== playbackKey) {
-        console.log('播放影片:', currentItem.name, currentItem.file);
-        lastPlayedKeyRef.current = playbackKey;
-        
-        const video = videoRef.current;
-        // 先暫停並重置，避免衝突
-        video.pause();
-        video.currentTime = 0;
-        video.src = currentItem.file;
-        
-        // 等待 src 載入後再播放
-        video.load();
-        
-        // 使用 canplay 事件確保影片已載入
-        const handleCanPlay = () => {
-          if (typeof currentItem.startTime === 'number' && Number.isFinite(currentItem.startTime)) {
-            video.currentTime = currentItem.startTime;
-          }
-          if (typeof currentItem.volume === 'number') {
-            video.volume = currentItem.volume;
-          }
-          if (typeof currentItem.playbackRate === 'number') {
-            video.playbackRate = currentItem.playbackRate;
-          }
-          if (typeof currentItem.loop === 'boolean') {
-            video.loop = currentItem.loop;
-          }
-          if (typeof currentItem.muted === 'boolean') {
-            video.muted = currentItem.muted;
-          }
-          video.play().then(() => {
-            console.log('影片播放成功:', currentItem.name);
-            setIsExpanded(true);
-          }).catch((err) => {
-            console.error('影片播放失敗:', err.name, err.message);
-          });
-          video.removeEventListener('canplay', handleCanPlay);
-        };
-        video.addEventListener('canplay', handleCanPlay);
+      const video = videoRef.current;
+      const shouldReload = lastPlayedKeyRef.current !== playbackKey || !video.currentSrc;
+
+      if (!shouldReload) {
+        return;
       }
+
+      console.log('播放影片:', currentItem.name, currentItem.file);
+      lastPlayedKeyRef.current = playbackKey;
+
+      // 先暫停並重置，避免衝突
+      video.pause();
+      video.currentTime = 0;
+      video.src = currentItem.file;
+
+      // 等待 src 載入後再播放
+      video.load();
+
+      // 使用 canplay 事件確保影片已載入
+      const handleCanPlay = () => {
+        const resumeTime = typeof currentItem.startTime === 'number' && Number.isFinite(currentItem.startTime)
+          ? currentItem.startTime
+          : currentTime;
+        if (resumeTime > 0) {
+          video.currentTime = resumeTime;
+        }
+        if (typeof currentItem.volume === 'number') {
+          video.volume = currentItem.volume;
+        }
+        if (typeof currentItem.playbackRate === 'number') {
+          video.playbackRate = currentItem.playbackRate;
+        }
+        if (typeof currentItem.loop === 'boolean') {
+          video.loop = currentItem.loop;
+        }
+        if (typeof currentItem.muted === 'boolean') {
+          video.muted = currentItem.muted;
+        }
+        video.play().then(() => {
+          console.log('影片播放成功:', currentItem.name);
+          setIsExpanded(!(typeof currentItem.startTime === 'number' && Number.isFinite(currentItem.startTime)));
+        }).catch((err) => {
+          console.error('影片播放失敗:', err.name, err.message);
+        });
+        video.removeEventListener('canplay', handleCanPlay);
+      };
+      video.addEventListener('canplay', handleCanPlay);
     }
-  }, [currentItem]);
+  }, [currentItem, currentTime]);
 
   const togglePlayPause = () => {
     if (!videoRef.current) return;
@@ -110,37 +117,37 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
 
   return (
     <div className="fixed top-20 right-4 z-50 video-queue-panel">
-      {/* 單一視頻元素 - 放在最外層，不跟隨 isExpanded 重新挂載 */}
-      <video 
-        ref={videoRef} 
-        preload="auto"
-        className="hidden"
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-        onDurationChange={(e) => setDuration((e.target as HTMLVideoElement).duration)}
-        onEnded={() => {
-          setIsPlaying(false);
-          skipToNext();
-        }}
-        onError={(e) => console.error('影片加載錯誤:', e)}
-      />
-
       {/* 收合的按鈕（帶 mini 播放器） */}
       {!isExpanded && (
         <div className="flex flex-col gap-2">
           {/* 如果有正在播放的影片，顯示 mini 播放器 */}
           {currentItem && (
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 w-96">
+              <div className="overflow-hidden rounded-xl bg-black aspect-video mb-3">
+                <video
+                  ref={videoRef}
+                  preload="auto"
+                  playsInline
+                  className="h-full w-full object-contain"
+                  poster={currentItem.cover}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                  onDurationChange={(e) => setDuration((e.target as HTMLVideoElement).duration)}
+                  onEnded={() => {
+                    setIsPlaying(false);
+                    skipToNext();
+                  }}
+                  onError={(e) => console.error('影片加載錯誤:', e)}
+                />
+              </div>
+
               <div className="flex items-center gap-3">
-                {/* 封面 */}
-                <div className="w-20 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600">
                   {currentItem.cover ? (
-                    <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-cover" />
+                    <img src={currentItem.cover} alt={currentItem.name} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Video className="w-6 h-6 text-white" />
-                    </div>
+                    <Video className="w-6 h-6 text-white" />
                   )}
                 </div>
                 
@@ -239,18 +246,27 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
           {/* 當前播放的影片 - 使用 Canvas 顯示影片畫面 */}
           {currentItem && (
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
-              {/* 影片預覽區 - 使用封面圖代替即時播放 */}
+              {/* 影片預覽區 */}
               <div 
                 className="relative aspect-video rounded-lg overflow-hidden bg-black mb-3 cursor-pointer"
                 onClick={togglePlayPause}
               >
-                {currentItem.cover ? (
-                  <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-contain" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-600 to-indigo-600">
-                    <Video className="w-16 h-16 text-white/50" />
-                  </div>
-                )}
+                <video
+                  ref={videoRef}
+                  preload="auto"
+                  playsInline
+                  poster={currentItem.cover}
+                  className="w-full h-full object-contain"
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                  onDurationChange={(e) => setDuration((e.target as HTMLVideoElement).duration)}
+                  onEnded={() => {
+                    setIsPlaying(false);
+                    skipToNext();
+                  }}
+                  onError={(e) => console.error('影片加載錯誤:', e)}
+                />
                 {/* 播放狀態指示 */}
                 <div className="absolute inset-0 flex items-center justify-center">
                   {isPlaying ? (
