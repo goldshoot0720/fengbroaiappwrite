@@ -947,7 +947,7 @@ export default function ImageGallery() {
 
       {/* Export Progress Modal */}
       {exporting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯出圖片中...</h3>
             <div className="space-y-3">
@@ -973,7 +973,7 @@ export default function ImageGallery() {
 
       {/* Import Progress Modal */}
       {importing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯入圖片中...</h3>
             <div className="space-y-3">
@@ -1522,11 +1522,11 @@ function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditFo
 // 圖片預覽模態框
 function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-2 sm:p-4" onClick={onClose}>
       <div className="relative w-full h-full max-w-7xl max-h-screen flex flex-col">
         {/* 頂部控制欄 */}
         <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10">
-          <button onClick={onClose} className="p-2.5 bg-black/80 backdrop-blur-sm rounded-lg text-white hover:bg-black/95 transition-colors">
+          <button onClick={onClose} className="rounded-lg bg-black/80 p-2.5 text-white transition-colors hover:bg-black/95">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1550,7 +1550,7 @@ function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () =
 
         {/* 底部資訊欄 */}
         <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4">
-          <div className="bg-black/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-white">
+          <div className="rounded-xl bg-black/82 p-3 text-white sm:p-4">
             <h3 className="font-medium mb-2">{image.name}</h3>
             {image.note && <p className="text-sm opacity-90 mb-2">{image.note}</p>}
             <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -1739,7 +1739,7 @@ function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">

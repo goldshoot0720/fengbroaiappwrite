@@ -21,7 +21,6 @@ import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getMultipartVideoDown
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
-import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { VideoScreenshotButton } from "@/components/ui/video-screenshot-button";
 import JSZip from "jszip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
@@ -1481,7 +1480,6 @@ export default function VideoIntroduction() {
       )}
 
       {/* 影片播放佇列面板 */}
-      <VideoQueuePanel />
     </div>
   );
 }

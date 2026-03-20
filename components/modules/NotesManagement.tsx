@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List } from "lucide-react";
 import JSZip from "jszip";
 import { FaviconImage } from "@/components/ui/favicon-image";
 
@@ -51,6 +51,7 @@ const NOTE_TEMPLATES: Record<string, { title: string; category: string; content:
 };
 
 type NoteFilterMode = "all" | "recent" | "pinned" | "withFiles";
+type NoteViewMode = "card" | "list";
 
 function summarizeContent(content: string) {
   const normalized = (content || "").replace(/\s+/g, " ").trim();
@@ -61,6 +62,10 @@ function summarizeContent(content: string) {
 
 function extractTodoCount(content: string) {
   return (content.match(/- \[ \]|TODO|待辦/gi) || []).length;
+}
+
+function getAttachmentCount(article: Article) {
+  return [article.file1, article.file2, article.file3].filter(Boolean).length;
 }
 
 // TXT 預覽元件 - 支援 UTF-8 編碼
@@ -198,6 +203,7 @@ export default function NotesManagement() {
   const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [noteFilterMode, setNoteFilterMode] = useState<NoteFilterMode>("all");
+  const [noteViewMode, setNoteViewMode] = useState<NoteViewMode>("card");
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
 
   // ZIP/CSV 匯入/匯出功能
@@ -260,6 +266,19 @@ export default function NotesManagement() {
     if (typeof window === "undefined") return;
     localStorage.setItem("notes_pinned_ids", JSON.stringify(Array.from(pinnedIds)));
   }, [pinnedIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = localStorage.getItem("notes_view_mode");
+    if (raw === "card" || raw === "list") {
+      setNoteViewMode(raw);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("notes_view_mode", noteViewMode);
+  }, [noteViewMode]);
 
   // 搜尋過濾（包含分類）
   const filteredArticles = useMemo(() => {
@@ -1607,6 +1626,34 @@ export default function NotesManagement() {
                 )}
               </SelectContent>
             </Select>
+            <div className="flex h-12 items-center rounded-xl border border-[var(--line-soft)] bg-white/70 p-1 shadow-sm dark:bg-white/5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setNoteViewMode("card")}
+                className={cn(
+                  "h-10 rounded-lg px-3",
+                  noteViewMode === "card" && "bg-[var(--accent)]/15 text-[var(--accent-strong)]"
+                )}
+                title="卡片式"
+              >
+                <LayoutGrid size={16} />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setNoteViewMode("list")}
+                className={cn(
+                  "h-10 rounded-lg px-3",
+                  noteViewMode === "list" && "bg-[var(--accent)]/15 text-[var(--accent-strong)]"
+                )}
+                title="列表式"
+              >
+                <List size={16} />
+              </Button>
+            </div>
           </div>
           {filteredArticles.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap">
@@ -1647,7 +1694,14 @@ export default function NotesManagement() {
         ) : filteredArticles.length === 0 ? (
           <EmptyState emoji="🔍" title="無搜尋結果" description={`找不到「${searchQuery}」相關的筆記`} />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+          <div
+            className={cn(
+              "p-4",
+              noteViewMode === "card"
+                ? "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+                : "flex flex-col gap-4"
+            )}
+          >
             {filteredArticles.map((article) => {
               const isEditing = editingId === article.$id;
               const isExpanded = expandedArticles.has(article.$id);
@@ -1655,10 +1709,12 @@ export default function NotesManagement() {
               const isPinned = pinnedIds.has(article.$id);
               const aiSummary = summarizeContent(article.content);
               const todoCount = extractTodoCount(article.content);
+              const attachmentCount = getAttachmentCount(article);
 
               return (
                 <div key={article.$id} className={cn(
-                  "bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm",
+                  "bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all",
+                  noteViewMode === "list" && !isEditing && "rounded-[24px] px-5 py-4",
                   isPinned && "border-amber-300 bg-amber-50/40 dark:bg-amber-900/10",
                   isEditing && "ring-2 ring-purple-500"
                 )}>
@@ -1804,7 +1860,10 @@ export default function NotesManagement() {
                     </form>
                   ) : (
                     <div className="space-y-3">
-                      <div className="flex items-start justify-between">
+                      <div className={cn(
+                        "flex items-start justify-between gap-3",
+                        noteViewMode === "list" && "flex-col lg:flex-row"
+                      )}>
                         <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
@@ -1813,7 +1872,7 @@ export default function NotesManagement() {
                             className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 flex-shrink-0 mt-0.5"
                           />
                           <FileText className="text-purple-600 dark:text-purple-400" size={20} />
-                          <div className="flex flex-col gap-0.5 min-w-0">
+                          <div className="flex min-w-0 flex-col gap-0.5">
                             <div className="flex items-center gap-2">
                               <h3 className="font-semibold text-gray-900 dark:text-gray-100">{article.title}</h3>
                               {isPinned && <Pin className="text-amber-500" size={14} />}
@@ -1829,10 +1888,18 @@ export default function NotesManagement() {
                                   TODO {todoCount}
                                 </span>
                               )}
+                              {attachmentCount > 0 && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700">
+                                  附件 {attachmentCount}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "flex items-center gap-2",
+                          noteViewMode === "list" && "w-full justify-between lg:w-auto lg:justify-end"
+                        )}>
                           <Button
                             type="button"
                             size="sm"
@@ -1851,19 +1918,27 @@ export default function NotesManagement() {
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-2">
+                      <div className={cn(
+                        "rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-2",
+                        noteViewMode === "list" && "lg:max-w-[420px]"
+                      )}>
                         <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-amber-700">
                           <Sparkles size={12} /> AI 摘要
                         </div>
                         <p className="text-sm text-amber-900/80">{aiSummary}</p>
                       </div>
 
-                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                      <div className={cn(
+                        "text-sm text-gray-600 dark:text-gray-300",
+                        noteViewMode === "list" && "lg:flex lg:items-start lg:gap-6"
+                      )}>
+                        <div className="flex-1">
                         {isExpanded ? (
                           <p className="whitespace-pre-wrap">{article.content}</p>
                         ) : (
-                          <p className="line-clamp-5 whitespace-pre-wrap">{article.content}</p>
+                          <p className={cn("whitespace-pre-wrap", noteViewMode === "card" ? "line-clamp-5" : "line-clamp-3")}>{article.content}</p>
                         )}
+                        </div>
                       </div>
 
                       {article.content.length > 100 && (

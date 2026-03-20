@@ -14,7 +14,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
-import { MusicQueuePanel } from "@/components/ui/music-queue-panel";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
@@ -1356,7 +1355,6 @@ export default function MusicManagement() {
       </div>
 
       {/* 音樂佇列面板 */}
-      <MusicQueuePanel />
 
       {/* 匯出 ZIP 進度 */}
       {exportingZip && (

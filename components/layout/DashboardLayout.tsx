@@ -10,8 +10,11 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MusicQueuePanel } from "@/components/ui/music-queue-panel";
+import { PodcastQueuePanel } from "@/components/ui/podcast-queue-panel";
 import { ThemeToggleCompact } from "@/components/ui/theme-toggle";
 import EnhancedScrollNavigation from "@/components/ui/enhanced-scroll-navigation";
+import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { cn } from "@/lib/utils";
 import { MenuItem } from "@/types";
 
@@ -122,6 +125,9 @@ export default function DashboardLayout({
         </div>
       </div>
 
+      <MusicQueuePanel />
+      <PodcastQueuePanel />
+      <VideoQueuePanel />
       <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} />
     </div>
   );

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Podcast as PodcastIcon, Plus, Edit, Trash2, X, Upload, Calendar, Play, Pause, Search, ChevronDown, Repeat, HardDrive, Check, FolderUp, AlertTriangle, RefreshCw } from "lucide-react";
 import { usePodcast, PodcastData } from "@/hooks/usePodcast";
 import { usePodcastCache } from "@/hooks/usePodcastCache";
+import { usePodcastQueue } from "@/hooks/usePodcastQueue";
 import { DataCard } from "@/components/ui/data-card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl } from "@/lib/utils";
@@ -64,7 +64,6 @@ export default function PodcastManagement() {
   const [inlineCreateCoverFile, setInlineCreateCoverFile] = useState<File | null>(null);
   const [inlineCreateCoverPreview, setInlineCreateCoverPreview] = useState<string>('');
   const [inlineCreateCoverUploading, setInlineCreateCoverUploading] = useState(false);
-  const [playingId, setPlayingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "withMedia" | "missingCover" | "uncategorized">("all");
   const [expandedPodcastId, setExpandedPodcastId] = useState<string | null>(null);
@@ -102,6 +101,7 @@ export default function PodcastManagement() {
     formatFileSize,
     maxCacheSize,
   } = usePodcastCache();
+  const { currentItem, playNow } = usePodcastQueue();
 
   useEffect(() => {
     updateCacheStats();
@@ -344,8 +344,17 @@ export default function PodcastManagement() {
     }
   };
 
-  const togglePlay = (id: string) => {
-    setPlayingId(playingId === id ? null : id);
+  const handlePlayPodcast = (podcastItem: PodcastData) => {
+    if (!podcastItem.file) return;
+
+    playNow({
+      id: podcastItem.$id,
+      name: podcastItem.name,
+      category: podcastItem.category,
+      file: getProxiedMediaUrl(podcastItem.file),
+      cover: podcastItem.cover,
+      mediaType: isVideoFile(podcastItem.file) ? "video" : "audio",
+    });
   };
 
   const handleExportZip = async () => {
@@ -736,9 +745,9 @@ export default function PodcastManagement() {
             <PodcastCard
               key={podcastItem.$id}
               podcast={podcastItem}
-              isPlaying={playingId === podcastItem.$id}
+              isPlaying={currentItem?.id === podcastItem.$id}
               isExpanded={expandedPodcastId === podcastItem.$id}
-              onPlay={() => togglePlay(podcastItem.$id)}
+              onPlay={() => handlePlayPodcast(podcastItem)}
               onToggleExpand={() => setExpandedPodcastId(expandedPodcastId === podcastItem.$id ? null : podcastItem.$id)}
               onEdit={() => handleEdit(podcastItem)}
               onDelete={() => handleDelete(podcastItem)}
@@ -1124,13 +1133,8 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
           {/* 播放器或占位 */}
           {podcast.file ? (
             <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2">
-                <PlyrPlayer
-                  type={isVideoFile(podcast.file) ? "video" : "audio"}
-                  src={getProxiedMediaUrl(podcast.file)}
-                  loop={isLooping}
-                  className="w-full"
-                />
+              <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                播客會交給右側常駐播放器處理，切換到其他選單時會持續播放。
               </div>
             </div>
           ) : (
@@ -1145,6 +1149,18 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
           {podcast.file && (
             <>
               <button
+                type="button"
+                onClick={onPlay}
+                className={`p-2 rounded-lg transition-all duration-200 ${isPlaying
+                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                  : 'bg-gray-100 dark:bg-gray-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                  }`}
+                title={isPlaying ? '正在透過常駐播放器播放' : '用常駐播放器立即播放'}
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsLooping(!isLooping)}
                 className={`p-2 rounded-lg transition-all duration-200 ${isLooping
                   ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
@@ -1155,6 +1171,7 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
                 <Repeat className="w-4 h-4" />
               </button>
               <button
+                type="button"
                 onClick={async () => {
                   await downloadAndCachePodcast({
                     $id: podcast.$id,
@@ -1194,6 +1211,7 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
             </>
           )}
           <button
+            type="button"
             onClick={() => onInlineEdit(podcast)}
             className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
             title="編輯"
@@ -1201,6 +1219,7 @@ function PodcastCard({ podcast, isPlaying, isExpanded, onPlay, onToggleExpand, o
             <Edit className="w-4 h-4" />
           </button>
           <button
+            type="button"
             onClick={onDelete}
             className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
             title="刪除"
