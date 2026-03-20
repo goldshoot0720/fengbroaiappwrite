@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import "plyr/dist/plyr.css";
 
 // 全域單一播放管理：當一個媒體開始播放時，暂停所有其他媒體
-const setupSinglePlayback = () => {
+export const setupSinglePlayback = () => {
   if (typeof window === 'undefined') return;
 
   // 避免重複設置

@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { usePodcastQueue } from "@/hooks/usePodcastQueue";
+import { setupSinglePlayback } from "@/components/ui/plyr-player";
 
 function formatTime(time: number) {
   if (!Number.isFinite(time)) {
@@ -43,6 +44,10 @@ export function PodcastQueuePanel() {
     skipToNext,
     queueLength,
   } = usePodcastQueue();
+
+  useEffect(() => {
+    setupSinglePlayback();
+  }, []);
 
   useEffect(() => {
     const activeMedia = currentItem?.mediaType === "video" ? videoRef.current : audioRef.current;

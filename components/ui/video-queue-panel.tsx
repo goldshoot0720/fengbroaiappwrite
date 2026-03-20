@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Video, X, ListVideo, Trash2, Play, Pause, ChevronUp, ChevronDown, SkipForward } from 'lucide-react';
 import { useVideoQueue, VideoQueueItem } from '@/hooks/useVideoQueue';
 import { Button } from '@/components/ui/button';
+import { setupSinglePlayback } from '@/components/ui/plyr-player';
 
 interface VideoQueuePanelProps {
   onPlayFromQueue?: (item: VideoQueueItem) => void;
@@ -26,6 +27,10 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
     skipToNext,
     queueLength 
   } = useVideoQueue();
+
+  useEffect(() => {
+    setupSinglePlayback();
+  }, []);
 
   // 當 currentItem 變化時自動播放（唯一的播放觸發點）
   useEffect(() => {

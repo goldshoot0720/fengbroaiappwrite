@@ -5,6 +5,7 @@ import { Music, X, ListMusic, Trash2, Play, Pause, ChevronUp, ChevronDown, SkipF
 import { useMusicQueue, QueueItem } from '@/hooks/useMusicQueue';
 import { useMusicCache } from '@/hooks/useMusicCache';
 import { Button } from '@/components/ui/button';
+import { setupSinglePlayback } from '@/components/ui/plyr-player';
 
 interface MusicQueuePanelProps {
   onPlayFromQueue?: (item: QueueItem) => void;
@@ -30,6 +31,10 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
 
   // 音樂快取
   const { loadMusicFromCache } = useMusicCache();
+
+  useEffect(() => {
+    setupSinglePlayback();
+  }, []);
 
   // 當 currentItem 變化時自動播放（唯一的播放觸發點）
   useEffect(() => {
