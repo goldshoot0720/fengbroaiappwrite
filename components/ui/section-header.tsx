@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cn, getCurrentAccountLabel } from "@/lib/utils";
 
 interface SectionHeaderProps {
@@ -16,11 +16,10 @@ export function SectionHeader({
   title,
   subtitle,
   action,
-  accentColor = "from-blue-500 to-blue-600",
   className,
   showAccountLabel = false,
 }: SectionHeaderProps) {
-  const [accountLabel, setAccountLabel] = useState<string>('');
+  const [accountLabel, setAccountLabel] = useState("");
 
   useEffect(() => {
     if (showAccountLabel) {
@@ -29,26 +28,35 @@ export function SectionHeader({
   }, [showAccountLabel]);
 
   return (
-    <div className={cn("flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4", className)}>
-      <div className="flex-1 min-w-0">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 truncate">
+    <div
+      className={cn(
+        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
+        className
+      )}
+    >
+      <div className="min-w-0 space-y-2">
+        <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
+          Workspace Section
+        </p>
+        <h1 className="truncate font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
           {title}
         </h1>
-        {subtitle && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
-        )}
-        {showAccountLabel && accountLabel && (
-          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
-            當前帳號: {accountLabel}
+        {subtitle ? (
+          <p className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
+            {subtitle}
           </p>
-        )}
+        ) : null}
+        {showAccountLabel && accountLabel ? (
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+            {accountLabel}
+          </p>
+        ) : null}
       </div>
-      {action && <div className="flex-shrink-0">{action}</div>}
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }
 
-// 帶有裝飾線的小節標題
 interface SubSectionHeaderProps {
   title: string;
   accentColor?: string;
@@ -57,18 +65,18 @@ interface SubSectionHeaderProps {
 
 export function SubSectionHeader({
   title,
-  accentColor = "from-blue-500 to-blue-600",
   className,
 }: SubSectionHeaderProps) {
   return (
-    <div className={cn("flex items-center gap-2 mb-4", className)}>
-      <div className={cn("w-1 h-6 bg-gradient-to-b rounded-full", accentColor)} />
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+    <div className={cn("flex items-center gap-3", className)}>
+      <div className="h-7 w-1 rounded-full bg-[linear-gradient(180deg,var(--accent-strong),var(--accent))]" />
+      <h2 className="font-display text-xl font-semibold tracking-tight text-[var(--foreground)]">
+        {title}
+      </h2>
     </div>
   );
 }
 
-// 頁面標題
 interface PageTitleProps {
   title: string;
   description?: string;
@@ -77,8 +85,14 @@ interface PageTitleProps {
   showAccountLabel?: boolean;
 }
 
-export function PageTitle({ title, description, badge, className, showAccountLabel = false }: PageTitleProps) {
-  const [accountLabel, setAccountLabel] = useState<string>('');
+export function PageTitle({
+  title,
+  description,
+  badge,
+  className,
+  showAccountLabel = false,
+}: PageTitleProps) {
+  const [accountLabel, setAccountLabel] = useState("");
 
   useEffect(() => {
     if (showAccountLabel) {
@@ -87,21 +101,26 @@ export function PageTitle({ title, description, badge, className, showAccountLab
   }, [showAccountLabel]);
 
   return (
-    <div className={cn("space-y-1", className)}>
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100">
-          {title}
-        </h1>
+    <div className={cn("space-y-3", className)}>
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
+          Console View
+        </p>
         {badge}
       </div>
-      {description && (
-        <p className="text-gray-500 dark:text-gray-400">{description}</p>
-      )}
-      {showAccountLabel && accountLabel && (
-        <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
-          當前帳號: {accountLabel}
+      <h1 className="font-display text-3xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl">
+        {title}
+      </h1>
+      {description ? (
+        <p className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
+          {description}
         </p>
-      )}
+      ) : null}
+      {showAccountLabel && accountLabel ? (
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+          {accountLabel}
+        </p>
+      ) : null}
     </div>
   );
 }

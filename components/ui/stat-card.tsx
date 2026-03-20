@@ -1,7 +1,7 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface StatCardProps {
   title: string;
@@ -18,33 +18,40 @@ export function StatCard({
   value,
   icon: Icon,
   iconElement,
-  gradient = "from-blue-500 to-blue-600",
+  gradient = "from-[#6f8f76] via-[#8fa67f] to-[#c79541]",
   className,
   onClick,
 }: StatCardProps) {
   const Wrapper = onClick ? "button" : "div";
-  
+
   return (
     <Wrapper
       onClick={onClick}
       className={cn(
-        `bg-gradient-to-r ${gradient} p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl text-white shadow-lg`,
-        onClick && "cursor-pointer hover:scale-105 transition-transform duration-200",
+        "group relative overflow-hidden rounded-[26px] border border-white/35 bg-[rgba(255,255,255,0.72)] p-4 text-left shadow-[var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 dark:border-white/8 dark:bg-white/4 sm:p-5 lg:p-6",
+        onClick &&
+          "cursor-pointer hover:-translate-y-1 hover:shadow-[var(--shadow-strong)]",
         className
       )}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0">
-          <p className="text-white/80 text-xs sm:text-sm font-medium truncate">
+      <div
+        className={cn(
+          "absolute inset-x-0 top-0 h-1 rounded-t-[26px] bg-gradient-to-r opacity-90",
+          gradient
+        )}
+      />
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] uppercase tracking-[0.26em] text-[var(--muted-foreground)]">
             {title}
           </p>
-          <p className="text-lg sm:text-xl lg:text-2xl font-bold leading-tight mt-1">
+          <p className="mt-3 break-words font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">
             {value}
           </p>
         </div>
         {(Icon || iconElement) && (
-          <div className="text-white/70 flex-shrink-0 ml-3">
-            {Icon ? <Icon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8" /> : iconElement}
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-[18px] border border-[var(--line-soft)] bg-[linear-gradient(145deg,rgba(255,255,255,0.88),rgba(238,233,224,0.88))] text-[var(--accent-strong)] dark:bg-[linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]">
+            {Icon ? <Icon className="size-5" /> : iconElement}
           </div>
         )}
       </div>
@@ -52,7 +59,6 @@ export function StatCard({
   );
 }
 
-// 簡單統計卡片
 interface SimpleStatCardProps {
   title: string;
   value: string | number;
@@ -66,16 +72,22 @@ export function SimpleStatCard({
   title,
   value,
   icon,
-  bgColor = "bg-gray-50 dark:bg-gray-800",
-  textColor = "text-gray-900 dark:text-gray-100",
+  bgColor = "bg-white/70 dark:bg-white/5",
+  textColor = "text-[var(--foreground)]",
   className,
 }: SimpleStatCardProps) {
   return (
-    <div className={cn("text-center p-3 sm:p-4 rounded-lg sm:rounded-xl", bgColor, className)}>
-      <div className={cn("text-lg sm:text-2xl font-bold mb-1", textColor)}>
+    <div
+      className={cn(
+        "rounded-[22px] border border-[var(--line-soft)] p-4 text-center shadow-[var(--shadow-soft)]",
+        bgColor,
+        className
+      )}
+    >
+      <div className={cn("font-display text-2xl font-semibold", textColor)}>
         {value}
       </div>
-      <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center gap-1">
+      <div className="mt-2 flex items-center justify-center gap-1 text-sm text-[var(--muted-foreground)]">
         {icon}
         {title}
       </div>

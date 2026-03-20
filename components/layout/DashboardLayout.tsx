@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Command,
+  Menu,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, ChevronRight } from "lucide-react";
-import EnhancedScrollNavigation from "@/components/ui/enhanced-scroll-navigation";
 import { ThemeToggleCompact } from "@/components/ui/theme-toggle";
+import EnhancedScrollNavigation from "@/components/ui/enhanced-scroll-navigation";
 import { cn } from "@/lib/utils";
 import { MenuItem } from "@/types";
 
@@ -25,68 +32,94 @@ export default function DashboardLayout({
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [isMobile, setIsMobile] = useState(false);
 
-  // 檢測螢幕尺寸
   useEffect(() => {
     const checkScreenSize = () => {
-      const width = window.innerWidth;
-      setIsMobile(width < 768);
+      setIsMobile(window.innerWidth < 1024);
     };
-    
+
     checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    return () => window.removeEventListener('resize', checkScreenSize);
+    window.addEventListener("resize", checkScreenSize);
+    return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  const toggleSidebar = useCallback(() => setIsSidebarOpen(prev => !prev), []);
-  const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
+  const activeItem = useMemo(
+    () => menuItems.find((item) => item.id === currentModule),
+    [currentModule, menuItems]
+  );
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen((prev) => !prev);
+  }, []);
+
+  const closeSidebar = useCallback(() => {
+    setIsSidebarOpen(false);
+  }, []);
 
   const toggleExpanded = useCallback((itemId: string) => {
-    setExpandedItems(prev =>
-      prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
+    setExpandedItems((prev) =>
+      prev.includes(itemId)
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId]
     );
   }, []);
 
-  const handleMenuClick = useCallback((item: MenuItem) => {
-    if (item.children?.length) {
-      toggleExpanded(item.id);
-    } else {
+  const handleMenuClick = useCallback(
+    (item: MenuItem) => {
+      if (item.children?.length) {
+        toggleExpanded(item.id);
+        return;
+      }
+
       onModuleChange(item.id);
-      if (isMobile) closeSidebar();
-    }
-  }, [isMobile, onModuleChange, toggleExpanded, closeSidebar]);
+      if (isMobile) {
+        closeSidebar();
+      }
+    },
+    [closeSidebar, isMobile, onModuleChange, toggleExpanded]
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
-      {/* 手機版頂部導航欄 */}
-      <MobileHeader isSidebarOpen={isSidebarOpen} onToggle={toggleSidebar} />
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <AmbientBackdrop />
 
-      <div className="flex">
-        {/* 桌面版側邊欄 */}
+      <div className="relative z-10 flex min-h-screen">
         <DesktopSidebar
-          menuItems={menuItems}
           currentModule={currentModule}
           expandedItems={expandedItems}
+          menuItems={menuItems}
           onMenuClick={handleMenuClick}
         />
 
-        {/* 手機版側邊欄覆蓋層 */}
         {isSidebarOpen && (
           <MobileSidebar
-            menuItems={menuItems}
             currentModule={currentModule}
             expandedItems={expandedItems}
-            onMenuClick={handleMenuClick}
-            onClose={closeSidebar}
             isMobile={isMobile}
+            menuItems={menuItems}
+            onClose={closeSidebar}
+            onMenuClick={handleMenuClick}
           />
         )}
 
-        {/* 主要內容區域 */}
-        <main className="flex-1 min-h-screen">
-          <div className="h-full p-4 lg:p-8 overflow-auto">
-            <div className="max-w-7xl mx-auto">{children}</div>
-          </div>
-        </main>
+        <div className="relative flex min-h-screen flex-1 flex-col">
+          <MobileHeader
+            activeLabel={activeItem?.label ?? "控制台"}
+            isSidebarOpen={isSidebarOpen}
+            onToggle={toggleSidebar}
+          />
+
+          <main className="flex-1 px-4 pb-8 pt-4 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6">
+            <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+              <TopBar
+                activeLabel={activeItem?.label ?? "首頁"}
+                moduleCount={menuItems.length}
+              />
+              <div className="surface-panel rounded-[32px] p-4 sm:p-6 lg:p-8">
+                {children}
+              </div>
+            </div>
+          </main>
+        </div>
       </div>
 
       <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} />
@@ -94,88 +127,153 @@ export default function DashboardLayout({
   );
 }
 
-// 手機版頂部導航
-function MobileHeader({ isSidebarOpen, onToggle }: { isSidebarOpen: boolean; onToggle: () => void }) {
+function AmbientBackdrop() {
   return (
-    <div className="md:hidden bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
-      <div className="flex items-center justify-between p-4">
-        <Logo compact />
+    <>
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,149,65,0.18),transparent_32%),radial-gradient(circle_at_85%_12%,rgba(91,114,95,0.18),transparent_28%),linear-gradient(180deg,rgba(248,245,239,0.94),rgba(238,233,224,0.92))] dark:bg-[radial-gradient(circle_at_top_left,rgba(199,149,65,0.14),transparent_28%),radial-gradient(circle_at_85%_10%,rgba(100,139,111,0.16),transparent_24%),linear-gradient(180deg,rgba(21,26,23,0.96),rgba(12,16,14,0.98))]" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-48 bg-[linear-gradient(180deg,rgba(255,255,255,0.54),transparent)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]" />
+    </>
+  );
+}
+
+function MobileHeader({
+  activeLabel,
+  isSidebarOpen,
+  onToggle,
+}: {
+  activeLabel: string;
+  isSidebarOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <header className="sticky top-0 z-40 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/90 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
+            FengBro Console
+          </p>
+          <p className="truncate font-display text-lg font-semibold">{activeLabel}</p>
+        </div>
         <div className="flex items-center gap-2">
           <ThemeToggleCompact />
-          <Button variant="ghost" size="sm" onClick={onToggle} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl">
-            {isSidebarOpen ? <X size={22} /> : <Menu size={22} />}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            className="rounded-full border border-[var(--line-strong)] bg-white/60 text-[var(--foreground)] hover:bg-white dark:bg-white/5 dark:hover:bg-white/10"
+          >
+            {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </Button>
         </div>
       </div>
-    </div>
+    </header>
   );
 }
 
-// Logo 元件
-function Logo({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className={cn("bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg sm:rounded-xl flex items-center justify-center", compact ? "w-8 h-8" : "w-10 h-10")}>
-        <span className={cn("text-white font-bold", compact ? "text-sm" : "text-base")}>鋒</span>
-      </div>
-      <div>
-        <h1 className={cn("font-bold text-gray-800 dark:text-gray-100 leading-tight", compact ? "text-lg" : "text-xl")}>
-          鋒兄資訊<br />管理系統
-        </h1>
-        {!compact && (
-          <div className="flex items-center gap-2">
-            <ThemeToggleCompact />
-            <p className="text-sm text-gray-500 dark:text-gray-400">鋒兄AI</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// 桌面版側邊欄
-function DesktopSidebar({ menuItems, currentModule, expandedItems, onMenuClick }: {
-  menuItems: MenuItem[];
+function DesktopSidebar({
+  currentModule,
+  expandedItems,
+  menuItems,
+  onMenuClick,
+}: {
   currentModule: string;
   expandedItems: string[];
+  menuItems: MenuItem[];
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <aside className="hidden md:flex md:flex-col w-52 lg:w-56 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-r border-gray-200 dark:border-gray-700 min-h-screen shadow-sm">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <Logo />
+    <aside className="hidden w-[320px] shrink-0 border-r border-[var(--line-soft)] px-5 py-6 lg:flex">
+      <div className="surface-panel flex w-full flex-col rounded-[34px] p-5">
+        <BrandBlock />
+
+        <div className="mt-8 flex items-center justify-between rounded-[24px] border border-[var(--line-strong)] bg-white/60 px-4 py-3 dark:bg-white/5">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
+              Design Mode
+            </p>
+            <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
+              Impeccable 2026
+            </p>
+          </div>
+          <ThemeToggleCompact />
+        </div>
+
+        <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
+          {menuItems.map((item) => (
+            <MenuItemComponent
+              key={item.id}
+              currentModule={currentModule}
+              expandedItems={expandedItems}
+              item={item}
+              onMenuClick={onMenuClick}
+            />
+          ))}
+        </nav>
+
+        <div className="mt-6 rounded-[28px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-5 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))]">
+          <div className="flex items-start gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-[var(--accent)]/15 text-[var(--accent-strong)]">
+              <Sparkles size={18} />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                Unified Household Workspace
+              </p>
+              <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                將食材、訂閱、影音、文件與帳號集中在一個節奏一致的介面裡。
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {menuItems.map(item => (
-          <MenuItemComponent key={item.id} item={item} currentModule={currentModule} expandedItems={expandedItems} onMenuClick={onMenuClick} />
-        ))}
-      </nav>
     </aside>
   );
 }
 
-// 手機版側邊欄
-function MobileSidebar({ menuItems, currentModule, expandedItems, onMenuClick, onClose, isMobile }: {
-  menuItems: MenuItem[];
+function MobileSidebar({
+  currentModule,
+  expandedItems,
+  isMobile,
+  menuItems,
+  onClose,
+  onMenuClick,
+}: {
   currentModule: string;
   expandedItems: string[];
-  onMenuClick: (item: MenuItem) => void;
-  onClose: () => void;
   isMobile: boolean;
+  menuItems: MenuItem[];
+  onClose: () => void;
+  onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <div className="md:hidden fixed inset-0 z-50 flex">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <aside className="relative w-80 max-w-[85vw] bg-white dark:bg-gray-900 shadow-2xl">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <Logo />
-            <ThemeToggleCompact />
-          </div>
+    <div className="fixed inset-0 z-50 lg:hidden">
+      <div
+        className="absolute inset-0 bg-[rgba(17,23,20,0.32)] backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <aside className="surface-panel absolute inset-y-0 left-0 flex w-[88vw] max-w-[360px] flex-col rounded-r-[32px] border-l-0 p-5">
+        <div className="flex items-center justify-between">
+          <BrandBlock compact />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="rounded-full border border-[var(--line-strong)]"
+          >
+            <X size={18} />
+          </Button>
         </div>
-        <nav className="p-4 space-y-2 h-full overflow-y-auto pb-20">
-          {menuItems.map(item => (
-            <MenuItemComponent key={item.id} item={item} currentModule={currentModule} expandedItems={expandedItems} onMenuClick={onMenuClick} isMobile={isMobile} />
+
+        <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
+          {menuItems.map((item) => (
+            <MenuItemComponent
+              key={item.id}
+              currentModule={currentModule}
+              expandedItems={expandedItems}
+              isMobile={isMobile}
+              item={item}
+              onMenuClick={onMenuClick}
+            />
           ))}
         </nav>
       </aside>
@@ -183,48 +281,132 @@ function MobileSidebar({ menuItems, currentModule, expandedItems, onMenuClick, o
   );
 }
 
-// 選單項目元件
-function MenuItemComponent({ item, currentModule, expandedItems, onMenuClick, level = 0, isMobile = false }: {
-  item: MenuItem;
+function BrandBlock({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-4">
+      <div className="flex size-12 shrink-0 items-center justify-center rounded-[18px] bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_40px_rgba(199,149,65,0.22)]">
+        <Command size={compact ? 18 : 20} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
+          FengBro
+        </p>
+        <h1 className="truncate font-display text-xl font-semibold tracking-tight text-[var(--foreground)]">
+          AI Appwrite Console
+        </h1>
+      </div>
+    </div>
+  );
+}
+
+function TopBar({
+  activeLabel,
+  moduleCount,
+}: {
+  activeLabel: string;
+  moduleCount: number;
+}) {
+  const today = new Intl.DateTimeFormat("zh-TW", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(new Date());
+
+  return (
+    <div className="hidden items-center justify-between gap-4 rounded-[30px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-6 py-4 backdrop-blur-xl lg:flex">
+      <div className="min-w-0">
+        <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
+          Active Surface
+        </p>
+        <h2 className="truncate font-display text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+          {activeLabel}
+        </h2>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <StatusPill label={today} value="Today" />
+        <StatusPill label={`${moduleCount} 個模組`} value="Modules" />
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-full border border-[var(--line-strong)] bg-white/68 px-4 py-2 text-right dark:bg-white/5">
+      <p className="text-[10px] uppercase tracking-[0.26em] text-[var(--muted-foreground)]">
+        {value}
+      </p>
+      <p className="text-sm font-medium text-[var(--foreground)]">{label}</p>
+    </div>
+  );
+}
+
+function MenuItemComponent({
+  currentModule,
+  expandedItems,
+  item,
+  onMenuClick,
+  level = 0,
+  isMobile = false,
+}: {
   currentModule: string;
   expandedItems: string[];
+  item: MenuItem;
   onMenuClick: (item: MenuItem) => void;
   level?: number;
   isMobile?: boolean;
 }) {
+  const hasChildren = Boolean(item.children?.length);
   const isExpanded = expandedItems.includes(item.id);
-  const hasChildren = item.children && item.children.length > 0;
   const isActive = currentModule === item.id;
 
   return (
-    <div className={cn(level > 0 && "ml-4")}>
-      <div
-        className={cn(
-          "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-200 touch-manipulation",
-          isActive
-            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25"
-            : "hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 text-gray-700 dark:text-gray-200",
-          isMobile && "min-h-[48px]"
-        )}
+    <div className={cn(level > 0 && "pl-4")}>
+      <button
         onClick={() => onMenuClick(item)}
-      >
-        <div className="flex items-center gap-3">
-          <div className={cn(isActive ? "text-white" : "text-gray-600 dark:text-gray-300")}>{item.icon}</div>
-          <span className={cn("font-medium", isMobile ? "text-base" : "text-sm")}>{item.label}</span>
-        </div>
-        {hasChildren && (
-          <div className={cn(isActive ? "text-white" : "text-gray-400 dark:text-gray-500")}>
-            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </div>
+        className={cn(
+          "group flex w-full items-center justify-between rounded-[22px] px-4 py-3 text-left transition-all duration-200",
+          isActive
+            ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_36px_rgba(199,149,65,0.25)]"
+            : "bg-transparent text-[var(--muted-foreground)] hover:bg-white/60 hover:text-[var(--foreground)] dark:hover:bg-white/5",
+          isMobile && "min-h-12"
         )}
-      </div>
-      {hasChildren && isExpanded && (
-        <div className="mt-1 space-y-1">
-          {item.children!.map(child => (
-            <MenuItemComponent key={child.id} item={child} currentModule={currentModule} expandedItems={expandedItems} onMenuClick={onMenuClick} level={level + 1} isMobile={isMobile} />
+      >
+        <span className="flex items-center gap-3">
+          <span
+            className={cn(
+              "flex size-9 items-center justify-center rounded-2xl border transition-colors",
+              isActive
+                ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
+                : "border-[var(--line-soft)] bg-white/70 text-[var(--foreground)] dark:bg-white/5"
+            )}
+          >
+            {item.icon}
+          </span>
+          <span className="text-sm font-medium tracking-[0.01em]">{item.label}</span>
+        </span>
+
+        {hasChildren ? (
+          isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+        ) : null}
+      </button>
+
+      {hasChildren && isExpanded ? (
+        <div className="mt-2 space-y-2">
+          {item.children?.map((child) => (
+            <MenuItemComponent
+              key={child.id}
+              currentModule={currentModule}
+              expandedItems={expandedItems}
+              isMobile={isMobile}
+              item={child}
+              level={level + 1}
+              onMenuClick={onMenuClick}
+            />
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -9,16 +9,23 @@ interface DataCardProps {
 }
 
 const highlightStyles = {
-  expired: "bg-red-50 dark:bg-red-900/20",
-  warning: "bg-yellow-50 dark:bg-yellow-900/20",
-  normal: "",
+  expired:
+    "border-[rgba(170,78,60,0.25)] bg-[linear-gradient(145deg,rgba(170,78,60,0.08),rgba(255,255,255,0.72))] dark:bg-[linear-gradient(145deg,rgba(170,78,60,0.18),rgba(255,255,255,0.04))]",
+  warning:
+    "border-[rgba(199,149,65,0.25)] bg-[linear-gradient(145deg,rgba(199,149,65,0.1),rgba(255,255,255,0.72))] dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.2),rgba(255,255,255,0.04))]",
+  normal: "surface-panel",
 };
 
-export function DataCard({ children, className, highlight = "normal" }: DataCardProps) {
+export function DataCard({
+  children,
+  className,
+  highlight = "normal",
+}: DataCardProps) {
   return (
     <div
       className={cn(
-        "bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden",
+        "overflow-hidden rounded-[28px] border shadow-[var(--shadow-soft)]",
+        highlightStyles[highlight],
         className
       )}
     >
@@ -27,7 +34,6 @@ export function DataCard({ children, className, highlight = "normal" }: DataCard
   );
 }
 
-// 資料卡片項目
 interface DataCardItemProps {
   children: React.ReactNode;
   className?: string;
@@ -42,14 +48,18 @@ export function DataCardItem({
   onClick,
 }: DataCardItemProps) {
   const Wrapper = onClick ? "button" : "div";
-  
+
   return (
     <Wrapper
       onClick={onClick}
       className={cn(
-        "p-4 w-full text-left",
-        highlightStyles[highlight],
-        onClick && "hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer",
+        "w-full p-4 text-left transition-colors sm:p-5",
+        highlight === "expired" &&
+          "bg-[rgba(170,78,60,0.05)] dark:bg-[rgba(170,78,60,0.1)]",
+        highlight === "warning" &&
+          "bg-[rgba(199,149,65,0.07)] dark:bg-[rgba(199,149,65,0.1)]",
+        onClick &&
+          "cursor-pointer hover:bg-[rgba(255,255,255,0.55)] dark:hover:bg-white/5",
         className
       )}
     >
@@ -58,16 +68,24 @@ export function DataCardItem({
   );
 }
 
-// 資料卡片列表
 interface DataCardListProps {
   children: React.ReactNode;
   className?: string;
   divided?: boolean;
 }
 
-export function DataCardList({ children, className, divided = true }: DataCardListProps) {
+export function DataCardList({
+  children,
+  className,
+  divided = true,
+}: DataCardListProps) {
   return (
-    <div className={cn(divided && "divide-y divide-gray-100 dark:divide-gray-700", className)}>
+    <div
+      className={cn(
+        divided && "divide-y divide-[var(--line-soft)]",
+        className
+      )}
+    >
       {children}
     </div>
   );
