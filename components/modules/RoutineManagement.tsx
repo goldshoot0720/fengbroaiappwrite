@@ -883,8 +883,8 @@ export default function RoutineManagement() {
                           <TableRow>
                             <TableHead className="w-8"></TableHead>
                             <TableHead>名稱</TableHead>
-                            <TableHead>備註</TableHead>
-                            <TableHead>圖片</TableHead>
+                            <TableHead className="w-[320px] min-w-[280px]">備註</TableHead>
+                            <TableHead className="w-[88px]">圖片</TableHead>
                             <TableHead>最近例行之一</TableHead>
                             <TableHead>最近例行之二</TableHead>
                             <TableHead>相距天數</TableHead>
@@ -979,9 +979,9 @@ export default function RoutineManagement() {
                                     )}
                                   </TableCell>
                                   <TableCell className="font-medium">{routine.name}</TableCell>
-                                  <TableCell>
+                                  <TableCell className="min-w-[280px] align-top">
                                     {routine.note && (
-                                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 bg-gray-50 dark:bg-gray-800/50 p-2 rounded border border-gray-100 dark:border-gray-700 max-w-[250px] max-h-[150px] overflow-y-auto whitespace-pre-wrap break-all shadow-sm">
+                                      <div className="mt-1 max-w-[320px] rounded border border-gray-100 bg-gray-50 p-2 text-xs text-gray-500 shadow-sm max-h-[150px] overflow-y-auto whitespace-pre-wrap break-words dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
                                         {routine.note}
                                       </div>
                                     )}

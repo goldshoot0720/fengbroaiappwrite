@@ -2072,7 +2072,7 @@ function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEdi
   }
 
   return (
-    <div className="lg:hidden px-1">
+    <div className="lg:hidden px-1 overflow-x-hidden">
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span className="font-semibold text-gray-700 dark:text-gray-300">食品列表</span>
         <Button
@@ -2430,7 +2430,7 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
   }
 
   return (
-    <div className={`p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 ${isExpired ? "bg-red-50/50" : isExpiringSoon ? "bg-amber-50/50" : ""}`}>
+    <div className={`w-full overflow-hidden p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 ${isExpired ? "bg-red-50/50" : isExpiringSoon ? "bg-amber-50/50" : ""}`}>
       <div className="flex gap-4 items-start">
         {isEditMode && (
           <button
@@ -2444,7 +2444,7 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
         <FoodImage food={food} className="w-20 h-20 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-start gap-2">
-            <h3 className="font-bold text-gray-900 dark:text-gray-100 text-lg leading-snug break-words line-clamp-2">
+            <h3 className="min-w-0 flex-1 font-bold text-gray-900 dark:text-gray-100 text-lg leading-snug break-words line-clamp-2">
               {food.name}
             </h3>
             {isEditMode && (
