@@ -111,13 +111,13 @@ export default function DashboardLayout({
             onToggle={toggleSidebar}
           />
 
-          <main className="flex-1 px-4 pb-8 pt-4 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6">
-            <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <main className="flex-1 px-3 pb-6 pt-3 sm:px-5 lg:px-5 xl:px-6 lg:pb-8 lg:pt-5 2xl:px-8 2xl:pb-10 2xl:pt-6">
+            <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 2xl:max-w-[1600px] 2xl:gap-6">
               <TopBar
                 activeLabel={activeItem?.label ?? "首頁"}
                 moduleCount={menuItems.length}
               />
-              <div className="surface-panel rounded-[32px] p-4 sm:p-6 lg:p-8">
+              <div className="surface-panel rounded-[28px] p-4 sm:p-5 lg:p-6 2xl:rounded-[32px] 2xl:p-8">
                 {children}
               </div>
             </div>
@@ -188,11 +188,11 @@ function DesktopSidebar({
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <aside className="hidden w-[320px] shrink-0 border-r border-[var(--line-soft)] px-5 py-6 lg:flex">
-      <div className="surface-panel flex w-full flex-col rounded-[34px] p-5">
+    <aside className="hidden w-[248px] shrink-0 border-r border-[var(--line-soft)] px-3 py-4 xl:flex xl:w-[264px] 2xl:w-[304px] 2xl:px-5 2xl:py-6">
+      <div className="surface-panel flex w-full flex-col rounded-[28px] p-3.5 2xl:rounded-[34px] 2xl:p-5">
         <BrandBlock />
 
-        <div className="mt-8 flex items-center justify-between rounded-[24px] border border-[var(--line-strong)] bg-white/60 px-4 py-3 dark:bg-white/5">
+        <div className="mt-5 flex items-center justify-between rounded-[20px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5 2xl:mt-8 2xl:rounded-[24px] 2xl:px-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
               Design Mode
@@ -204,7 +204,7 @@ function DesktopSidebar({
           <ThemeToggleCompact />
         </div>
 
-        <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
+        <nav className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1 2xl:mt-8">
           {menuItems.map((item) => (
             <MenuItemComponent
               key={item.id}
@@ -216,7 +216,7 @@ function DesktopSidebar({
           ))}
         </nav>
 
-        <div className="mt-6 rounded-[28px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-5 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))]">
+        <div className="mt-4 rounded-[22px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-3.5 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))] 2xl:mt-6 2xl:rounded-[28px] 2xl:p-5">
           <div className="flex items-start gap-3">
             <div className="flex size-11 items-center justify-center rounded-2xl bg-[var(--accent)]/15 text-[var(--accent-strong)]">
               <Sparkles size={18} />
@@ -297,7 +297,7 @@ function BrandBlock({ compact = false }: { compact?: boolean }) {
         <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
           FengBro
         </p>
-        <h1 className="truncate font-display text-xl font-semibold tracking-tight text-[var(--foreground)]">
+        <h1 className="truncate font-display text-[17px] font-semibold tracking-tight text-[var(--foreground)] 2xl:text-xl">
           AI Appwrite Console
         </h1>
       </div>
@@ -319,17 +319,17 @@ function TopBar({
   }).format(new Date());
 
   return (
-    <div className="hidden items-center justify-between gap-4 rounded-[30px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-6 py-4 backdrop-blur-xl lg:flex">
+    <div className="hidden flex-col gap-4 rounded-[26px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-5 py-4 backdrop-blur-xl xl:flex xl:items-start 2xl:flex-row 2xl:items-center 2xl:justify-between 2xl:gap-4 2xl:rounded-[30px] 2xl:px-6">
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
           Active Surface
         </p>
-        <h2 className="truncate font-display text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+        <h2 className="truncate font-display text-[clamp(1.9rem,2vw,2.5rem)] font-semibold tracking-tight text-[var(--foreground)]">
           {activeLabel}
         </h2>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <StatusPill label={today} value="Today" />
         <StatusPill label={`${moduleCount} 個模組`} value="Modules" />
       </div>
@@ -343,7 +343,7 @@ function StatusPill({ label, value }: { label: string; value: string }) {
       <p className="text-[10px] uppercase tracking-[0.26em] text-[var(--muted-foreground)]">
         {value}
       </p>
-      <p className="text-sm font-medium text-[var(--foreground)]">{label}</p>
+      <p className="text-sm font-medium text-[var(--foreground)] xl:text-[13px] 2xl:text-sm">{label}</p>
     </div>
   );
 }
@@ -372,7 +372,7 @@ function MenuItemComponent({
       <button
         onClick={() => onMenuClick(item)}
         className={cn(
-          "group flex w-full items-center justify-between rounded-[22px] px-4 py-3 text-left transition-all duration-200",
+          "group flex w-full items-center justify-between rounded-[18px] px-2.5 py-3 text-left transition-all duration-200 2xl:rounded-[22px] 2xl:px-4",
           isActive
             ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_36px_rgba(199,149,65,0.25)]"
             : "bg-transparent text-[var(--muted-foreground)] hover:bg-white/60 hover:text-[var(--foreground)] dark:hover:bg-white/5",
@@ -382,7 +382,7 @@ function MenuItemComponent({
         <span className="flex items-center gap-3">
           <span
             className={cn(
-              "flex size-9 items-center justify-center rounded-2xl border transition-colors",
+              "flex size-8 items-center justify-center rounded-xl border transition-colors 2xl:size-9 2xl:rounded-2xl",
               isActive
                 ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
                 : "border-[var(--line-soft)] bg-white/70 text-[var(--foreground)] dark:bg-white/5"
@@ -390,7 +390,7 @@ function MenuItemComponent({
           >
             {item.icon}
           </span>
-          <span className="text-sm font-medium tracking-[0.01em]">{item.label}</span>
+          <span className="text-[13px] font-medium tracking-[0.01em] xl:text-[13px] 2xl:text-sm">{item.label}</span>
         </span>
 
         {hasChildren ? (

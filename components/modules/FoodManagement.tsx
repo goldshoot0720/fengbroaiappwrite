@@ -2073,7 +2073,7 @@ function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEdi
 
   return (
     <div className="lg:hidden px-1 overflow-x-hidden">
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
+      <div className="mb-3 flex items-center gap-2 flex-wrap">
         <span className="font-semibold text-gray-700 dark:text-gray-300">食品列表</span>
         <Button
           type="button"
@@ -2132,7 +2132,7 @@ function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEdi
           </Button>
         )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-3 min-[390px]:gap-4 sm:grid-cols-2">
         {/* 行內新增卡片 (手機版) */}
         {isInlineAdding && (
           <div className="p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/20 rounded-xl">
@@ -2430,8 +2430,8 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
   }
 
   return (
-    <div className={`w-full overflow-hidden p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 ${isExpired ? "bg-red-50/50" : isExpiringSoon ? "bg-amber-50/50" : ""}`}>
-      <div className="flex gap-4 items-start">
+    <div className={`w-full overflow-hidden p-3 min-[390px]:p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 ${isExpired ? "bg-red-50/50" : isExpiringSoon ? "bg-amber-50/50" : ""}`}>
+      <div className="flex gap-3 min-[390px]:gap-4 items-start">
         {isEditMode && (
           <button
             type="button"
@@ -2441,10 +2441,10 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
             {isSelected ? <CheckSquare size={22} className="text-purple-600" /> : <Square size={22} />}
           </button>
         )}
-        <FoodImage food={food} className="w-20 h-20 shrink-0" />
+        <FoodImage food={food} className="h-16 w-16 min-[390px]:h-20 min-[390px]:w-20 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-start gap-2">
-            <h3 className="min-w-0 flex-1 font-bold text-gray-900 dark:text-gray-100 text-lg leading-snug break-words line-clamp-2">
+            <h3 className="min-w-0 flex-1 font-bold text-gray-900 dark:text-gray-100 text-base min-[390px]:text-lg leading-snug break-words line-clamp-2">
               {food.name}
             </h3>
             {isEditMode && (
@@ -2452,7 +2452,7 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
             )}
           </div>
           <div className="mt-1 space-y-1">
-            <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-1.5 text-xs min-[390px]:text-sm text-gray-500 dark:text-gray-400">
               <span className="font-medium">期限:</span>
               <span className={isExpired ? "text-red-600 font-bold" : isExpiringSoon ? "text-amber-600 font-bold" : ""}>
                 {formattedDate}
@@ -2465,18 +2465,18 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3">
+      <div className="mt-3 min-[390px]:mt-4 flex flex-col gap-3">
         <div className="w-full">
           <AmountControl food={food} onAmountChange={onAmountChange} />
         </div>
         {!isEditMode && (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2">
             <Button
               type="button"
               size="sm"
               variant="outline"
               onClick={() => onInlineEdit(food)}
-              className="h-11 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 font-bold"
+              className="h-10 min-[390px]:h-11 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 font-bold w-full"
             >
               編輯
             </Button>
@@ -2485,7 +2485,7 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
               size="sm"
               variant="outline"
               onClick={() => onQuickCleanup(food, "eat")}
-              className="h-11 rounded-xl font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+              className="h-10 min-[390px]:h-11 rounded-xl font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50 w-full"
             >
               吃完
             </Button>
@@ -2494,7 +2494,7 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
               size="sm"
               variant="outline"
               onClick={() => onQuickCleanup(food, "discard")}
-              className="h-11 rounded-xl font-bold text-orange-700 border-orange-200 hover:bg-orange-50"
+              className="h-10 min-[390px]:h-11 rounded-xl font-bold text-orange-700 border-orange-200 hover:bg-orange-50 w-full"
             >
               丟棄
             </Button>
@@ -2503,7 +2503,7 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
               size="sm"
               variant="destructive"
               onClick={() => onDelete(food.$id)}
-              className="h-11 rounded-xl font-bold"
+              className="h-10 min-[390px]:h-11 rounded-xl font-bold w-full"
             >
               刪除
             </Button>
