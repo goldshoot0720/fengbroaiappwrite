@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp, AlertTriangle } from "lucide-react";
+import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp, AlertTriangle, LayoutGrid, Rows3 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
@@ -80,6 +80,7 @@ export default function ImageGallery() {
   const [inlineCreateUseCategorySelect, setInlineCreateUseCategorySelect] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "duplicates" | "uncategorized" | "annotated">("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' });
   const [importing, setImporting] = useState(false);
@@ -929,6 +930,30 @@ export default function ImageGallery() {
             <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
               {selectionMode && filteredImages.length > 0 && filteredImages.every((image) => selectedIds.has(image.$id)) ? "取消全選" : "全選"}
             </Button>
+            <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors ${viewMode === "grid"
+                  ? "bg-slate-900 text-white dark:bg-sky-400 dark:text-slate-950"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+              >
+                <LayoutGrid size={16} />
+                卡片式
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`flex items-center gap-2 border-l border-slate-200 px-3 py-2 text-sm font-medium transition-colors dark:border-slate-700 ${viewMode === "list"
+                  ? "bg-slate-900 text-white dark:bg-sky-400 dark:text-slate-950"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+              >
+                <Rows3 size={16} />
+                列表式
+              </button>
+            </div>
             {selectedIds.size > 0 && (
               <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
                 <Trash2 size={18} />
@@ -1014,44 +1039,57 @@ export default function ImageGallery() {
       {filteredImages.length === 0 && images.length > 0 ? (
         <EmptyState icon={<Search className="text-gray-400" size={32} />} title="無搜尋結果" description={`找不到「${searchQuery}」相關的圖片`} />
       ) : (
-        <ImageGrid
-          images={filteredImages}
-          loading={loading}
-          onSelectImage={setSelectedImage}
-          onEdit={handleEdit}
-          onRefresh={() => loadImages(true)}
-          isInlineCreating={isInlineCreating}
-          inlineCreateForm={inlineCreateForm}
-          setInlineCreateForm={setInlineCreateForm}
-          inlineCreatePreviewUrl={inlineCreatePreviewUrl}
-          inlineCreatePreviewLoading={inlineCreatePreviewLoading}
-          inlineCreateSubmitting={inlineCreateSubmitting}
-          inlineCreateUploadProgress={inlineCreateUploadProgress}
-          inlineCreateUploadStatus={inlineCreateUploadStatus}
-          inlineCreateDuplicateWarning={inlineCreateDuplicateWarning}
-          inlineCreateUseCategorySelect={inlineCreateUseCategorySelect}
-          setInlineCreateUseCategorySelect={setInlineCreateUseCategorySelect}
-          existingCategories={existingCategories}
-          inlineCreateFileCount={inlineCreateFiles.length}
-          onInlineCreateFileSelect={handleInlineCreateFileSelect}
-          onInlineCreateSave={handleInlineCreateSave}
-          onInlineCreateCancel={handleInlineCreateCancel}
-          inlineEditingId={inlineEditingId}
-          inlineEditForm={inlineEditForm}
-          setInlineEditForm={setInlineEditForm}
-          onInlineEdit={handleInlineEdit}
-          onInlineSave={handleInlineSave}
-          onInlineCancel={cancelInlineEdit}
-          inlineEditPreviewUrl={inlineEditPreviewUrl}
-          inlineEditPreviewLoading={inlineEditPreviewLoading}
-          inlineEditUploadProgress={inlineEditUploadProgress}
-          inlineEditUploadStatus={inlineEditUploadStatus}
-          inlineEditDuplicateWarning={inlineEditDuplicateWarning}
-          onInlineEditFileSelect={handleInlineEditFileSelect}
-          selectionMode={selectionMode}
-          selectedIds={selectedIds}
-          onToggleSelect={handleToggleSelect}
-        />
+        viewMode === "grid" ? (
+          <ImageGrid
+            images={filteredImages}
+            loading={loading}
+            onSelectImage={setSelectedImage}
+            onEdit={handleEdit}
+            onRefresh={() => loadImages(true)}
+            isInlineCreating={isInlineCreating}
+            inlineCreateForm={inlineCreateForm}
+            setInlineCreateForm={setInlineCreateForm}
+            inlineCreatePreviewUrl={inlineCreatePreviewUrl}
+            inlineCreatePreviewLoading={inlineCreatePreviewLoading}
+            inlineCreateSubmitting={inlineCreateSubmitting}
+            inlineCreateUploadProgress={inlineCreateUploadProgress}
+            inlineCreateUploadStatus={inlineCreateUploadStatus}
+            inlineCreateDuplicateWarning={inlineCreateDuplicateWarning}
+            inlineCreateUseCategorySelect={inlineCreateUseCategorySelect}
+            setInlineCreateUseCategorySelect={setInlineCreateUseCategorySelect}
+            existingCategories={existingCategories}
+            inlineCreateFileCount={inlineCreateFiles.length}
+            onInlineCreateFileSelect={handleInlineCreateFileSelect}
+            onInlineCreateSave={handleInlineCreateSave}
+            onInlineCreateCancel={handleInlineCreateCancel}
+            inlineEditingId={inlineEditingId}
+            inlineEditForm={inlineEditForm}
+            setInlineEditForm={setInlineEditForm}
+            onInlineEdit={handleInlineEdit}
+            onInlineSave={handleInlineSave}
+            onInlineCancel={cancelInlineEdit}
+            inlineEditPreviewUrl={inlineEditPreviewUrl}
+            inlineEditPreviewLoading={inlineEditPreviewLoading}
+            inlineEditUploadProgress={inlineEditUploadProgress}
+            inlineEditUploadStatus={inlineEditUploadStatus}
+            inlineEditDuplicateWarning={inlineEditDuplicateWarning}
+            onInlineEditFileSelect={handleInlineEditFileSelect}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+          />
+        ) : (
+          <ImageList
+            images={filteredImages}
+            loading={loading}
+            onSelectImage={setSelectedImage}
+            onEdit={handleEdit}
+            onRefresh={() => loadImages(true)}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+          />
+        )
       )}
 
       {selectedImage && (
@@ -1172,6 +1210,17 @@ interface ImageGridProps {
   onToggleSelect?: (id: string) => void;
 }
 
+interface ImageListProps {
+  images: ImageData[];
+  loading: boolean;
+  onSelectImage: (img: ImageData) => void;
+  onEdit: (img: ImageData) => void;
+  onRefresh: () => void;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+}
+
 function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInlineCreating, inlineCreateForm, setInlineCreateForm, inlineCreatePreviewUrl, inlineCreatePreviewLoading, inlineCreateSubmitting, inlineCreateUploadProgress, inlineCreateUploadStatus, inlineCreateDuplicateWarning, inlineCreateUseCategorySelect, setInlineCreateUseCategorySelect, existingCategories, inlineCreateFileCount, onInlineCreateFileSelect, onInlineCreateSave, onInlineCreateCancel, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, inlineEditPreviewUrl, inlineEditPreviewLoading, inlineEditUploadProgress, inlineEditUploadStatus, inlineEditDuplicateWarning, onInlineEditFileSelect, selectionMode, selectedIds, onToggleSelect }: ImageGridProps) {
   if (loading) return <FullPageLoading text="載入圖片中..." />;
   if (images.length === 0 && !isInlineCreating) return <EmptyState icon={<ImageIcon className="text-gray-400" size={32} />} title="沒有找到圖片" />;
@@ -1222,6 +1271,45 @@ function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInline
             onToggleSelect={onToggleSelect}
           />
         ))}
+      </div>
+    </DataCard>
+  );
+}
+
+function ImageList({ images, loading, onSelectImage, onEdit, onRefresh, selectionMode, selectedIds, onToggleSelect }: ImageListProps) {
+  if (loading) return <FullPageLoading text="載入圖片中..." />;
+  if (images.length === 0) return <EmptyState icon={<ImageIcon className="text-gray-400" size={32} />} title="沒有找到圖片" />;
+
+  return (
+    <DataCard className="overflow-hidden p-0">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-left text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+            <tr>
+              {selectionMode ? <th className="px-4 py-3 font-medium">選取</th> : null}
+              <th className="px-4 py-3 font-medium">圖片</th>
+              <th className="px-4 py-3 font-medium">名稱</th>
+              <th className="px-4 py-3 font-medium">分類</th>
+              <th className="px-4 py-3 font-medium">備註</th>
+              <th className="px-4 py-3 font-medium">建立日期</th>
+              <th className="px-4 py-3 font-medium text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {images.map((image) => (
+              <ImageListRow
+                key={image.$id}
+                image={image}
+                onSelect={() => onSelectImage(image)}
+                onEdit={() => onEdit(image)}
+                onRefresh={onRefresh}
+                selectionMode={selectionMode}
+                isSelected={selectedIds?.has(image.$id) ?? false}
+                onToggleSelect={onToggleSelect}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
     </DataCard>
   );
@@ -1359,6 +1447,16 @@ interface ImageCardProps {
   inlineEditUploadStatus: 'idle' | 'uploading' | 'success' | 'error';
   inlineEditDuplicateWarning: string;
   onInlineEditFileSelect: (file: File | null, image: ImageData) => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
+}
+
+interface ImageListRowProps {
+  image: ImageData;
+  onSelect: () => void;
+  onEdit: () => void;
+  onRefresh: () => void;
   selectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -1516,6 +1614,92 @@ function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditFo
         </div>
       </div>
     </div>
+  );
+}
+
+function ImageListRow({ image, onSelect, onEdit, onRefresh, selectionMode, isSelected, onToggleSelect }: ImageListRowProps) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm(`確定要刪除圖片 "${image.name}" 嗎?`)) return;
+
+    setDeleting(true);
+    try {
+      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${image.$id}`);
+      const response = await fetch(url, { method: "DELETE" });
+      if (!response.ok) throw new Error("刪除失敗");
+      onRefresh();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "刪除失敗");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <tr className="border-t border-slate-200/80 align-middle hover:bg-slate-50/80 dark:border-slate-800 dark:hover:bg-slate-900/50">
+      {selectionMode ? (
+        <td className="px-4 py-3">
+          <input
+            type="checkbox"
+            checked={isSelected ?? false}
+            onChange={() => onToggleSelect?.(image.$id)}
+            className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer"
+          />
+        </td>
+      ) : null}
+      <td className="px-4 py-3">
+        <button
+          type="button"
+          onClick={onSelect}
+          className="flex h-14 w-20 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
+        >
+          {image.file ? (
+            <img
+              src={getProxiedMediaUrl(image.file)}
+              alt={image.name}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <ImageIcon className="h-5 w-5 text-slate-400" />
+          )}
+        </button>
+      </td>
+      <td className="px-4 py-3">
+        <div className="max-w-[240px]">
+          <div className="truncate font-medium text-slate-900 dark:text-slate-100">{image.name}</div>
+          {image.ref ? <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{image.ref}</div> : null}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        {image.category ? (
+          <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+            {image.category}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">未分類</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <div className="max-w-[280px] truncate text-slate-600 dark:text-slate-300">
+          {image.note || <span className="text-xs text-slate-400">無備註</span>}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{formatLocalDate(image.$createdAt)}</td>
+      <td className="px-4 py-3">
+        <div className="flex justify-end gap-2">
+          <Button onClick={onEdit} className="gap-1 rounded-lg bg-blue-500 px-3 py-2 text-xs hover:bg-blue-600">
+            <Edit size={14} />
+            編輯
+          </Button>
+          <Button onClick={handleDelete} disabled={deleting} className="gap-1 rounded-lg bg-red-500 px-3 py-2 text-xs hover:bg-red-600">
+            <Trash2 size={14} />
+            {deleting ? "刪除中..." : "刪除"}
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
