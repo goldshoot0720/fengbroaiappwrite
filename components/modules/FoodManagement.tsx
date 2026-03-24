@@ -796,28 +796,28 @@ export default function FoodManagement() {
         }
       />
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <input type="file" accept=".csv" onChange={handleCSVFileSelect} className="hidden" id="csv-import-food" />
-        <Button onClick={() => loadFoods(true)} variant="outline" className="rounded-xl flex items-center gap-2" title="重新整理" disabled={loading}>
+        <Button onClick={() => loadFoods(true)} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="重新整理" disabled={loading}>
           <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 重新整理
         </Button>
-        <Button onClick={() => document.getElementById('csv-import-food')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
+        <Button onClick={() => document.getElementById('csv-import-food')?.click()} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="匯入 CSV">
           <Upload size={18} /> 匯入
         </Button>
-        <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV">
+        <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="匯出 CSV">
           <Download size={18} /> 匯出
         </Button>
         <Button
           onClick={() => setIsFormOpen(!isFormOpen)}
           variant="outline"
-          className="rounded-xl flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-10 px-4"
+          className="rounded-xl flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-10 px-4 w-full sm:w-auto"
         >
           {isFormOpen ? <ChevronUp size={18} /> : <Plus size={18} />}
           {isFormOpen ? "收起表單" : "新增食品"}
         </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
         <Card className="border-red-200 bg-gradient-to-br from-red-50 to-white shadow-sm">
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2 text-red-600"><Flame size={16} /> 已過期</CardDescription>
@@ -856,7 +856,7 @@ export default function FoodManagement() {
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,1fr)]">
         <Card className="border-blue-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-sm">
           <CardHeader className="pb-4">
             <CardDescription className="flex items-center gap-2 text-blue-600"><PackageOpen size={16} /> 快速新增模式</CardDescription>
@@ -870,8 +870,8 @@ export default function FoodManagement() {
                 </Button>
               ))}
             </div>
-            <form onSubmit={handleQuickAdd} className="grid gap-3 md:grid-cols-4">
-              <div className="md:col-span-2">
+            <form onSubmit={handleQuickAdd} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="md:col-span-2 xl:col-span-2">
                 <Input
                   list="food-name-suggestions"
                   placeholder="食品名稱"
@@ -900,14 +900,14 @@ export default function FoodManagement() {
                 onChange={(e) => setQuickAddForm({ ...quickAddForm, shop: e.target.value })}
                 className="h-12 rounded-xl"
               />
-              <div className="md:col-span-3 flex flex-wrap gap-2">
+              <div className="md:col-span-2 xl:col-span-3 flex flex-wrap gap-2">
                 {[1, 3, 7].map((days) => (
                   <Button key={days} type="button" variant="outline" className="rounded-full" onClick={() => setQuickAddForm((prev) => ({ ...prev, todate: addDaysToDate(prev.todate || getSuggestedExpiryDate(0), days) }))}>
                     到期 +{days} 天
                   </Button>
                 ))}
               </div>
-              <Button type="submit" className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
+              <Button type="submit" className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white w-full xl:w-auto">
                 <Plus size={16} /> 立即新增
               </Button>
             </form>

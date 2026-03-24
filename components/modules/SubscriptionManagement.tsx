@@ -240,18 +240,18 @@ function SubscriptionFormCard({
 
   return (
     <DataCard className={`p-4 sm:p-5 ${toneClass}`}>
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{title}</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">只保留目前 subscription 表實際存在的欄位。</p>
         </div>
-        <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900/50">
+        <div className="w-full rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900/50 lg:w-auto lg:min-w-[220px]">
           <div className="text-xs text-gray-500 dark:text-gray-400">AI 提示</div>
           <div className="mt-1 font-semibold text-gray-900 dark:text-gray-100">{summary.amountLabel}</div>
           <div className={`text-xs ${summary.dueTone}`}>{summary.dueLabel}</div>
         </div>
       </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
         <Input
           placeholder="服務名稱"
           value={form.name}
@@ -274,12 +274,12 @@ function SubscriptionFormCard({
           value={form.nextdate || ""}
           onChange={(event) => onChange({ ...form, nextdate: event.target.value })}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-lg"
+            className="rounded-lg w-full sm:w-auto"
             onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, -30) })}
           >
             -30 天
@@ -288,7 +288,7 @@ function SubscriptionFormCard({
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-lg"
+            className="rounded-lg w-full sm:w-auto"
             onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, 30) })}
           >
             +30 天

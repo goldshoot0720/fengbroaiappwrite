@@ -894,10 +894,10 @@ export default function CommonDocumentManagement() {
                 刪除選取 ({selectedIds.size})
               </Button>
             )}
-            <div className="flex bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="flex w-full sm:w-auto bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "grid"
+                className={`flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "grid"
                   ? "bg-blue-500 text-white"
                   : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
@@ -907,7 +907,7 @@ export default function CommonDocumentManagement() {
               </button>
               <button
                 onClick={() => setViewMode("table")}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "table"
+                className={`flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "table"
                   ? "bg-blue-500 text-white"
                   : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
@@ -916,13 +916,13 @@ export default function CommonDocumentManagement() {
                 表格
               </button>
             </div>
-            <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl"><Plus size={16} />新增文件</Button>
+            <Button onClick={handleAdd} className="w-full sm:w-auto gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl"><Plus size={16} />新增文件</Button>
           </>
         }
       />
 
       {/* 統計卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
         <StatCard title="文件總數" value={stats.total} icon={DocumentIcon} />
         <StatCard title="已快取" value={cacheStats.cachedDocuments} icon={Check} />
         <StatCard title="快取大小" value={formatFileSize(cacheStats.totalSize)} icon={HardDrive} />
@@ -964,7 +964,7 @@ export default function CommonDocumentManagement() {
           description={`找不到「${searchQuery}」相關的文件`}
         />
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
           {filteredDocuments.map((doc) => (
             <DocumentCard
               key={doc.$id}
@@ -1054,7 +1054,7 @@ export default function CommonDocumentManagement() {
                   </div>
                   <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">將匯入 {importPreview.data.length} 筆資料:</h4>
                   <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
+                    <table className="min-w-[760px] w-full text-sm">
                       <thead>
                         <tr className="bg-gray-100 dark:bg-gray-700">
                           <th className="px-3 py-2 text-left">名稱</th>
