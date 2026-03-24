@@ -1154,7 +1154,7 @@ export default function NotesManagement() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="border-sky-200 bg-gradient-to-br from-sky-50 to-white shadow-sm">
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2 text-sky-700"><Clock3 size={16} /> 最近 7 天</CardDescription>
@@ -1192,7 +1192,7 @@ export default function NotesManagement() {
             <CardTitle>先記下來，再慢慢整理</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {Object.entries(NOTE_TEMPLATES).map(([key, template]) => (
                 <Button key={key} type="button" variant="outline" className="rounded-full border-purple-200 text-purple-700 hover:bg-purple-50" onClick={() => applyTemplate(key as keyof typeof NOTE_TEMPLATES)}>
                   {template.title}
@@ -1602,7 +1602,7 @@ export default function NotesManagement() {
               </Button>
             ))}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 lg:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
@@ -1613,7 +1613,7 @@ export default function NotesManagement() {
               />
             </div>
             <Select value={categoryFilter || "__all__"} onValueChange={(v) => setCategoryFilter(v === "__all__" ? "" : v)}>
-              <SelectTrigger className="h-12 rounded-xl w-36 flex-shrink-0">
+              <SelectTrigger className="h-12 rounded-xl w-full flex-shrink-0 lg:w-36">
                 <SelectValue placeholder="全部分類" />
               </SelectTrigger>
               <SelectContent>
@@ -1626,7 +1626,7 @@ export default function NotesManagement() {
                 )}
               </SelectContent>
             </Select>
-            <div className="flex h-12 items-center rounded-xl border border-[var(--line-soft)] bg-white/70 p-1 shadow-sm dark:bg-white/5">
+            <div className="flex h-12 w-full items-center rounded-xl border border-[var(--line-soft)] bg-white/70 p-1 shadow-sm dark:bg-white/5 lg:w-auto">
               <Button
                 type="button"
                 variant="ghost"
@@ -1698,7 +1698,7 @@ export default function NotesManagement() {
             className={cn(
               "p-4",
               noteViewMode === "card"
-                ? "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+                ? "grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3"
                 : "flex flex-col gap-4"
             )}
           >

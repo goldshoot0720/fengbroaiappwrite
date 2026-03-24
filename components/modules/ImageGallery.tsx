@@ -1163,7 +1163,7 @@ function ImageStats({ images }: { images: ImageData[] }) {
   const totalImages = images.length;
 
   return (
-    <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
       <StatCard title="總圖片數" value={totalImages} icon={ImageIcon} gradient="from-blue-500 to-blue-600" />
       <StatCard title="Appwrite 儲存" value={totalImages} iconElement={<span className="text-2xl">☁️</span>} gradient="from-purple-500 to-purple-600" />
     </div>
@@ -1227,7 +1227,7 @@ function ImageGrid({ images, loading, onSelectImage, onEdit, onRefresh, isInline
 
   return (
     <DataCard className="p-3 sm:p-4 lg:p-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3 sm:gap-4">
         {isInlineCreating && (
           <InlineCreateImageCard
             form={inlineCreateForm}
@@ -1283,7 +1283,7 @@ function ImageList({ images, loading, onSelectImage, onEdit, onRefresh, selectio
   return (
     <DataCard className="overflow-hidden p-0">
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-[760px] w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-600 dark:bg-slate-900 dark:text-slate-300">
             <tr>
               {selectionMode ? <th className="px-4 py-3 font-medium">選取</th> : null}

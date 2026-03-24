@@ -1120,7 +1120,7 @@ export default function VideoIntroduction() {
                 刪除選取 ({selectedIds.size})
               </Button>
             )}
-            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1">
+            <div className="flex w-full items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1 sm:w-auto">
               <button
                 onClick={() => setViewMode("youtube")}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === "youtube"
@@ -1153,7 +1153,7 @@ export default function VideoIntroduction() {
       />
 
       {/* 統計卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <StatCard title="影片總數" value={stats.total} icon={Play} />
         <StatCard title="已快取" value={cacheStats.cachedVideos} icon={CheckCircle} />
         <StatCard title="快取大小" value={formatFileSize(cacheStats.totalSize)} icon={HardDrive} />
@@ -1193,8 +1193,8 @@ export default function VideoIntroduction() {
         />
       ) : (
         <div className={viewMode === 'bilibili'
-          ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 lg:gap-4"
-          : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-6"
+          ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 lg:gap-4"
+          : "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-6"
         }>
           {isInlineCreating && (
             <div className="relative">
