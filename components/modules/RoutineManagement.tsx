@@ -602,7 +602,7 @@ export default function RoutineManagement() {
                     </div>
                   )}
                 </div>
-                <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+                <div className="flex flex-col gap-3 border-t border-gray-200 p-6 dark:border-gray-700 sm:flex-row sm:justify-end">
                   {importing ? (
                     <div className="flex items-center gap-3">
                       <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -617,8 +617,8 @@ export default function RoutineManagement() {
                     </div>
                   ) : (
                     <>
-                      <Button variant="outline" onClick={() => setImportPreview(null)} className="rounded-xl">取消</Button>
-                      <Button onClick={executeImport} disabled={importPreview.data.length === 0 || importPreview.errors.length > 0} className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                      <Button variant="outline" onClick={() => setImportPreview(null)} className="rounded-xl w-full sm:w-auto">取消</Button>
+                      <Button onClick={executeImport} disabled={importPreview.data.length === 0 || importPreview.errors.length > 0} className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto">
                         確認匯入 ({importPreview.data.length} 筆)
                       </Button>
                     </>
@@ -876,7 +876,7 @@ export default function RoutineManagement() {
               ) : (
                 <>
                   {/* 桌面版表格 */}
-                  <div className="hidden md:block">
+                  <div className="hidden lg:block">
                     <DataCard>
                       <Table>
                         <TableHeader>
@@ -903,7 +903,7 @@ export default function RoutineManagement() {
                                       <div className="flex items-center gap-2 mb-2">
                                         <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
                                       </div>
-                                      <div className="grid grid-cols-4 gap-3">
+                                      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
                                         <Input
                                           placeholder="名稱"
                                           value={inlineEditForm.name}
@@ -914,10 +914,10 @@ export default function RoutineManagement() {
                                           placeholder="備註"
                                           value={inlineEditForm.note}
                                           onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
-                                          className="min-h-[72px] rounded-lg text-sm col-span-3 resize-y"
+                                          className="min-h-[72px] rounded-lg text-sm lg:col-span-1 xl:col-span-3 resize-y"
                                         />
                                       </div>
-                                      <div className="grid grid-cols-4 gap-3">
+                                      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
                                         <Input
                                           placeholder="日期一"
                                           type="date"
@@ -933,7 +933,7 @@ export default function RoutineManagement() {
                                           className="h-9 rounded-lg text-sm"
                                         />
                                       </div>
-                                      <div className="grid grid-cols-4 gap-3">
+                                      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
                                         <Input
                                           placeholder="日期三"
                                           type="date"
@@ -951,7 +951,7 @@ export default function RoutineManagement() {
                                           placeholder="圖片網址"
                                           value={inlineEditForm.photo}
                                           onChange={(e) => setInlineEditForm({ ...inlineEditForm, photo: e.target.value })}
-                                          className="h-9 rounded-lg text-sm col-span-2"
+                                          className="h-9 rounded-lg text-sm lg:col-span-2 xl:col-span-2"
                                         />
                                       </div>
                                       <div className="flex gap-2 justify-end">
@@ -1038,7 +1038,7 @@ export default function RoutineManagement() {
                   </div>
 
                   {/* 手機版卡片 */}
-                  <div className="md:hidden space-y-4">
+                  <div className="space-y-4 lg:hidden">
                     {filteredRoutines.map((routine) => (
                       <DataCard key={routine.$id}>
                         {inlineEditingId === routine.$id ? (

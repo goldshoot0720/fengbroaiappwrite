@@ -626,7 +626,7 @@ export default function BankManagement() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
                     {transactionType === "income" ? "新增收入" : "新增支出"}
@@ -708,13 +708,13 @@ export default function BankManagement() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={resetTransactionForm} className="rounded-xl" disabled={transactionSaving}>
+              <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" onClick={resetTransactionForm} className="rounded-xl w-full sm:w-auto" disabled={transactionSaving}>
                   取消
                 </Button>
                 <Button
                   type="submit"
-                  className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                  className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white w-full sm:w-auto"
                   disabled={transactionSaving}
                 >
                   {transactionSaving ? "更新中..." : "完成"}
@@ -993,7 +993,7 @@ export default function BankManagement() {
                   // 行內編輯模式
                   <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
                     <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                       <Input
                         placeholder="銀行名稱"
                         value={inlineEditForm.name}
@@ -1049,7 +1049,7 @@ export default function BankManagement() {
                         placeholder="帳號"
                         value={inlineEditForm.account}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
-                        className="h-9 rounded-lg text-sm col-span-full"
+                        className="h-9 rounded-lg text-sm md:col-span-2 xl:col-span-3"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -1119,7 +1119,7 @@ export default function BankManagement() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4">
                       {/* 地址 */}
                       {bank.address && (
                         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">

@@ -922,11 +922,11 @@ export default function CommonAccountManagement() {
         subtitle={`共 ${accounts.length} 組帳號設定`}
         showAccountLabel={true}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={() => fetchAll(true)}
               variant="outline"
-              className="rounded-xl flex items-center gap-2"
+              className="rounded-xl flex items-center gap-2 w-full sm:w-auto"
               title="重新整理"
               disabled={loading}
             >
@@ -943,7 +943,7 @@ export default function CommonAccountManagement() {
             <Button
               onClick={() => document.getElementById('csv-import-input')?.click()}
               variant="outline"
-              className="rounded-xl flex items-center gap-2"
+              className="rounded-xl flex items-center gap-2 w-full sm:w-auto"
               title="匯入 CSV"
             >
               <Upload size={18} />
@@ -952,7 +952,7 @@ export default function CommonAccountManagement() {
             <Button
               onClick={exportToCSV}
               variant="outline"
-              className="rounded-xl flex items-center gap-2"
+              className="rounded-xl flex items-center gap-2 w-full sm:w-auto"
               title="匯出 CSV"
             >
               <Download size={18} />
@@ -963,7 +963,7 @@ export default function CommonAccountManagement() {
                 <Button
                   onClick={handleSelectAll}
                   variant="outline"
-                  className="rounded-xl flex items-center gap-2 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+                  className="rounded-xl flex items-center gap-2 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20 w-full sm:w-auto"
                 >
                   {filteredAccounts.length > 0 && filteredAccounts.every(a => selectedIds.has(a.$id))
                     ? <><X size={18} /> 取消全選</>
@@ -973,7 +973,7 @@ export default function CommonAccountManagement() {
                 <Button
                   onClick={() => { setSelectionMode(false); setSelectedIds(new Set()); }}
                   variant="outline"
-                  className="rounded-xl flex items-center gap-2"
+                  className="rounded-xl flex items-center gap-2 w-full sm:w-auto"
                 >
                   <X size={18} />
                   取消選取
@@ -983,7 +983,7 @@ export default function CommonAccountManagement() {
               <Button
                 onClick={handleSelectAll}
                 variant="outline"
-                className="rounded-xl flex items-center gap-2"
+                className="rounded-xl flex items-center gap-2 w-full sm:w-auto"
                 title="全選刪除"
               >
                 <Trash2 size={18} />
@@ -992,7 +992,7 @@ export default function CommonAccountManagement() {
             )}
             <Button
               onClick={() => setIsFormOpen(!isFormOpen)}
-              className="rounded-xl flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
+              className="rounded-xl flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg w-full sm:w-auto"
             >
               {isFormOpen ? <X size={18} /> : <Plus size={18} />}
               {isFormOpen ? "取消" : "新增帳號組"}
@@ -1001,7 +1001,7 @@ export default function CommonAccountManagement() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
         <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-sm">
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2 text-blue-700"><Star size={16} /> 常用入口總數</CardDescription>
@@ -1032,7 +1032,7 @@ export default function CommonAccountManagement() {
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,1fr)]">
         <Card className="border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 shadow-sm">
           <CardHeader className="pb-4">
             <CardDescription className="flex items-center gap-2 text-sky-700"><Wand2 size={16} /> 快速操作中心</CardDescription>
