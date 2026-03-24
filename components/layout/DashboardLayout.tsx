@@ -37,7 +37,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 1024);
+      setIsMobile(window.innerWidth < 768);
     };
 
     checkScreenSize();
@@ -92,6 +92,11 @@ export default function DashboardLayout({
           menuItems={menuItems}
           onMenuClick={handleMenuClick}
         />
+        <TabletSidebar
+          currentModule={currentModule}
+          menuItems={menuItems}
+          onMenuClick={handleMenuClick}
+        />
 
         {isSidebarOpen && (
           <MobileSidebar
@@ -111,13 +116,13 @@ export default function DashboardLayout({
             onToggle={toggleSidebar}
           />
 
-          <main className="flex-1 px-3 pb-6 pt-3 sm:px-5 lg:px-5 xl:px-6 lg:pb-8 lg:pt-5 2xl:px-8 2xl:pb-10 2xl:pt-6">
-            <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 2xl:max-w-[1600px] 2xl:gap-6">
+          <main className="flex-1 px-3 pb-24 pt-3 sm:px-4 md:px-6 md:pb-8 md:pt-5 xl:px-8 xl:pb-10 xl:pt-6">
+            <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 md:gap-5 xl:gap-6">
               <TopBar
                 activeLabel={activeItem?.label ?? "首頁"}
                 moduleCount={menuItems.length}
               />
-              <div className="surface-panel rounded-[28px] p-4 sm:p-5 lg:p-6 2xl:rounded-[32px] 2xl:p-8">
+              <div className="surface-panel rounded-[24px] p-3 sm:p-4 md:rounded-[28px] md:p-5 xl:rounded-[32px] xl:p-8">
                 {children}
               </div>
             </div>
@@ -152,8 +157,8 @@ function MobileHeader({
   onToggle: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/90 px-4 py-3 backdrop-blur-xl lg:hidden">
-      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3">
+    <header className="sticky top-0 z-40 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/90 px-3 py-3 backdrop-blur-xl md:hidden">
+      <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
             FengBro Console
@@ -188,11 +193,11 @@ function DesktopSidebar({
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <aside className="hidden w-[248px] shrink-0 border-r border-[var(--line-soft)] px-3 py-4 xl:flex xl:w-[264px] 2xl:w-[304px] 2xl:px-5 2xl:py-6">
-      <div className="surface-panel flex w-full flex-col rounded-[28px] p-3.5 2xl:rounded-[34px] 2xl:p-5">
+    <aside className="hidden w-[320px] shrink-0 border-r border-[var(--line-soft)] px-5 py-6 xl:flex">
+      <div className="surface-panel flex w-full flex-col rounded-[34px] p-5">
         <BrandBlock />
 
-        <div className="mt-5 flex items-center justify-between rounded-[20px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5 2xl:mt-8 2xl:rounded-[24px] 2xl:px-4">
+        <div className="mt-8 flex items-center justify-between rounded-[24px] border border-[var(--line-strong)] bg-white/60 px-4 py-3 dark:bg-white/5">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
               Design Mode
@@ -204,7 +209,7 @@ function DesktopSidebar({
           <ThemeToggleCompact />
         </div>
 
-        <nav className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1 2xl:mt-8">
+        <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
           {menuItems.map((item) => (
             <MenuItemComponent
               key={item.id}
@@ -216,7 +221,7 @@ function DesktopSidebar({
           ))}
         </nav>
 
-        <div className="mt-4 rounded-[22px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-3.5 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))] 2xl:mt-6 2xl:rounded-[28px] 2xl:p-5">
+        <div className="mt-6 rounded-[28px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-5 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))]">
           <div className="flex items-start gap-3">
             <div className="flex size-11 items-center justify-center rounded-2xl bg-[var(--accent)]/15 text-[var(--accent-strong)]">
               <Sparkles size={18} />
@@ -231,6 +236,60 @@ function DesktopSidebar({
             </div>
           </div>
         </div>
+      </div>
+    </aside>
+  );
+}
+
+function TabletSidebar({
+  currentModule,
+  menuItems,
+  onMenuClick,
+}: {
+  currentModule: string;
+  menuItems: MenuItem[];
+  onMenuClick: (item: MenuItem) => void;
+}) {
+  return (
+    <aside className="hidden w-[104px] shrink-0 border-r border-[var(--line-soft)] px-3 py-5 md:flex xl:hidden">
+      <div className="surface-panel flex w-full flex-col items-center rounded-[28px] px-2 py-4">
+        <BrandBlock compact />
+        <div className="mt-5 flex w-full justify-center">
+          <ThemeToggleCompact />
+        </div>
+        <nav className="mt-6 flex w-full flex-1 flex-col items-center gap-2 overflow-y-auto">
+          {menuItems.map((item) => {
+            const isActive = currentModule === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                title={item.label}
+                onClick={() => onMenuClick(item)}
+                className={cn(
+                  "flex w-full flex-col items-center gap-2 rounded-[22px] px-2 py-3 text-center transition-all duration-200",
+                  isActive
+                    ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_36px_rgba(199,149,65,0.22)]"
+                    : "text-[var(--muted-foreground)] hover:bg-white/60 hover:text-[var(--foreground)] dark:hover:bg-white/5"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-10 items-center justify-center rounded-2xl border transition-colors",
+                    isActive
+                      ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
+                      : "border-[var(--line-soft)] bg-white/70 text-[var(--foreground)] dark:bg-white/5"
+                  )}
+                >
+                  {item.icon}
+                </span>
+                <span className="line-clamp-2 text-[11px] font-medium leading-4">
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
     </aside>
   );
@@ -252,14 +311,14 @@ function MobileSidebar({
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 lg:hidden">
+    <div className="fixed inset-0 z-50 md:hidden">
       <div
         className="absolute inset-0 bg-[rgba(17,23,20,0.32)] backdrop-blur-sm"
         onClick={onClose}
       />
-      <aside className="surface-panel absolute inset-y-0 left-0 flex w-[88vw] max-w-[360px] flex-col rounded-r-[32px] border-l-0 p-5">
+      <aside className="surface-panel absolute inset-y-0 left-0 flex w-[90vw] max-w-[380px] flex-col rounded-r-[32px] border-l-0 p-4">
         <div className="flex items-center justify-between">
-          <BrandBlock compact />
+          <BrandBlock />
           <Button
             variant="ghost"
             size="icon"
@@ -289,15 +348,15 @@ function MobileSidebar({
 
 function BrandBlock({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3">
       <div className="flex size-12 shrink-0 items-center justify-center rounded-[18px] bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_40px_rgba(199,149,65,0.22)]">
         <Command size={compact ? 18 : 20} />
       </div>
-      <div className="min-w-0">
+      <div className={cn("min-w-0", compact && "hidden")}>
         <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
           FengBro
         </p>
-        <h1 className="truncate font-display text-[17px] font-semibold tracking-tight text-[var(--foreground)] 2xl:text-xl">
+        <h1 className="truncate font-display text-xl font-semibold tracking-tight text-[var(--foreground)]">
           AI Appwrite Console
         </h1>
       </div>
@@ -319,17 +378,17 @@ function TopBar({
   }).format(new Date());
 
   return (
-    <div className="hidden flex-col gap-4 rounded-[26px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-5 py-4 backdrop-blur-xl xl:flex xl:items-start 2xl:flex-row 2xl:items-center 2xl:justify-between 2xl:gap-4 2xl:rounded-[30px] 2xl:px-6">
+    <div className="hidden flex-col gap-3 rounded-[24px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-4 py-4 backdrop-blur-xl md:flex xl:flex-row xl:items-center xl:justify-between xl:gap-4 xl:rounded-[30px] xl:px-6">
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
           Active Surface
         </p>
-        <h2 className="truncate font-display text-[clamp(1.9rem,2vw,2.5rem)] font-semibold tracking-tight text-[var(--foreground)]">
+        <h2 className="truncate font-display text-2xl font-semibold tracking-tight text-[var(--foreground)]">
           {activeLabel}
         </h2>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 xl:gap-3">
         <StatusPill label={today} value="Today" />
         <StatusPill label={`${moduleCount} 個模組`} value="Modules" />
       </div>
@@ -343,7 +402,7 @@ function StatusPill({ label, value }: { label: string; value: string }) {
       <p className="text-[10px] uppercase tracking-[0.26em] text-[var(--muted-foreground)]">
         {value}
       </p>
-      <p className="text-sm font-medium text-[var(--foreground)] xl:text-[13px] 2xl:text-sm">{label}</p>
+      <p className="text-sm font-medium text-[var(--foreground)]">{label}</p>
     </div>
   );
 }
@@ -372,7 +431,7 @@ function MenuItemComponent({
       <button
         onClick={() => onMenuClick(item)}
         className={cn(
-          "group flex w-full items-center justify-between rounded-[18px] px-2.5 py-3 text-left transition-all duration-200 2xl:rounded-[22px] 2xl:px-4",
+          "group flex w-full items-center justify-between rounded-[22px] px-4 py-3 text-left transition-all duration-200",
           isActive
             ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_36px_rgba(199,149,65,0.25)]"
             : "bg-transparent text-[var(--muted-foreground)] hover:bg-white/60 hover:text-[var(--foreground)] dark:hover:bg-white/5",
@@ -382,7 +441,7 @@ function MenuItemComponent({
         <span className="flex items-center gap-3">
           <span
             className={cn(
-              "flex size-8 items-center justify-center rounded-xl border transition-colors 2xl:size-9 2xl:rounded-2xl",
+              "flex size-9 items-center justify-center rounded-2xl border transition-colors",
               isActive
                 ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
                 : "border-[var(--line-soft)] bg-white/70 text-[var(--foreground)] dark:bg-white/5"
@@ -390,7 +449,7 @@ function MenuItemComponent({
           >
             {item.icon}
           </span>
-          <span className="text-[13px] font-medium tracking-[0.01em] xl:text-[13px] 2xl:text-sm">{item.label}</span>
+          <span className="text-sm font-medium tracking-[0.01em]">{item.label}</span>
         </span>
 
         {hasChildren ? (

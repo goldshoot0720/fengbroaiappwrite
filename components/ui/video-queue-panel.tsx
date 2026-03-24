@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Video, X, ListVideo, Trash2, Play, Pause, ChevronUp, ChevronDown, SkipForward } from 'lucide-react';
 import { useVideoQueue, VideoQueueItem } from '@/hooks/useVideoQueue';
-import { Button } from '@/components/ui/button';
 import { setupSinglePlayback } from '@/components/ui/plyr-player';
 
 interface VideoQueuePanelProps {
@@ -32,10 +31,8 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
     setupSinglePlayback();
   }, []);
 
-  // 當 currentItem 變化時自動播放（唯一的播放觸發點）
   useEffect(() => {
     if (currentItem && currentItem.file && videoRef.current) {
-      // 只有當影片變化時才播放（避免重複播放）
       const playbackKey = currentItem.playbackKey || currentItem.id;
       const video = videoRef.current;
       const shouldReload = lastPlayedKeyRef.current !== playbackKey || !video.currentSrc;
@@ -44,18 +41,12 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
         return;
       }
 
-      console.log('播放影片:', currentItem.name, currentItem.file);
       lastPlayedKeyRef.current = playbackKey;
-
-      // 先暫停並重置，避免衝突
       video.pause();
       video.currentTime = 0;
       video.src = currentItem.file;
-
-      // 等待 src 載入後再播放
       video.load();
 
-      // 使用 canplay 事件確保影片已載入
       const handleCanPlay = () => {
         const resumeTime = typeof currentItem.startTime === 'number' && Number.isFinite(currentItem.startTime)
           ? currentItem.startTime
@@ -76,7 +67,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
           video.muted = currentItem.muted;
         }
         video.play().then(() => {
-          console.log('影片播放成功:', currentItem.name);
           setIsExpanded(!(typeof currentItem.startTime === 'number' && Number.isFinite(currentItem.startTime)));
         }).catch((err) => {
           console.error('影片播放失敗:', err.name, err.message);
@@ -110,48 +100,42 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
     setCurrentTime(newTime);
   };
 
-  // 如果佇列為空，不顯示任何內容
   if (queueLength === 0) {
     return null;
   }
 
   return (
-    <div className="fixed top-20 right-4 z-50 video-queue-panel">
-      {/* 收合的按鈕（帶 mini 播放器） */}
+    <div className="video-queue-panel fixed bottom-20 right-3 z-50 md:right-4 md:top-20 md:bottom-auto">
+      <video 
+        ref={videoRef} 
+        preload="auto"
+        className="hidden"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+        onDurationChange={(e) => setDuration((e.target as HTMLVideoElement).duration)}
+        onEnded={() => {
+          setIsPlaying(false);
+          skipToNext();
+        }}
+        onError={(e) => console.error('影片加載錯誤:', e)}
+      />
+
       {!isExpanded && (
         <div className="flex flex-col gap-2">
-          {/* 如果有正在播放的影片，顯示 mini 播放器 */}
           {currentItem && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 w-96">
-              <div className="overflow-hidden rounded-xl bg-black aspect-video mb-3">
-                <video
-                  ref={videoRef}
-                  preload="auto"
-                  playsInline
-                  className="h-full w-full object-contain"
-                  poster={currentItem.cover}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                  onDurationChange={(e) => setDuration((e.target as HTMLVideoElement).duration)}
-                  onEnded={() => {
-                    setIsPlaying(false);
-                    skipToNext();
-                  }}
-                  onError={(e) => console.error('影片加載錯誤:', e)}
-                />
-              </div>
-
+            <div className="w-[min(calc(100vw-1.5rem),24rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800 md:w-96">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600">
+                <div className="w-20 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600">
                   {currentItem.cover ? (
-                    <img src={currentItem.cover} alt={currentItem.name} className="h-full w-full object-cover" />
+                    <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-cover" />
                   ) : (
-                    <Video className="w-6 h-6 text-white" />
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Video className="w-6 h-6 text-white" />
+                    </div>
                   )}
                 </div>
                 
-                {/* 資訊 */}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
                     {currentItem.name}
@@ -163,7 +147,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                   )}
                 </div>
 
-                {/* 播放/暫停 */}
                 <button
                   onClick={togglePlayPause}
                   className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
@@ -171,7 +154,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                 </button>
 
-                {/* 下一個 */}
                 {currentIndex < queue.length - 1 && (
                   <button
                     onClick={skipToNext}
@@ -183,7 +165,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                 )}
               </div>
               
-              {/* 進度條 */}
               <div className="mt-2 flex items-center gap-2">
                 <span className="text-xs text-gray-500 w-10">{formatTime(currentTime)}</span>
                 <input
@@ -199,13 +180,12 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
             </div>
           )}
           
-          {/* 佇列按鈕 */}
           <button
             onClick={() => setIsExpanded(true)}
             className="flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-all self-end"
           >
-            <ChevronUp className="w-5 h-5" />
-            <span className="font-medium">展開播放器</span>
+            <ListVideo className="w-5 h-5" />
+            <span className="font-medium">播放佇列</span>
             <span className="bg-white/20 px-2 py-0.5 rounded-full text-sm">
               {queueLength}
             </span>
@@ -213,10 +193,8 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
         </div>
       )}
 
-      {/* 展開的面板 */}
       {isExpanded && (
-        <div className="w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          {/* 標題列 */}
+        <div className="w-[min(calc(100vw-1.5rem),24rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:w-96">
           <div className="flex items-center justify-between p-4 bg-blue-600 text-white">
             <div className="flex items-center gap-2">
               <ListVideo className="w-5 h-5" />
@@ -236,38 +214,26 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
               <button
                 onClick={() => setIsExpanded(false)}
                 className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
-                title="收合播放器"
+                title="收合"
               >
-                <ChevronDown className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* 當前播放的影片 - 使用 Canvas 顯示影片畫面 */}
           {currentItem && (
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
-              {/* 影片預覽區 */}
               <div 
                 className="relative aspect-video rounded-lg overflow-hidden bg-black mb-3 cursor-pointer"
                 onClick={togglePlayPause}
               >
-                <video
-                  ref={videoRef}
-                  preload="auto"
-                  playsInline
-                  poster={currentItem.cover}
-                  className="w-full h-full object-contain"
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                  onDurationChange={(e) => setDuration((e.target as HTMLVideoElement).duration)}
-                  onEnded={() => {
-                    setIsPlaying(false);
-                    skipToNext();
-                  }}
-                  onError={(e) => console.error('影片加載錯誤:', e)}
-                />
-                {/* 播放狀態指示 */}
+                {currentItem.cover ? (
+                  <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-contain" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-600 to-indigo-600">
+                    <Video className="w-16 h-16 text-white/50" />
+                  </div>
+                )}
                 <div className="absolute inset-0 flex items-center justify-center">
                   {isPlaying ? (
                     <div className="w-16 h-16 bg-black/30 rounded-full flex items-center justify-center">
@@ -279,7 +245,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                     </div>
                   )}
                 </div>
-                {/* 播放中動畫 */}
                 {isPlaying && (
                   <div className="absolute bottom-2 left-2 flex items-center gap-1">
                     <div className="w-1 h-3 bg-white rounded animate-pulse" style={{ animationDelay: '0ms' }} />
@@ -290,7 +255,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* 資訊和控制 */}
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-sm text-gray-900 dark:text-gray-100 truncate">
                     {currentItem.name}
@@ -301,7 +265,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                     </div>
                   )}
                   
-                  {/* 進度條 */}
                   <div className="mt-1 flex items-center gap-2">
                     <span className="text-[10px] text-gray-500">{formatTime(currentTime)}</span>
                     <input
@@ -316,7 +279,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                   </div>
                 </div>
 
-                {/* 播放控制 */}
                 <div className="flex items-center gap-1">
                   <button
                     onClick={togglePlayPause}
@@ -338,7 +300,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
             </div>
           )}
 
-          {/* 佇列列表 */}
           <div className="max-h-60 overflow-y-auto">
             {queue.map((item, index) => (
               <div
@@ -349,7 +310,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                     : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
                 }`}
               >
-                {/* 序號/播放中指示 */}
                 <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
                   {index === currentIndex ? (
                     <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
@@ -358,7 +318,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                   )}
                 </div>
 
-                {/* 封面 */}
                 <div className="w-16 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600">
                   {item.cover ? (
                     <img src={item.cover} alt={item.name} className="w-full h-full object-cover" />
@@ -369,7 +328,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                   )}
                 </div>
 
-                {/* 資訊 */}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
                     {item.name}
@@ -381,9 +339,7 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                   )}
                 </div>
 
-                {/* 操作按鈕 */}
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {/* 上移 */}
                   {index > 0 && (
                     <button
                       onClick={() => moveInQueue(index, index - 1)}
@@ -393,7 +349,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                       <ChevronUp className="w-4 h-4 text-gray-500" />
                     </button>
                   )}
-                  {/* 下移 */}
                   {index < queue.length - 1 && (
                     <button
                       onClick={() => moveInQueue(index, index + 1)}
@@ -403,7 +358,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
                       <ChevronDown className="w-4 h-4 text-gray-500" />
                     </button>
                   )}
-                  {/* 移除 */}
                   <button
                     onClick={() => removeFromQueue(item.id)}
                     className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
@@ -416,7 +370,6 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
             ))}
           </div>
 
-          {/* 底部操作 */}
           {currentIndex >= 0 && currentIndex < queue.length - 1 && (
             <div className="p-3 border-t border-gray-200 dark:border-gray-700">
               <button

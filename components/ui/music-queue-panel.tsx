@@ -116,7 +116,7 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
   }
 
   return (
-    <div className="fixed top-20 right-4 z-50">
+    <div className="fixed bottom-20 right-3 z-50 md:right-4 md:top-20 md:bottom-auto">
       {/* 音頻元素 */}
       <audio 
         ref={audioRef} 
@@ -134,7 +134,7 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
         <div className="flex flex-col gap-2">
           {/* 如果有正在播放的歌曲，顯示 mini 播放器 */}
           {currentItem && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 w-96">
+            <div className="w-[min(calc(100vw-1.5rem),24rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800 md:w-96">
               <div className="flex items-center gap-3">
                 {/* 封面 */}
                 <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 to-pink-600">
@@ -217,7 +217,7 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
 
       {/* 展開的面板 */}
       {isExpanded && (
-        <div className="w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="w-[min(calc(100vw-1.5rem),24rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:w-96">
           {/* 標題列 */}
           <div className="flex items-center justify-between p-4 bg-purple-600 text-white">
             <div className="flex items-center gap-2">

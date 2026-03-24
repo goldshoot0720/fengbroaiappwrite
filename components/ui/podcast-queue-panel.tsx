@@ -151,7 +151,7 @@ export function PodcastQueuePanel() {
   }
 
   return (
-    <div className="podcast-queue-panel fixed right-4 top-20 z-50">
+    <div className="podcast-queue-panel fixed bottom-20 right-3 z-50 md:right-4 md:top-20 md:bottom-auto">
       <audio
         ref={audioRef}
         preload="auto"
@@ -175,7 +175,7 @@ export function PodcastQueuePanel() {
 
       {!isExpanded && currentItem ? (
         <div className="flex flex-col gap-2">
-          <div className="w-96 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+          <div className="w-[min(calc(100vw-1.5rem),24rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800 md:w-96">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-amber-500 to-orange-500">
                 {currentItem.cover ? (
@@ -248,7 +248,7 @@ export function PodcastQueuePanel() {
       ) : null}
 
       {isExpanded ? (
-        <div className="w-96 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800">
+        <div className="w-[min(calc(100vw-1.5rem),24rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:w-96">
           <div className="flex items-center justify-between bg-amber-500 p-4 text-white">
             <div className="flex items-center gap-2">
               <ListMusic className="h-5 w-5" />
