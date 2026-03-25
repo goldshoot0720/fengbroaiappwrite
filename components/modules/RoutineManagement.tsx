@@ -876,9 +876,9 @@ export default function RoutineManagement() {
               ) : (
                 <>
                   {/* 桌面版表格 */}
-                  <div className="hidden lg:block">
+                  <div className="hidden 2xl:block">
                     <DataCard>
-                      <Table>
+                      <Table className="min-w-[1180px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-8"></TableHead>
@@ -1038,7 +1038,7 @@ export default function RoutineManagement() {
                   </div>
 
                   {/* 手機版卡片 */}
-                  <div className="space-y-4 lg:hidden">
+                  <div className="space-y-4 2xl:hidden">
                     {filteredRoutines.map((routine) => (
                       <DataCard key={routine.$id}>
                         {inlineEditingId === routine.$id ? (

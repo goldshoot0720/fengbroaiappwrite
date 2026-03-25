@@ -86,7 +86,7 @@ export function FriendlyAiCrudShell({
           ) : null}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.88fr)] xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(300px,0.92fr)] 2xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
           <div className="rounded-2xl border border-white/70 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70 sm:p-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -132,7 +132,7 @@ export function FriendlyAiCrudShell({
               </div>
             ) : null}
             {summaries.length > 0 ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {summaries.map((item) => (
                   <div
                     key={item.label}

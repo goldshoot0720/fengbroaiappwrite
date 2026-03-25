@@ -44,8 +44,8 @@ export function FormGrid({ children, columns = 4, className }: FormGridProps) {
   const gridCols = {
     1: "grid-cols-1",
     2: "grid-cols-1 sm:grid-cols-2",
-    3: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3",
-    4: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
+    3: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3",
+    4: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
   };
 
   return (
@@ -63,7 +63,7 @@ interface FormActionsProps {
 
 export function FormActions({ children, className }: FormActionsProps) {
   return (
-    <div className={cn("flex flex-col sm:flex-row gap-3 mt-4", className)}>
+    <div className={cn("mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center [&>*]:w-full sm:[&>*]:w-auto", className)}>
       {children}
     </div>
   );
