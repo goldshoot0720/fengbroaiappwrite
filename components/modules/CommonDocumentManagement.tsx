@@ -894,7 +894,7 @@ export default function CommonDocumentManagement() {
                 刪除選取 ({selectedIds.size})
               </Button>
             )}
-            <div className="flex w-full sm:w-auto bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="hidden xl:flex w-full sm:w-auto bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
               <button
                 onClick={() => setViewMode("grid")}
                 className={`flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "grid"
@@ -963,16 +963,55 @@ export default function CommonDocumentManagement() {
           title="無搜尋結果"
           description={`找不到「${searchQuery}」相關的文件`}
         />
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-          {filteredDocuments.map((doc) => (
-            <DocumentCard
-              key={doc.$id}
-              document={doc}
-              onEdit={() => handleEdit(doc)}
-              onDelete={() => handleDelete(doc)}
-              onPreview={() => handlePreview(doc)}
-              onEditContent={() => handleEditContent(doc)}
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:hidden">
+            {filteredDocuments.map((doc) => (
+              <DocumentCard
+                key={doc.$id}
+                document={doc}
+                onEdit={() => handleEdit(doc)}
+                onDelete={() => handleDelete(doc)}
+                onPreview={() => handlePreview(doc)}
+                onEditContent={() => handleEditContent(doc)}
+                inlineEditingId={inlineEditingId}
+                inlineEditForm={inlineEditForm}
+                setInlineEditForm={setInlineEditForm}
+                onInlineEdit={handleInlineEdit}
+                onInlineSave={handleInlineSave}
+                onInlineCancel={cancelInlineEdit}
+                onCoverUpload={handleCoverUpload}
+                uploadingCoverId={uploadingCoverId}
+              />
+            ))}
+          </div>
+          <div className={viewMode === 'grid' ? "hidden xl:grid xl:grid-cols-2 2xl:grid-cols-3 gap-4" : "hidden"}>
+            {filteredDocuments.map((doc) => (
+              <DocumentCard
+                key={doc.$id}
+                document={doc}
+                onEdit={() => handleEdit(doc)}
+                onDelete={() => handleDelete(doc)}
+                onPreview={() => handlePreview(doc)}
+                onEditContent={() => handleEditContent(doc)}
+                inlineEditingId={inlineEditingId}
+                inlineEditForm={inlineEditForm}
+                setInlineEditForm={setInlineEditForm}
+                onInlineEdit={handleInlineEdit}
+                onInlineSave={handleInlineSave}
+                onInlineCancel={cancelInlineEdit}
+                onCoverUpload={handleCoverUpload}
+                uploadingCoverId={uploadingCoverId}
+              />
+            ))}
+          </div>
+          <div className={viewMode === 'table' ? "hidden xl:block" : "hidden"}>
+            <DocumentTable
+              documents={filteredDocuments}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onPreview={handlePreview}
+              onEditContent={handleEditContent}
               inlineEditingId={inlineEditingId}
               inlineEditForm={inlineEditForm}
               setInlineEditForm={setInlineEditForm}
@@ -982,24 +1021,8 @@ export default function CommonDocumentManagement() {
               onCoverUpload={handleCoverUpload}
               uploadingCoverId={uploadingCoverId}
             />
-          ))}
-        </div>
-      ) : (
-        <DocumentTable
-          documents={filteredDocuments}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onPreview={handlePreview}
-          onEditContent={handleEditContent}
-          inlineEditingId={inlineEditingId}
-          inlineEditForm={inlineEditForm}
-          setInlineEditForm={setInlineEditForm}
-          onInlineEdit={handleInlineEdit}
-          onInlineSave={handleInlineSave}
-          onInlineCancel={cancelInlineEdit}
-          onCoverUpload={handleCoverUpload}
-          uploadingCoverId={uploadingCoverId}
-        />
+          </div>
+        </>
       )}
 
       {/* 表單模態框 */}
@@ -1673,7 +1696,7 @@ function DocumentTable({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="min-w-[980px] w-full">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-16">封面</th>

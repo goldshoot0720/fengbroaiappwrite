@@ -105,7 +105,7 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
   }
 
   return (
-    <div className="video-queue-panel fixed bottom-20 right-3 z-50 md:right-4 md:top-20 md:bottom-auto">
+    <div className="video-queue-panel fixed bottom-20 right-3 z-50 md:right-3 md:top-20 md:bottom-auto xl:right-4">
       <video 
         ref={videoRef} 
         preload="auto"
@@ -124,7 +124,7 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
       {!isExpanded && (
         <div className="flex flex-col gap-2">
           {currentItem && (
-            <div className="w-[min(calc(100vw-1.5rem),24rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800 md:w-96">
+            <div className="w-[min(calc(100vw-1.5rem),24rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800 md:w-80 xl:w-96">
               <div className="flex items-center gap-3">
                 <div className="w-20 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600">
                   {currentItem.cover ? (
@@ -194,7 +194,7 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
       )}
 
       {isExpanded && (
-        <div className="w-[min(calc(100vw-1.5rem),24rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:w-96">
+        <div className="w-[min(calc(100vw-1.5rem),24rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:w-80 xl:w-96">
           <div className="flex items-center justify-between p-4 bg-blue-600 text-white">
             <div className="flex items-center gap-2">
               <ListVideo className="w-5 h-5" />

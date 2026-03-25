@@ -930,7 +930,7 @@ export default function ImageGallery() {
             <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
               {selectionMode && filteredImages.length > 0 && filteredImages.every((image) => selectedIds.has(image.$id)) ? "取消全選" : "全選"}
             </Button>
-            <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+            <div className="hidden xl:flex overflow-hidden rounded-xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
@@ -1039,57 +1039,100 @@ export default function ImageGallery() {
       {filteredImages.length === 0 && images.length > 0 ? (
         <EmptyState icon={<Search className="text-gray-400" size={32} />} title="無搜尋結果" description={`找不到「${searchQuery}」相關的圖片`} />
       ) : (
-        viewMode === "grid" ? (
-          <ImageGrid
-            images={filteredImages}
-            loading={loading}
-            onSelectImage={setSelectedImage}
-            onEdit={handleEdit}
-            onRefresh={() => loadImages(true)}
-            isInlineCreating={isInlineCreating}
-            inlineCreateForm={inlineCreateForm}
-            setInlineCreateForm={setInlineCreateForm}
-            inlineCreatePreviewUrl={inlineCreatePreviewUrl}
-            inlineCreatePreviewLoading={inlineCreatePreviewLoading}
-            inlineCreateSubmitting={inlineCreateSubmitting}
-            inlineCreateUploadProgress={inlineCreateUploadProgress}
-            inlineCreateUploadStatus={inlineCreateUploadStatus}
-            inlineCreateDuplicateWarning={inlineCreateDuplicateWarning}
-            inlineCreateUseCategorySelect={inlineCreateUseCategorySelect}
-            setInlineCreateUseCategorySelect={setInlineCreateUseCategorySelect}
-            existingCategories={existingCategories}
-            inlineCreateFileCount={inlineCreateFiles.length}
-            onInlineCreateFileSelect={handleInlineCreateFileSelect}
-            onInlineCreateSave={handleInlineCreateSave}
-            onInlineCreateCancel={handleInlineCreateCancel}
-            inlineEditingId={inlineEditingId}
-            inlineEditForm={inlineEditForm}
-            setInlineEditForm={setInlineEditForm}
-            onInlineEdit={handleInlineEdit}
-            onInlineSave={handleInlineSave}
-            onInlineCancel={cancelInlineEdit}
-            inlineEditPreviewUrl={inlineEditPreviewUrl}
-            inlineEditPreviewLoading={inlineEditPreviewLoading}
-            inlineEditUploadProgress={inlineEditUploadProgress}
-            inlineEditUploadStatus={inlineEditUploadStatus}
-            inlineEditDuplicateWarning={inlineEditDuplicateWarning}
-            onInlineEditFileSelect={handleInlineEditFileSelect}
-            selectionMode={selectionMode}
-            selectedIds={selectedIds}
-            onToggleSelect={handleToggleSelect}
-          />
-        ) : (
-          <ImageList
-            images={filteredImages}
-            loading={loading}
-            onSelectImage={setSelectedImage}
-            onEdit={handleEdit}
-            onRefresh={() => loadImages(true)}
-            selectionMode={selectionMode}
-            selectedIds={selectedIds}
-            onToggleSelect={handleToggleSelect}
-          />
-        )
+        <>
+          <div className="xl:hidden">
+            <ImageGrid
+              images={filteredImages}
+              loading={loading}
+              onSelectImage={setSelectedImage}
+              onEdit={handleEdit}
+              onRefresh={() => loadImages(true)}
+              isInlineCreating={isInlineCreating}
+              inlineCreateForm={inlineCreateForm}
+              setInlineCreateForm={setInlineCreateForm}
+              inlineCreatePreviewUrl={inlineCreatePreviewUrl}
+              inlineCreatePreviewLoading={inlineCreatePreviewLoading}
+              inlineCreateSubmitting={inlineCreateSubmitting}
+              inlineCreateUploadProgress={inlineCreateUploadProgress}
+              inlineCreateUploadStatus={inlineCreateUploadStatus}
+              inlineCreateDuplicateWarning={inlineCreateDuplicateWarning}
+              inlineCreateUseCategorySelect={inlineCreateUseCategorySelect}
+              setInlineCreateUseCategorySelect={setInlineCreateUseCategorySelect}
+              existingCategories={existingCategories}
+              inlineCreateFileCount={inlineCreateFiles.length}
+              onInlineCreateFileSelect={handleInlineCreateFileSelect}
+              onInlineCreateSave={handleInlineCreateSave}
+              onInlineCreateCancel={handleInlineCreateCancel}
+              inlineEditingId={inlineEditingId}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={handleInlineEdit}
+              onInlineSave={handleInlineSave}
+              onInlineCancel={cancelInlineEdit}
+              inlineEditPreviewUrl={inlineEditPreviewUrl}
+              inlineEditPreviewLoading={inlineEditPreviewLoading}
+              inlineEditUploadProgress={inlineEditUploadProgress}
+              inlineEditUploadStatus={inlineEditUploadStatus}
+              inlineEditDuplicateWarning={inlineEditDuplicateWarning}
+              onInlineEditFileSelect={handleInlineEditFileSelect}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+            />
+          </div>
+          <div className={viewMode === "grid" ? "hidden xl:block" : "hidden"}>
+            <ImageGrid
+              images={filteredImages}
+              loading={loading}
+              onSelectImage={setSelectedImage}
+              onEdit={handleEdit}
+              onRefresh={() => loadImages(true)}
+              isInlineCreating={isInlineCreating}
+              inlineCreateForm={inlineCreateForm}
+              setInlineCreateForm={setInlineCreateForm}
+              inlineCreatePreviewUrl={inlineCreatePreviewUrl}
+              inlineCreatePreviewLoading={inlineCreatePreviewLoading}
+              inlineCreateSubmitting={inlineCreateSubmitting}
+              inlineCreateUploadProgress={inlineCreateUploadProgress}
+              inlineCreateUploadStatus={inlineCreateUploadStatus}
+              inlineCreateDuplicateWarning={inlineCreateDuplicateWarning}
+              inlineCreateUseCategorySelect={inlineCreateUseCategorySelect}
+              setInlineCreateUseCategorySelect={setInlineCreateUseCategorySelect}
+              existingCategories={existingCategories}
+              inlineCreateFileCount={inlineCreateFiles.length}
+              onInlineCreateFileSelect={handleInlineCreateFileSelect}
+              onInlineCreateSave={handleInlineCreateSave}
+              onInlineCreateCancel={handleInlineCreateCancel}
+              inlineEditingId={inlineEditingId}
+              inlineEditForm={inlineEditForm}
+              setInlineEditForm={setInlineEditForm}
+              onInlineEdit={handleInlineEdit}
+              onInlineSave={handleInlineSave}
+              onInlineCancel={cancelInlineEdit}
+              inlineEditPreviewUrl={inlineEditPreviewUrl}
+              inlineEditPreviewLoading={inlineEditPreviewLoading}
+              inlineEditUploadProgress={inlineEditUploadProgress}
+              inlineEditUploadStatus={inlineEditUploadStatus}
+              inlineEditDuplicateWarning={inlineEditDuplicateWarning}
+              onInlineEditFileSelect={handleInlineEditFileSelect}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+            />
+          </div>
+          <div className={viewMode === "list" ? "hidden xl:block" : "hidden"}>
+            <ImageList
+              images={filteredImages}
+              loading={loading}
+              onSelectImage={setSelectedImage}
+              onEdit={handleEdit}
+              onRefresh={() => loadImages(true)}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+            />
+          </div>
+        </>
       )}
 
       {selectedImage && (
