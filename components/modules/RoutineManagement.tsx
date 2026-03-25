@@ -1097,7 +1097,7 @@ export default function RoutineManagement() {
                           </div>
                         ) : (
                           // 正常顯示模式
-                          <div className="space-y-3">
+                          <div className="space-y-4 pb-3">
                             <div className="flex items-start gap-3">
                               {selectionMode && (
                                 <input
@@ -1145,13 +1145,13 @@ export default function RoutineManagement() {
                                 <span>{formatDateTime(routine.lastdate3)}</span>
                               </div>
                             </div>
-                            <div className="flex gap-2 pt-2">
+                            <div className="flex gap-2 pt-3">
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleShiftDates(routine)}
                                 disabled={!routine.lastdate1}
-                                className="flex-1"
+                                className="h-11 flex-1 rounded-xl"
                                 title="日期遞移：一→二，二→三"
                               >
                                 <ArrowRight size={16} />
@@ -1160,7 +1160,7 @@ export default function RoutineManagement() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleInlineEdit(routine)}
-                                className="flex-1"
+                                className="h-11 flex-1 rounded-xl"
                               >
                                 編輯
                               </Button>
@@ -1168,7 +1168,7 @@ export default function RoutineManagement() {
                                 size="sm"
                                 variant="destructive"
                                 onClick={() => handleDelete(routine.$id)}
-                                className="flex-1"
+                                className="h-11 flex-1 rounded-xl"
                               >
                                 刪除
                               </Button>

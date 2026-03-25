@@ -116,7 +116,7 @@ export default function DashboardLayout({
             onToggle={toggleSidebar}
           />
 
-          <main className="flex-1 px-3 pb-24 pt-3 sm:px-4 md:px-6 md:pb-8 md:pt-5 xl:px-8 xl:pb-10 xl:pt-6">
+          <main className="flex-1 px-3 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-3 sm:px-4 md:px-6 md:pb-8 md:pt-5 xl:px-8 xl:pb-10 xl:pt-6">
             <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 md:gap-5 xl:gap-6">
               <TopBar
                 activeLabel={activeItem?.label ?? "首頁"}
@@ -157,13 +157,13 @@ function MobileHeader({
   onToggle: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/90 px-3 py-3 backdrop-blur-xl md:hidden">
-      <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3">
+    <header className="sticky top-0 z-40 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/90 px-3 py-3.5 backdrop-blur-xl md:hidden">
+      <div className="mx-auto flex max-w-[1680px] items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
             FengBro Console
           </p>
-          <p className="truncate font-display text-lg font-semibold">{activeLabel}</p>
+          <p className="mt-1 truncate font-display text-lg font-semibold">{activeLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggleCompact />
