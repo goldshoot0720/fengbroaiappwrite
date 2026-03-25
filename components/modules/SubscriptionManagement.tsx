@@ -1173,7 +1173,7 @@ export default function SubscriptionManagement() {
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3 border-t border-gray-200 p-6 dark:border-gray-700">
+            <div className="flex flex-col gap-3 border-t border-gray-200 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] dark:border-gray-700 sm:flex-row sm:justify-end">
               {importing ? (
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">

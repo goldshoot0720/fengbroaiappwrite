@@ -1558,7 +1558,7 @@ export default function NotesManagement() {
               )}
             </div>
 
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+            <div className="flex flex-col gap-3 border-t border-gray-200 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] dark:border-gray-700 sm:flex-row sm:justify-end">
               <Button
                 onClick={() => setImportPreview(null)}
                 variant="outline"

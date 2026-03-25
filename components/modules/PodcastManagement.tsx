@@ -891,7 +891,7 @@ export default function PodcastManagement() {
                 />
               </div>
             )}
-            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+            <div className="flex flex-col gap-3 border-t border-gray-100 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] dark:border-gray-800 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }} disabled={isDeleting}>取消</Button>
               <Button
                 onClick={handleBulkDelete}
