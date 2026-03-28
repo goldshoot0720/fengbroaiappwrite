@@ -193,11 +193,11 @@ function DesktopSidebar({
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <aside className="hidden w-[320px] shrink-0 border-r border-[var(--line-soft)] px-5 py-6 xl:flex">
-      <div className="surface-panel flex w-full flex-col rounded-[34px] p-5">
+    <aside className="hidden w-[276px] shrink-0 border-r border-[var(--line-soft)] px-3 py-5 xl:flex">
+      <div className="surface-panel flex w-full flex-col rounded-[30px] p-4">
         <BrandBlock />
 
-        <div className="mt-8 flex items-center justify-between rounded-[24px] border border-[var(--line-strong)] bg-white/60 px-4 py-3 dark:bg-white/5">
+        <div className="mt-6 flex items-center justify-between rounded-[22px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
               Design Mode
@@ -209,7 +209,7 @@ function DesktopSidebar({
           <ThemeToggleCompact />
         </div>
 
-        <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
+        <nav className="mt-6 flex-1 space-y-2 overflow-y-auto pr-1">
           {menuItems.map((item) => (
             <MenuItemComponent
               key={item.id}
@@ -221,7 +221,7 @@ function DesktopSidebar({
           ))}
         </nav>
 
-        <div className="mt-6 rounded-[28px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-5 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))]">
+        <div className="mt-5 rounded-[24px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-4 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))]">
           <div className="flex items-start gap-3">
             <div className="flex size-11 items-center justify-center rounded-2xl bg-[var(--accent)]/15 text-[var(--accent-strong)]">
               <Sparkles size={18} />
