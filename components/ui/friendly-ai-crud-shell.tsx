@@ -32,6 +32,7 @@ interface FriendlyAiCrudShellProps {
   searchPlaceholder: string;
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  intro?: ReactNode;
   toolbar?: ReactNode;
   modeItems?: WorkbenchModeItem[];
   activeMode?: string;
@@ -54,6 +55,7 @@ export function FriendlyAiCrudShell({
   searchPlaceholder,
   searchQuery,
   onSearchChange,
+  intro,
   toolbar,
   modeItems = [],
   activeMode,
@@ -65,19 +67,23 @@ export function FriendlyAiCrudShell({
     <section className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.14),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.96),_rgba(248,250,252,0.96))] p-3 shadow-sm dark:border-slate-800 dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.2),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.16),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.98),_rgba(15,23,42,0.96))] sm:p-4 md:rounded-[28px] md:p-5 xl:p-6">
       <div className="flex flex-col gap-4 md:gap-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold tracking-wide text-sky-700 dark:border-sky-900 dark:bg-slate-900/70 dark:text-sky-300">
-              <Sparkles className="h-3.5 w-3.5" />
-              Friendly AI CRUD
-            </div>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-                {title}
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {description}
-              </p>
-            </div>
+          <div className="min-w-0 flex-1">
+            {intro ?? (
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold tracking-wide text-sky-700 dark:border-sky-900 dark:bg-slate-900/70 dark:text-sky-300">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Friendly AI CRUD
+                </div>
+                <div>
+                  <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+                    {title}
+                  </h1>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    {description}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           {toolbar ? (
             <div className="flex w-full flex-wrap items-stretch gap-2 lg:w-auto lg:items-center lg:justify-end">
