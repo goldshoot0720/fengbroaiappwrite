@@ -116,7 +116,7 @@ export default function DashboardLayout({
             onToggle={toggleSidebar}
           />
 
-          <main className="flex-1 px-3 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-3 sm:px-4 md:px-6 md:pb-8 md:pt-5 xl:px-8 xl:pb-10 xl:pt-6">
+          <main className="flex-1 px-2 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-4 md:pb-8 md:pt-5 xl:px-4 xl:pb-10 xl:pt-6">
             <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 md:gap-5 xl:gap-6">
               <TopBar
                 activeLabel={activeItem?.label ?? "首頁"}
