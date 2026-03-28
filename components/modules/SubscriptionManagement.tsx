@@ -1027,9 +1027,9 @@ export default function SubscriptionManagement() {
               : { title: "日期完整度", body: "扣款日期完整度不錯，之後最值得強化的是搜尋與批次整理。", tone: "green" },
         ]}
         toolbar={
-          <div className="ml-auto flex w-full max-w-full flex-col items-end gap-3 lg:max-w-[24rem] xl:max-w-[26rem]">
+          <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 xl:w-auto xl:flex-nowrap">
             <input ref={importInputRef} type="file" accept=".csv" onChange={handleCsvFileSelect} className="hidden" />
-            <div className="flex w-full flex-wrap justify-end gap-2 [&>button:last-child]:ml-auto [&>button:last-child]:basis-full [&>button:last-child]:justify-center lg:[&>button:last-child]:max-w-[10.5rem]">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Button variant="outline" onClick={() => importInputRef.current?.click()} className="min-w-[9.25rem] rounded-xl">
                 <Upload className="mr-1 h-4 w-4" />
                 匯入 CSV
@@ -1038,13 +1038,13 @@ export default function SubscriptionManagement() {
                 <Download className="mr-1 h-4 w-4" />
                 匯出 CSV
               </Button>
-              <Button variant="outline" onClick={() => loadSubscriptions()} className="rounded-xl" disabled={loading}>
+              <Button variant="outline" onClick={() => loadSubscriptions()} className="min-w-[8.5rem] rounded-xl" disabled={loading}>
                 <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 重新整理
               </Button>
             </div>
-            <div className="flex w-full flex-wrap items-center justify-end gap-2">
-              <Button variant="outline" onClick={toggleSelectAll} className="min-w-[8.25rem] rounded-xl">
+            <div className="contents">
+              <Button variant="outline" onClick={toggleSelectAll} className="min-w-[7.5rem] rounded-xl">
                 {isAllSelected ? "取消全選" : "全選"}
               </Button>
               {selectedIds.size > 0 && (
@@ -1057,7 +1057,7 @@ export default function SubscriptionManagement() {
                   resetInlineStates();
                   setIsInlineAdding(true);
                 }}
-                className="min-w-[15rem] rounded-xl bg-blue-600 px-6 hover:bg-blue-700"
+                className="min-w-[12rem] rounded-xl bg-blue-600 px-6 hover:bg-blue-700"
               >
                 <Plus className="mr-1 h-4 w-4" />
                 新增訂閱
