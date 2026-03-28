@@ -972,7 +972,7 @@ export default function SubscriptionManagement() {
         onSearchChange={setSearchQuery}
         intro={
           <div className="space-y-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
               <div className="min-w-0 space-y-2">
                 <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">
                   Workspace Section
@@ -987,7 +987,7 @@ export default function SubscriptionManagement() {
                   {getCurrentAccountLabel()}
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 self-start rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 xl:self-auto">
+              <div className="inline-flex items-center gap-2 self-start rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 2xl:self-auto">
                 <div className="h-2 w-2 rounded-full bg-green-500" />
                 <span>即時同步</span>
               </div>

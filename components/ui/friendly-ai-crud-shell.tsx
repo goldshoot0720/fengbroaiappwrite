@@ -66,7 +66,7 @@ export function FriendlyAiCrudShell({
   return (
     <section className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.14),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.96),_rgba(248,250,252,0.96))] p-3 shadow-sm dark:border-slate-800 dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.2),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.16),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.98),_rgba(15,23,42,0.96))] sm:p-4 md:rounded-[28px] md:p-5 xl:p-6">
       <div className="flex flex-col gap-4 md:gap-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
           <div className="min-w-0 flex-1">
             {intro ?? (
               <div className="space-y-2">
@@ -86,7 +86,7 @@ export function FriendlyAiCrudShell({
             )}
           </div>
           {toolbar ? (
-            <div className="flex w-full flex-wrap items-stretch gap-2 lg:w-auto lg:items-center lg:justify-end">
+            <div className="flex w-full flex-wrap items-stretch gap-2 2xl:w-auto 2xl:items-center 2xl:justify-end">
               {toolbar}
             </div>
           ) : null}
