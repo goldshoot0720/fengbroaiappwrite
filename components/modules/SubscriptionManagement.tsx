@@ -1000,39 +1000,43 @@ export default function SubscriptionManagement() {
               : { title: "日期完整度", body: "扣款日期完整度不錯，之後最值得強化的是搜尋與批次整理。", tone: "green" },
         ]}
         toolbar={
-          <>
+          <div className="ml-auto flex w-full flex-wrap justify-end gap-2 xl:max-w-[36rem]">
             <input ref={importInputRef} type="file" accept=".csv" onChange={handleCsvFileSelect} className="hidden" />
-            <Button variant="outline" onClick={() => importInputRef.current?.click()} className="rounded-xl">
-              <Upload className="mr-1 h-4 w-4" />
-              匯入 CSV
-            </Button>
-            <Button variant="outline" onClick={exportToCSV} className="rounded-xl">
-              <Download className="mr-1 h-4 w-4" />
-              匯出 CSV
-            </Button>
-            <Button variant="outline" onClick={() => loadSubscriptions()} className="rounded-xl" disabled={loading}>
-              <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              重新整理
-            </Button>
-            <Button variant="outline" onClick={toggleSelectAll} className="rounded-xl">
-              {isAllSelected ? "取消全選" : "全選"}
-            </Button>
-            {selectedIds.size > 0 && (
-              <Button onClick={handleDeleteSelected} className="rounded-xl bg-red-600 hover:bg-red-700 text-white">
-                刪除選取 ({selectedIds.size})
+            <div className="flex w-full flex-wrap justify-end gap-2">
+              <Button variant="outline" onClick={() => importInputRef.current?.click()} className="rounded-xl">
+                <Upload className="mr-1 h-4 w-4" />
+                匯入 CSV
               </Button>
-            )}
-            <Button
-              onClick={() => {
-                resetInlineStates();
-                setIsInlineAdding(true);
-              }}
-              className="rounded-xl bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              新增訂閱
-            </Button>
-          </>
+              <Button variant="outline" onClick={exportToCSV} className="rounded-xl">
+                <Download className="mr-1 h-4 w-4" />
+                匯出 CSV
+              </Button>
+              <Button variant="outline" onClick={() => loadSubscriptions()} className="rounded-xl" disabled={loading}>
+                <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                重新整理
+              </Button>
+            </div>
+            <div className="flex w-full flex-wrap justify-end gap-2">
+              <Button variant="outline" onClick={toggleSelectAll} className="rounded-xl">
+                {isAllSelected ? "取消全選" : "全選"}
+              </Button>
+              {selectedIds.size > 0 && (
+                <Button onClick={handleDeleteSelected} className="rounded-xl bg-red-600 hover:bg-red-700 text-white">
+                  刪除選取 ({selectedIds.size})
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  resetInlineStates();
+                  setIsInlineAdding(true);
+                }}
+                className="rounded-xl bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                新增訂閱
+              </Button>
+            </div>
+          </div>
         }
       />
 
