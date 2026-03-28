@@ -484,6 +484,8 @@ export default function BankManagement() {
         searchPlaceholder="搜尋名稱、網站、地址、卡號、帳號..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        workspaceCountText={`共 ${banks.length} 個銀行帳戶`}
+        workspaceDescription="整理銀行帳戶、餘額、備註與交易入口，優先處理資料缺漏、零餘額與常用帳戶配置。"
         activeMode={workbenchMode}
         onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
         modeItems={[

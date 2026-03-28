@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { WorkspaceModuleIntro } from "@/components/ui/workspace-module-intro";
 import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "blue" | "amber" | "green" | "red";
@@ -33,6 +34,9 @@ interface FriendlyAiCrudShellProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   intro?: ReactNode;
+  workspaceCountText?: string;
+  workspaceDescription?: string;
+  workspaceStatusText?: string;
   toolbar?: ReactNode;
   modeItems?: WorkbenchModeItem[];
   activeMode?: string;
@@ -56,6 +60,9 @@ export function FriendlyAiCrudShell({
   searchQuery,
   onSearchChange,
   intro,
+  workspaceCountText,
+  workspaceDescription,
+  workspaceStatusText,
   toolbar,
   modeItems = [],
   activeMode,
@@ -68,7 +75,14 @@ export function FriendlyAiCrudShell({
       <div className="flex flex-col gap-4 md:gap-5">
         <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
           <div className="min-w-0 flex-1">
-            {intro ?? (
+            {intro ?? (workspaceCountText || workspaceDescription ? (
+              <WorkspaceModuleIntro
+                title={title}
+                countText={workspaceCountText || ""}
+                description={workspaceDescription || description}
+                statusText={workspaceStatusText}
+              />
+            ) : (
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold tracking-wide text-sky-700 dark:border-sky-900 dark:bg-slate-900/70 dark:text-sky-300">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -83,7 +97,7 @@ export function FriendlyAiCrudShell({
                   </p>
                 </div>
               </div>
-            )}
+            ))}
           </div>
           {toolbar ? (
             <div className="flex w-full flex-wrap items-stretch gap-2 2xl:w-auto 2xl:items-center 2xl:justify-end">

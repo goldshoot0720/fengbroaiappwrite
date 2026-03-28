@@ -507,6 +507,8 @@ export default function RoutineManagement() {
         searchPlaceholder="搜尋名稱、備註..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        workspaceCountText={`共 ${routines.length} 項例行`}
+        workspaceDescription="整理例行事項、日期、連結與照片，優先補齊日期節奏、參考連結與追蹤素材。"
         activeMode={workbenchMode}
         onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
         modeItems={[

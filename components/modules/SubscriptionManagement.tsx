@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { FaviconImage } from "@/components/ui/favicon-image";
+import { WorkspaceModuleIntro } from "@/components/ui/workspace-module-intro";
 import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscriptions";
 import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";

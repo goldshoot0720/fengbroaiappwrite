@@ -603,6 +603,8 @@ export default function PodcastManagement() {
         searchPlaceholder="搜尋播客名稱..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        workspaceCountText={`共 ${podcast.length} 個播客`}
+        workspaceDescription="集中整理播客名稱、媒體檔、封面與分類，優先處理缺少媒體、封面或分類的項目。"
         activeMode={workbenchMode}
         onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
         modeItems={[
