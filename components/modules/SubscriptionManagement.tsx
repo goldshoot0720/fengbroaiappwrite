@@ -1002,7 +1002,7 @@ export default function SubscriptionManagement() {
         toolbar={
           <div className="ml-auto flex w-full flex-wrap justify-end gap-2 xl:max-w-[36rem]">
             <input ref={importInputRef} type="file" accept=".csv" onChange={handleCsvFileSelect} className="hidden" />
-            <div className="flex w-full flex-wrap justify-end gap-2">
+            <div className="flex w-full flex-wrap items-center justify-end gap-2">
               <Button variant="outline" onClick={() => importInputRef.current?.click()} className="rounded-xl">
                 <Upload className="mr-1 h-4 w-4" />
                 匯入 CSV
@@ -1017,11 +1017,11 @@ export default function SubscriptionManagement() {
               </Button>
             </div>
             <div className="flex w-full flex-wrap justify-end gap-2">
-              <Button variant="outline" onClick={toggleSelectAll} className="rounded-xl">
+              <Button variant="outline" onClick={toggleSelectAll} className="min-w-[5.5rem] rounded-xl">
                 {isAllSelected ? "取消全選" : "全選"}
               </Button>
               {selectedIds.size > 0 && (
-                <Button onClick={handleDeleteSelected} className="rounded-xl bg-red-600 hover:bg-red-700 text-white">
+                <Button onClick={handleDeleteSelected} className="min-w-[7.75rem] rounded-xl bg-red-600 text-white hover:bg-red-700">
                   刪除選取 ({selectedIds.size})
                 </Button>
               )}
@@ -1030,7 +1030,7 @@ export default function SubscriptionManagement() {
                   resetInlineStates();
                   setIsInlineAdding(true);
                 }}
-                className="rounded-xl bg-blue-600 hover:bg-blue-700"
+                className="min-w-[10rem] rounded-xl bg-blue-600 px-5 hover:bg-blue-700"
               >
                 <Plus className="mr-1 h-4 w-4" />
                 新增訂閱
