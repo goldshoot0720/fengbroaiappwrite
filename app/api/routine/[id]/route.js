@@ -56,9 +56,9 @@ export async function PUT(req, context) {
     if (lastdate2 !== undefined) payload.lastdate2 = lastdate2 || null;
     if (lastdate3 !== undefined) payload.lastdate3 = lastdate3 || null;
     
-    // Only include URL fields if not empty
-    if (link !== undefined && link && link.trim()) payload.link = link;
-    if (photo !== undefined && photo && photo.trim()) payload.photo = photo;
+    // Allow URL fields to be cleared by sending null
+    if (link !== undefined) payload.link = link && link.trim() ? link : null;
+    if (photo !== undefined) payload.photo = photo && photo.trim() ? photo : null;
 
     console.log('Updating routine with payload:', JSON.stringify(payload, null, 2));
 

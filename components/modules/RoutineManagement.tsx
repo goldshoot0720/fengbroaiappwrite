@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Calendar, Search, Download, Upload, ArrowRight, X, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, Calendar, Search, Download, Upload, ArrowRight, ExternalLink, LayoutGrid, Rows3, X, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,6 +62,7 @@ export default function RoutineManagement() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "dated" | "linked" | "withPhoto">("all");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -499,6 +500,33 @@ export default function RoutineManagement() {
     return parts.join(" 又 ");
   };
 
+  const normalizeRoutineLink = (rawLink: string | null | undefined) => {
+    const trimmed = rawLink?.trim();
+    if (!trimmed) return "";
+
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (/^[^\s]+\.[^\s]+/.test(trimmed)) return `https://${trimmed}`;
+
+    return "";
+  };
+
+  const getRoutineLinkLabel = (rawLink: string | null | undefined) => {
+    const normalized = normalizeRoutineLink(rawLink);
+    if (!normalized) return "";
+
+    return normalized.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  };
+
+  const handleOpenLink = (rawLink: string | null | undefined) => {
+    const normalized = normalizeRoutineLink(rawLink);
+    if (!normalized) {
+      alert("這筆例行沒有可開啟的連結");
+      return;
+    }
+
+    window.open(normalized, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div className="space-y-6">
       <FriendlyAiCrudShell
@@ -555,6 +583,30 @@ export default function RoutineManagement() {
                 刪除選取 ({selectedIds.size})
               </Button>
             )}
+            <div className="hidden xl:flex overflow-hidden rounded-xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors ${viewMode === "table"
+                  ? "bg-slate-900 text-white dark:bg-sky-400 dark:text-slate-950"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+              >
+                <Rows3 size={16} />
+                列表
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`flex items-center gap-2 border-l border-slate-200 px-3 py-2 text-sm font-medium transition-colors dark:border-slate-700 ${viewMode === "cards"
+                  ? "bg-slate-900 text-white dark:bg-sky-400 dark:text-slate-950"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+              >
+                <LayoutGrid size={16} />
+                卡片
+              </button>
+            </div>
             <Button onClick={() => setIsFormOpen(!isFormOpen)} className="w-full md:w-auto">
               <Plus size={18} className="mr-2" />
               {isFormOpen ? "收起表單" : "新增例行事項"}
@@ -877,16 +929,18 @@ export default function RoutineManagement() {
                 />
               ) : (
                 <>
-                  {/* 桌面版表格 */}
-                  <div className="hidden 2xl:block">
+                  {/* 列表檢視 */}
+                  {viewMode === "table" && (
+                  <div className="overflow-x-auto">
                     <DataCard>
-                      <Table className="min-w-[1180px]">
+                      <Table className="min-w-[1320px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-8"></TableHead>
                             <TableHead>名稱</TableHead>
                             <TableHead className="w-[320px] min-w-[280px]">備註</TableHead>
                             <TableHead className="w-[88px]">圖片</TableHead>
+                            <TableHead className="min-w-[220px]">連結</TableHead>
                             <TableHead>最近例行之一</TableHead>
                             <TableHead>最近例行之二</TableHead>
                             <TableHead>相距天數</TableHead>
@@ -900,7 +954,7 @@ export default function RoutineManagement() {
                               {inlineEditingId === routine.$id ? (
                                 // 行內編輯模式
                                 <>
-                                  <TableCell colSpan={9} className="bg-orange-50 dark:bg-orange-900/20">
+                                  <TableCell colSpan={10} className="bg-orange-50 dark:bg-orange-900/20">
                                     <div className="space-y-3 py-2">
                                       <div className="flex items-center gap-2 mb-2">
                                         <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
@@ -1001,11 +1055,34 @@ export default function RoutineManagement() {
                                       </div>
                                     )}
                                   </TableCell>
+                                  <TableCell>
+                                    {normalizeRoutineLink(routine.link) ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenLink(routine.link)}
+                                        className="max-w-[240px] truncate text-left text-sm text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                        title={normalizeRoutineLink(routine.link)}
+                                      >
+                                        {getRoutineLinkLabel(routine.link)}
+                                      </button>
+                                    ) : (
+                                      <span className="text-gray-400">-</span>
+                                    )}
+                                  </TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate1)}</TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate2)}</TableCell>
                                   <TableCell>{calculateDaysDiff(routine.lastdate1, routine.lastdate2)}</TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate3)}</TableCell>
                                   <TableCell className="text-right space-x-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleOpenLink(routine.link)}
+                                      disabled={!normalizeRoutineLink(routine.link)}
+                                      title="開啟連結"
+                                    >
+                                      <ExternalLink size={16} />
+                                    </Button>
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -1038,9 +1115,11 @@ export default function RoutineManagement() {
                       </Table>
                     </DataCard>
                   </div>
+                  )}
 
-                  {/* 手機版卡片 */}
-                  <div className="space-y-4 2xl:hidden">
+                  {/* 卡片檢視 */}
+                  {viewMode === "cards" && (
+                  <div className="space-y-4">
                     {filteredRoutines.map((routine) => (
                       <DataCard key={routine.$id}>
                         {inlineEditingId === routine.$id ? (
@@ -1129,6 +1208,16 @@ export default function RoutineManagement() {
                                 {routine.note}
                               </div>
                             )}
+                            {normalizeRoutineLink(routine.link) && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenLink(routine.link)}
+                                className="w-full rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-left text-sm text-blue-700 shadow-sm transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300"
+                                title={normalizeRoutineLink(routine.link)}
+                              >
+                                {getRoutineLinkLabel(routine.link)}
+                              </button>
+                            )}
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-gray-500">最近例行之一:</span>
@@ -1148,6 +1237,16 @@ export default function RoutineManagement() {
                               </div>
                             </div>
                             <div className="flex gap-2 pt-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenLink(routine.link)}
+                                disabled={!normalizeRoutineLink(routine.link)}
+                                className="h-11 flex-1 rounded-xl"
+                                title="開啟連結"
+                              >
+                                <ExternalLink size={16} />
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1180,6 +1279,7 @@ export default function RoutineManagement() {
                       </DataCard>
                     ))}
                   </div>
+                  )}
                 </>
               )}
             </>
