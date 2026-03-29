@@ -935,7 +935,6 @@ export default function RoutineManagement() {
                             <TableHead className="w-[88px]">圖片</TableHead>
                             <TableHead>最近例行之一</TableHead>
                             <TableHead>最近例行之二</TableHead>
-                            <TableHead>相距天數</TableHead>
                             <TableHead>最近例行之三</TableHead>
                             <TableHead className="text-right">操作</TableHead>
                           </TableRow>
@@ -1027,18 +1026,23 @@ export default function RoutineManagement() {
                                     )}
                                   </TableCell>
                                   <TableCell className="font-medium">
-                                    {normalizeRoutineLink(routine.link) ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenLink(routine.link)}
-                                        className="max-w-[220px] truncate text-left text-blue-600 underline underline-offset-2 hover:text-blue-700"
-                                        title={normalizeRoutineLink(routine.link)}
-                                      >
-                                        {routine.name}
-                                      </button>
-                                    ) : (
-                                      routine.name
-                                    )}
+                                    <div className="space-y-1">
+                                      {normalizeRoutineLink(routine.link) ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenLink(routine.link)}
+                                          className="max-w-[220px] truncate text-left text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                          title={normalizeRoutineLink(routine.link)}
+                                        >
+                                          {routine.name}
+                                        </button>
+                                      ) : (
+                                        <div className="max-w-[220px] truncate">{routine.name}</div>
+                                      )}
+                                      <div className="text-xs font-normal text-gray-500">
+                                        相距天數: {calculateDaysDiff(routine.lastdate1, routine.lastdate2)}
+                                      </div>
+                                    </div>
                                   </TableCell>
                                   <TableCell className="min-w-[280px] align-top">
                                     {routine.note && (
@@ -1062,7 +1066,6 @@ export default function RoutineManagement() {
                                   </TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate1)}</TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate2)}</TableCell>
-                                  <TableCell>{calculateDaysDiff(routine.lastdate1, routine.lastdate2)}</TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate3)}</TableCell>
                                   <TableCell className="text-right space-x-2">
                                     <Button
@@ -1182,18 +1185,23 @@ export default function RoutineManagement() {
                                 </div>
                               )}
                               <div className="flex-1">
-                                {normalizeRoutineLink(routine.link) ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenLink(routine.link)}
-                                    className="text-left text-lg font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700"
-                                    title={normalizeRoutineLink(routine.link)}
-                                  >
-                                    {routine.name}
-                                  </button>
-                                ) : (
-                                  <h3 className="font-semibold text-lg">{routine.name}</h3>
-                                )}
+                                <div className="space-y-1">
+                                  {normalizeRoutineLink(routine.link) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenLink(routine.link)}
+                                      className="text-left text-lg font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                      title={normalizeRoutineLink(routine.link)}
+                                    >
+                                      {routine.name}
+                                    </button>
+                                  ) : (
+                                    <h3 className="font-semibold text-lg">{routine.name}</h3>
+                                  )}
+                                  <div className="text-sm text-gray-500">
+                                    相距天數: {calculateDaysDiff(routine.lastdate1, routine.lastdate2)}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             {routine.note && (
@@ -1209,10 +1217,6 @@ export default function RoutineManagement() {
                               <div className="flex justify-between">
                                 <span className="text-gray-500">最近例行之二:</span>
                                 <span>{formatDateTime(routine.lastdate2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">相距天數:</span>
-                                <span>{calculateDaysDiff(routine.lastdate1, routine.lastdate2)}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-500">最近例行之三:</span>
