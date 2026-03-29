@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Calendar, Search, Download, Upload, ArrowRight, ExternalLink, LayoutGrid, Rows3, X, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, Calendar, Search, Download, Upload, ArrowRight, LayoutGrid, Rows3, X, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -510,13 +510,6 @@ export default function RoutineManagement() {
     return "";
   };
 
-  const getRoutineLinkLabel = (rawLink: string | null | undefined) => {
-    const normalized = normalizeRoutineLink(rawLink);
-    if (!normalized) return "";
-
-    return normalized.replace(/^https?:\/\//i, "").replace(/\/$/, "");
-  };
-
   const handleOpenLink = (rawLink: string | null | undefined) => {
     const normalized = normalizeRoutineLink(rawLink);
     if (!normalized) {
@@ -933,14 +926,13 @@ export default function RoutineManagement() {
                   {viewMode === "table" && (
                   <div className="overflow-x-auto">
                     <DataCard>
-                      <Table className="min-w-[1320px]">
+                      <Table className="min-w-[1200px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-8"></TableHead>
                             <TableHead>名稱</TableHead>
                             <TableHead className="w-[320px] min-w-[280px]">備註</TableHead>
                             <TableHead className="w-[88px]">圖片</TableHead>
-                            <TableHead className="min-w-[220px]">連結</TableHead>
                             <TableHead>最近例行之一</TableHead>
                             <TableHead>最近例行之二</TableHead>
                             <TableHead>相距天數</TableHead>
@@ -954,7 +946,7 @@ export default function RoutineManagement() {
                               {inlineEditingId === routine.$id ? (
                                 // 行內編輯模式
                                 <>
-                                  <TableCell colSpan={10} className="bg-orange-50 dark:bg-orange-900/20">
+                                  <TableCell colSpan={9} className="bg-orange-50 dark:bg-orange-900/20">
                                     <div className="space-y-3 py-2">
                                       <div className="flex items-center gap-2 mb-2">
                                         <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
@@ -1034,7 +1026,20 @@ export default function RoutineManagement() {
                                       />
                                     )}
                                   </TableCell>
-                                  <TableCell className="font-medium">{routine.name}</TableCell>
+                                  <TableCell className="font-medium">
+                                    {normalizeRoutineLink(routine.link) ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenLink(routine.link)}
+                                        className="max-w-[220px] truncate text-left text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                        title={normalizeRoutineLink(routine.link)}
+                                      >
+                                        {routine.name}
+                                      </button>
+                                    ) : (
+                                      routine.name
+                                    )}
+                                  </TableCell>
                                   <TableCell className="min-w-[280px] align-top">
                                     {routine.note && (
                                       <div className="mt-1 max-w-[320px] rounded border border-gray-100 bg-gray-50 p-2 text-xs text-gray-500 shadow-sm max-h-[150px] overflow-y-auto whitespace-pre-wrap break-words dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
@@ -1055,34 +1060,11 @@ export default function RoutineManagement() {
                                       </div>
                                     )}
                                   </TableCell>
-                                  <TableCell>
-                                    {normalizeRoutineLink(routine.link) ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenLink(routine.link)}
-                                        className="max-w-[240px] truncate text-left text-sm text-blue-600 underline underline-offset-2 hover:text-blue-700"
-                                        title={normalizeRoutineLink(routine.link)}
-                                      >
-                                        {getRoutineLinkLabel(routine.link)}
-                                      </button>
-                                    ) : (
-                                      <span className="text-gray-400">-</span>
-                                    )}
-                                  </TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate1)}</TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate2)}</TableCell>
                                   <TableCell>{calculateDaysDiff(routine.lastdate1, routine.lastdate2)}</TableCell>
                                   <TableCell>{formatDateTime(routine.lastdate3)}</TableCell>
                                   <TableCell className="text-right space-x-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleOpenLink(routine.link)}
-                                      disabled={!normalizeRoutineLink(routine.link)}
-                                      title="開啟連結"
-                                    >
-                                      <ExternalLink size={16} />
-                                    </Button>
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -1200,23 +1182,24 @@ export default function RoutineManagement() {
                                 </div>
                               )}
                               <div className="flex-1">
-                                <h3 className="font-semibold text-lg">{routine.name}</h3>
+                                {normalizeRoutineLink(routine.link) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenLink(routine.link)}
+                                    className="text-left text-lg font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                    title={normalizeRoutineLink(routine.link)}
+                                  >
+                                    {routine.name}
+                                  </button>
+                                ) : (
+                                  <h3 className="font-semibold text-lg">{routine.name}</h3>
+                                )}
                               </div>
                             </div>
                             {routine.note && (
                               <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 whitespace-pre-wrap break-all max-h-[200px] overflow-y-auto shadow-inner">
                                 {routine.note}
                               </div>
-                            )}
-                            {normalizeRoutineLink(routine.link) && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenLink(routine.link)}
-                                className="w-full rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-left text-sm text-blue-700 shadow-sm transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300"
-                                title={normalizeRoutineLink(routine.link)}
-                              >
-                                {getRoutineLinkLabel(routine.link)}
-                              </button>
                             )}
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
@@ -1237,16 +1220,6 @@ export default function RoutineManagement() {
                               </div>
                             </div>
                             <div className="flex gap-2 pt-3">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleOpenLink(routine.link)}
-                                disabled={!normalizeRoutineLink(routine.link)}
-                                className="h-11 flex-1 rounded-xl"
-                                title="開啟連結"
-                              >
-                                <ExternalLink size={16} />
-                              </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
