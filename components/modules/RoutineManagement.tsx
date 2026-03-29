@@ -925,7 +925,7 @@ export default function RoutineManagement() {
                   {/* 列表檢視 */}
                   {viewMode === "table" && (
                   <div className="overflow-x-auto">
-                    <DataCard>
+                    <DataCard className="overflow-visible">
                       <Table className="min-w-[1200px]">
                         <TableHeader className="sticky top-0 z-20">
                           <TableRow>
