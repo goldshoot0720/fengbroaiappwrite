@@ -927,16 +927,16 @@ export default function RoutineManagement() {
                   <div className="overflow-x-auto">
                     <DataCard>
                       <Table className="min-w-[1200px]">
-                        <TableHeader>
+                        <TableHeader className="sticky top-0 z-20">
                           <TableRow>
-                            <TableHead className="w-8"></TableHead>
-                            <TableHead>名稱</TableHead>
-                            <TableHead className="w-[320px] min-w-[280px]">備註</TableHead>
-                            <TableHead className="w-[88px]">圖片</TableHead>
-                            <TableHead>最近例行之一</TableHead>
-                            <TableHead>最近例行之二</TableHead>
-                            <TableHead>最近例行之三</TableHead>
-                            <TableHead className="text-right">操作</TableHead>
+                            <TableHead className="sticky top-0 z-20 w-8 bg-white/95 backdrop-blur dark:bg-slate-950/95"></TableHead>
+                            <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">名稱</TableHead>
+                            <TableHead className="sticky top-0 z-20 w-[320px] min-w-[280px] bg-white/95 backdrop-blur dark:bg-slate-950/95">備註</TableHead>
+                            <TableHead className="sticky top-0 z-20 w-[88px] bg-white/95 backdrop-blur dark:bg-slate-950/95">圖片</TableHead>
+                            <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">最近例行之一</TableHead>
+                            <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">最近例行之二</TableHead>
+                            <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">最近例行之三</TableHead>
+                            <TableHead className="sticky top-0 z-20 bg-white/95 text-right backdrop-blur dark:bg-slate-950/95">操作</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
