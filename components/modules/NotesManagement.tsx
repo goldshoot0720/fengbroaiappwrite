@@ -1748,7 +1748,7 @@ export default function NotesManagement() {
                       size="sm"
                       onClick={() => handleBatchCategorize(batchCategory)}
                       disabled={batchCategorizing || !batchCategory.trim()}
-                      className="rounded-xl h-9 bg-purple-600 text-white hover:bg-purple-700"
+                      className="h-9 min-w-[132px] rounded-xl bg-purple-600 text-white hover:bg-purple-700"
                     >
                       {batchCategorizing ? "分類中..." : `套用分類 (${selectedIds.size})`}
                     </Button>
@@ -1758,7 +1758,7 @@ export default function NotesManagement() {
                       size="sm"
                       onClick={() => handleBatchCategorize("")}
                       disabled={batchCategorizing}
-                      className="rounded-xl h-9"
+                      className="h-9 min-w-[108px] rounded-xl"
                     >
                       清除分類
                     </Button>
