@@ -221,6 +221,8 @@ export default function NotesManagement() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [batchDeleteProgress, setBatchDeleteProgress] = useState({ current: 0, total: 0 });
+  const [batchCategory, setBatchCategory] = useState("");
+  const [batchCategorizing, setBatchCategorizing] = useState(false);
 
   // File upload states
   const [selectedFile1, setSelectedFile1] = useState<File | null>(null);
@@ -590,6 +592,63 @@ export default function NotesManagement() {
     setBatchDeleteProgress({ current: 0, total: 0 });
     setSelectedIds(new Set());
     alert(`批次刪除完成！\n成功: ${successCount} 篇\n失敗: ${failCount} 篇`);
+  };
+
+  const handleBatchCategorize = async (nextCategory: string) => {
+    if (selectedIds.size === 0) return;
+
+    const ids = Array.from(selectedIds);
+    const normalizedCategory = nextCategory.trim();
+    setBatchCategorizing(true);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of ids) {
+      const article = articles.find((item) => item.$id === id);
+      if (!article) {
+        failCount++;
+        continue;
+      }
+
+      try {
+        await updateArticle(id, {
+          title: article.title,
+          content: article.content,
+          newDate: formatDate(article.newDate),
+          category: normalizedCategory,
+          url1: article.url1 || "",
+          url2: article.url2 || "",
+          url3: article.url3 || "",
+          file1: article.file1 || "",
+          file1name: article.file1name || "",
+          file1type: article.file1type || "",
+          file2: article.file2 || "",
+          file2name: article.file2name || "",
+          file2type: article.file2type || "",
+          file3: article.file3 || "",
+          file3name: article.file3name || "",
+          file3type: article.file3type || "",
+        });
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setBatchCategorizing(false);
+    setBatchCategory("");
+
+    if (failCount === 0) {
+      alert(normalizedCategory ? `已將 ${successCount} 篇筆記歸類到「${normalizedCategory}」` : `已清除 ${successCount} 篇筆記的分類`);
+      return;
+    }
+
+    alert(
+      normalizedCategory
+        ? `批次分類完成\n成功: ${successCount} 篇\n失敗: ${failCount} 篇\n分類: ${normalizedCategory}`
+        : `批次清除分類完成\n成功: ${successCount} 篇\n失敗: ${failCount} 篇`
+    );
   };
 
   const handleEdit = (article: Article) => {
@@ -1669,19 +1728,55 @@ export default function NotesManagement() {
                 </span>
               </label>
               {selectedIds.size > 0 && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleBatchDelete}
-                  disabled={batchDeleting}
-                  className="rounded-xl flex items-center gap-2 h-9"
-                >
-                  <Trash2 size={16} />
-                  {batchDeleting
-                    ? `刪除中 (${batchDeleteProgress.current}/${batchDeleteProgress.total})...`
-                    : `刪除所選 (${selectedIds.size})`}
-                </Button>
+                <>
+                  <div className="flex min-w-[220px] flex-1 flex-col gap-2 sm:min-w-[280px] sm:flex-row">
+                    <Input
+                      list="batch-note-category-options"
+                      placeholder="輸入要套用的分類"
+                      value={batchCategory}
+                      onChange={(e) => setBatchCategory(e.target.value)}
+                      className="h-9 rounded-xl"
+                      disabled={batchCategorizing}
+                    />
+                    <datalist id="batch-note-category-options">
+                      {existingCategories.map((cat) => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleBatchCategorize(batchCategory)}
+                      disabled={batchCategorizing || !batchCategory.trim()}
+                      className="rounded-xl h-9 bg-purple-600 text-white hover:bg-purple-700"
+                    >
+                      {batchCategorizing ? "分類中..." : `套用分類 (${selectedIds.size})`}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleBatchCategorize("")}
+                      disabled={batchCategorizing}
+                      className="rounded-xl h-9"
+                    >
+                      清除分類
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBatchDelete}
+                    disabled={batchDeleting || batchCategorizing}
+                    className="rounded-xl flex items-center gap-2 h-9"
+                  >
+                    <Trash2 size={16} />
+                    {batchDeleting
+                      ? `刪除中 (${batchDeleteProgress.current}/${batchDeleteProgress.total})...`
+                      : `刪除所選 (${selectedIds.size})`}
+                  </Button>
+                </>
               )}
             </div>
           )}
