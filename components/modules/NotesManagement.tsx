@@ -1071,7 +1071,7 @@ export default function NotesManagement() {
       content: formData.content,
       newDate: dateTime,
     };
-    if (formData.category && formData.category.trim()) dataToSend.category = formData.category;
+    if (formData.category !== undefined) dataToSend.category = formData.category.trim();
     if (formData.url1 && formData.url1.trim()) dataToSend.url1 = formData.url1;
     if (formData.url2 && formData.url2.trim()) dataToSend.url2 = formData.url2;
     if (formData.url3 && formData.url3.trim()) dataToSend.url3 = formData.url3;

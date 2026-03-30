@@ -125,8 +125,8 @@ export function useArticles() {
         newDate: dateTime,
       };
 
-      // 分類
-      if (formData.category && formData.category.trim()) dataToSend.category = formData.category;
+      // 分類：更新時允許空白字串清除既有分類
+      if (formData.category !== undefined) dataToSend.category = formData.category.trim();
 
       if (formData.url1 && formData.url1.trim()) dataToSend.url1 = formData.url1;
       if (formData.url2 && formData.url2.trim()) dataToSend.url2 = formData.url2;
