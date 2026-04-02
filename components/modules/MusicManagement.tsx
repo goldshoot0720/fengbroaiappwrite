@@ -47,6 +47,10 @@ function addAppwriteConfigToUrl(url: string): string {
   return paramString ? `${url}${separator}${paramString}` : url;
 }
 
+function getDefaultMusicName(fileName: string): string {
+  return fileName.replace(/\.[^/.]+$/, '');
+}
+
 export default function MusicManagement() {
   const { music, loading, error, stats, loadMusic } = useMusic();
   const [showFormModal, setShowFormModal] = useState(false);
@@ -1066,7 +1070,12 @@ export default function MusicManagement() {
                       setInlineCreateAudioFile(file);
                       setInlineCreateAudioPreview(URL.createObjectURL(file));
                       const ext = file.name.split('.').pop()?.toLowerCase() || '';
-                      setInlineCreateForm({ ...inlineCreateForm, filetype: ext });
+                      const defaultName = getDefaultMusicName(file.name);
+                      setInlineCreateForm((prev) => ({
+                        ...prev,
+                        name: prev.name || defaultName,
+                        filetype: ext,
+                      }));
                     }}
                     disabled={inlineCreateAudioUploading}
                     className="hidden"
@@ -2754,7 +2763,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     const preparedFiles = await Promise.all(files.map(async (file) => {
       const hash = await calculateFileHash(file);
       const filetype = file.name.split('.').pop()?.toLowerCase() || '';
-      const defaultName = file.name.replace(/\.[^/.]+$/, '');
+      const defaultName = getDefaultMusicName(file.name);
       const duplicateMusic = existingMusic.find(m =>
         m.hash === hash && (!music || m.$id !== music.$id)
       );
@@ -2778,11 +2787,15 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
     setFileHash(firstFile.hash);
 
     if (preparedFiles.length === 1) {
-      const autoName = !formData.name ? firstFile.defaultName : formData.name;
-      if (!formData.name) {
+      if (!music) {
         setUseNameSelect(false);
       }
-      setFormData({ ...formData, name: autoName, hash: firstFile.hash, filetype: firstFile.filetype });
+      setFormData((prev) => ({
+        ...prev,
+        name: music ? prev.name : firstFile.defaultName,
+        hash: firstFile.hash,
+        filetype: firstFile.filetype,
+      }));
 
       if (firstFile.duplicateMusicName) {
         setDuplicateWarning(`警告：此音樂與「${firstFile.duplicateMusicName}」相同，請勿重複上傳！`);
