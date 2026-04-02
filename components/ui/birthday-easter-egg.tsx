@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Gift, Sparkles, X } from "lucide-react";
 
-function isAprilThirdInTaipei() {
+type BirthdayEasterEggContent = {
+  badge: string;
+  title: string;
+  message: string;
+};
+
+function getBirthdayEasterEggContent(): BirthdayEasterEggContent | null {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Taipei",
     month: "2-digit",
@@ -14,14 +20,30 @@ function isAprilThirdInTaipei() {
   const month = parts.find((part) => part.type === "month")?.value;
   const day = parts.find((part) => part.type === "day")?.value;
 
-  return month === "04" && day === "03";
+  if (month === "04" && day === "03") {
+    return {
+      badge: "April 3 Surprise",
+      title: "塗哥生日快樂",
+      message: "今彩539頭獎得主鋒兄，今天整站啟動生日彩蛋模式。",
+    };
+  }
+
+  if (month === "11" && day === "27") {
+    return {
+      badge: "November 27 Surprise",
+      title: "鋒兄生日快樂",
+      message: "高考三級資訊處理榜首鋒兄，今天全站啟動專屬生日特效。",
+    };
+  }
+
+  return null;
 }
 
 export function BirthdayEasterEgg() {
-  const [isVisible, setIsVisible] = useState(false);
+  const [content, setContent] = useState<BirthdayEasterEggContent | null>(null);
 
   useEffect(() => {
-    setIsVisible(isAprilThirdInTaipei());
+    setContent(getBirthdayEasterEggContent());
   }, []);
 
   const confettiPieces = useMemo(
@@ -41,7 +63,7 @@ export function BirthdayEasterEgg() {
     []
   );
 
-  if (!isVisible) return null;
+  if (!content) return null;
 
   return (
     <>
@@ -69,17 +91,17 @@ export function BirthdayEasterEgg() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700/80 dark:text-amber-200/80">
                 <Sparkles size={14} />
-                April 3 Surprise
+                {content.badge}
               </div>
-              <p className="mt-1 text-lg font-bold sm:text-2xl">塗哥生日快樂</p>
+              <p className="mt-1 text-lg font-bold sm:text-2xl">{content.title}</p>
               <p className="mt-1 text-sm leading-6 text-slate-700 dark:text-amber-100/88 sm:text-base">
-                今彩539頭獎得主鋒兄，今天整站啟動生日彩蛋模式。
+                {content.message}
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => setIsVisible(false)}
+              onClick={() => setContent(null)}
               className="rounded-full border border-white/60 bg-white/60 p-2 text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-amber-50 dark:hover:bg-white/20"
               aria-label="關閉生日彩蛋"
             >
