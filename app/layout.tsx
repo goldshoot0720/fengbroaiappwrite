@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { BirthdayEasterEgg } from "@/components/ui/birthday-easter-egg";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
 
@@ -180,6 +181,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} safe-area-inset antialiased`}
       >
         <ThemeProvider defaultTheme="system" storageKey="ui-theme">
+          <BirthdayEasterEgg />
           {children}
         </ThemeProvider>
       </body>
