@@ -28,6 +28,20 @@ const FENG_BRO_ASCII = String.raw`
 |_|   |_____|_| \_|\_____| |____/|_| \_\\___/
 `;
 
+const FENG_BRO_ASCII_MOBILE = String.raw`
+#### ##### #   #  ####
+#    #     ##  # #    
+###  ###   # # # # ##
+#    #     #  ## #  #
+#    ##### #   #  ####
+
+#### ####   ###
+#   # #   # #   #
+####  ####  #   #
+#   # #  #  #   #
+####  #   #  ###
+`;
+
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
   const { stats, loading, error: dashboardError } = useDashboardStats();
   const { stats: mediaStats, loading: mediaLoading, error: mediaError } = useMediaStats();
@@ -209,15 +223,20 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
             <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-200/80 sm:text-[11px] sm:tracking-[0.38em]">ASCII Welcome</p>
           </div>
           <div className="px-3 py-3 sm:px-5 sm:py-5">
-            <div className="overflow-x-auto rounded-[28px] border border-slate-300/80 bg-[linear-gradient(180deg,rgba(241,244,248,0.98),rgba(223,229,236,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-              <div className="flex items-center gap-2 border-b border-slate-300/80 px-4 py-3">
+            <div className="overflow-hidden rounded-[28px] border border-slate-300/80 bg-[linear-gradient(180deg,rgba(241,244,248,0.98),rgba(223,229,236,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <div className="flex items-center gap-2 border-b border-slate-300/80 px-3 py-3 sm:px-4">
                 <span className="h-3 w-3 rounded-full bg-[#e9c86b]" />
                 <span className="h-3 w-3 rounded-full bg-[#e2a56f]" />
                 <span className="h-3 w-3 rounded-full bg-[#7fc88e]" />
-                <p className="ml-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">Feng Bro / Home Signal</p>
+                <p className="ml-1 text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:ml-2 sm:text-[11px] sm:tracking-[0.18em]">Feng Bro / Home Signal</p>
               </div>
-              <div className="overflow-x-auto px-4 py-6 sm:px-6 sm:py-7">
-                <pre className="inline-block min-w-max whitespace-pre font-mono text-[6px] font-bold leading-[1.02] text-[#183b63] [text-shadow:3px_3px_0_rgba(255,255,255,0.95),6px_6px_0_rgba(24,59,99,0.38)] sm:text-[11px] sm:leading-[1.08]">
+              <div className="px-3 py-5 sm:px-6 sm:py-7">
+                <div className="sm:hidden overflow-x-auto">
+                  <pre className="mx-auto inline-block whitespace-pre font-mono text-[11px] font-bold leading-[1.06] tracking-[-0.04em] text-[#183b63] [text-shadow:2px_2px_0_rgba(255,255,255,0.95),4px_4px_0_rgba(24,59,99,0.18)]">
+                    {FENG_BRO_ASCII_MOBILE}
+                  </pre>
+                </div>
+                <pre className="hidden sm:inline-block min-w-max whitespace-pre font-mono text-[11px] font-bold leading-[1.08] text-[#183b63] [text-shadow:3px_3px_0_rgba(255,255,255,0.95),6px_6px_0_rgba(24,59,99,0.38)]">
                   {FENG_BRO_ASCII}
                 </pre>
               </div>
