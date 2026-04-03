@@ -29,17 +29,17 @@ const FENG_BRO_ASCII = String.raw`
 `;
 
 const FENG_BRO_ASCII_MOBILE = String.raw`
-#### ##### #   #  ####
-#    #     ##  # #    
-###  ###   # # # # ##
-#    #     #  ## #  #
-#    ##### #   #  ####
+______ ______ _   _   ____
+|  ___|  ___| \ | | / ___|
+| |_  | |_  |  \| | | | _
+|  _| |  _| | |\  | | |_| |
+|_|   |_|   |_| \_|  \____|
 
-#### ####   ###
-#   # #   # #   #
-####  ####  #   #
-#   # #  #  #   #
-####  #   #  ###
+____  ____   ___
+| __ )|  _ \ / _ \
+|  _ \| |_) | | | |
+| |_) |  _ <| |_| |
+|____/|_| \_\\___/
 `;
 
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
@@ -231,8 +231,8 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
                 <p className="ml-1 text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:ml-2 sm:text-[11px] sm:tracking-[0.18em]">Feng Bro / Home Signal</p>
               </div>
               <div className="px-3 py-5 sm:px-6 sm:py-7">
-                <div className="sm:hidden overflow-x-auto">
-                  <pre className="mx-auto inline-block whitespace-pre font-mono text-[11px] font-bold leading-[1.06] tracking-[-0.04em] text-[#183b63] [text-shadow:2px_2px_0_rgba(255,255,255,0.95),4px_4px_0_rgba(24,59,99,0.18)]">
+                <div className="sm:hidden overflow-hidden">
+                  <pre className="mx-auto inline-block whitespace-pre font-mono text-[8px] font-bold leading-[1.12] tracking-[-0.02em] text-[#25456f]">
                     {FENG_BRO_ASCII_MOBILE}
                   </pre>
                 </div>
