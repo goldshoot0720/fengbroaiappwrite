@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BirthdayEasterEgg } from "@/components/ui/birthday-easter-egg";
 import { MusicQueuePanel } from "@/components/ui/music-queue-panel";
 import { PodcastQueuePanel } from "@/components/ui/podcast-queue-panel";
 import { ThemeToggleCompact } from "@/components/ui/theme-toggle";
@@ -122,6 +123,11 @@ export default function DashboardLayout({
                 activeLabel={activeItem?.label ?? "首頁"}
                 moduleCount={menuItems.length}
               />
+              {currentModule === "home" && (
+                <div className="relative overflow-hidden rounded-[28px]">
+                  <BirthdayEasterEgg inline />
+                </div>
+              )}
               <div className="surface-panel rounded-[24px] p-3 sm:p-4 md:rounded-[28px] md:p-5 xl:rounded-[32px] xl:p-8">
                 {children}
               </div>
