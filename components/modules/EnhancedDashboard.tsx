@@ -21,11 +21,11 @@ interface EnhancedDashboardProps {
 }
 
 const FENG_BRO_ASCII = String.raw`
-FFFFF  EEEEE  N   N   GGGG      BBBB   RRRR    OOO
-F      E      NN  N  G          B   B  R   R  O   O
-FFFF   EEEE   N N N  G  GG      BBBB   RRRR   O   O
-F      E      N  NN  G   G      B   B  R  R   O   O
-F      EEEEE  N   N   GGGG      BBBB   R   R   OOO
+ _______ ______ _   _  _____   ____  ____   ___
+|  ___| ____| \ | |/ ____| | __ )|  _ \ / _ \
+| |_  |  _| |  \| | |  __  |  _ \| |_) | | | |
+|  _| | |___| |\  | | |_ | | |_) |  _ <| |_| |
+|_|   |_____|_| \_|\_____| |____/|_| \_\\___/
 `;
 
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
@@ -208,10 +208,20 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
           <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(110,231,183,0.2),transparent_38%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent)] px-3 py-2.5 sm:px-5 sm:py-3">
             <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-200/80 sm:text-[11px] sm:tracking-[0.38em]">ASCII Welcome</p>
           </div>
-          <div className="overflow-x-auto px-3 py-3 sm:px-5 sm:py-5">
-            <pre className="inline-block min-w-max whitespace-pre font-mono text-[6px] leading-[1.1] text-emerald-200 sm:text-[11px] sm:leading-[1.25]">
-              {FENG_BRO_ASCII}
-            </pre>
+          <div className="px-3 py-3 sm:px-5 sm:py-5">
+            <div className="overflow-x-auto rounded-[28px] border border-slate-300/80 bg-[linear-gradient(180deg,rgba(241,244,248,0.98),rgba(223,229,236,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <div className="flex items-center gap-2 border-b border-slate-300/80 px-4 py-3">
+                <span className="h-3 w-3 rounded-full bg-[#e9c86b]" />
+                <span className="h-3 w-3 rounded-full bg-[#e2a56f]" />
+                <span className="h-3 w-3 rounded-full bg-[#7fc88e]" />
+                <p className="ml-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">Feng Bro / Home Signal</p>
+              </div>
+              <div className="overflow-x-auto px-4 py-6 sm:px-6 sm:py-7">
+                <pre className="inline-block min-w-max whitespace-pre font-mono text-[6px] font-bold leading-[1.02] text-[#183b63] [text-shadow:3px_3px_0_rgba(255,255,255,0.95),6px_6px_0_rgba(24,59,99,0.38)] sm:text-[11px] sm:leading-[1.08]">
+                  {FENG_BRO_ASCII}
+                </pre>
+              </div>
+            </div>
           </div>
         </DataCard>
         
