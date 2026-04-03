@@ -21,14 +21,11 @@ interface EnhancedDashboardProps {
 }
 
 const FENG_BRO_ASCII = String.raw`
- _______  _______  _        _______    ______   _______  _______
-(  ____ \\(  ____ \\( (    /|(  ____ \\  (  ___ \\ (  ____ \\(  ___  )
-| (    \\/| (    \\/|  \\  ( || (    \\/  | (   ) )| (    \\/| (   ) |
-| (__    | (__    |   \\ | || |        | (__/ / | |      | |   | |
-|  __)   |  __)   | (\\ \\) || | ____   |  __ (  | |      | |   | |
-| (      | (      | | \\   || | \\_  )  | (  \\ \\ | |      | |   | |
-| )      | (____/\\| )  \\  || (___) |  | )___) )| (____/\\| (___) |
-|/       (_______/|/    )_)(_______)  |/ \\___/ (_______/(_______)
+FFFFFFFF  EEEEEEEE  NNN   NN   GGGGGG        BBBBBBB    RRRRRR    OOOOOO
+FF        EE        NNNN  NN  GG             BB    BB   RR   RR  OO    OO
+FFFFF     EEEEE     NN NN NN  GG   GGG       BBBBBBB    RRRRRR   OO    OO
+FF        EE        NN  NNNN  GG    GG       BB    BB   RR  RR   OO    OO
+FF        EEEEEEEE  NN   NNN   GGGGGG        BBBBBBB    RR   RR   OOOOOO
 `;
 
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
