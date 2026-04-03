@@ -206,11 +206,11 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         <PageTitle title={title} />
 
         <DataCard className="overflow-hidden border-[var(--line-strong)] bg-[linear-gradient(135deg,rgba(18,25,22,0.96),rgba(42,56,49,0.92))] p-0 text-emerald-50 shadow-[0_24px_50px_rgba(15,23,20,0.28)]">
-          <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(110,231,183,0.2),transparent_38%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent)] px-5 py-3">
-            <p className="text-[11px] uppercase tracking-[0.38em] text-emerald-200/80">ASCII Welcome</p>
+          <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(110,231,183,0.2),transparent_38%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent)] px-3 py-2.5 sm:px-5 sm:py-3">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-200/80 sm:text-[11px] sm:tracking-[0.38em]">ASCII Welcome</p>
           </div>
-          <div className="overflow-x-auto px-5 py-5">
-            <pre className="min-w-[640px] whitespace-pre font-mono text-[11px] leading-[1.25] text-emerald-200 sm:text-xs">
+          <div className="overflow-x-auto px-3 py-3 sm:px-5 sm:py-5">
+            <pre className="inline-block min-w-max whitespace-pre font-mono text-[6px] leading-[1.1] text-emerald-200 sm:text-[11px] sm:leading-[1.25]">
               {FENG_BRO_ASCII}
             </pre>
           </div>
