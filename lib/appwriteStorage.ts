@@ -1,6 +1,34 @@
 import { Client, Storage, ID, Permission, Role } from 'appwrite';
 import { getAppwriteConfig } from './utils';
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function getUploadErrorMessage(error: any, file: File): string {
+  const rawMessage =
+    typeof error?.message === 'string'
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Upload to Appwrite Storage failed';
+
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (
+    normalizedMessage.includes('above the limit allowed for your plan') ||
+    normalizedMessage.includes('file size not allowed') ||
+    normalizedMessage.includes('maximum allowed size')
+  ) {
+    return `檔案「${file.name}」大小為 ${formatFileSize(file.size)}，已超過目前 Appwrite 方案的單檔上傳限制。請改傳較小的檔案，或到 Appwrite Console 升級方案後再試。`;
+  }
+
+  return rawMessage;
+}
+
 /**
  * Create Appwrite client for direct storage uploads
  */
@@ -65,7 +93,7 @@ export async function uploadToAppwriteStorage(
     };
   } catch (error: any) {
     console.error('[uploadToAppwriteStorage] Error:', error);
-    throw new Error(error.message || 'Upload to Appwrite Storage failed');
+    throw new Error(getUploadErrorMessage(error, file));
   }
 }
 

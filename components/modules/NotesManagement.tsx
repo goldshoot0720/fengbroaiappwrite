@@ -20,28 +20,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import {
+  getOriginalMultipartFiletype,
+  isMultipartFiletype,
+  MULTIPART_UPLOAD_THRESHOLD,
+  resolveMultipartFileBlob,
+  uploadFileInParts,
+} from "@/lib/fileMultipart";
 import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List } from "lucide-react";
 import JSZip from "jszip";
 import { FaviconImage } from "@/components/ui/favicon-image";
 
-const INITIAL_FORM: ArticleFormData = {
-  title: "",
-  content: "",
-  newDate: new Date().toISOString().split('T')[0],
-  category: "",
-  url1: "",
-  url2: "",
-  url3: "",
-  file1: "",
-  file1name: "",
-  file1type: "",
-  file2: "",
-  file2name: "",
-  file2type: "",
-  file3: "",
-  file3name: "",
-  file3type: "",
-};
+function getTodayInputDate() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - offset).toISOString().split("T")[0];
+}
+
+function createInitialForm(): ArticleFormData {
+  return {
+    title: "",
+    content: "",
+    newDate: "",
+    category: "",
+    url1: "",
+    url2: "",
+    url3: "",
+    file1: "",
+    file1name: "",
+    file1type: "",
+    file2: "",
+    file2name: "",
+    file2type: "",
+    file3: "",
+    file3name: "",
+    file3type: "",
+  };
+}
+
+const INITIAL_FORM: ArticleFormData = createInitialForm();
 
 const NOTE_TEMPLATES: Record<string, { title: string; category: string; content: string }> = {
   meeting: { title: "會議紀錄", category: "專案", content: "會議主題：\n參與者：\n重點：\n待辦：\n下一步：" },
@@ -66,6 +83,25 @@ function extractTodoCount(content: string) {
 
 function getAttachmentCount(article: Article) {
   return [article.file1, article.file2, article.file3].filter(Boolean).length;
+}
+
+function getAttachmentType(filetype?: string | null) {
+  return getOriginalMultipartFiletype(filetype);
+}
+
+function getAttachmentIcon(filetype?: string | null) {
+  const normalizedType = getAttachmentType(filetype);
+  if (normalizedType === "jpg") return "🖼️";
+  if (normalizedType === "mp4") return "🎥";
+  if (normalizedType === "mp3") return "🎵";
+  if (normalizedType === "xlsx") return "📊";
+  if (normalizedType === "pptx") return "📽️";
+  if (normalizedType === "zip") return "🗂️";
+  return "📄";
+}
+
+function canPreviewAttachment(filetype?: string | null) {
+  return !isMultipartFiletype(filetype);
 }
 
 // TXT 預覽元件 - 支援 UTF-8 編碼
@@ -194,9 +230,9 @@ function ZipPreview({ url }: { url: string; title: string }) {
 
 export default function NotesManagement() {
   const { articles, loading, error, stats, loadArticles, createArticle, updateArticle, deleteArticle } = useArticles();
-  const [form, setForm] = useState<ArticleFormData>(INITIAL_FORM);
+  const [form, setForm] = useState<ArticleFormData>(() => createInitialForm());
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<ArticleFormData>(INITIAL_FORM);
+  const [editForm, setEditForm] = useState<ArticleFormData>(() => createInitialForm());
   const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
   const [previewFiles, setPreviewFiles] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -281,6 +317,10 @@ export default function NotesManagement() {
     if (typeof window === "undefined") return;
     localStorage.setItem("notes_view_mode", noteViewMode);
   }, [noteViewMode]);
+
+  useEffect(() => {
+    setForm((prev) => (prev.newDate ? prev : { ...prev, newDate: getTodayInputDate() }));
+  }, []);
 
   // 搜尋過濾（包含分類）
   const filteredArticles = useMemo(() => {
@@ -423,17 +463,22 @@ export default function NotesManagement() {
     }
   };
 
-  const uploadFile = async (file: File, _endpoint: string, isEdit: boolean = false): Promise<string> => {
-    // Upload directly to Appwrite to bypass Next.js body size limit
+  const uploadFile = async (file: File, _endpoint: string, isEdit: boolean = false): Promise<{ url: string; filetype?: string }> => {
     try {
-      const result = await uploadToAppwriteStorage(file, (progress) => {
+      const uploader =
+        file.size > MULTIPART_UPLOAD_THRESHOLD ? uploadFileInParts : uploadToAppwriteStorage;
+
+      const result = await uploader(file, (progress) => {
         if (isEdit) {
           setEditUploadProgress(progress);
         } else {
           setUploadProgress(progress);
         }
       });
-      return result.url;
+      return {
+        url: result.url,
+        filetype: "filetype" in result && typeof result.filetype === "string" ? result.filetype : undefined,
+      };
     } catch (error) {
       throw error instanceof Error ? error : new Error('上傳失敗');
     }
@@ -451,7 +496,9 @@ export default function NotesManagement() {
         const endpoint = ['jpg', 'image'].includes(form.file1type || '') ? '/api/upload-image' :
           ['mp4', 'video'].includes(form.file1type || '') ? '/api/upload-video' :
             '/api/upload-music'; // Use music endpoint for audio and documents
-        formDataToSubmit.file1 = await uploadFile(selectedFile1, endpoint, false);
+        const uploaded = await uploadFile(selectedFile1, endpoint, false);
+        formDataToSubmit.file1 = uploaded.url;
+        if (uploaded.filetype) formDataToSubmit.file1type = uploaded.filetype;
       }
       if (selectedFile2) {
         setUploadingFile(2);
@@ -459,7 +506,9 @@ export default function NotesManagement() {
         const endpoint = ['jpg', 'image'].includes(form.file2type || '') ? '/api/upload-image' :
           ['mp4', 'video'].includes(form.file2type || '') ? '/api/upload-video' :
             '/api/upload-music'; // Use music endpoint for audio and documents
-        formDataToSubmit.file2 = await uploadFile(selectedFile2, endpoint, false);
+        const uploaded = await uploadFile(selectedFile2, endpoint, false);
+        formDataToSubmit.file2 = uploaded.url;
+        if (uploaded.filetype) formDataToSubmit.file2type = uploaded.filetype;
       }
       if (selectedFile3) {
         setUploadingFile(3);
@@ -467,7 +516,9 @@ export default function NotesManagement() {
         const endpoint = ['jpg', 'image'].includes(form.file3type || '') ? '/api/upload-image' :
           ['mp4', 'video'].includes(form.file3type || '') ? '/api/upload-video' :
             '/api/upload-music'; // Use music endpoint for audio and documents
-        formDataToSubmit.file3 = await uploadFile(selectedFile3, endpoint, false);
+        const uploaded = await uploadFile(selectedFile3, endpoint, false);
+        formDataToSubmit.file3 = uploaded.url;
+        if (uploaded.filetype) formDataToSubmit.file3type = uploaded.filetype;
       }
 
       setUploadingFile(null);
@@ -479,7 +530,7 @@ export default function NotesManagement() {
       setUploadingFile(null);
       setUploadProgress(0);
       console.error("新增筆記失敗:", error);
-      alert("操作失敗，請稍後再試");
+      alert(error instanceof Error ? error.message : "操作失敗，請稍後再試");
     }
   };
 
@@ -496,7 +547,9 @@ export default function NotesManagement() {
         const endpoint = ['jpg', 'image'].includes(editForm.file1type || '') ? '/api/upload-image' :
           ['mp4', 'video'].includes(editForm.file1type || '') ? '/api/upload-video' :
             '/api/upload-music';
-        formDataToSubmit.file1 = await uploadFile(editSelectedFile1, endpoint, true);
+        const uploaded = await uploadFile(editSelectedFile1, endpoint, true);
+        formDataToSubmit.file1 = uploaded.url;
+        if (uploaded.filetype) formDataToSubmit.file1type = uploaded.filetype;
       }
       if (editSelectedFile2) {
         setEditUploadingFile(2);
@@ -504,7 +557,9 @@ export default function NotesManagement() {
         const endpoint = ['jpg', 'image'].includes(editForm.file2type || '') ? '/api/upload-image' :
           ['mp4', 'video'].includes(editForm.file2type || '') ? '/api/upload-video' :
             '/api/upload-music';
-        formDataToSubmit.file2 = await uploadFile(editSelectedFile2, endpoint, true);
+        const uploaded = await uploadFile(editSelectedFile2, endpoint, true);
+        formDataToSubmit.file2 = uploaded.url;
+        if (uploaded.filetype) formDataToSubmit.file2type = uploaded.filetype;
       }
       if (editSelectedFile3) {
         setEditUploadingFile(3);
@@ -512,7 +567,9 @@ export default function NotesManagement() {
         const endpoint = ['jpg', 'image'].includes(editForm.file3type || '') ? '/api/upload-image' :
           ['mp4', 'video'].includes(editForm.file3type || '') ? '/api/upload-video' :
             '/api/upload-music';
-        formDataToSubmit.file3 = await uploadFile(editSelectedFile3, endpoint, true);
+        const uploaded = await uploadFile(editSelectedFile3, endpoint, true);
+        formDataToSubmit.file3 = uploaded.url;
+        if (uploaded.filetype) formDataToSubmit.file3type = uploaded.filetype;
       }
 
       setEditUploadingFile(null);
@@ -526,7 +583,7 @@ export default function NotesManagement() {
       setEditUploadingFile(null);
       setEditUploadProgress(0);
       console.error("編輯筆記失敗:", error);
-      alert("更新失敗，請稍後再試");
+      alert(error instanceof Error ? error.message : "更新失敗，請稍後再試");
     }
   };
 
@@ -677,7 +734,7 @@ export default function NotesManagement() {
   };
 
   const resetForm = () => {
-    setForm(INITIAL_FORM);
+    setForm({ ...createInitialForm(), newDate: getTodayInputDate() });
     setSelectedFile1(null);
     setSelectedFile2(null);
     setSelectedFile3(null);
@@ -686,7 +743,7 @@ export default function NotesManagement() {
 
   const resetEditForm = () => {
     setEditingId(null);
-    setEditForm(INITIAL_FORM);
+    setEditForm(createInitialForm());
   };
 
   const toggleExpanded = (id: string) => {
@@ -724,6 +781,29 @@ export default function NotesManagement() {
     }
   };
 
+  const handleAttachmentDownload = async (
+    fileUrl: string,
+    filetype?: string,
+    fileName?: string
+  ) => {
+    try {
+      const { blob, fileName: resolvedName } = await resolveMultipartFileBlob({
+        file: fileUrl,
+        filetype,
+        name: fileName,
+      });
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = resolvedName;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "下載失敗");
+    }
+  };
+
   const togglePinned = (id: string) => {
     setPinnedIds((prev) => {
       const next = new Set(prev);
@@ -740,7 +820,7 @@ export default function NotesManagement() {
       title: template.title,
       category: template.category,
       content: template.content,
-      newDate: prev.newDate || new Date().toISOString().split("T")[0],
+      newDate: prev.newDate || getTodayInputDate(),
     }));
     setIsFormCollapsed(false);
   };
@@ -822,7 +902,9 @@ export default function NotesManagement() {
           const localName = `${i}_1_${fileName}`;
           setExportStatus(`${item.title} → 下載 ${fileName}`);
           console.log(`[匯出]   下載 file1: ${fileName}`);
-          const blob = await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file1), abortController.signal);
+          const blob = isMultipartFiletype(item.file1type)
+            ? (await resolveMultipartFileBlob({ file: item.file1, filetype: item.file1type, name: item.file1name })).blob
+            : await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file1), abortController.signal);
           if (blob) {
             filesFolder.file(localName, blob);
             file1Path = `files/${localName}`;
@@ -838,7 +920,9 @@ export default function NotesManagement() {
           const localName = `${i}_2_${fileName}`;
           setExportStatus(`${item.title} → 下載 ${fileName}`);
           console.log(`[匯出]   下載 file2: ${fileName}`);
-          const blob = await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file2), abortController.signal);
+          const blob = isMultipartFiletype(item.file2type)
+            ? (await resolveMultipartFileBlob({ file: item.file2, filetype: item.file2type, name: item.file2name })).blob
+            : await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file2), abortController.signal);
           if (blob) {
             filesFolder.file(localName, blob);
             file2Path = `files/${localName}`;
@@ -854,7 +938,9 @@ export default function NotesManagement() {
           const localName = `${i}_3_${fileName}`;
           setExportStatus(`${item.title} → 下載 ${fileName}`);
           console.log(`[匯出]   下載 file3: ${fileName}`);
-          const blob = await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file3), abortController.signal);
+          const blob = isMultipartFiletype(item.file3type)
+            ? (await resolveMultipartFileBlob({ file: item.file3, filetype: item.file3type, name: item.file3name })).blob
+            : await downloadFileWithTimeout(getAppwriteDownloadUrl(item.file3), abortController.signal);
           if (blob) {
             filesFolder.file(localName, blob);
             file3Path = `files/${localName}`;
@@ -1007,7 +1093,7 @@ export default function NotesManagement() {
       data.push({
         title: values[0].trim(),
         content: values[1]?.trim() || '',
-        newDate: values[2]?.trim() || new Date().toISOString().split('T')[0],
+        newDate: values[2]?.trim() || getTodayInputDate(),
         url1: values[3]?.trim() || '',
         url2: values[4]?.trim() || '',
         url3: values[5]?.trim() || '',
@@ -1267,7 +1353,7 @@ export default function NotesManagement() {
               <Button type="button" className="rounded-xl bg-purple-600 hover:bg-purple-700 text-white" onClick={() => setIsFormCollapsed(false)}>
                 打開完整編輯器
               </Button>
-              <Button type="button" variant="outline" className="rounded-xl" onClick={() => setForm({ ...INITIAL_FORM, newDate: new Date().toISOString().split('T')[0] })}>
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => setForm({ ...createInitialForm(), newDate: getTodayInputDate() })}>
                 清空草稿
               </Button>
             </div>
@@ -2085,46 +2171,49 @@ export default function NotesManagement() {
                             {article.file1 && (
                               <div className="space-y-1 flex-shrink-0">
                                 <div className="flex items-center gap-2">
-                                  <a
-                                    href={getAppwriteDownloadUrl(article.file1)}
-                                    download={article.file1name || "download"}
-                                    target="_blank"
-                                    rel="noreferrer"
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAttachmentDownload(article.file1!, article.file1type, article.file1name)}
                                     className="text-sm text-green-600 dark:text-green-400 hover:underline"
                                   >
-                                    {article.file1type === 'jpg' ? '🖼️' : article.file1type === 'mp4' ? '🎥' : article.file1type === 'mp3' ? '🎵' : article.file1type === 'pdf' ? '📄' : article.file1type === 'txt' ? '📄' : article.file1type === 'docx' ? '📄' : article.file1type === 'xlsx' ? '📊' : article.file1type === 'pptx' ? '📽️' : article.file1type === 'zip' ? '🗂️' : '📄'} {article.file1name || '檔案 1'}
-                                  </a>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => togglePreview(`${article.$id}-file1`)}
-                                    className="h-6 px-2 text-xs"
-                                  >
-                                    {previewFiles.has(`${article.$id}-file1`) ? '收起' : '預覽'}
-                                  </Button>
+                                    {getAttachmentIcon(article.file1type)} {article.file1name || '檔案 1'}
+                                  </button>
+                                  {canPreviewAttachment(article.file1type) && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => togglePreview(`${article.$id}-file1`)}
+                                      className="h-6 px-2 text-xs"
+                                    >
+                                      {previewFiles.has(`${article.$id}-file1`) ? '收起' : '預覽'}
+                                    </Button>
+                                  )}
                                 </div>
-                                {previewFiles.has(`${article.$id}-file1`) && (
+                                {isMultipartFiletype(article.file1type) && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">分段檔案，下載時會自動合併</p>
+                                )}
+                                {canPreviewAttachment(article.file1type) && previewFiles.has(`${article.$id}-file1`) && (
                                   <>
-                                    {article.file1type === 'jpg' && (
+                                    {getAttachmentType(article.file1type) === 'jpg' && (
                                       <img src={article.file1} alt={article.file1name || '檔案 1'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
                                     )}
-                                    {article.file1type === 'mp4' && (
+                                    {getAttachmentType(article.file1type) === 'mp4' && (
                                       <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file1)} className="max-w-[300px] rounded-lg" />
                                     )}
-                                    {article.file1type === 'mp3' && (
+                                    {getAttachmentType(article.file1type) === 'mp3' && (
                                       <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file1)} className="max-w-[300px]" />
                                     )}
-                                    {article.file1type === 'pdf' && (
+                                    {getAttachmentType(article.file1type) === 'pdf' && (
                                       <iframe src={article.file1} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file1name || '檔案 1'}></iframe>
                                     )}
-                                    {article.file1type === 'txt' && (
+                                    {getAttachmentType(article.file1type) === 'txt' && (
                                       <TxtPreview url={article.file1} title={article.file1name || '檔案 1'} />
                                     )}
-                                    {(article.file1type === 'xlsx' || article.file1type === 'pptx' || article.file1type === 'docx') && (
+                                    {(['xlsx', 'pptx', 'docx'] as const).includes(getAttachmentType(article.file1type) as "xlsx" | "pptx" | "docx") && (
                                       <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file1)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file1name || '檔案 1'}></iframe>
                                     )}
-                                    {article.file1type === 'zip' && (
+                                    {getAttachmentType(article.file1type) === 'zip' && (
                                       <ZipPreview url={article.file1} title={article.file1name || '檔案 1'} />
                                     )}
                                   </>
@@ -2134,46 +2223,49 @@ export default function NotesManagement() {
                             {article.file2 && (
                               <div className="space-y-1 flex-shrink-0">
                                 <div className="flex items-center gap-2">
-                                  <a
-                                    href={getAppwriteDownloadUrl(article.file2)}
-                                    download={article.file2name || "download"}
-                                    target="_blank"
-                                    rel="noreferrer"
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAttachmentDownload(article.file2!, article.file2type, article.file2name)}
                                     className="text-sm text-green-600 dark:text-green-400 hover:underline"
                                   >
-                                    {article.file2type === 'jpg' ? '🖼️' : article.file2type === 'mp4' ? '🎥' : article.file2type === 'mp3' ? '🎵' : article.file2type === 'pdf' ? '📄' : article.file2type === 'txt' ? '📄' : article.file2type === 'docx' ? '📄' : article.file2type === 'xlsx' ? '📊' : article.file2type === 'pptx' ? '📽️' : article.file2type === 'zip' ? '🗂️' : '📄'} {article.file2name || '檔案 2'}
-                                  </a>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => togglePreview(`${article.$id}-file2`)}
-                                    className="h-6 px-2 text-xs"
-                                  >
-                                    {previewFiles.has(`${article.$id}-file2`) ? '收起' : '預覽'}
-                                  </Button>
+                                    {getAttachmentIcon(article.file2type)} {article.file2name || '檔案 2'}
+                                  </button>
+                                  {canPreviewAttachment(article.file2type) && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => togglePreview(`${article.$id}-file2`)}
+                                      className="h-6 px-2 text-xs"
+                                    >
+                                      {previewFiles.has(`${article.$id}-file2`) ? '收起' : '預覽'}
+                                    </Button>
+                                  )}
                                 </div>
-                                {previewFiles.has(`${article.$id}-file2`) && (
+                                {isMultipartFiletype(article.file2type) && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">分段檔案，下載時會自動合併</p>
+                                )}
+                                {canPreviewAttachment(article.file2type) && previewFiles.has(`${article.$id}-file2`) && (
                                   <>
-                                    {article.file2type === 'jpg' && (
+                                    {getAttachmentType(article.file2type) === 'jpg' && (
                                       <img src={article.file2} alt={article.file2name || '檔案 2'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
                                     )}
-                                    {article.file2type === 'mp4' && (
+                                    {getAttachmentType(article.file2type) === 'mp4' && (
                                       <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file2)} className="max-w-[300px] rounded-lg" />
                                     )}
-                                    {article.file2type === 'mp3' && (
+                                    {getAttachmentType(article.file2type) === 'mp3' && (
                                       <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file2)} className="max-w-[300px]" />
                                     )}
-                                    {article.file2type === 'pdf' && (
+                                    {getAttachmentType(article.file2type) === 'pdf' && (
                                       <iframe src={article.file2} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file2name || '檔案 2'}></iframe>
                                     )}
-                                    {article.file2type === 'txt' && (
+                                    {getAttachmentType(article.file2type) === 'txt' && (
                                       <TxtPreview url={article.file2} title={article.file2name || '檔案 2'} />
                                     )}
-                                    {(article.file2type === 'xlsx' || article.file2type === 'pptx' || article.file2type === 'docx') && (
+                                    {(['xlsx', 'pptx', 'docx'] as const).includes(getAttachmentType(article.file2type) as "xlsx" | "pptx" | "docx") && (
                                       <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file2)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file2name || '檔案 2'}></iframe>
                                     )}
-                                    {article.file2type === 'zip' && (
+                                    {getAttachmentType(article.file2type) === 'zip' && (
                                       <ZipPreview url={article.file2} title={article.file2name || '檔案 2'} />
                                     )}
                                   </>
@@ -2183,46 +2275,49 @@ export default function NotesManagement() {
                             {article.file3 && (
                               <div className="space-y-1 flex-shrink-0">
                                 <div className="flex items-center gap-2">
-                                  <a
-                                    href={getAppwriteDownloadUrl(article.file3)}
-                                    download={article.file3name || "download"}
-                                    target="_blank"
-                                    rel="noreferrer"
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAttachmentDownload(article.file3!, article.file3type, article.file3name)}
                                     className="text-sm text-green-600 dark:text-green-400 hover:underline"
                                   >
-                                    {article.file3type === 'jpg' ? '🖼️' : article.file3type === 'mp4' ? '🎥' : article.file3type === 'mp3' ? '🎵' : article.file3type === 'pdf' ? '📄' : article.file3type === 'txt' ? '📄' : article.file3type === 'docx' ? '📄' : article.file3type === 'xlsx' ? '📊' : article.file3type === 'pptx' ? '📽️' : article.file3type === 'zip' ? '🗂️' : '📄'} {article.file3name || '檔案 3'}
-                                  </a>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => togglePreview(`${article.$id}-file3`)}
-                                    className="h-6 px-2 text-xs"
-                                  >
-                                    {previewFiles.has(`${article.$id}-file3`) ? '收起' : '預覽'}
-                                  </Button>
+                                    {getAttachmentIcon(article.file3type)} {article.file3name || '檔案 3'}
+                                  </button>
+                                  {canPreviewAttachment(article.file3type) && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => togglePreview(`${article.$id}-file3`)}
+                                      className="h-6 px-2 text-xs"
+                                    >
+                                      {previewFiles.has(`${article.$id}-file3`) ? '收起' : '預覽'}
+                                    </Button>
+                                  )}
                                 </div>
-                                {previewFiles.has(`${article.$id}-file3`) && (
+                                {isMultipartFiletype(article.file3type) && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">分段檔案，下載時會自動合併</p>
+                                )}
+                                {canPreviewAttachment(article.file3type) && previewFiles.has(`${article.$id}-file3`) && (
                                   <>
-                                    {article.file3type === 'jpg' && (
+                                    {getAttachmentType(article.file3type) === 'jpg' && (
                                       <img src={article.file3} alt={article.file3name || '檔案 3'} className="max-w-[150px] rounded-lg border border-gray-300 dark:border-gray-600" />
                                     )}
-                                    {article.file3type === 'mp4' && (
+                                    {getAttachmentType(article.file3type) === 'mp4' && (
                                       <PlyrPlayer type="video" src={getProxiedMediaUrl(article.file3)} className="max-w-[300px] rounded-lg" />
                                     )}
-                                    {article.file3type === 'mp3' && (
+                                    {getAttachmentType(article.file3type) === 'mp3' && (
                                       <PlyrPlayer type="audio" src={getProxiedMediaUrl(article.file3)} className="max-w-[300px]" />
                                     )}
-                                    {article.file3type === 'pdf' && (
+                                    {getAttachmentType(article.file3type) === 'pdf' && (
                                       <iframe src={article.file3} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file3name || '檔案 3'}></iframe>
                                     )}
-                                    {article.file3type === 'txt' && (
+                                    {getAttachmentType(article.file3type) === 'txt' && (
                                       <TxtPreview url={article.file3} title={article.file3name || '檔案 3'} />
                                     )}
-                                    {(article.file3type === 'xlsx' || article.file3type === 'pptx' || article.file3type === 'docx') && (
+                                    {(['xlsx', 'pptx', 'docx'] as const).includes(getAttachmentType(article.file3type) as "xlsx" | "pptx" | "docx") && (
                                       <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file3)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file3name || '檔案 3'}></iframe>
                                     )}
-                                    {article.file3type === 'zip' && (
+                                    {getAttachmentType(article.file3type) === 'zip' && (
                                       <ZipPreview url={article.file3} title={article.file3name || '檔案 3'} />
                                     )}
                                   </>
