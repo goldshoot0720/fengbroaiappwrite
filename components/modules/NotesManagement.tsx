@@ -243,6 +243,7 @@ export default function NotesManagement() {
   const [editForm, setEditForm] = useState<ArticleFormData>(() => createInitialForm());
   const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
   const [previewFiles, setPreviewFiles] = useState<Set<string>>(new Set());
+  const [downloadingAttachments, setDownloadingAttachments] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -790,10 +791,17 @@ export default function NotesManagement() {
   };
 
   const handleAttachmentDownload = async (
+    attachmentKey: string,
     fileUrl: string,
     filetype?: string,
     fileName?: string
   ) => {
+    if (downloadingAttachments.has(attachmentKey)) {
+      return;
+    }
+
+    setDownloadingAttachments((prev) => new Set(prev).add(attachmentKey));
+
     try {
       const { blob, fileName: resolvedName } = await resolveMultipartFileBlob({
         file: fileUrl,
@@ -809,6 +817,12 @@ export default function NotesManagement() {
       URL.revokeObjectURL(objectUrl);
     } catch (error) {
       alert(error instanceof Error ? error.message : "下載失敗");
+    } finally {
+      setDownloadingAttachments((prev) => {
+        const next = new Set(prev);
+        next.delete(attachmentKey);
+        return next;
+      });
     }
   };
 
@@ -2181,10 +2195,11 @@ export default function NotesManagement() {
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => handleAttachmentDownload(article.file1!, article.file1type, article.file1name)}
-                                    className="text-sm text-green-600 dark:text-green-400 hover:underline"
+                                    onClick={() => handleAttachmentDownload(`${article.$id}-download-file1`, article.file1!, article.file1type, article.file1name)}
+                                    disabled={downloadingAttachments.has(`${article.$id}-download-file1`)}
+                                    className="text-sm text-green-600 dark:text-green-400 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    {getAttachmentIcon(article.file1type)} {article.file1name || '檔案 1'}
+                                    {getAttachmentIcon(article.file1type)} {downloadingAttachments.has(`${article.$id}-download-file1`) ? '下載中...' : (article.file1name || '檔案 1')}
                                   </button>
                                   {canPreviewAttachment(article.file1type) && (
                                     <Button
@@ -2233,10 +2248,11 @@ export default function NotesManagement() {
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => handleAttachmentDownload(article.file2!, article.file2type, article.file2name)}
-                                    className="text-sm text-green-600 dark:text-green-400 hover:underline"
+                                    onClick={() => handleAttachmentDownload(`${article.$id}-download-file2`, article.file2!, article.file2type, article.file2name)}
+                                    disabled={downloadingAttachments.has(`${article.$id}-download-file2`)}
+                                    className="text-sm text-green-600 dark:text-green-400 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    {getAttachmentIcon(article.file2type)} {article.file2name || '檔案 2'}
+                                    {getAttachmentIcon(article.file2type)} {downloadingAttachments.has(`${article.$id}-download-file2`) ? '下載中...' : (article.file2name || '檔案 2')}
                                   </button>
                                   {canPreviewAttachment(article.file2type) && (
                                     <Button
@@ -2285,10 +2301,11 @@ export default function NotesManagement() {
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => handleAttachmentDownload(article.file3!, article.file3type, article.file3name)}
-                                    className="text-sm text-green-600 dark:text-green-400 hover:underline"
+                                    onClick={() => handleAttachmentDownload(`${article.$id}-download-file3`, article.file3!, article.file3type, article.file3name)}
+                                    disabled={downloadingAttachments.has(`${article.$id}-download-file3`)}
+                                    className="text-sm text-green-600 dark:text-green-400 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    {getAttachmentIcon(article.file3type)} {article.file3name || '檔案 3'}
+                                    {getAttachmentIcon(article.file3type)} {downloadingAttachments.has(`${article.$id}-download-file3`) ? '下載中...' : (article.file3name || '檔案 3')}
                                   </button>
                                   {canPreviewAttachment(article.file3type) && (
                                     <Button
