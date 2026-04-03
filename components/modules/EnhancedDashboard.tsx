@@ -21,11 +21,11 @@ interface EnhancedDashboardProps {
 }
 
 const FENG_BRO_ASCII = String.raw`
-FFFFFFFF  EEEEEEEE  NNN   NN   GGGGGG        BBBBBBB    RRRRRR    OOOOOO
-FF        EE        NNNN  NN  GG             BB    BB   RR   RR  OO    OO
-FFFFF     EEEEE     NN NN NN  GG   GGG       BBBBBBB    RRRRRR   OO    OO
-FF        EE        NN  NNNN  GG    GG       BB    BB   RR  RR   OO    OO
-FF        EEEEEEEE  NN   NNN   GGGGGG        BBBBBBB    RR   RR   OOOOOO
+FFFFF  EEEEE  N   N   GGGG      BBBB   RRRR    OOO
+F      E      NN  N  G          B   B  R   R  O   O
+FFFF   EEEE   N N N  G  GG      BBBB   RRRR   O   O
+F      E      N  NN  G   G      B   B  R  R   O   O
+F      EEEEE  N   N   GGGG      BBBB   R   R   OOO
 `;
 
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
