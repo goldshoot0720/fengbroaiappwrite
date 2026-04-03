@@ -20,6 +20,15 @@ interface EnhancedDashboardProps {
   onlyTitle?: boolean;
 }
 
+const FENG_BRO_ASCII = String.raw`
+███████╗███████╗███╗   ██╗ ██████╗     ██████╗ ██████╗  ██████╗
+██╔════╝██╔════╝████╗  ██║██╔════╝     ██╔══██╗██╔══██╗██╔═══██╗
+█████╗  █████╗  ██╔██╗ ██║██║  ███╗    ██████╔╝██████╔╝██║   ██║
+██╔══╝  ██╔══╝  ██║╚██╗██║██║   ██║    ██╔══██╗██╔══██╗██║   ██║
+██║     ███████╗██║ ╚████║╚██████╔╝    ██████╔╝██║  ██║╚██████╔╝
+╚═╝     ╚══════╝╚═╝  ╚═══╝ ╚═════╝     ╚═════╝ ╚═╝  ╚═╝ ╚═════╝
+`;
+
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
   const { stats, loading, error: dashboardError } = useDashboardStats();
   const { stats: mediaStats, loading: mediaLoading, error: mediaError } = useMediaStats();
@@ -195,6 +204,17 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     return (
       <div className="space-y-6 lg:space-y-8">
         <PageTitle title={title} />
+
+        <DataCard className="overflow-hidden border-[var(--line-strong)] bg-[linear-gradient(135deg,rgba(18,25,22,0.96),rgba(42,56,49,0.92))] p-0 text-emerald-50 shadow-[0_24px_50px_rgba(15,23,20,0.28)]">
+          <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(110,231,183,0.2),transparent_38%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent)] px-5 py-3">
+            <p className="text-[11px] uppercase tracking-[0.38em] text-emerald-200/80">ASCII Welcome</p>
+          </div>
+          <div className="overflow-x-auto px-5 py-5">
+            <pre className="min-w-[640px] whitespace-pre font-mono text-[11px] leading-[1.25] text-emerald-200 sm:text-xs">
+              {FENG_BRO_ASCII}
+            </pre>
+          </div>
+        </DataCard>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
           <DataCard className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border-blue-100 dark:border-blue-800">
