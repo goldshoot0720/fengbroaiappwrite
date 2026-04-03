@@ -101,7 +101,7 @@ function getAttachmentIcon(filetype?: string | null) {
 }
 
 function canPreviewAttachment(filetype?: string | null) {
-  return !isMultipartFiletype(filetype);
+  return getAttachmentType(filetype) === "zip" || !isMultipartFiletype(filetype);
 }
 
 // TXT 預覽元件 - 支援 UTF-8 編碼
@@ -150,7 +150,15 @@ interface ZipEntry {
   size: number;
 }
 
-function ZipPreview({ url }: { url: string; title: string }) {
+function ZipPreview({
+  url,
+  title,
+  filetype,
+}: {
+  url: string;
+  title: string;
+  filetype?: string;
+}) {
   const [entries, setEntries] = useState<ZipEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +197,7 @@ function ZipPreview({ url }: { url: string; title: string }) {
       }
     };
     fetchZip();
-  }, [url]);
+  }, [url, title, filetype]);
 
   const formatSize = (bytes: number) => {
     if (bytes === 0) return '';
@@ -2214,7 +2222,7 @@ export default function NotesManagement() {
                                       <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file1)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file1name || '檔案 1'}></iframe>
                                     )}
                                     {getAttachmentType(article.file1type) === 'zip' && (
-                                      <ZipPreview url={article.file1} title={article.file1name || '檔案 1'} />
+                                      <ZipPreview url={article.file1} title={article.file1name || '檔案 1'} filetype={article.file1type} />
                                     )}
                                   </>
                                 )}
@@ -2266,7 +2274,7 @@ export default function NotesManagement() {
                                       <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file2)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file2name || '檔案 2'}></iframe>
                                     )}
                                     {getAttachmentType(article.file2type) === 'zip' && (
-                                      <ZipPreview url={article.file2} title={article.file2name || '檔案 2'} />
+                                      <ZipPreview url={article.file2} title={article.file2name || '檔案 2'} filetype={article.file2type} />
                                     )}
                                   </>
                                 )}
@@ -2318,7 +2326,7 @@ export default function NotesManagement() {
                                       <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(article.file3)}`} className="w-full h-[400px] rounded-lg border border-gray-300 dark:border-gray-600" title={article.file3name || '檔案 3'}></iframe>
                                     )}
                                     {getAttachmentType(article.file3type) === 'zip' && (
-                                      <ZipPreview url={article.file3} title={article.file3name || '檔案 3'} />
+                                      <ZipPreview url={article.file3} title={article.file3name || '檔案 3'} filetype={article.file3type} />
                                     )}
                                   </>
                                 )}
