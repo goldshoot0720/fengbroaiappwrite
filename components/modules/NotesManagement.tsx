@@ -167,7 +167,10 @@ function ZipPreview({
     const fetchZip = async () => {
       try {
         setLoading(true);
-        const response = await fetch(url);
+        const response = {
+          ok: true,
+          blob: async () => (await resolveMultipartFileBlob({ file: url, filetype, name: title })).blob,
+        };
         if (!response.ok) throw new Error('無法讀取檔案');
         const blob = await response.blob();
         const zip = await JSZip.loadAsync(blob);
