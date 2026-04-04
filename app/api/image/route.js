@@ -40,7 +40,10 @@ export async function GET(request) {
     }
     
     const collectionId = imageCollection.$id;
-    const response = await databases.listDocuments(databaseId, collectionId);
+    const response = await databases.listDocuments(databaseId, collectionId, [
+      sdk.Query.limit(500),
+      sdk.Query.orderDesc('$createdAt'),
+    ]);
     
     return NextResponse.json(response.documents);
   } catch (err) {
