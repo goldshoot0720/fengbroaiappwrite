@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp, AlertTriangle, LayoutGrid, Rows3 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -1138,7 +1139,7 @@ export default function ImageGallery() {
       )}
 
       {selectedImage && (
-        <ImagePreviewModal image={selectedImage} onClose={() => setSelectedImage(null)} />
+        <ImagePreviewPortal image={selectedImage} onClose={() => setSelectedImage(null)} />
       )}
 
       {showForm && (
@@ -1799,6 +1800,36 @@ function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () =
 }
 
 // 圖片表單模態框
+function ImagePreviewPortal({ image, onClose }: { image: ImageData; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+
+    const originalOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <ImagePreviewModal image={image} onClose={onClose} />,
+    document.body
+  );
+}
+
 function ImageFormModal({ image, existingImages, onClose, onSuccess }: { image: ImageData | null; existingImages: ImageData[]; onClose: () => void; onSuccess: () => void }) {
   const [formData, setFormData] = useState({
     name: image?.name || '',
