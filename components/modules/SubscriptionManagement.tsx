@@ -350,6 +350,7 @@ export default function SubscriptionManagement() {
   const [renewalFilter, setRenewalFilter] = useState<"all" | "renewing" | "stopped">("all");
   const [dueFilter, setDueFilter] = useState<"all" | "expired" | "7days" | "30days" | "nodate">("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
+  const NO_MONTH_FILTER = "no-month";
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
   const [inlineEditForm, setInlineEditForm] = useState<SubscriptionFormData>(INITIAL_FORM);
   const [isInlineAdding, setIsInlineAdding] = useState(false);
@@ -443,7 +444,7 @@ export default function SubscriptionManagement() {
 
     if (monthFilter !== "all") {
       result = result.filter((sub) => {
-        if (!sub.nextdate) return false;
+        if (!sub.nextdate) return monthFilter === NO_MONTH_FILTER;
         const date = new Date(sub.nextdate);
         const ym = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         return ym === monthFilter;
@@ -1105,6 +1106,7 @@ export default function SubscriptionManagement() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部月份</SelectItem>
+              <SelectItem value={NO_MONTH_FILTER}>無月份</SelectItem>
               {monthOptions.map((month) => (
                 <SelectItem key={month} value={month}>{month}</SelectItem>
               ))}
