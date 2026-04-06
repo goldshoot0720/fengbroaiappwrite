@@ -997,6 +997,10 @@ export default function BankManagement() {
                   // 行內編輯模式
                   <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
                     <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
+                    <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200">
+                      欄位順序：銀行名稱、資產餘額、網站連結、地址、累計提款、累計轉帳、活動連結、卡片資訊、帳號。
+                      數字欄位依序代表「資產餘額」、「累計提款」、「累計轉帳」。
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                       <Input
                         placeholder="銀行名稱"
