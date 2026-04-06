@@ -52,6 +52,18 @@ const INITIAL_FORM: BankFormData = {
   account: ""
 };
 
+const FIELD_HINTS = {
+  name: "銀行名稱，例如：中國信託、台新銀行。",
+  deposit: "資產餘額：目前這個帳戶剩餘的金額。",
+  site: "銀行官方網站或網路銀行登入頁網址。",
+  address: "分行名稱、地點或你想記住的地址備註。",
+  withdrawals: "累計提款：目前記錄到的提款總額。",
+  transfer: "累計轉帳：目前記錄到的轉帳總額。",
+  activity: "優惠活動、回饋活動或相關頁面連結。",
+  card: "卡片資訊，例如卡別名稱或末四碼。",
+  account: "網銀帳號、登入 ID 或使用者名稱。"
+} as const;
+
 export default function BankManagement() {
   const { banks, loading, error, stats, loadBanks, createBank, updateBank, deleteBank } = useBanks();
   const [form, setForm] = useState<BankFormData>(INITIAL_FORM);
@@ -737,7 +749,7 @@ export default function BankManagement() {
                 <label className="text-sm font-medium">銀行名稱 / Bank Name</label>
                 <div className="flex gap-2">
                   <div className="flex-1 space-y-1">
-                    <Input placeholder="例如: 台北富邦 / e.g. Taipei Fubon" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className="h-12 rounded-xl w-full" />
+                    <Input placeholder="例如: 台北富邦 / e.g. Taipei Fubon" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required title={FIELD_HINTS.name} className="h-12 rounded-xl w-full" />
                     <div className="px-1 h-4">
                       {form.name ? (
                         <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
@@ -761,7 +773,7 @@ export default function BankManagement() {
               <div className="space-y-1">
                 <label className="text-sm font-medium">存款金額 / Deposit Amount</label>
                 <div className="flex gap-1 items-center">
-                  <Input type="number" placeholder="0" value={form.deposit || ""} onChange={(e) => setForm({ ...form, deposit: parseInt(e.target.value) || 0 })} className="h-12 rounded-xl flex-1" />
+                  <Input type="number" placeholder="0" value={form.deposit || ""} onChange={(e) => setForm({ ...form, deposit: parseInt(e.target.value) || 0 })} title={FIELD_HINTS.deposit} className="h-12 rounded-xl flex-1" />
                   {(form.deposit || 0) > 0 && (
                     <div className="flex flex-col gap-0.5">
                       <button
@@ -795,7 +807,7 @@ export default function BankManagement() {
                 <label className="text-sm font-medium">官方網站 URL / Official Website URL</label>
                 <div className="flex gap-2">
                   <div className="flex-1 space-y-1">
-                    <Input type="url" placeholder="https://..." value={form.site} onChange={(e) => setForm({ ...form, site: e.target.value })} className="h-12 rounded-xl w-full" />
+                    <Input type="url" placeholder="https://..." value={form.site} onChange={(e) => setForm({ ...form, site: e.target.value })} title={FIELD_HINTS.site} className="h-12 rounded-xl w-full" />
                     <div className="px-1 h-4">
                       {form.site ? (
                         <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
@@ -820,7 +832,7 @@ export default function BankManagement() {
                 <label className="text-sm font-medium">分行地址 / Branch Address</label>
                 <div className="flex gap-2">
                   <div className="flex-1 space-y-1">
-                    <Input placeholder="分行名稱或地址 / Branch name or address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="h-12 rounded-xl w-full" />
+                    <Input placeholder="分行名稱或地址 / Branch name or address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} title={FIELD_HINTS.address} className="h-12 rounded-xl w-full" />
                     <div className="px-1 h-4">
                       {form.address ? (
                         <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
@@ -844,7 +856,7 @@ export default function BankManagement() {
               <div className="space-y-1">
                 <label className="text-sm font-medium">提款額度 / Withdrawal Limit</label>
                 <div className="flex gap-1 items-center">
-                  <Input type="number" placeholder="0" value={form.withdrawals || ""} onChange={(e) => setForm({ ...form, withdrawals: parseInt(e.target.value) || 0 })} className="h-12 rounded-xl flex-1" />
+                  <Input type="number" placeholder="0" value={form.withdrawals || ""} onChange={(e) => setForm({ ...form, withdrawals: parseInt(e.target.value) || 0 })} title={FIELD_HINTS.withdrawals} className="h-12 rounded-xl flex-1" />
                   {(form.withdrawals || 0) > 0 && (
                     <div className="flex flex-col gap-0.5">
                       <button
@@ -877,7 +889,7 @@ export default function BankManagement() {
               <div className="space-y-1">
                 <label className="text-sm font-medium">轉帳額度 / Transfer Limit</label>
                 <div className="flex gap-1 items-center">
-                  <Input type="number" placeholder="0" value={form.transfer || ""} onChange={(e) => setForm({ ...form, transfer: parseInt(e.target.value) || 0 })} className="h-12 rounded-xl flex-1" />
+                  <Input type="number" placeholder="0" value={form.transfer || ""} onChange={(e) => setForm({ ...form, transfer: parseInt(e.target.value) || 0 })} title={FIELD_HINTS.transfer} className="h-12 rounded-xl flex-1" />
                   {(form.transfer || 0) > 0 && (
                     <div className="flex flex-col gap-0.5">
                       <button
@@ -909,7 +921,7 @@ export default function BankManagement() {
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">優惠活動 URL / Activity URL</label>
-                <Input type="url" placeholder="https://..." value={form.activity} onChange={(e) => setForm({ ...form, activity: e.target.value })} className="h-12 rounded-xl" />
+                <Input type="url" placeholder="https://..." value={form.activity} onChange={(e) => setForm({ ...form, activity: e.target.value })} title={FIELD_HINTS.activity} className="h-12 rounded-xl" />
                 <div className="px-1 h-4">
                   {form.activity ? (
                     <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
@@ -922,7 +934,7 @@ export default function BankManagement() {
                 <label className="text-sm font-medium">卡片資訊 / Card Info</label>
                 <div className="flex gap-2">
                   <div className="flex-1 space-y-1">
-                    <Input placeholder="卡片類型或後四碼 / Card type or last 4 digits" value={form.card} onChange={(e) => setForm({ ...form, card: e.target.value })} className="h-12 rounded-xl w-full" />
+                    <Input placeholder="卡片類型或後四碼 / Card type or last 4 digits" value={form.card} onChange={(e) => setForm({ ...form, card: e.target.value })} title={FIELD_HINTS.card} className="h-12 rounded-xl w-full" />
                     <div className="px-1 h-4">
                       {form.card ? (
                         <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
@@ -947,7 +959,7 @@ export default function BankManagement() {
                 <label className="text-sm font-medium">帳號/用戶名 / Account/Username</label>
                 <div className="flex gap-2">
                   <div className="flex-1 space-y-1">
-                    <Input placeholder="網銀帳號或登入 ID / Online banking or login ID" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} className="h-12 rounded-xl w-full" />
+                    <Input placeholder="網銀帳號或登入 ID / Online banking or login ID" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} title={FIELD_HINTS.account} className="h-12 rounded-xl w-full" />
                     <div className="px-1 h-4">
                       {form.account ? (
                         <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
@@ -1006,6 +1018,7 @@ export default function BankManagement() {
                         placeholder="銀行名稱"
                         value={inlineEditForm.name}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                        title={FIELD_HINTS.name}
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
@@ -1013,18 +1026,21 @@ export default function BankManagement() {
                         type="number"
                         value={inlineEditForm.deposit}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, deposit: Number(e.target.value) })}
+                        title={FIELD_HINTS.deposit}
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
                         placeholder="網站連結"
                         value={inlineEditForm.site}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, site: e.target.value })}
+                        title={FIELD_HINTS.site}
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
                         placeholder="地址"
                         value={inlineEditForm.address}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, address: e.target.value })}
+                        title={FIELD_HINTS.address}
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
@@ -1032,6 +1048,7 @@ export default function BankManagement() {
                         type="number"
                         value={inlineEditForm.withdrawals}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, withdrawals: Number(e.target.value) })}
+                        title={FIELD_HINTS.withdrawals}
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
@@ -1039,24 +1056,28 @@ export default function BankManagement() {
                         type="number"
                         value={inlineEditForm.transfer}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, transfer: Number(e.target.value) })}
+                        title={FIELD_HINTS.transfer}
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
                         placeholder="活動連結"
                         value={inlineEditForm.activity}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, activity: e.target.value })}
+                        title={FIELD_HINTS.activity}
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
                         placeholder="卡片"
                         value={inlineEditForm.card}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, card: e.target.value })}
+                        title={FIELD_HINTS.card}
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
                         placeholder="帳號"
                         value={inlineEditForm.account}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
+                        title={FIELD_HINTS.account}
                         className="h-9 rounded-lg text-sm md:col-span-2 xl:col-span-3"
                       />
                     </div>
