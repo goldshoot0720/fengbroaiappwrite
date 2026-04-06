@@ -57,8 +57,8 @@ const FIELD_HINTS = {
   deposit: "資產餘額：目前這個帳戶剩餘的金額。",
   site: "銀行官方網站或網路銀行登入頁網址。",
   address: "分行名稱、地點或你想記住的地址備註。",
-  withdrawals: "累計提款：目前記錄到的提款總額。",
-  transfer: "累計轉帳：目前記錄到的轉帳總額。",
+  withdrawals: "跨行提款優惠次數：目前可用或記錄的跨行提款優惠次數。",
+  transfer: "跨行轉帳優惠次數：目前可用或記錄的跨行轉帳優惠次數。",
   activity: "優惠活動、回饋活動或相關頁面連結。",
   card: "卡片資訊，例如卡別名稱或末四碼。",
   account: "網銀帳號、登入 ID 或使用者名稱。"
@@ -854,7 +854,7 @@ export default function BankManagement() {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium">提款額度 / Withdrawal Limit</label>
+                <label className="text-sm font-medium">跨行提款優惠次數 / Free Cross-bank Withdrawals</label>
                 <div className="flex gap-1 items-center">
                   <Input type="number" placeholder="0" value={form.withdrawals || ""} onChange={(e) => setForm({ ...form, withdrawals: parseInt(e.target.value) || 0 })} title={FIELD_HINTS.withdrawals} className="h-12 rounded-xl flex-1" />
                   {(form.withdrawals || 0) > 0 && (
@@ -887,7 +887,7 @@ export default function BankManagement() {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium">轉帳額度 / Transfer Limit</label>
+                <label className="text-sm font-medium">跨行轉帳優惠次數 / Free Cross-bank Transfers</label>
                 <div className="flex gap-1 items-center">
                   <Input type="number" placeholder="0" value={form.transfer || ""} onChange={(e) => setForm({ ...form, transfer: parseInt(e.target.value) || 0 })} title={FIELD_HINTS.transfer} className="h-12 rounded-xl flex-1" />
                   {(form.transfer || 0) > 0 && (
@@ -1010,8 +1010,8 @@ export default function BankManagement() {
                   <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
                     <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
                     <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200">
-                      欄位順序：銀行名稱、資產餘額、網站連結、地址、累計提款、累計轉帳、活動連結、卡片資訊、帳號。
-                      數字欄位依序代表「資產餘額」、「累計提款」、「累計轉帳」。
+                      欄位順序：銀行名稱、資產餘額、網站連結、地址、跨行提款優惠次數、跨行轉帳優惠次數、活動連結、卡片資訊、帳號。
+                      數字欄位依序代表「資產餘額」、「跨行提款優惠次數」、「跨行轉帳優惠次數」。
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                       <Input
@@ -1044,7 +1044,7 @@ export default function BankManagement() {
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
-                        placeholder="提款額度"
+                        placeholder="跨行提款優惠次數"
                         type="number"
                         value={inlineEditForm.withdrawals}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, withdrawals: Number(e.target.value) })}
@@ -1052,7 +1052,7 @@ export default function BankManagement() {
                         className="h-9 rounded-lg text-sm"
                       />
                       <Input
-                        placeholder="轉帳額度"
+                        placeholder="跨行轉帳優惠次數"
                         type="number"
                         value={inlineEditForm.transfer}
                         onChange={(e) => setInlineEditForm({ ...inlineEditForm, transfer: Number(e.target.value) })}
@@ -1179,13 +1179,13 @@ export default function BankManagement() {
                           {Number(bank.withdrawals) > 0 && (
                             <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded">
                               <ArrowDownLeft size={12} />
-                              <span>提款: {formatCurrency(bank.withdrawals)}</span>
+                              <span>跨行提款優惠次數: {bank.withdrawals}</span>
                             </div>
                           )}
                           {Number(bank.transfer) > 0 && (
                             <div className="flex items-center gap-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-2 py-1 rounded">
                               <ArrowUpRight size={12} />
-                              <span>轉帳: {formatCurrency(bank.transfer)}</span>
+                              <span>跨行轉帳優惠次數: {bank.transfer}</span>
                             </div>
                           )}
                         </div>
