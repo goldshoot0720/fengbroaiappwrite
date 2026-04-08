@@ -83,7 +83,8 @@ export default function ImageGallery() {
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "duplicates" | "uncategorized" | "annotated">("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [exporting, setExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' });
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+  const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 });
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -262,6 +263,11 @@ export default function ImageGallery() {
   };
 
   // 開始行內編輯
+  const appendExportDebug = (message: string) => {
+    console.log(`[Image export] ${message}`);
+    setExportDebugMessages((prev) => [...prev.slice(-79), message]);
+  };
+
   const handleInlineEdit = (image: ImageData) => {
     setInlineEditForm({
       name: image.name || '',
@@ -562,7 +568,9 @@ export default function ImageGallery() {
     if (!confirm) return;
 
     setExporting(true);
-    setExportProgress({ current: 0, total: images.length, status: '準備中...' });
+    setExportDebugMessages([]);
+    setExportProgress({ current: 0, total: images.length, status: '準備中...', success: 0, failed: 0 });
+    appendExportDebug(`開始匯出，共 ${images.length} 張圖片。`);
 
     try {
       const zip = new JSZip();
@@ -578,7 +586,8 @@ export default function ImageGallery() {
         const sanitizedName = image.name.replace(/[<>:"\/\\|?*]/g, '_');
         const baseName = `${seq}_${sanitizedName}`;
 
-        setExportProgress({ current: i + 1, total: images.length, status: `正在下載: ${image.name}` });
+        setExportProgress((prev) => ({ ...prev, current: i + 1, total: images.length, status: `正在下載: ${image.name}` }));
+        appendExportDebug(`[${i + 1}/${images.length}] 開始下載 ${image.name}`);
 
         // Detect file extension
         const fileExtension = image.filetype || image.file?.split('.').pop()?.split('?')[0] || 'jpg';
@@ -587,13 +596,26 @@ export default function ImageGallery() {
         let imagePath = '';
         if (image.file) {
           try {
-            const response = await fetch(getAppwriteDownloadUrl(image.file));
+            const downloadUrl = getProxiedMediaUrl(getAppwriteDownloadUrl(image.file));
+            const response = await fetch(downloadUrl);
             if (response.ok) {
               const blob = await response.blob();
               imagePath = `images/${baseName}.${fileExtension}`;
               zip.file(imagePath, blob);
+              setExportProgress((prev) => ({ ...prev, success: prev.success + 1 }));
+              appendExportDebug(`[${i + 1}/${images.length}] 下載成功 ${image.name} -> ${imagePath}`);
+            } else {
+              setExportProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
+              appendExportDebug(`[${i + 1}/${images.length}] 下載失敗 ${image.name}，HTTP ${response.status}`);
             }
-          } catch (err) { console.error(`下載圖片 ${image.name} 時出錯:`, err); }
+          } catch (err) {
+            console.error(`下載圖片 ${image.name} 時出錯:`, err);
+            setExportProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
+            appendExportDebug(`[${i + 1}/${images.length}] 下載例外 ${image.name}: ${err instanceof Error ? err.message : '未知錯誤'}`);
+          }
+        } else {
+          setExportProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
+          appendExportDebug(`[${i + 1}/${images.length}] 跳過 ${image.name}，沒有可下載的檔案網址。`);
         }
 
         // Build CSV row
@@ -619,7 +641,8 @@ export default function ImageGallery() {
       const csvContent = csvRows.map(row => row.join(',')).join('\n');
       zip.file('image.csv', csvContent);
 
-      setExportProgress({ current: images.length, total: images.length, status: '正在壓縮...' });
+      setExportProgress((prev) => ({ ...prev, current: images.length, total: images.length, status: '正在壓縮...' }));
+      appendExportDebug('所有圖片處理完成，開始壓縮 ZIP。');
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const link = document.createElement('a');
@@ -628,14 +651,23 @@ export default function ImageGallery() {
       link.click();
       URL.revokeObjectURL(link.href);
 
-      setExportProgress({ current: images.length, total: images.length, status: '完成！' });
-      setTimeout(() => setExporting(false), 1500);
+      setExportProgress((prev) => ({ ...prev, current: images.length, total: images.length, status: '完成！' }));
+      appendExportDebug('ZIP 產生完成，已開始下載。');
+      window.setTimeout(() => {
+        setExporting(false);
+        setExportProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+        setExportDebugMessages([]);
+      }, 2200);
     } catch (error) {
       console.error('ZIP export error:', error);
+      appendExportDebug(`匯出失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      setExportProgress((prev) => ({ ...prev, status: '匯出失敗，請查看 debug 訊息。' }));
       alert('匯出失敗，請再試一次');
-    } finally {
-      setExporting(false);
-      setExportProgress({ current: 0, total: 0, status: '' });
+      window.setTimeout(() => {
+        setExporting(false);
+        setExportProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+        setExportDebugMessages([]);
+      }, 4000);
     }
   };
 
@@ -976,7 +1008,7 @@ export default function ImageGallery() {
       {/* Export Progress Modal */}
       {exporting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-2xl w-full mx-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯出圖片中...</h3>
             <div className="space-y-3">
               <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -992,6 +1024,31 @@ export default function ImageGallery() {
                     className="bg-purple-600 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
                   ></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200">
+                  成功下載：{exportProgress.success}
+                </div>
+                <div className="rounded-xl bg-rose-50 px-3 py-2 text-rose-700 dark:bg-rose-950/30 dark:text-rose-200">
+                  失敗或略過：{exportProgress.failed}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  <span>匯出 Debug 訊息</span>
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{exportDebugMessages.length} 筆</span>
+                </div>
+                <div className="max-h-64 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                  {exportDebugMessages.length > 0 ? (
+                    exportDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                        {message}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400">等待匯出程序開始...</div>
+                  )}
                 </div>
               </div>
             </div>
