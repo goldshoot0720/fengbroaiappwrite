@@ -164,7 +164,8 @@ export default function VideoIntroduction() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [exportingZip, setExportingZip] = useState(false);
-  const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
+  const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+  const [exportZipDebugMessages, setExportZipDebugMessages] = useState<string[]>([]);
   const [importingZip, setImportingZip] = useState(false);
   const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
   const importZipInputRef = useRef<HTMLInputElement>(null);
@@ -371,6 +372,11 @@ export default function VideoIntroduction() {
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
+  const appendExportZipDebug = (message: string) => {
+    console.log(`[Video export] ${message}`);
+    setExportZipDebugMessages((prev) => [...prev.slice(-79), message]);
+  };
+
   // ZIP 匯出（含影片、封面圖、CSV 元資料）
   const handleExportZip = async () => {
     if (videos.length === 0) { alert('沒有影片可以匯出'); return; }
@@ -380,7 +386,9 @@ export default function VideoIntroduction() {
     if (!confirm) return;
 
     setExportingZip(true);
-    setExportZipProgress({ current: 0, total: videos.length, status: '準備中...' });
+    setExportZipDebugMessages([]);
+    setExportZipProgress({ current: 0, total: videos.length, status: '準備中...', success: 0, failed: 0 });
+    appendExportZipDebug(`開始匯出，共 ${videos.length} 部影片。`);
 
     try {
       const zip = new JSZip();
@@ -397,7 +405,8 @@ export default function VideoIntroduction() {
         const sanitizedName = video.name.replace(/[<>:"\/\\|?*]/g, '_');
         const baseName = `${seq}_${sanitizedName}`;
 
-        setExportZipProgress({ current: i + 1, total: videos.length, status: `正在處理: ${video.name}` });
+        setExportZipProgress((prev) => ({ ...prev, current: i + 1, total: videos.length, status: `正在處理: ${video.name}` }));
+        appendExportZipDebug(`[${i + 1}/${videos.length}] 開始處理 ${video.name}`);
 
         // Detect video file extension
         let fileExtension = getOriginalVideoFiletype(video.filetype);
@@ -414,7 +423,16 @@ export default function VideoIntroduction() {
             fileExtension = filetype || fileExtension;
             videoPath = `videos/${baseName}.${fileExtension}`;
             zip.file(videoPath, blob);
-          } catch (err) { console.error(`下載影片 ${video.name} 時出錯:`, err); }
+            setExportZipProgress((prev) => ({ ...prev, success: prev.success + 1 }));
+            appendExportZipDebug(`[${i + 1}/${videos.length}] 影片成功 ${video.name} -> ${videoPath}`);
+          } catch (err) {
+            console.error(`下載影片 ${video.name} 時出錯:`, err);
+            setExportZipProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
+            appendExportZipDebug(`[${i + 1}/${videos.length}] 影片失敗 ${video.name}: ${err instanceof Error ? err.message : '未知錯誤'}`);
+          }
+        } else {
+          setExportZipProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
+          appendExportZipDebug(`[${i + 1}/${videos.length}] 跳過影片檔 ${video.name}，沒有檔案網址。`);
         }
 
         // Download and add cover image
@@ -432,8 +450,18 @@ export default function VideoIntroduction() {
               else if (contentType.includes('gif')) imgExt = 'gif';
               coverPath = `covers/${baseName}.${imgExt}`;
               zip.file(coverPath, coverBlob);
+              appendExportZipDebug(`[${i + 1}/${videos.length}] 封面成功 ${video.name} -> ${coverPath}`);
+            } else {
+              setExportZipProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
+              appendExportZipDebug(`[${i + 1}/${videos.length}] 封面失敗 ${video.name}，HTTP ${coverResponse.status}`);
             }
-          } catch (err) { console.error(`下載封面 ${video.name} 時出錯:`, err); }
+          } catch (err) {
+            console.error(`下載封面 ${video.name} 時出錯:`, err);
+            setExportZipProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
+            appendExportZipDebug(`[${i + 1}/${videos.length}] 封面例外 ${video.name}: ${err instanceof Error ? err.message : '未知錯誤'}`);
+          }
+        } else {
+          appendExportZipDebug(`[${i + 1}/${videos.length}] ${video.name} 沒有封面可匯出。`);
         }
 
         // Build CSV row
@@ -460,7 +488,8 @@ export default function VideoIntroduction() {
       const csvContent = csvRows.map(row => row.join(',')).join('\n');
       zip.file('video.csv', csvContent);
 
-      setExportZipProgress({ current: videos.length, total: videos.length, status: '正在壓縮...' });
+      setExportZipProgress((prev) => ({ ...prev, current: videos.length, total: videos.length, status: '正在壓縮...' }));
+      appendExportZipDebug('所有影片處理完成，開始壓縮 ZIP。');
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const link = document.createElement('a');
@@ -469,12 +498,23 @@ export default function VideoIntroduction() {
       link.click();
       URL.revokeObjectURL(link.href);
 
-      setExportZipProgress({ current: videos.length, total: videos.length, status: '完成！' });
-      setTimeout(() => setExportingZip(false), 1500);
+      setExportZipProgress((prev) => ({ ...prev, current: videos.length, total: videos.length, status: '完成！' }));
+      appendExportZipDebug('ZIP 產生完成，已開始下載。');
+      window.setTimeout(() => {
+        setExportingZip(false);
+        setExportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+        setExportZipDebugMessages([]);
+      }, 2200);
     } catch (error) {
       console.error('ZIP export error:', error);
+      appendExportZipDebug(`匯出失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      setExportZipProgress((prev) => ({ ...prev, status: '匯出失敗，請查看 debug 訊息。' }));
       alert('匯出失敗，請再試一次');
-      setExportingZip(false);
+      window.setTimeout(() => {
+        setExportingZip(false);
+        setExportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+        setExportZipDebugMessages([]);
+      }, 4000);
     }
   };
 
@@ -1312,7 +1352,7 @@ export default function VideoIntroduction() {
       {/* ZIP 匯出進度模態框 */}
       {exportingZip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-2xl w-full mx-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯出影片中...</h3>
             <div className="space-y-3">
               <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -1328,6 +1368,31 @@ export default function VideoIntroduction() {
                     className="bg-purple-600 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${exportZipProgress.total > 0 ? (exportZipProgress.current / exportZipProgress.total) * 100 : 0}%` }}
                   ></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200">
+                  成功處理：{exportZipProgress.success}
+                </div>
+                <div className="rounded-xl bg-rose-50 px-3 py-2 text-rose-700 dark:bg-rose-950/30 dark:text-rose-200">
+                  失敗或略過：{exportZipProgress.failed}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  <span>匯出 Debug 訊息</span>
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{exportZipDebugMessages.length} 筆</span>
+                </div>
+                <div className="max-h-64 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                  {exportZipDebugMessages.length > 0 ? (
+                    exportZipDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                        {message}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400">等待匯出程序開始...</div>
+                  )}
                 </div>
               </div>
             </div>
