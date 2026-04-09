@@ -342,6 +342,7 @@ export default function BankManagement() {
   const [importPreview, setImportPreview] = useState<{ data: BankFormData[], errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
   const CSV_HEADERS = ['name', 'deposit', 'site', 'address', 'withdrawals', 'transfer', 'activity', 'card', 'account'];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length; // 9 欄
 
@@ -449,11 +450,13 @@ export default function BankManagement() {
 
     setImporting(true);
     setImportProgress({ current: 0, total: importPreview.data.length });
+    setImportDebugMessages([`Import started: ${importPreview.data.length} rows`]);
 
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
       setImportProgress({ current: i + 1, total: importPreview.data.length });
+      setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Processing ${formData.name}`]);
       try {
         const existing = banks.find(b => b.name === formData.name);
         // 直接呼叫 API，避免每筆都觸發 loadBanks 導致頁面重新整理
@@ -469,7 +472,11 @@ export default function BankManagement() {
           await fetchApi(API_ENDPOINTS.BANK, { method: "POST", body: JSON.stringify(sanitizedData) });
         }
         successCount++;
-      } catch { failCount++; }
+        setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Success ${formData.name}`]);
+      } catch {
+        failCount++;
+        setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Failed ${formData.name}`]);
+      }
     }
 
     setImporting(false);
@@ -612,16 +619,35 @@ export default function BankManagement() {
             </div>
             <div className="flex flex-col gap-3 border-t border-gray-200 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] dark:border-gray-700 sm:flex-row sm:justify-end">
               {importing ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300"
-                      style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                    />
+                <div className="flex w-full flex-col gap-3 sm:max-w-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300"
+                        style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      ?????{importProgress.current}/{importProgress.total}
+                    </span>
                   </div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    匯入中 {importProgress.current}/{importProgress.total}
-                  </span>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                      <span>Import Debug Console Output</span>
+                      <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{importDebugMessages.length} entries</span>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                      {importDebugMessages.length > 0 ? (
+                        importDebugMessages.map((message, index) => (
+                          <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                            {message}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-gray-400">Waiting for import logs...</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <>
