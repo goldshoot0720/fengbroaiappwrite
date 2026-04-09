@@ -373,13 +373,16 @@ export default function SubscriptionManagement() {
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
 
   const monthOptions = useMemo(() => {
-    const values = new Set<string>();
+    const counts = new Map<string, number>();
     subscriptions.forEach((sub) => {
       if (!sub.nextdate) return;
       const date = new Date(sub.nextdate);
-      values.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      counts.set(monthKey, (counts.get(monthKey) || 0) + 1);
     });
-    return Array.from(values).sort();
+    return Array.from(counts.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([value, count]) => ({ value, count }));
   }, [subscriptions]);
 
   const existingAccounts = useMemo(() => {
@@ -1164,9 +1167,9 @@ export default function SubscriptionManagement() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部月份</SelectItem>
-              <SelectItem value={NO_MONTH_FILTER}>無月份</SelectItem>
+              <SelectItem value={NO_MONTH_FILTER}>無月份 ({noDateSubscriptions.length})</SelectItem>
               {monthOptions.map((month) => (
-                <SelectItem key={month} value={month}>{month}</SelectItem>
+                <SelectItem key={month.value} value={month.value}>{month.value} ({month.count})</SelectItem>
               ))}
             </SelectContent>
           </Select>
