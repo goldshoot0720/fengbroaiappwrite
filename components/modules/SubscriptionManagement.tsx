@@ -1098,7 +1098,7 @@ export default function SubscriptionManagement() {
                 <Download className="mr-1 h-4 w-4" />
                 匯出 CSV
               </Button>
-              <Button variant="outline" onClick={() => loadSubscriptions()} className="min-w-[8.5rem] rounded-xl" disabled={loading}>
+              <Button variant="outline" onClick={() => loadSubscriptions(true)} className="min-w-[8.5rem] rounded-xl" disabled={loading}>
                 <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 重新整理
               </Button>

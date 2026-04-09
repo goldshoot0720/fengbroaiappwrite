@@ -65,7 +65,7 @@ export function useSubscriptions() {
         body: JSON.stringify(formData),
       });
       // 重新載入以確保資料同步
-      await loadSubscriptions();
+      await loadSubscriptions(true);
       return newSub;
     } catch (err) {
       console.error("新增訂閱失敗:", err);
@@ -97,7 +97,7 @@ export function useSubscriptions() {
         body: JSON.stringify(formData),
       });
       // 重新載入以確保資料同步
-      await loadSubscriptions();
+      await loadSubscriptions(true);
       return updatedSub;
     } catch (err) {
       console.error("更新訂閱失敗:", err);
@@ -125,7 +125,7 @@ export function useSubscriptions() {
     try {
       await fetchApi(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, { method: "DELETE" });
       // 重新載入以確保資料同步
-      await loadSubscriptions();
+      await loadSubscriptions(true);
       return true;
     } catch (err) {
       console.error("刪除訂閱失敗:", err);
