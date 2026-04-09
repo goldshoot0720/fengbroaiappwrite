@@ -164,8 +164,10 @@ export default function CommonDocumentManagement() {
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [exportingZip, setExportingZip] = useState(false);
   const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
+  const [exportZipDebugMessages, setExportZipDebugMessages] = useState<string[]>([]);
   const [importingZip, setImportingZip] = useState(false);
   const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+  const [importZipDebugMessages, setImportZipDebugMessages] = useState<string[]>([]);
   const importZipInputRef = useRef<HTMLInputElement>(null);
 
   // Inline editing state
@@ -203,6 +205,30 @@ export default function CommonDocumentManagement() {
   useEffect(() => {
     updateCacheStats();
   }, [updateCacheStats]);
+
+  useEffect(() => {
+    if (exportingZip) {
+      setExportZipDebugMessages([`開始匯出，共 ${exportZipProgress.total || commondocument.length} 份文件。`]);
+    }
+  }, [exportingZip, exportZipProgress.total, commondocument.length]);
+
+  useEffect(() => {
+    if (!exportingZip || !exportZipProgress.status) return;
+    console.log(`[Document export] ${exportZipProgress.current}/${exportZipProgress.total || commondocument.length} ${exportZipProgress.status}`);
+    setExportZipDebugMessages((prev) => [...prev.slice(-79), `${exportZipProgress.current}/${exportZipProgress.total || commondocument.length} ${exportZipProgress.status}`]);
+  }, [exportingZip, exportZipProgress.current, exportZipProgress.total, exportZipProgress.status, commondocument.length]);
+
+  useEffect(() => {
+    if (importingZip) {
+      setImportZipDebugMessages(['開始匯入 ZIP。']);
+    }
+  }, [importingZip]);
+
+  useEffect(() => {
+    if (!importingZip || !importZipProgress.status) return;
+    console.log(`[Document import] ${importZipProgress.current}/${importZipProgress.total} ${importZipProgress.status}`);
+    setImportZipDebugMessages((prev) => [...prev.slice(-79), `${importZipProgress.current}/${importZipProgress.total} ${importZipProgress.status} (成功 ${importZipProgress.success} / 失敗 ${importZipProgress.failed})`]);
+  }, [importingZip, importZipProgress.current, importZipProgress.total, importZipProgress.status, importZipProgress.success, importZipProgress.failed]);
 
   // CSV 匯出/匯入
   const CSV_HEADERS = ['name', 'file', 'cover', 'filetype', 'category', 'note', 'ref', 'hash'];

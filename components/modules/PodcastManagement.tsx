@@ -69,8 +69,10 @@ export default function PodcastManagement() {
   const [expandedPodcastId, setExpandedPodcastId] = useState<string | null>(null);
   const [exportingZip, setExportingZip] = useState(false);
   const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
+  const [exportZipDebugMessages, setExportZipDebugMessages] = useState<string[]>([]);
   const [importingZip, setImportingZip] = useState(false);
   const [importZipProgress, setImportZipProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
+  const [importZipDebugMessages, setImportZipDebugMessages] = useState<string[]>([]);
   const importZipInputRef = useRef<HTMLInputElement>(null);
 
   // Inline editing state
@@ -106,6 +108,30 @@ export default function PodcastManagement() {
   useEffect(() => {
     updateCacheStats();
   }, [updateCacheStats]);
+
+  useEffect(() => {
+    if (exportingZip) {
+      setExportZipDebugMessages([`開始匯出，共 ${exportZipProgress.total || podcast.length} 筆 Podcast。`]);
+    }
+  }, [exportingZip, exportZipProgress.total, podcast.length]);
+
+  useEffect(() => {
+    if (!exportingZip || !exportZipProgress.status) return;
+    console.log(`[Podcast export] ${exportZipProgress.current}/${exportZipProgress.total || podcast.length} ${exportZipProgress.status}`);
+    setExportZipDebugMessages((prev) => [...prev.slice(-79), `${exportZipProgress.current}/${exportZipProgress.total || podcast.length} ${exportZipProgress.status}`]);
+  }, [exportingZip, exportZipProgress.current, exportZipProgress.total, exportZipProgress.status, podcast.length]);
+
+  useEffect(() => {
+    if (importingZip) {
+      setImportZipDebugMessages(['開始匯入 ZIP。']);
+    }
+  }, [importingZip]);
+
+  useEffect(() => {
+    if (!importingZip || !importZipProgress.status) return;
+    console.log(`[Podcast import] ${importZipProgress.current}/${importZipProgress.total} ${importZipProgress.status}`);
+    setImportZipDebugMessages((prev) => [...prev.slice(-79), `${importZipProgress.current}/${importZipProgress.total} ${importZipProgress.status} (成功 ${importZipProgress.success} / 失敗 ${importZipProgress.failed})`]);
+  }, [importingZip, importZipProgress.current, importZipProgress.total, importZipProgress.status, importZipProgress.success, importZipProgress.failed]);
 
   // 搜尋過濾
   const podcastsWithMedia = useMemo(() => podcast.filter((item) => Boolean(item.file)), [podcast]);
@@ -800,6 +826,23 @@ export default function PodcastManagement() {
               <span className="text-gray-500 dark:text-gray-400">下載中：</span>
               <span className="ml-2 font-medium text-gray-900 dark:text-gray-100">{cacheStats.downloadingPodcasts}</span>
             </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                <span>匯入 Debug 訊息</span>
+                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{importZipDebugMessages.length} 筆</span>
+              </div>
+              <div className="max-h-64 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                {importZipDebugMessages.length > 0 ? (
+                  importZipDebugMessages.map((message, index) => (
+                    <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                      {message}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-400">等待匯入訊息...</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -820,7 +863,7 @@ export default function PodcastManagement() {
       {/* 匯出 ZIP 進度 */}
       {exportingZip && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full space-y-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-2xl w-full space-y-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">匯出 ZIP</h3>
             <div className="space-y-2">
               <div className="text-sm text-gray-600 dark:text-gray-400">{exportZipProgress.status}</div>
@@ -829,6 +872,23 @@ export default function PodcastManagement() {
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400">{exportZipProgress.current} / {exportZipProgress.total}</div>
             </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                <span>匯出 Debug 訊息</span>
+                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{exportZipDebugMessages.length} 筆</span>
+              </div>
+              <div className="max-h-64 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                {exportZipDebugMessages.length > 0 ? (
+                  exportZipDebugMessages.map((message, index) => (
+                    <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                      {message}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-400">等待匯出訊息...</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -836,7 +896,7 @@ export default function PodcastManagement() {
       {/* 匯入 ZIP 進度 */}
       {importingZip && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full space-y-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-2xl w-full space-y-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">匯入 ZIP</h3>
             <div className="space-y-2">
               <div className="text-sm text-gray-600 dark:text-gray-400">{importZipProgress.status}</div>
