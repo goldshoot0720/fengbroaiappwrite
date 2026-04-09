@@ -97,9 +97,9 @@ const RELEASE_ITEMS = [
 const CODEBASE_STATS = {
   snapshotDate: "2026-04-09",
   totalFiles: 177,
-  totalLines: 60489,
+  totalLines: 60491,
   breakdown: [
-    { label: "TSX", files: 58, lines: 34767 },
+    { label: "TSX", files: 58, lines: 34769 },
     { label: "TypeScript", files: 36, lines: 5974 },
     { label: "JavaScript", files: 41, lines: 5433 },
     { label: "JSON", files: 8, lines: 10695 },
