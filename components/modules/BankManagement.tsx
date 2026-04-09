@@ -343,27 +343,54 @@ export default function BankManagement() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
   const CSV_HEADERS = ['name', 'deposit', 'site', 'address', 'withdrawals', 'transfer', 'activity', 'card', 'account'];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length; // 9 欄
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const escapeCSV = (val: any) => {
       if (val === null || val === undefined) return '';
       const str = String(val);
       if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
       return str;
     };
-    const rows = [CSV_HEADERS.join(',')];
-    banks.forEach(bank => {
-      rows.push([escapeCSV(bank.name), escapeCSV(bank.deposit || 0), escapeCSV(bank.site || ''), escapeCSV(bank.address || ''), escapeCSV(bank.withdrawals || 0), escapeCSV(bank.transfer || 0), escapeCSV(bank.activity || ''), escapeCSV(bank.card || ''), escapeCSV(bank.account || '')].join(','));
-    });
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = getExportFilename('bank');
-    link.click();
-    URL.revokeObjectURL(link.href);
+
+    setExporting(true);
+    setExportProgress({ current: 0, total: banks.length });
+    setExportDebugMessages([`Export started: ${banks.length} rows`]);
+
+    try {
+      const rows = [CSV_HEADERS.join(',')];
+      for (let i = 0; i < banks.length; i++) {
+        const bank = banks[i];
+        rows.push([escapeCSV(bank.name), escapeCSV(bank.deposit || 0), escapeCSV(bank.site || ''), escapeCSV(bank.address || ''), escapeCSV(bank.withdrawals || 0), escapeCSV(bank.transfer || 0), escapeCSV(bank.activity || ''), escapeCSV(bank.card || ''), escapeCSV(bank.account || '')].join(','));
+        setExportProgress({ current: i + 1, total: banks.length });
+        setExportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${banks.length} Exported ${bank.name}`]);
+        if (i % 25 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename('bank');
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setExportDebugMessages((prev) => [...prev.slice(-79), `Export finished: ${banks.length} rows`]);
+      setTimeout(() => {
+        setExporting(false);
+        setExportProgress({ current: 0, total: 0 });
+      }, 1200);
+    } catch (error) {
+      console.error('Export CSV failed:', error);
+      setExportDebugMessages((prev) => [...prev.slice(-79), 'Export failed']);
+      setExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+      throw error;
+    }
   };
 
   const parseCSVLine = (line: string): string[] => {
@@ -539,7 +566,7 @@ export default function BankManagement() {
             <Button onClick={() => document.getElementById('csv-import-bank')?.click()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯入 CSV">
               <Upload size={18} /> 匯入
             </Button>
-            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV">
+            <Button onClick={() => void exportToCSV()} variant="outline" className="rounded-xl flex items-center gap-2" title="匯出 CSV">
               <Download size={18} /> 匯出
             </Button>
             <Button
@@ -583,6 +610,47 @@ export default function BankManagement() {
         }
       />
 
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Export CSV</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">bank.csv</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>Progress</span>
+                  <span>{exportProgress.current}/{exportProgress.total}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  <span>Export Debug Console Output</span>
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{exportDebugMessages.length} entries</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                  {exportDebugMessages.length > 0 ? (
+                    exportDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                        {message}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400">Waiting for export logs...</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {importPreview && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">

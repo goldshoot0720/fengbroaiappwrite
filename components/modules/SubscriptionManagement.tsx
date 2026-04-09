@@ -368,6 +368,9 @@ export default function SubscriptionManagement() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
@@ -712,7 +715,7 @@ export default function SubscriptionManagement() {
     }
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const escapeCSV = (value: string | number | boolean | null | undefined) => {
       if (value === null || value === undefined) return "";
       const stringValue = String(value);
@@ -722,26 +725,49 @@ export default function SubscriptionManagement() {
       return stringValue;
     };
 
-    const rows = [CSV_HEADERS.join(",")];
-    subscriptions.forEach((sub) => {
-      rows.push([
-        escapeCSV(sub.name),
-        escapeCSV(sub.site || ""),
-        escapeCSV(sub.price || 0),
-        escapeCSV(sub.nextdate ? formatDate(sub.nextdate) : ""),
-        escapeCSV(sub.note || ""),
-        escapeCSV(sub.account || ""),
-        escapeCSV(sub.currency || "TWD"),
-        escapeCSV(sub.continue !== false),
-      ].join(","));
-    });
+    setExporting(true);
+    setExportProgress({ current: 0, total: subscriptions.length });
+    setExportDebugMessages([`Export started: ${subscriptions.length} rows`]);
 
-    const blob = new Blob([`\uFEFF${rows.join("\n")}`], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = getExportFilename("subscription");
-    link.click();
-    URL.revokeObjectURL(link.href);
+    try {
+      const rows = [CSV_HEADERS.join(",")];
+      for (let i = 0; i < subscriptions.length; i++) {
+        const sub = subscriptions[i];
+        rows.push([
+          escapeCSV(sub.name),
+          escapeCSV(sub.site || ""),
+          escapeCSV(sub.price || 0),
+          escapeCSV(sub.nextdate ? formatDate(sub.nextdate) : ""),
+          escapeCSV(sub.note || ""),
+          escapeCSV(sub.account || ""),
+          escapeCSV(sub.currency || "TWD"),
+          escapeCSV(sub.continue !== false),
+        ].join(","));
+        setExportProgress({ current: i + 1, total: subscriptions.length });
+        setExportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${subscriptions.length} Exported ${sub.name}`]);
+        if (i % 25 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+
+      const blob = new Blob([`﻿${rows.join("\n")}`], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("subscription");
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setExportDebugMessages((prev) => [...prev.slice(-79), `Export finished: ${subscriptions.length} rows`]);
+      setTimeout(() => {
+        setExporting(false);
+        setExportProgress({ current: 0, total: 0 });
+      }, 1200);
+    } catch (error) {
+      console.error("Export CSV failed:", error);
+      setExportDebugMessages((prev) => [...prev.slice(-79), "Export failed"]);
+      setExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+      throw error;
+    }
   };
 
   const parseFullCSV = (text: string): string[][] => {
@@ -1102,7 +1128,7 @@ export default function SubscriptionManagement() {
                 <Upload className="mr-1 h-4 w-4" />
                 匯入 CSV
               </Button>
-              <Button variant="outline" onClick={exportToCSV} className="min-w-[9.25rem] rounded-xl">
+              <Button variant="outline" onClick={() => void exportToCSV()} className="min-w-[9.25rem] rounded-xl">
                 <Download className="mr-1 h-4 w-4" />
                 匯出 CSV
               </Button>
@@ -1231,6 +1257,47 @@ export default function SubscriptionManagement() {
         </DataCard>
       )}
 
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Export CSV</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">subscription.csv</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>Progress</span>
+                  <span>{exportProgress.current}/{exportProgress.total}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  <span>Export Debug Console Output</span>
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{exportDebugMessages.length} entries</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                  {exportDebugMessages.length > 0 ? (
+                    exportDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                        {message}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400">Waiting for export logs...</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {importPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">

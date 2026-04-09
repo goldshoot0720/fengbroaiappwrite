@@ -594,6 +594,9 @@ export default function FoodManagement() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
   const CSV_HEADERS = ['name', 'amount', 'todate', 'photo', 'price', 'shop', 'photohash'];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length; // 7 欄
 
@@ -621,24 +624,48 @@ export default function FoodManagement() {
     return newLines.join('\n');
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     const escapeCSV = (val: any) => {
       if (val === null || val === undefined) return '';
       const str = String(val);
       if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
       return str;
     };
-    const rows = [CSV_HEADERS.join(',')];
-    foods.forEach(food => {
-      rows.push([escapeCSV(food.name), escapeCSV(food.amount || 0), escapeCSV(food.todate || ''), escapeCSV(food.photo || ''), escapeCSV(food.price || 0), escapeCSV(food.shop || ''), escapeCSV(food.photohash || '')].join(','));
-    });
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = getExportFilename('food');
-    link.click();
-    URL.revokeObjectURL(link.href);
+
+    setExporting(true);
+    setExportProgress({ current: 0, total: foods.length });
+    setExportDebugMessages([`Export started: ${foods.length} rows`]);
+
+    try {
+      const rows = [CSV_HEADERS.join(',')];
+      for (let i = 0; i < foods.length; i++) {
+        const food = foods[i];
+        rows.push([escapeCSV(food.name), escapeCSV(food.amount || 0), escapeCSV(food.todate || ''), escapeCSV(food.photo || ''), escapeCSV(food.price || 0), escapeCSV(food.shop || ''), escapeCSV(food.photohash || '')].join(','));
+        setExportProgress({ current: i + 1, total: foods.length });
+        setExportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${foods.length} Exported ${food.name}`]);
+        if (i % 25 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename('food');
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setExportDebugMessages((prev) => [...prev.slice(-79), `Export finished: ${foods.length} rows`]);
+      setTimeout(() => {
+        setExporting(false);
+        setExportProgress({ current: 0, total: 0 });
+      }, 1200);
+    } catch (error) {
+      console.error('Export CSV failed:', error);
+      setExportDebugMessages((prev) => [...prev.slice(-79), 'Export failed']);
+      setExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+      throw error;
+    }
   };
 
   // 解析完整 CSV（處理多行欄位）
@@ -811,7 +838,7 @@ export default function FoodManagement() {
         <Button onClick={() => document.getElementById('csv-import-food')?.click()} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="匯入 CSV">
           <Upload size={18} /> 匯入
         </Button>
-        <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="匯出 CSV">
+        <Button onClick={() => void exportToCSV()} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="匯出 CSV">
           <Download size={18} /> 匯出
         </Button>
         <Button
@@ -1010,6 +1037,47 @@ export default function FoodManagement() {
         </div>
       )}
 
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Export CSV</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">food.csv</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>Progress</span>
+                  <span>{exportProgress.current}/{exportProgress.total}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  <span>Export Debug Console Output</span>
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{exportDebugMessages.length} entries</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                  {exportDebugMessages.length > 0 ? (
+                    exportDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                        {message}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400">Waiting for export logs...</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {importPreview && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">

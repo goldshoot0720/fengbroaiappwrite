@@ -590,56 +590,75 @@ export default function CommonAccountManagement() {
   };
 
   // 匯出 CSV
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     if (accounts.length === 0) {
-      alert('沒有資料可匯出');
+      alert('No data to export');
       return;
     }
 
-    // 建立 CSV 表頭
-    const headers = ['name'];
-    for (let i = 1; i <= 37; i++) {
-      const idx = i.toString().padStart(2, '0');
-      headers.push(`site${idx}`, `note${idx}`);
-    }
+    setExporting(true);
+    setExportProgress({ current: 0, total: accounts.length });
+    setExportDebugMessages([`Export started: ${accounts.length} rows`]);
 
-    // 建立 CSV 內容
-    const rows = accounts.map(account => {
-      const row: string[] = [account.name || ''];
+    try {
+      const headers = ['name'];
       for (let i = 1; i <= 37; i++) {
         const idx = i.toString().padStart(2, '0');
-        const siteKey = `site${idx}` as keyof CommonAccount;
-        const noteKey = `note${idx}` as keyof CommonAccount;
-        const site = (account[siteKey] as string) || '';
-        const note = (account[noteKey] as string) || '';
-        // CSV 處理：如果包含逗號、換行或雙引號，需要用雙引號包起並轉義
-        row.push(
-          site.includes(',') || site.includes('\n') || site.includes('"')
-            ? `"${site.replace(/"/g, '""')}"`
-            : site
-        );
-        row.push(
-          note.includes(',') || note.includes('\n') || note.includes('"')
-            ? `"${note.replace(/"/g, '""')}"`
-            : note
-        );
+        headers.push(`site${idx}`, `note${idx}`);
       }
-      return row.join(',');
-    });
 
-    // 組合 CSV
-    const csvContent = [headers.join(','), ...rows].join('\n');
+      const rows: string[] = [];
+      for (let rowIndex = 0; rowIndex < accounts.length; rowIndex++) {
+        const account = accounts[rowIndex];
+        const row: string[] = [account.name || ''];
+        for (let i = 1; i <= 37; i++) {
+          const idx = i.toString().padStart(2, '0');
+          const siteKey = `site${idx}` as keyof CommonAccount;
+          const noteKey = `note${idx}` as keyof CommonAccount;
+          const site = (account[siteKey] as string) || '';
+          const note = (account[noteKey] as string) || '';
+          row.push(
+            site.includes(',') || site.includes('\n') || site.includes('"')
+              ? `"${site.replace(/"/g, '""')}"`
+              : site
+          );
+          row.push(
+            note.includes(',') || note.includes('\n') || note.includes('"')
+              ? `"${note.replace(/"/g, '""')}"`
+              : note
+          );
+        }
+        rows.push(row.join(','));
+        setExportProgress({ current: rowIndex + 1, total: accounts.length });
+        setExportDebugMessages((prev) => [...prev.slice(-79), `${rowIndex + 1}/${accounts.length} Exported ${account.name}`]);
+        if (rowIndex % 10 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
 
-    // 加入 BOM 以支援 Excel 開啟中文
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-
-    // 下載
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = getExportFilename('commonaccount');
-    link.click();
-    URL.revokeObjectURL(link.href);
+      const csvContent = [headers.join(','), ...rows].join('\n');
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = getExportFilename('commonaccount');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportDebugMessages((prev) => [...prev.slice(-79), `Export finished: ${accounts.length} rows`]);
+      setTimeout(() => {
+        setExporting(false);
+        setExportProgress({ current: 0, total: 0 });
+      }, 1200);
+    } catch (error) {
+      console.error('Export CSV failed:', error);
+      setExportDebugMessages((prev) => [...prev.slice(-79), 'Export failed']);
+      setExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+      throw error;
+    }
   };
 
   // 匯入狀態
@@ -647,6 +666,9 @@ export default function CommonAccountManagement() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
   // 解析完整 CSV（處理多行欄位）
   const parseFullCSV = (text: string): string[][] => {
     const rows: string[][] = [];
@@ -955,7 +977,7 @@ export default function CommonAccountManagement() {
               匯入
             </Button>
             <Button
-              onClick={exportToCSV}
+              onClick={() => void exportToCSV()}
               variant="outline"
               className="rounded-xl flex items-center gap-2 w-full sm:w-auto"
               title="匯出 CSV"
@@ -1087,6 +1109,47 @@ export default function CommonAccountManagement() {
       </div>
 
       {/* 匯入預覽對話框 */}
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Export CSV</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">commonaccount.csv</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>Progress</span>
+                  <span>{exportProgress.current}/{exportProgress.total}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  <span>Export Debug Console Output</span>
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{exportDebugMessages.length} entries</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                  {exportDebugMessages.length > 0 ? (
+                    exportDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                        {message}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400">Waiting for export logs...</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {importPreview && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
