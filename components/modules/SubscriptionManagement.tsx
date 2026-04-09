@@ -283,7 +283,7 @@ function SubscriptionFormCard({
             variant="outline"
             size="sm"
             className="rounded-lg w-full sm:w-auto"
-            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, -30) })}
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, -15) })}
           >
             -30 天
           </Button>
@@ -292,7 +292,7 @@ function SubscriptionFormCard({
             variant="outline"
             size="sm"
             className="rounded-lg w-full sm:w-auto"
-            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, 30) })}
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, 15) })}
           >
             +30 天
           </Button>
