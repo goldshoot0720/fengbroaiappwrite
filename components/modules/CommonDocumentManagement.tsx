@@ -1165,13 +1165,32 @@ export default function CommonDocumentManagement() {
       {/* ZIP 匯出進度模態框 */}
       {exportingZip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-2xl w-full mx-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯出文件中...</h3>
             <div className="space-y-3">
               <div className="text-sm text-gray-600 dark:text-gray-400">{exportZipProgress.status}</div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400"><span>進度</span><span>{exportZipProgress.current} / {exportZipProgress.total}</span></div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3"><div className="bg-purple-600 h-3 rounded-full transition-all duration-300" style={{ width: `${exportZipProgress.total > 0 ? (exportZipProgress.current / exportZipProgress.total) * 100 : 0}%` }}></div></div>
+              </div>
+              <div className="rounded-xl border border-purple-200/70 bg-purple-50/70 p-3 dark:border-purple-900/40 dark:bg-purple-950/20">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-purple-700 dark:text-purple-300">
+                    Debug Console Output
+                  </span>
+                  <span className="text-[11px] text-purple-600/70 dark:text-purple-300/70">
+                    {exportZipDebugMessages.length} entries
+                  </span>
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-lg bg-slate-950 px-3 py-2 font-mono text-xs leading-5 text-green-300">
+                  {exportZipDebugMessages.length > 0 ? (
+                    exportZipDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message.slice(0, 24)}`}>{message}</div>
+                    ))
+                  ) : (
+                    <div className="text-slate-400">Waiting for export logs...</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1181,7 +1200,7 @@ export default function CommonDocumentManagement() {
       {/* ZIP 匯入進度模態框 */}
       {importingZip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-2xl w-full mx-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">匯入文件中...</h3>
             <div className="space-y-3">
               <div className="text-sm text-gray-600 dark:text-gray-400">{importZipProgress.status}</div>
@@ -1192,6 +1211,25 @@ export default function CommonDocumentManagement() {
               <div className="grid grid-cols-2 gap-2 pt-2 text-xs text-center">
                 <div className="bg-green-100 dark:bg-green-900/30 rounded-lg p-2"><div className="font-bold text-green-600 dark:text-green-400">{importZipProgress.success}</div><div className="text-green-600/70 dark:text-green-400/70">成功</div></div>
                 <div className="bg-red-100 dark:bg-red-900/30 rounded-lg p-2"><div className="font-bold text-red-600 dark:text-red-400">{importZipProgress.failed}</div><div className="text-red-600/70 dark:text-red-400/70">失敗</div></div>
+              </div>
+              <div className="rounded-xl border border-orange-200/70 bg-orange-50/70 p-3 dark:border-orange-900/40 dark:bg-orange-950/20">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-700 dark:text-orange-300">
+                    Debug Console Output
+                  </span>
+                  <span className="text-[11px] text-orange-600/70 dark:text-orange-300/70">
+                    {importZipDebugMessages.length} entries
+                  </span>
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-lg bg-slate-950 px-3 py-2 font-mono text-xs leading-5 text-green-300">
+                  {importZipDebugMessages.length > 0 ? (
+                    importZipDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message.slice(0, 24)}`}>{message}</div>
+                    ))
+                  ) : (
+                    <div className="text-slate-400">Waiting for import logs...</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
