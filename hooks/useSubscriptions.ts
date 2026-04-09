@@ -10,8 +10,10 @@ export function useSubscriptions() {
   const [error, setError] = useState<string | null>(null);
 
   // 載入訂閱資料（不使用快取）
-  const loadSubscriptions = useCallback(async () => {
-    setLoading(true);
+  const loadSubscriptions = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const resData = await fetchApi<Subscription[]>(`${API_ENDPOINTS.SUBSCRIPTION}?t=${Date.now()}`);
@@ -48,7 +50,9 @@ export function useSubscriptions() {
       console.error("載入訂閱資料失敗:", err);
       return [];
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 

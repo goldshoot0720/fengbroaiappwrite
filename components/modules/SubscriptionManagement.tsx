@@ -32,6 +32,8 @@ const INITIAL_FORM: SubscriptionFormData = {
   continue: true,
 };
 
+const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE Table subscription";
+
 function AccountComboBox({
   value,
   onChange,
@@ -699,7 +701,7 @@ export default function SubscriptionManagement() {
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
     setSelectedIds(new Set());
-    await loadSubscriptions();
+    await loadSubscriptions(true);
 
     if (failedCount > 0) {
       alert(`批次刪除完成，但有 ${failedCount} 筆失敗，請查看 console 與 debug 訊息。`);
@@ -1338,12 +1340,12 @@ export default function SubscriptionManagement() {
                   請先輸入下面的刪除口令，確認你要刪除整個 subscription 表的選取資料。
                 </p>
                 <code className="block rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono text-red-600 dark:bg-gray-800">
-                  DELETE subscription
+                  {SUBSCRIPTION_DELETE_CONFIRMATION}
                 </code>
                 <Input
                   value={bulkDeleteInput}
                   onChange={(event) => setBulkDeleteInput(event.target.value)}
-                  placeholder="輸入 DELETE subscription"
+                  placeholder={`輸入 ${SUBSCRIPTION_DELETE_CONFIRMATION}`}
                   className="font-mono"
                 />
                 <div className="space-y-2">
@@ -1380,7 +1382,7 @@ export default function SubscriptionManagement() {
               </Button>
               <Button
                 onClick={handleDeleteSelected}
-                disabled={bulkDeleteInput !== "DELETE subscription" || isDeleting}
+                disabled={bulkDeleteInput !== SUBSCRIPTION_DELETE_CONFIRMATION || isDeleting}
                 className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {isDeleting ? "刪除中..." : `批次刪除 (${selectedIds.size} 筆)`}
