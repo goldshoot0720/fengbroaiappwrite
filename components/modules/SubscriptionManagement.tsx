@@ -356,6 +356,12 @@ export default function SubscriptionManagement() {
   const [isInlineAdding, setIsInlineAdding] = useState(false);
   const [inlineAddForm, setInlineAddForm] = useState<SubscriptionFormData>(INITIAL_FORM);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(0);
+  const [deleteTotal, setDeleteTotal] = useState(0);
+  const [deleteDebugMessages, setDeleteDebugMessages] = useState<string[]>([]);
   const [importPreview, setImportPreview] = useState<{ data: SubscriptionFormData[]; errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
@@ -480,6 +486,11 @@ export default function SubscriptionManagement() {
       else next.add(id);
       return next;
     });
+  };
+
+  const appendDeleteDebug = (message: string) => {
+    console.log(`[Subscription delete] ${message}`);
+    setDeleteDebugMessages((prev) => [...prev.slice(-79), message]);
   };
 
   const resetInlineStates = () => {
@@ -640,14 +651,59 @@ export default function SubscriptionManagement() {
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const openBulkDeleteModal = () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`確定刪除 ${selectedIds.size} 筆訂閱嗎？`)) return;
-    for (const id of selectedIds) {
-      await fetchApi(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, { method: "DELETE" });
+    setBulkDeleteOpen(true);
+    setBulkDeleteInput("");
+    setDeleteProgress(0);
+    setDeleteTotal(selectedIds.size);
+    setDeleteDebugMessages([]);
+  };
+
+  const handleDeleteSelected = async () => {
+    const ids = Array.from(selectedIds).filter((id) => !!id);
+    if (ids.length === 0) return;
+
+    setIsDeleting(true);
+    setDeleteProgress(0);
+    setDeleteTotal(ids.length);
+    setDeleteDebugMessages([]);
+    appendDeleteDebug(`開始批次刪除，共 ${ids.length} 筆訂閱。`);
+
+    let failedCount = 0;
+
+    for (let index = 0; index < ids.length; index++) {
+      const id = ids[index];
+      const target = subscriptions.find((sub) => sub.$id === id);
+      const label = target?.name || id;
+
+      appendDeleteDebug(`[${index + 1}/${ids.length}] 準備刪除 ${label}`);
+
+      try {
+        await fetchApi(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, { method: "DELETE" });
+        appendDeleteDebug(`[${index + 1}/${ids.length}] 刪除成功 ${label}`);
+      } catch (deleteError) {
+        failedCount += 1;
+        console.error(`Delete subscription failed: ${label}`, deleteError);
+        appendDeleteDebug(
+          `[${index + 1}/${ids.length}] 刪除失敗 ${label}: ${deleteError instanceof Error ? deleteError.message : "未知錯誤"}`
+        );
+      } finally {
+        setDeleteProgress(index + 1);
+      }
     }
+
+    appendDeleteDebug(`批次刪除完成，成功 ${ids.length - failedCount} 筆，失敗 ${failedCount} 筆。`);
+
+    setIsDeleting(false);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
     setSelectedIds(new Set());
     await loadSubscriptions();
+
+    if (failedCount > 0) {
+      alert(`批次刪除完成，但有 ${failedCount} 筆失敗，請查看 console 與 debug 訊息。`);
+    }
   };
 
   const exportToCSV = () => {
@@ -1050,7 +1106,7 @@ export default function SubscriptionManagement() {
                 {isAllSelected ? "取消全選" : "全選"}
               </Button>
               {selectedIds.size > 0 && (
-                <Button onClick={handleDeleteSelected} className="min-w-[8.75rem] rounded-xl bg-red-600 text-white hover:bg-red-700">
+                <Button onClick={openBulkDeleteModal} className="min-w-[8.75rem] rounded-xl bg-red-600 text-white hover:bg-red-700">
                   刪除選取 ({selectedIds.size})
                 </Button>
               )}
@@ -1228,6 +1284,107 @@ export default function SubscriptionManagement() {
                   </Button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-w-2xl w-full rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+            <div className="border-b border-gray-200 p-6 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-red-500" />
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">批次刪除訂閱</h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    將刪除 <span className="font-semibold text-red-600">{selectedIds.size}</span> 筆訂閱資料，此操作無法復原。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {isDeleting ? (
+              <div className="space-y-4 p-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-b-2 border-red-600" />
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    正在刪除中... ({deleteProgress} / {deleteTotal} 筆)
+                  </p>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-2.5 rounded-full bg-red-500 transition-all duration-300"
+                    style={{ width: `${deleteTotal > 0 ? (deleteProgress / deleteTotal) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    <span>Debug console output</span>
+                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{deleteDebugMessages.length} 筆</span>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                    {deleteDebugMessages.map((message, index) => (
+                      <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                        {message}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 p-6">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  請先輸入下面的刪除口令，確認你要刪除整個 subscription 表的選取資料。
+                </p>
+                <code className="block rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono text-red-600 dark:bg-gray-800">
+                  DELETE subscription
+                </code>
+                <Input
+                  value={bulkDeleteInput}
+                  onChange={(event) => setBulkDeleteInput(event.target.value)}
+                  placeholder="輸入 DELETE subscription"
+                  className="font-mono"
+                />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    <span>Debug console output</span>
+                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{deleteDebugMessages.length} 筆</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                    {deleteDebugMessages.length > 0 ? (
+                      deleteDebugMessages.map((message, index) => (
+                        <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                          {message}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-gray-400">刪除尚未開始，送出後會顯示每筆刪除結果。</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 border-t border-gray-200 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] dark:border-gray-700 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBulkDeleteOpen(false);
+                  setBulkDeleteInput("");
+                  setDeleteDebugMessages([]);
+                }}
+                disabled={isDeleting}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={handleDeleteSelected}
+                disabled={bulkDeleteInput !== "DELETE subscription" || isDeleting}
+                className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {isDeleting ? "刪除中..." : `批次刪除 (${selectedIds.size} 筆)`}
+              </Button>
             </div>
           </div>
         </div>
