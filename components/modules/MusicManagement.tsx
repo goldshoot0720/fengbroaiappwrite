@@ -1261,40 +1261,6 @@ export default function MusicManagement() {
                 {isDeleting ? '刪除中...' : `確認刪除 (${selectedIds.size} 筆)`}
               </Button>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
-                <span>匯入 Debug 訊息</span>
-                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{importZipDebugMessages.length} 筆</span>
-              </div>
-              <div className="max-h-64 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
-                {importZipDebugMessages.length > 0 ? (
-                  importZipDebugMessages.map((message, index) => (
-                    <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
-                      {message}
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-gray-400">等待匯入訊息...</div>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
-                <span>匯入 Debug 訊息</span>
-                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{importZipDebugMessages.length} 筆</span>
-              </div>
-              <div className="max-h-64 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
-                {importZipDebugMessages.length > 0 ? (
-                  importZipDebugMessages.map((message, index) => (
-                    <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
-                      {message}
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-gray-400">等待匯入訊息...</div>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -1480,6 +1446,23 @@ export default function MusicManagement() {
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {importZipProgress.current} / {importZipProgress.total}
                 {importZipProgress.total > 0 && ` (成功: ${importZipProgress.success}, 失敗: ${importZipProgress.failed})`}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+                <span>Import Debug Console Output</span>
+                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{importZipDebugMessages.length} entries</span>
+              </div>
+              <div className="max-h-64 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
+                {importZipDebugMessages.length > 0 ? (
+                  importZipDebugMessages.map((message, index) => (
+                    <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                      {message}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-400">Waiting for import logs...</div>
+                )}
               </div>
             </div>
           </div>
