@@ -258,9 +258,11 @@ export default function NotesManagement() {
   const [importPreview, setImportPreview] = useState<{ data: ArticleFormData[], zipFile?: JSZip | null, errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: '' });
+  const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [exportStatus, setExportStatus] = useState('');
+  const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
   const exportAbortRef = useRef<AbortController | null>(null);
   const ZIP_CSV_HEADERS = ['title', 'content', 'newDate', 'url1', 'url2', 'url3', 'file1', 'file1name', 'file1type', 'file2', 'file2name', 'file2type', 'file3', 'file3name', 'file3type'];
   const ZIP_CSV_COLUMN_COUNT = ZIP_CSV_HEADERS.length;
@@ -333,6 +335,32 @@ export default function NotesManagement() {
   useEffect(() => {
     setForm((prev) => (prev.newDate ? prev : { ...prev, newDate: getTodayInputDate() }));
   }, []);
+
+  useEffect(() => {
+    if (exporting) {
+      setExportDebugMessages([`Starting ZIP export for ${exportProgress.total || articles.length} notes`]);
+      return;
+    }
+    setExportDebugMessages([]);
+  }, [exporting, exportProgress.total, articles.length]);
+
+  useEffect(() => {
+    if (!exporting || !exportStatus) return;
+    setExportDebugMessages((prev) => [...prev.slice(-79), `${exportProgress.current}/${exportProgress.total || articles.length} ${exportStatus}`]);
+  }, [exporting, exportProgress.current, exportProgress.total, exportStatus, articles.length]);
+
+  useEffect(() => {
+    if (importing) {
+      setImportDebugMessages([`Starting ZIP import for ${importProgress.total || importPreview?.data.length || 0} notes`]);
+      return;
+    }
+    setImportDebugMessages([]);
+  }, [importing, importProgress.total, importPreview]);
+
+  useEffect(() => {
+    if (!importing || !importProgress.status) return;
+    setImportDebugMessages((prev) => [...prev.slice(-79), `${importProgress.current}/${importProgress.total} ${importProgress.status}`]);
+  }, [importing, importProgress.current, importProgress.total, importProgress.status]);
 
   // 搜尋過濾（包含分類）
   const filteredArticles = useMemo(() => {
@@ -1654,6 +1682,55 @@ export default function NotesManagement() {
       )}
 
       {/* ZIP 匯入預覽對話框 */}
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">ZIP Export Progress</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Exporting notes ZIP with CSV and attachments.
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-purple-600 dark:text-purple-400">
+                    Exporting... ({exportProgress.current}/{exportProgress.total})
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400">{exportStatus || 'Preparing export...'}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                  <div
+                    className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${exportProgress.total ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Export Debug Console Output</h3>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{exportDebugMessages.length} entries</span>
+                </div>
+                <div className="max-h-72 overflow-y-auto rounded-xl bg-black px-3 py-2 font-mono text-xs text-green-300 space-y-1">
+                  {exportDebugMessages.length > 0 ? (
+                    exportDebugMessages.map((message, index) => (
+                      <div key={`${message}-${index}`}>{message}</div>
+                    ))
+                  ) : (
+                    <div>Waiting for export logs...</div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-gray-200 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] dark:border-gray-700">
+              <Button onClick={cancelExport} variant="outline" className="rounded-xl border-red-400 text-red-500 hover:bg-red-50">
+                Cancel Export
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {importPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -1723,6 +1800,21 @@ export default function NotesManagement() {
                       className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
                       style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                     ></div>
+                  </div>
+                  <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Import Debug Console Output</h3>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{importDebugMessages.length} entries</span>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto rounded-xl bg-black px-3 py-2 font-mono text-xs text-green-300 space-y-1">
+                      {importDebugMessages.length > 0 ? (
+                        importDebugMessages.map((message, index) => (
+                          <div key={`${message}-${index}`}>{message}</div>
+                        ))
+                      ) : (
+                        <div>Waiting for import logs...</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
