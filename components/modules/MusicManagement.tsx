@@ -1571,20 +1571,22 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
   }, [items, checkMusicCache]);
 
   // 第一層：基礎語言類別
-  const BASE_LANGUAGES = ['中文', '英語', '日語', '韓語', '粵語', '其他'];
+  const BASE_LANGUAGES = ['中文', '英語', '日語', '韓語', '粵語', '8bit', 'instrumental', '其他'];
 
   // 提取基礎語言（例如：從 "中文(女聲)" 提取 "中文"）
   const getBaseLanguage = (language: string | undefined) => {
     if (!language) return '其他';
     const base = language.replace(/\(.*?\)/g, '').trim();
     // 檢查是否屬於已知的基礎語言
-    const knownBases = ['中文', '英文', '英語', '日文', '日語', '韓文', '韓語', '粵語', '粵文'];
+    const knownBases = ['中文', '英文', '英語', '日文', '日語', '韓文', '韓語', '粵語', '粵文', '8bit', 'instrumental'];
     if (knownBases.some(kb => base.includes(kb.charAt(0)))) {
       if (base.includes('中')) return '中文';
       if (base.includes('英')) return '英語';
       if (base.includes('日')) return '日語';
       if (base.includes('韓')) return '韓語';
       if (base.includes('粵')) return '粵語';
+      if (base.toLowerCase().includes('8bit')) return '8bit';
+      if (base.toLowerCase().includes('instrumental')) return 'instrumental';
     }
     return '其他';
   };
@@ -2776,7 +2778,7 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
   const [useLanguageSelect, setUseLanguageSelect] = useState(true); // 語言選擇框
 
   // 預設語言選項
-  const defaultLanguages = ['中文', '英語', '日語', '粵語', '韓語'];
+  const defaultLanguages = ['中文', '英語', '日語', '韓語', '粵語', '8bit', 'instrumental', '其他'];
 
   // 獲取所有已存在的語言（包括自訂的）
   const existingLanguages = Array.from(new Set([
