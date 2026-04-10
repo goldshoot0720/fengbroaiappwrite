@@ -963,7 +963,7 @@ export default function SubscriptionManagement() {
     }
 
     setImporting(false);
-    setImportProgress({ current: 0, total: 0 });
+    setImportProgress({ current: importPreview.data.length, total: importPreview.data.length });
     await loadSubscriptions();
     const failureSummary = Array.from(failureReasons.entries())
       .sort((a, b) => b[1] - a[1])
