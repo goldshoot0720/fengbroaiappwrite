@@ -1351,7 +1351,7 @@ export default function SubscriptionManagement() {
                       />
                     </div>
                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                      ?????{importProgress.current}/{importProgress.total}
+                      匯入中 {importProgress.current}/{importProgress.total}
                     </span>
                   </div>
                   <div className="space-y-2">
