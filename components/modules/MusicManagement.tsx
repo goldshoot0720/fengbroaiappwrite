@@ -622,7 +622,22 @@ export default function MusicManagement() {
               body: JSON.stringify(submitData),
             });
 
-            if (response.ok) successCount++; else failedCount++;
+            if (response.ok) {
+              successCount++;
+            } else {
+              failedCount++;
+              let errorMessage = `HTTP ${response.status}`;
+              try {
+                const payload = await response.json();
+                if (payload?.error) errorMessage = payload.error;
+              } catch {
+                try {
+                  const text = await response.text();
+                  if (text) errorMessage = text;
+                } catch {}
+              }
+              appendImportZipDebug(`${i + 1}/${total} Failed ${row.name || '未知'}: ${errorMessage}`);
+            }
           } catch (err) { console.error(`處理 ${row.name} 時出錯:`, err); failedCount++; }
           setImportZipProgress({ current: i + 1, total, status: `正在處理: ${row.name || '未知'}`, success: successCount, failed: failedCount });
         }
@@ -644,7 +659,22 @@ export default function MusicManagement() {
             const uploadData = await uploadToAppwriteStorage(musicFileObj);
             const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.MUSIC);
             const createResponse = await fetch(createUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fileName, file: uploadData.url, filetype: ext, lyrics: '', note: '', ref: '', category: '', hash: '', language: '', cover: '' }) });
-            if (createResponse.ok) successCount++; else failedCount++;
+            if (createResponse.ok) {
+              successCount++;
+            } else {
+              failedCount++;
+              let errorMessage = `HTTP ${createResponse.status}`;
+              try {
+                const payload = await createResponse.json();
+                if (payload?.error) errorMessage = payload.error;
+              } catch {
+                try {
+                  const text = await createResponse.text();
+                  if (text) errorMessage = text;
+                } catch {}
+              }
+              appendImportZipDebug(`${i + 1}/${files.length} Failed ${fileName}: ${errorMessage}`);
+            }
           } catch (err) { console.error(`處理 ${fileName} 時出錯:`, err); failedCount++; }
           setImportZipProgress({ current: i + 1, total: files.length, status: `正在處理: ${fileName}`, success: successCount, failed: failedCount });
         }
