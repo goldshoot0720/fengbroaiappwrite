@@ -264,7 +264,7 @@ export default function NotesManagement() {
   const [exportStatus, setExportStatus] = useState('');
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
   const exportAbortRef = useRef<AbortController | null>(null);
-  const ZIP_CSV_HEADERS = ['title', 'content', 'newDate', 'url1', 'url2', 'url3', 'file1', 'file1name', 'file1type', 'file2', 'file2name', 'file2type', 'file3', 'file3name', 'file3type'];
+  const ZIP_CSV_HEADERS = ['title', 'content', 'category', 'newDate', 'url1', 'url2', 'url3', 'file1', 'file1name', 'file1type', 'file2', 'file2name', 'file2type', 'file3', 'file3name', 'file3type'];
   const ZIP_CSV_COLUMN_COUNT = ZIP_CSV_HEADERS.length;
 
   // Select all / batch delete states
@@ -1006,6 +1006,7 @@ export default function NotesManagement() {
         rows.push([
           escapeCSV(item.title),
           escapeCSV(item.content || ''),
+          escapeCSV(item.category || ''),
           escapeCSV(formatDate(item.newDate) || ''),
           escapeCSV(item.url1 || ''),
           escapeCSV(item.url2 || ''),
@@ -1056,7 +1057,7 @@ export default function NotesManagement() {
     exportAbortRef.current?.abort();
   };
 
-  // RFC 4180 compliant CSV parser - 支援 15 欄（ZIP 格式）和 6 欄（舊 CSV 格式）
+  // RFC 4180 compliant CSV parser - 支援 16 欄（ZIP 格式）、7 欄（含分類）與 6 欄（舊 CSV 格式）
   const parseCSV = (text: string): { data: ArticleFormData[], errors: string[] } => {
     const errors: string[] = [];
     const data: ArticleFormData[] = [];
@@ -1117,13 +1118,17 @@ export default function NotesManagement() {
     const headerValues = rows[0];
     const columnCount = headerValues.length;
 
-    // 支援 15 欄（ZIP 格式）或 6 欄（舊 CSV 格式）
-    if (columnCount !== ZIP_CSV_COLUMN_COUNT && columnCount !== 6) {
-      errors.push(`表頭欄位數量錯誤: 預期 ${ZIP_CSV_COLUMN_COUNT} 欄或 6 欄，實際 ${columnCount} 欄`);
+    // 支援 16 欄（ZIP 格式）、7 欄（含分類）或 6 欄（舊 CSV 格式）
+    if (columnCount !== ZIP_CSV_COLUMN_COUNT && columnCount !== 7 && columnCount !== 6) {
+      errors.push(`表頭欄位數量錯誤: 預期 ${ZIP_CSV_COLUMN_COUNT} 欄、7 欄或 6 欄，實際 ${columnCount} 欄`);
       return { data, errors };
     }
 
-    const expectedHeaders = columnCount === ZIP_CSV_COLUMN_COUNT ? ZIP_CSV_HEADERS : ['title', 'content', 'newDate', 'url1', 'url2', 'url3'];
+    const expectedHeaders = columnCount === ZIP_CSV_COLUMN_COUNT
+      ? ZIP_CSV_HEADERS
+      : columnCount === 7
+        ? ['title', 'content', 'category', 'newDate', 'url1', 'url2', 'url3']
+        : ['title', 'content', 'newDate', 'url1', 'url2', 'url3'];
     for (let i = 0; i < expectedHeaders.length; i++) {
       if (headerValues[i]?.trim() !== expectedHeaders[i]) {
         errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${expectedHeaders[i]}"，實際 "${headerValues[i]?.trim()}"`);
@@ -1143,22 +1148,31 @@ export default function NotesManagement() {
         errors.push(`第 ${lineNum} 行: title 欄位不能為空`);
         continue;
       }
+      const hasCategory = columnCount === ZIP_CSV_COLUMN_COUNT || columnCount === 7;
+      const categoryIndex = hasCategory ? 2 : -1;
+      const newDateIndex = hasCategory ? 3 : 2;
+      const url1Index = hasCategory ? 4 : 3;
+      const url2Index = hasCategory ? 5 : 4;
+      const url3Index = hasCategory ? 6 : 5;
+      const fileBaseIndex = 7;
+
       data.push({
         title: values[0].trim(),
         content: values[1]?.trim() || '',
-        newDate: values[2]?.trim() || getTodayInputDate(),
-        url1: values[3]?.trim() || '',
-        url2: values[4]?.trim() || '',
-        url3: values[5]?.trim() || '',
-        file1: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[6]?.trim() || '') : '',
-        file1name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[7]?.trim() || '') : '',
-        file1type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[8]?.trim() || '') : '',
-        file2: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[9]?.trim() || '') : '',
-        file2name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[10]?.trim() || '') : '',
-        file2type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[11]?.trim() || '') : '',
-        file3: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[12]?.trim() || '') : '',
-        file3name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[13]?.trim() || '') : '',
-        file3type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[14]?.trim() || '') : ''
+        category: hasCategory ? (values[categoryIndex]?.trim() || '') : '',
+        newDate: values[newDateIndex]?.trim() || getTodayInputDate(),
+        url1: values[url1Index]?.trim() || '',
+        url2: values[url2Index]?.trim() || '',
+        url3: values[url3Index]?.trim() || '',
+        file1: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex]?.trim() || '') : '',
+        file1name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 1]?.trim() || '') : '',
+        file1type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 2]?.trim() || '') : '',
+        file2: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 3]?.trim() || '') : '',
+        file2name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 4]?.trim() || '') : '',
+        file2type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 5]?.trim() || '') : '',
+        file3: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 6]?.trim() || '') : '',
+        file3name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 7]?.trim() || '') : '',
+        file3type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 8]?.trim() || '') : ''
       });
     }
     return { data, errors };
