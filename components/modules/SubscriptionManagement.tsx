@@ -889,6 +889,7 @@ export default function SubscriptionManagement() {
 
     let successCount = 0;
     let failCount = 0;
+    const failureReasons = new Map<string, number>();
 
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
@@ -914,9 +915,11 @@ export default function SubscriptionManagement() {
         }
         successCount++;
         setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Success ${formData.name}`]);
-      } catch {
+      } catch (error) {
         failCount++;
-        setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Failed ${formData.name}`]);
+        const reason = error instanceof Error ? error.message : "未知錯誤";
+        failureReasons.set(reason, (failureReasons.get(reason) || 0) + 1);
+        setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Failed ${formData.name}: ${reason}`]);
       }
     }
 
@@ -924,7 +927,16 @@ export default function SubscriptionManagement() {
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
     await loadSubscriptions();
-    alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
+    const failureSummary = Array.from(failureReasons.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([reason, count]) => `- ${count} 筆：${reason}`)
+      .join("\n");
+    alert(
+      `匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆${
+        failureSummary ? `\n\n失敗原因摘要:\n${failureSummary}` : ""
+      }`
+    );
   };
 
   const handleCopy = (sub: Subscription) => {
