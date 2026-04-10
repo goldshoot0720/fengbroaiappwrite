@@ -1,59 +1,20 @@
 import { NextResponse } from "next/server";
+import { TABLE_SCHEMAS as CREATE_TABLE_SCHEMAS } from "../create-table/route";
 
 const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
 
-// Import table schemas from create-table
-const TABLE_SCHEMAS = {
-  article: [
-    { key: 'title', type: 'string', size: 100 },
-    { key: 'content', type: 'string', size: 3377 },
-    { key: 'newDate', type: 'datetime' },
-    { key: 'url1', type: 'url' },
-    { key: 'url2', type: 'url' },
-    { key: 'url3', type: 'url' },
-    { key: 'file1', type: 'string', size: 150 },
-    { key: 'file1name', type: 'string', size: 100 },
-    { key: 'file1type', type: 'string', size: 20 },
-    { key: 'file2', type: 'string', size: 150 },
-    { key: 'file2name', type: 'string', size: 100 },
-    { key: 'file2type', type: 'string', size: 20 },
-    { key: 'file3', type: 'string', size: 150 },
-    { key: 'file3name', type: 'string', size: 100 },
-    { key: 'file3type', type: 'string', size: 20 }
-  ],
-  podcast: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 150 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'hash', type: 'string', size: 300 },
-    { key: 'cover', type: 'string', size: 150 }
-  ],
-  commondocument: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 150 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'hash', type: 'string', size: 300 },
-    { key: 'cover', type: 'string', size: 150 }
-  ],
-  music: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 150 },
-    { key: 'lyrics', type: 'string', size: 3337 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'hash', type: 'string', size: 300 },
-    { key: 'language', type: 'string', size: 100 },
-    { key: 'cover', type: 'string', size: 150 }
-  ],
-  // Add other schemas as needed
-};
+const TABLE_SCHEMAS = Object.fromEntries(
+  Object.entries(CREATE_TABLE_SCHEMAS).map(([tableName, schema]) => [
+    tableName,
+    schema.attributes.map((attr) => ({
+      key: attr.key,
+      type: attr.type,
+      ...(attr.size !== undefined ? { size: attr.size } : {}),
+    })),
+  ])
+);
 
 function createAppwrite(searchParams) {
   const endpoint = searchParams?.get('_endpoint') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
