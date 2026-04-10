@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
@@ -277,13 +277,49 @@ function SubscriptionFormCard({
           value={form.nextdate || ""}
           onChange={(event) => onChange({ ...form, nextdate: event.target.value })}
         />
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-lg w-full sm:w-auto"
+            className="rounded-lg"
             onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, -15) })}
+          >
+            -15 天
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, 15) })}
+          >
+            +15 天
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, -28) })}
+          >
+            -28 天
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, 28) })}
+          >
+            +28 天
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, -30) })}
           >
             -30 天
           </Button>
@@ -291,8 +327,8 @@ function SubscriptionFormCard({
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-lg w-full sm:w-auto"
-            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, 15) })}
+            className="rounded-lg"
+            onClick={() => onChange({ ...form, nextdate: shiftDateByDays(form.nextdate, 30) })}
           >
             +30 天
           </Button>
