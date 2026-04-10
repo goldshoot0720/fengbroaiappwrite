@@ -52,6 +52,16 @@ function addAppwriteConfigToUrl(url: string): string {
   return paramString ? `${url}${separator}${paramString}` : url;
 }
 
+function getVideoDuplicateKey(video: Pick<VideoData, "hash" | "file">): string | null {
+  const hash = video.hash?.trim();
+  if (hash) return `hash:${hash}`;
+
+  const file = video.file?.trim();
+  if (file) return `file:${file}`;
+
+  return null;
+}
+
 function useResolvedVideoSource(video: VideoData) {
   const [resolvedSrc, setResolvedSrc] = useState("");
   const [loadingSource, setLoadingSource] = useState(false);
@@ -153,7 +163,7 @@ export default function VideoIntroduction() {
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [workbenchMode, setWorkbenchMode] = useState<"all" | "withFile" | "missingCover" | "multipart">("all");
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "withFile" | "missingCover" | "multipart" | "duplicates">("all");
   const [viewMode, setViewMode] = useState<'youtube' | 'bilibili'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('video-view-mode') as 'youtube' | 'bilibili') || 'youtube';
@@ -1008,12 +1018,42 @@ export default function VideoIntroduction() {
   const videosWithFile = useMemo(() => videos.filter((video) => Boolean(video.file)), [videos]);
   const videosMissingCover = useMemo(() => videos.filter((video) => !video.cover), [videos]);
   const multipartVideos = useMemo(() => videos.filter((video) => isMultipartVideoFiletype(video.filetype)), [videos]);
+  const duplicateVideoGroups = useMemo(() => {
+    const groups = new Map<string, VideoData[]>();
+
+    videos.forEach((video) => {
+      const key = getVideoDuplicateKey(video);
+      if (!key) return;
+
+      const current = groups.get(key) || [];
+      current.push(video);
+      groups.set(key, current);
+    });
+
+    return Array.from(groups.values())
+      .filter((group) => group.length > 1)
+      .map((group) =>
+        [...group].sort(
+          (a, b) => new Date(a.$createdAt).getTime() - new Date(b.$createdAt).getTime()
+        )
+      )
+      .sort((a, b) => b.length - a.length);
+  }, [videos]);
+  const duplicateVideoIds = useMemo(
+    () => new Set(duplicateVideoGroups.flatMap((group) => group.map((video) => video.$id))),
+    [duplicateVideoGroups]
+  );
+  const duplicateVideosToDelete = useMemo(
+    () => duplicateVideoGroups.flatMap((group) => group.slice(1)),
+    [duplicateVideoGroups]
+  );
 
   const filteredVideos = useMemo(() => {
     const modeFiltered = videos.filter((video) => {
       if (workbenchMode === "withFile") return Boolean(video.file);
       if (workbenchMode === "missingCover") return !video.cover;
       if (workbenchMode === "multipart") return isMultipartVideoFiletype(video.filetype);
+      if (workbenchMode === "duplicates") return duplicateVideoIds.has(video.$id);
       return true;
     });
 
@@ -1023,7 +1063,7 @@ export default function VideoIntroduction() {
       video.name?.toLowerCase().includes(query) ||
       video.note?.toLowerCase().includes(query)
     );
-  }, [videos, searchQuery, workbenchMode]);
+  }, [videos, searchQuery, workbenchMode, duplicateVideoIds]);
 
   // Bulk delete state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -1055,23 +1095,65 @@ export default function VideoIntroduction() {
     }
   };
 
-  const handleBulkDelete = async () => {
-    const ids = Array.from(selectedIds).filter(id => !!id);
+  const deleteVideosByIds = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+
     setDeleteTotal(ids.length);
     setDeleteProgress(0);
     setIsDeleting(true);
-    await Promise.all(ids.map(id => {
-      const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${id}`);
-      return fetch(url, { method: 'DELETE' })
-        .catch(err => console.error("Delete failed:", err))
-        .finally(() => setDeleteProgress(prev => prev + 1));
-    }));
+    let failedCount = 0;
+
+    for (const id of ids) {
+      try {
+        const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${id}`);
+        const response = await fetch(url, { method: 'DELETE' });
+        if (!response.ok) {
+          throw new Error(`Delete failed: ${response.status}`);
+        }
+      } catch (err) {
+        failedCount += 1;
+        console.error("Delete failed:", err);
+      } finally {
+        setDeleteProgress(prev => prev + 1);
+      }
+    }
+
     setIsDeleting(false);
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
-    loadVideos(true);
+    await loadVideos(true);
+
+    if (failedCount > 0) {
+      alert(`批次刪除已完成，但有 ${failedCount} 部影片刪除失敗，請稍後再試。`);
+    }
+  }, [loadVideos]);
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds).filter(id => !!id);
+    await deleteVideosByIds(ids);
+  };
+
+  const handleCleanupDuplicateVideos = async () => {
+    const ids = duplicateVideosToDelete.map((video) => video.$id).filter(Boolean);
+
+    if (ids.length === 0) {
+      alert('目前沒有可清理的重複影片。');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `找到 ${duplicateVideoGroups.length} 組重複影片，將保留每組最早建立的 1 部，刪除其餘 ${ids.length} 部。確定要清理嗎？`
+    );
+
+    if (!confirmed) return;
+
+    setWorkbenchMode("duplicates");
+    setSelectionMode(true);
+    setSelectedIds(new Set(ids));
+    setBulkDeleteOpen(true);
+    await deleteVideosByIds(ids);
   };
 
   const {
@@ -1365,8 +1447,12 @@ export default function VideoIntroduction() {
           { key: "withFile", label: "可播放", count: videosWithFile.length },
           { key: "missingCover", label: "缺封面", count: videosMissingCover.length },
           { key: "multipart", label: "分段影片", count: multipartVideos.length },
+          { key: "duplicates", label: "重複影片", count: duplicateVideoIds.size },
         ]}
         suggestions={[
+          duplicateVideoGroups.length > 0
+            ? { title: "重複影片提醒", body: `目前有 ${duplicateVideoGroups.length} 組重複影片，可切到重複篩選檢查後再一鍵清理。`, tone: "amber" }
+            : { title: "重複狀態", body: "目前沒有偵測到重複影片，匯入結果看起來是乾淨的。", tone: "green" },
           videosMissingCover.length > 0
             ? { title: "先補封面", body: `有 ${videosMissingCover.length} 部影片缺封面，列表辨識與分享都會比較弱。`, tone: "amber" }
             : { title: "封面完整", body: "封面狀態不錯，接下來適合補分類與章節。", tone: "green" },
@@ -1414,6 +1500,24 @@ export default function VideoIntroduction() {
               onChange={handleImportZipWithDebug}
               className="hidden"
             />
+            {duplicateVideoGroups.length > 0 && (
+              <Button
+                onClick={() => setWorkbenchMode("duplicates")}
+                variant="outline"
+                className="rounded-xl h-10 px-4 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/30"
+              >
+                重複影片 ({duplicateVideoIds.size})
+              </Button>
+            )}
+            {duplicateVideosToDelete.length > 0 && (
+              <Button
+                onClick={handleCleanupDuplicateVideos}
+                className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white"
+                title="一鍵清理重複影片"
+              >
+                清理重複 ({duplicateVideosToDelete.length})
+              </Button>
+            )}
             <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
               {selectionMode && filteredVideos.length > 0 && filteredVideos.every((video) => selectedIds.has(video.$id)) ? "取消全選" : "全選"}
             </Button>
