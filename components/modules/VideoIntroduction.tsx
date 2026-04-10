@@ -2378,36 +2378,74 @@ function InlineCreateVideoCard({
     }
   };
 
-  const generateThumbnailFromVideo = (videoUrl: string, videoFileName?: string) => {
+  const createCoverFileFromVideo = (file: File): Promise<File | null> => new Promise((resolve) => {
+    const objectUrl = URL.createObjectURL(file);
     const video = document.createElement('video');
-    video.src = videoUrl;
+    video.src = objectUrl;
     video.crossOrigin = 'anonymous';
-    video.currentTime = 1;
+    video.muted = true;
+    video.preload = 'metadata';
 
-    video.addEventListener('seeked', () => {
+    let timeoutId: number;
+
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl);
+      video.src = '';
+    };
+
+    const fail = () => {
+      window.clearTimeout(timeoutId);
+      cleanup();
+      resolve(null);
+    };
+
+    timeoutId = window.setTimeout(fail, 8000);
+
+    const handleSeeked = () => {
+      window.clearTimeout(timeoutId);
       try {
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => {
-            if (!blob) return;
-            const baseFileName = videoFileName || 'video';
-            const nameWithoutExt = baseFileName.substring(0, baseFileName.lastIndexOf('.')) || baseFileName;
-            const thumbnailName = `${nameWithoutExt}-thumbnail.jpg`;
-            const file = new File([blob], thumbnailName, { type: 'image/jpeg' });
-            setSelectedCoverFile(file);
-            setCoverPreviewUrl(URL.createObjectURL(blob));
-          }, 'image/jpeg', 0.9);
-        }
-      } finally {
-        URL.revokeObjectURL(videoUrl);
+        if (!ctx) return fail();
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (!blob) return fail();
+          const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '') || 'video';
+          const thumbnailName = `${nameWithoutExt}-thumbnail.jpg`;
+          cleanup();
+          resolve(new File([blob], thumbnailName, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.9);
+      } catch {
+        fail();
       }
-    });
+    };
+
+    const handleLoaded = () => {
+      const duration = Number.isFinite(video.duration) ? video.duration : 1;
+      const captureTime = duration > 1 ? 1 : Math.max(0, duration / 2 || 0);
+      try {
+        video.currentTime = captureTime;
+      } catch {
+        fail();
+      }
+    };
+
+    video.addEventListener('loadedmetadata', handleLoaded, { once: true });
+    video.addEventListener('seeked', handleSeeked, { once: true });
+    video.addEventListener('error', fail, { once: true });
 
     video.load();
+  });
+
+  const applyAutoCoverForSingle = async (file: File) => {
+    setCoverPreviewLoading(true);
+    const coverFile = await createCoverFileFromVideo(file);
+    setCoverPreviewLoading(false);
+    if (!coverFile) return;
+    setSelectedCoverFile(coverFile);
+    setCoverPreviewUrl(URL.createObjectURL(coverFile));
   };
 
   const handleFileSelect = async (files: File[]) => {
@@ -2448,10 +2486,6 @@ function InlineCreateVideoCard({
     setPreviewUrl(objectUrl);
     setFileHash(firstFile.hash);
 
-    if (!formData.cover && !selectedCoverFile) {
-      generateThumbnailFromVideo(objectUrl, firstFile.file.name);
-    }
-
     if (preparedFiles.length === 1) {
       setFormData((prev) => ({
         ...prev,
@@ -2459,6 +2493,10 @@ function InlineCreateVideoCard({
         hash: firstFile.hash,
         filetype: firstFile.filetype,
       }));
+
+      if (!formData.cover && !selectedCoverFile) {
+        await applyAutoCoverForSingle(firstFile.file);
+      }
 
       if (firstFile.duplicateVideoName) {
         setDuplicateWarning(`警告：此影片與「${firstFile.duplicateVideoName}」相同，請勿重複上傳！`);
@@ -2470,6 +2508,8 @@ function InlineCreateVideoCard({
         hash: '',
         filetype: '',
       }));
+      setSelectedCoverFile(null);
+      setCoverPreviewUrl('');
 
       if (duplicateCount > 0) {
         setDuplicateWarning(`提醒：${duplicateCount} 部影片與既有影片重複，儲存時會自動跳過。`);
@@ -2539,6 +2579,7 @@ function InlineCreateVideoCard({
         let successCount = 0;
         let skippedCount = selectedFiles.length - uploadableFiles.length;
         let failedCount = 0;
+        const hasSharedCover = Boolean(formData.cover) || Boolean(selectedCoverFile);
         let sharedCoverUrl = formData.cover;
 
         if (selectedCoverFile) {
@@ -2549,13 +2590,21 @@ function InlineCreateVideoCard({
         for (const item of uploadableFiles) {
           try {
             const { url, fileId, filetype } = await uploadVideoFile(item.file);
+            let coverUrl = sharedCoverUrl || '';
+            if (!hasSharedCover) {
+              const autoCoverFile = await createCoverFileFromVideo(item.file);
+              if (autoCoverFile) {
+                const { url: autoCoverUrl } = await uploadCoverFile(autoCoverFile);
+                coverUrl = autoCoverUrl;
+              }
+            }
             const payload = {
               ...formData,
               name: item.defaultName,
               file: url,
               filetype: filetype || item.filetype,
               hash: item.hash || fileId,
-              cover: sharedCoverUrl || '',
+              cover: coverUrl,
             };
 
             const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
@@ -2657,7 +2706,7 @@ function InlineCreateVideoCard({
       </label>
       {selectedFiles.length > 1 && (
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          將建立 {selectedFiles.length} 筆影片資料，並共用下方的分類、備註、參考與封面設定。
+          將建立 {selectedFiles.length} 筆影片資料，分類、備註與參考會共用；封面會自動使用各自第 1 秒截圖。
         </p>
       )}
       {previewUrl && (
@@ -3459,50 +3508,78 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     }
   };
 
-  // 從影片第 1 秒生成縮圖
-  const generateThumbnailFromVideo = (videoUrl: string, videoFileName?: string) => {
+  const createCoverFileFromVideo = (file: File): Promise<File | null> => new Promise((resolve) => {
+    const objectUrl = URL.createObjectURL(file);
     const video = document.createElement('video');
-    video.src = videoUrl;
+    video.src = objectUrl;
     video.crossOrigin = 'anonymous';
-    video.currentTime = 1; // 設定到第 1 秒
+    video.muted = true;
+    video.preload = 'metadata';
 
-    video.addEventListener('seeked', () => {
+    let timeoutId: number;
+
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl);
+      video.src = '';
+    };
+
+    const fail = () => {
+      window.clearTimeout(timeoutId);
+      cleanup();
+      resolve(null);
+    };
+
+    timeoutId = window.setTimeout(fail, 8000);
+
+    const handleSeeked = () => {
+      window.clearTimeout(timeoutId);
       try {
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-
         const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-          // 轉換為 Blob
-          canvas.toBlob((blob) => {
-            if (blob) {
-              // 使用影片名稱生成縮圖檔名
-              const baseFileName = videoFileName || 'video';
-              const nameWithoutExt = baseFileName.substring(0, baseFileName.lastIndexOf('.')) || baseFileName;
-              const thumbnailName = `${nameWithoutExt}-thumbnail.jpg`;
-
-              const file = new File([blob], thumbnailName, { type: 'image/jpeg' });
-              setSelectedCoverFile(file);
-              const thumbnailUrl = URL.createObjectURL(blob);
-              setCoverPreviewUrl(thumbnailUrl);
-            }
-          }, 'image/jpeg', 0.9);
-        }
+        if (!ctx) return fail();
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (!blob) return fail();
+          const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '') || 'video';
+          const thumbnailName = `${nameWithoutExt}-thumbnail.jpg`;
+          cleanup();
+          resolve(new File([blob], thumbnailName, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.9);
       } catch (error) {
         console.error('Thumbnail generation error:', error);
-      } finally {
-        URL.revokeObjectURL(videoUrl);
+        fail();
       }
-    });
+    };
 
+    const handleLoaded = () => {
+      const duration = Number.isFinite(video.duration) ? video.duration : 1;
+      const captureTime = duration > 1 ? 1 : Math.max(0, duration / 2 || 0);
+      try {
+        video.currentTime = captureTime;
+      } catch {
+        fail();
+      }
+    };
+
+    video.addEventListener('loadedmetadata', handleLoaded, { once: true });
+    video.addEventListener('seeked', handleSeeked, { once: true });
     video.addEventListener('error', (e) => {
       console.error('Video load error:', e);
-    });
+      fail();
+    }, { once: true });
 
     video.load();
+  });
+
+  const applyAutoCoverForSingle = async (file: File) => {
+    setCoverPreviewLoading(true);
+    const coverFile = await createCoverFileFromVideo(file);
+    setCoverPreviewLoading(false);
+    if (!coverFile) return;
+    setSelectedCoverFile(coverFile);
+    setCoverPreviewUrl(URL.createObjectURL(coverFile));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3552,7 +3629,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       setFormData({ ...formData, name: autoName, hash: firstFile.hash, filetype: firstFile.filetype });
 
       if (!formData.cover && !selectedCoverFile) {
-        generateThumbnailFromVideo(objectUrl, firstFile.file.name);
+        await applyAutoCoverForSingle(firstFile.file);
       }
 
       if (firstFile.duplicateVideoName) {
@@ -3565,6 +3642,8 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         hash: '',
         filetype: '',
       }));
+      setSelectedCoverFile(null);
+      setCoverPreviewUrl('');
       if (duplicateCount > 0) {
         setDuplicateWarning(`提醒：${duplicateCount} 部影片與既有影片重複，儲存時會自動跳過。`);
       }
@@ -3666,6 +3745,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         let skippedCount = selectedFiles.length - uploadableFiles.length;
         let failedCount = 0;
 
+        const hasSharedCover = Boolean(formData.cover) || Boolean(selectedCoverFile);
         let sharedCoverUrl = formData.cover;
         if (selectedCoverFile) {
           try {
@@ -3679,13 +3759,21 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         for (const item of uploadableFiles) {
           try {
             const { url, fileId, filetype } = await uploadFileToAppwrite(item.file);
+            let coverUrl = sharedCoverUrl || '';
+            if (!hasSharedCover) {
+              const autoCoverFile = await createCoverFileFromVideo(item.file);
+              if (autoCoverFile) {
+                const { url: autoCoverUrl } = await uploadCoverFileToAppwrite(autoCoverFile);
+                coverUrl = autoCoverUrl;
+              }
+            }
             const payload = {
               ...formData,
               name: item.defaultName,
               file: url,
               filetype: filetype || item.filetype,
               hash: item.hash || fileId,
-              cover: sharedCoverUrl || '',
+              cover: coverUrl,
             };
 
             const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
@@ -3824,7 +3912,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
               </div>
               {selectedFiles.length > 1 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  將建立 {selectedFiles.length} 筆影片資料，並共用下方的分類、備註、參考與封面設定。
+                  將建立 {selectedFiles.length} 筆影片資料，分類、備註與參考會共用；封面會自動使用各自第 1 秒截圖。
                 </p>
               )}
               <div className="px-1 h-4">

@@ -176,7 +176,7 @@ export default function CommonDocumentManagement() {
 
   // View mode state (grid or table)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  const [workbenchMode, setWorkbenchMode] = useState<"all" | "previewable" | "missingCover" | "uncategorized">("all");
+  const [workbenchMode, setWorkbenchMode] = useState<"all" | "previewable" | "missingCover" | "uncategorized" | "duplicates">("all");
 
   // Cover upload state
   const [uploadingCoverId, setUploadingCoverId] = useState<string | null>(null);
@@ -603,6 +603,31 @@ export default function CommonDocumentManagement() {
     () => commondocument.filter((document) => !document.category),
     [commondocument]
   );
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map<string, CommonDocumentData[]>();
+    commondocument.forEach((doc) => {
+      const key = (doc.hash || doc.file || "").trim();
+      if (!key) return;
+      const group = groups.get(key) ?? [];
+      group.push(doc);
+      groups.set(key, group);
+    });
+
+    const grouped = Array.from(groups.values())
+      .filter((group) => group.length > 1)
+      .map((group) => [...group].sort((a, b) => (a.$createdAt || "").localeCompare(b.$createdAt || "")));
+
+    const duplicates = grouped.flat();
+    const duplicatesToRemove = grouped.flatMap((group) => group.slice(1));
+    const duplicateIds = new Set(duplicates.map((doc) => doc.$id));
+
+    return {
+      duplicates,
+      duplicatesToRemove,
+      duplicateIds,
+      groupCount: grouped.length,
+    };
+  }, [commondocument]);
 
   // 搜尋過濾
   const filteredDocuments = useMemo(() => {
@@ -610,6 +635,7 @@ export default function CommonDocumentManagement() {
       if (workbenchMode === "previewable") return canPreviewFile(item.name || item.file || "", item.filetype);
       if (workbenchMode === "missingCover") return !item.cover;
       if (workbenchMode === "uncategorized") return !item.category;
+      if (workbenchMode === "duplicates") return duplicateGroups.duplicateIds.has(item.$id);
       return true;
     });
 
@@ -620,7 +646,7 @@ export default function CommonDocumentManagement() {
       item.note?.toLowerCase().includes(query) ||
       item.category?.toLowerCase().includes(query)
     );
-  }, [commondocument, searchQuery, workbenchMode]);
+  }, [commondocument, searchQuery, workbenchMode, duplicateGroups.duplicateIds]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -659,6 +685,40 @@ export default function CommonDocumentManagement() {
     setSelectionMode(false);
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
+    loadCommonDocument(true);
+  };
+
+  const handleCleanupDuplicates = async () => {
+    const ids = duplicateGroups.duplicatesToRemove.map(doc => doc.$id).filter(Boolean);
+    if (ids.length === 0) { alert('沒有可清理的重複文件'); return; }
+    const confirmText = 'DELETE duplicates';
+    const userInput = prompt(`找到 ${duplicateGroups.groupCount} 組重複文件，將刪除 ${ids.length} 份，只保留每組最早建立的 1 份。\n\n請輸入以下文字確認：\n${confirmText}`);
+    if (userInput !== confirmText) {
+      if (userInput !== null) {
+        alert('輸入不正確，已取消');
+      }
+      return;
+    }
+    setDeleteTotal(ids.length);
+    setDeleteProgress(0);
+    setIsDeleting(true);
+    let successCount = 0;
+    let failedCount = 0;
+    for (const id of ids) {
+      try {
+        const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${id}`);
+        const response = await fetch(url, { method: 'DELETE' });
+        if (response.ok) successCount++;
+        else failedCount++;
+      } catch (err) {
+        console.error('Delete duplicate failed:', err);
+        failedCount++;
+      } finally {
+        setDeleteProgress(prev => prev + 1);
+      }
+    }
+    setIsDeleting(false);
+    alert(`重複文件清理完成。\n成功: ${successCount} 筆\n失敗: ${failedCount} 筆`);
     loadCommonDocument(true);
   };
 
@@ -880,6 +940,7 @@ export default function CommonDocumentManagement() {
           { key: "previewable", label: "可預覽", count: previewableDocuments.length },
           { key: "missingCover", label: "缺封面", count: documentsMissingCover.length },
           { key: "uncategorized", label: "未分類", count: uncategorizedDocuments.length },
+          { key: "duplicates", label: "重複文件", count: duplicateGroups.duplicates.length },
         ]}
         suggestions={[
           documentsMissingCover.length > 0
@@ -888,6 +949,9 @@ export default function CommonDocumentManagement() {
           uncategorizedDocuments.length > 0
             ? { title: "分類清理", body: "先把未分類文件分到主題資料夾，後續搜尋和 AI 關聯才會更準。", tone: "blue" }
             : { title: "分類完成度", body: "分類已有基礎，之後可把重點放在內容摘要與問答。", tone: "green" },
+          duplicateGroups.duplicates.length > 0
+            ? { title: "重複檔案", body: `偵測到 ${duplicateGroups.duplicates.length} 份重複文件，建議先一鍵清理。`, tone: "amber" }
+            : { title: "重複檢查", body: "目前未偵測到重複文件。", tone: "green" },
           previewableDocuments.length > 0
             ? { title: "快速回顧", body: `目前有 ${previewableDocuments.length} 份文件可直接預覽，適合先整理高頻查閱的內容。`, tone: "neutral" }
             : { title: "可讀性提醒", body: "如果常用的是圖片或掃描檔，之後很值得補 OCR 與摘要。", tone: "neutral" },
@@ -908,14 +972,27 @@ export default function CommonDocumentManagement() {
               <Download size={16} className={exportingZip ? "animate-bounce" : ""} />
               <span className="hidden sm:inline">{exportingZip ? "匯出中..." : "匯出 ZIP"}</span>
             </Button>
-            <Button onClick={() => importZipInputRef.current?.click()} disabled={loading || exportingZip || importingZip} className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl disabled:opacity-50" title="從 ZIP 匯入文件">
-              <FolderUp size={16} className={importingZip ? "animate-bounce" : ""} />
-              <span className="hidden sm:inline">{importingZip ? "匯入中..." : "匯入 ZIP"}</span>
-            </Button>
-            <input ref={importZipInputRef} type="file" accept=".zip" onChange={handleImportZip} className="hidden" />
-            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
-              {selectionMode && filteredDocuments.length > 0 && filteredDocuments.every((document) => selectedIds.has(document.$id)) ? "取消全選" : "全選"}
-            </Button>
+              <Button onClick={() => importZipInputRef.current?.click()} disabled={loading || exportingZip || importingZip} className="gap-2 bg-orange-500 hover:bg-orange-600 rounded-xl disabled:opacity-50" title="從 ZIP 匯入文件">
+                <FolderUp size={16} className={importingZip ? "animate-bounce" : ""} />
+                <span className="hidden sm:inline">{importingZip ? "匯入中..." : "匯入 ZIP"}</span>
+              </Button>
+              <input ref={importZipInputRef} type="file" accept=".zip" onChange={handleImportZip} className="hidden" />
+              {duplicateGroups.duplicatesToRemove.length > 0 && (
+                <Button
+                  onClick={handleCleanupDuplicates}
+                  disabled={loading || exportingZip || importingZip || isDeleting}
+                  className="gap-2 bg-red-500 hover:bg-red-600 rounded-xl disabled:opacity-50"
+                  title="一鍵清理重複文件"
+                >
+                  <Trash2 size={16} className={isDeleting ? "animate-pulse" : ""} />
+                  <span className="hidden sm:inline">
+                    {isDeleting ? `清理中 ${deleteProgress}/${deleteTotal}` : `清理重複 (${duplicateGroups.duplicatesToRemove.length})`}
+                  </span>
+                </Button>
+              )}
+              <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
+                {selectionMode && filteredDocuments.length > 0 && filteredDocuments.every((document) => selectedIds.has(document.$id)) ? "取消全選" : "全選"}
+              </Button>
             {selectedIds.size > 0 && (
               <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
                 <Trash2 size={18} />
