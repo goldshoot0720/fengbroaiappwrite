@@ -32,7 +32,7 @@ const INITIAL_FORM: SubscriptionFormData = {
   continue: true,
 };
 
-const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE Table subscription";
+const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
 
 function AccountComboBox({
   value,
