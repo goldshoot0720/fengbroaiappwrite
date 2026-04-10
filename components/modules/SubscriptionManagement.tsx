@@ -405,6 +405,7 @@ export default function SubscriptionManagement() {
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<{ successCount: number; failCount: number; failureSummary: string } | null>(null);
+  const importAutoCloseRef = useRef<number | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
@@ -911,6 +912,10 @@ export default function SubscriptionManagement() {
     }
     const reader = new FileReader();
     reader.onload = (loadEvent) => {
+      if (importAutoCloseRef.current) {
+        clearTimeout(importAutoCloseRef.current);
+        importAutoCloseRef.current = null;
+      }
       setImportResult(null);
       setImportPreview(parseCSV(loadEvent.target?.result as string));
     };
@@ -923,6 +928,10 @@ export default function SubscriptionManagement() {
 
     setImporting(true);
     setImportResult(null);
+    if (importAutoCloseRef.current) {
+      clearTimeout(importAutoCloseRef.current);
+      importAutoCloseRef.current = null;
+    }
     setImportProgress({ current: 0, total: importPreview.data.length });
     setImportDebugMessages([`Import started: ${importPreview.data.length} rows`]);
 
@@ -971,6 +980,14 @@ export default function SubscriptionManagement() {
       .map(([reason, count]) => `- ${count} 筆：${reason}`)
       .join("\n");
     setImportResult({ successCount, failCount, failureSummary });
+    if (failCount === 0) {
+      importAutoCloseRef.current = window.setTimeout(() => {
+        setImportPreview(null);
+        setImportResult(null);
+        setImportDebugMessages([]);
+        importAutoCloseRef.current = null;
+      }, 1200);
+    }
   };
 
   const handleCopy = (sub: Subscription) => {
@@ -1434,6 +1451,10 @@ export default function SubscriptionManagement() {
                       <Button
                         variant="outline"
                         onClick={() => {
+                          if (importAutoCloseRef.current) {
+                            clearTimeout(importAutoCloseRef.current);
+                            importAutoCloseRef.current = null;
+                          }
                           setImportPreview(null);
                           setImportResult(null);
                           setImportDebugMessages([]);
@@ -1449,6 +1470,10 @@ export default function SubscriptionManagement() {
                   <Button
                     variant="outline"
                     onClick={() => {
+                      if (importAutoCloseRef.current) {
+                        clearTimeout(importAutoCloseRef.current);
+                        importAutoCloseRef.current = null;
+                      }
                       setImportPreview(null);
                       setImportResult(null);
                       setImportDebugMessages([]);
