@@ -116,6 +116,7 @@ export default function ImageGallery() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [deleteTotal, setDeleteTotal] = useState(0);
+  const [isDeduplicating, setIsDeduplicating] = useState(false);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -140,6 +141,22 @@ export default function ImageGallery() {
   const duplicateImages = useMemo(
     () => images.filter((image) => image.hash && (imageHashCounts.get(image.hash) || 0) > 1),
     [images, imageHashCounts]
+  );
+
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map<string, ImageData[]>();
+    duplicateImages.forEach((image) => {
+      if (!image.hash) return;
+      const existing = groups.get(image.hash) || [];
+      existing.push(image);
+      groups.set(image.hash, existing);
+    });
+    return Array.from(groups.values());
+  }, [duplicateImages]);
+
+  const duplicateExtraCount = useMemo(
+    () => duplicateGroups.reduce((sum, group) => sum + Math.max(group.length - 1, 0), 0),
+    [duplicateGroups]
   );
 
   const uncategorizedImages = useMemo(
@@ -203,6 +220,75 @@ export default function ImageGallery() {
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
     loadImages(true);
+  };
+
+  const getImageRetentionScore = (image: ImageData) => {
+    let score = 0;
+    if (image.category?.trim()) score += 4;
+    if (image.note?.trim()) score += 4;
+    if (image.ref?.trim()) score += 3;
+    if (image.file?.trim()) score += 2;
+    if (image.name?.trim()) score += 1;
+    return score;
+  };
+
+  const handleCleanupDuplicates = async () => {
+    if (duplicateGroups.length === 0 || isDeduplicating) return;
+
+    const confirmed = window.confirm(
+      `目前有 ${duplicateGroups.length} 組重複圖片，預計刪除 ${duplicateExtraCount} 張重複項目。\n` +
+      `系統會優先保留資訊較完整、時間較新的圖片。\n\n是否繼續？`
+    );
+
+    if (!confirmed) return;
+
+    const idsToDelete = duplicateGroups.flatMap((group) => {
+      const sorted = [...group].sort((a, b) => {
+        const scoreDiff = getImageRetentionScore(b) - getImageRetentionScore(a);
+        if (scoreDiff !== 0) return scoreDiff;
+
+        const updatedDiff = new Date(b.$updatedAt).getTime() - new Date(a.$updatedAt).getTime();
+        if (updatedDiff !== 0) return updatedDiff;
+
+        return new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime();
+      });
+
+      return sorted.slice(1).map((image) => image.$id).filter(Boolean);
+    });
+
+    if (idsToDelete.length === 0) {
+      alert('目前沒有可清理的重複圖片。');
+      return;
+    }
+
+    setIsDeduplicating(true);
+    setDeleteTotal(idsToDelete.length);
+    setDeleteProgress(0);
+
+    let failedCount = 0;
+
+    for (const id of idsToDelete) {
+      try {
+        const url = addAppwriteConfigToUrl(`${API_ENDPOINTS.IMAGE}/${id}`);
+        const response = await fetch(url, { method: 'DELETE' });
+        if (!response.ok) failedCount++;
+      } catch (error) {
+        console.error('Duplicate cleanup delete failed:', error);
+        failedCount++;
+      } finally {
+        setDeleteProgress((prev) => prev + 1);
+      }
+    }
+
+    setIsDeduplicating(false);
+    await loadImages(true);
+
+    if (failedCount > 0) {
+      alert(`重複圖片清理完成，但有 ${failedCount} 張刪除失敗。`);
+      return;
+    }
+
+    alert(`重複圖片清理完成，已刪除 ${idsToDelete.length} 張重複圖片。`);
   };
 
   const handleEdit = (image: ImageData) => {
@@ -1221,6 +1307,19 @@ export default function ImageGallery() {
               onChange={handleImportZipWithDebug}
               className="hidden"
             />
+            {duplicateImages.length > 0 && (
+              <Button
+                onClick={handleCleanupDuplicates}
+                disabled={loading || exporting || importing || isDeduplicating}
+                className="gap-2 rounded-xl h-10 px-4 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
+                title="一鍵清理重複圖片"
+              >
+                <Trash2 size={16} className={isDeduplicating ? "animate-pulse" : ""} />
+                <span className="hidden sm:inline">
+                  {isDeduplicating ? `清理中 ${deleteProgress}/${deleteTotal}` : `清理重複 (${duplicateExtraCount})`}
+                </span>
+              </Button>
+            )}
             <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
               {selectionMode && filteredImages.length > 0 && filteredImages.every((image) => selectedIds.has(image.$id)) ? "取消全選" : "全選"}
             </Button>
