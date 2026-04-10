@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { TABLE_SCHEMAS } from "../create-table/route";
 
 const sdk = require('node-appwrite');
 
@@ -25,128 +26,19 @@ function createAppwrite(searchParams) {
   return { databases, databaseId };
 }
 
-// Table definitions with expected schema
-const TABLE_DEFINITIONS = {
-  article: [
-    { key: 'title', type: 'string', size: 100 },
-    { key: 'content', type: 'string', size: 3377 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
-    { key: 'newDate', type: 'datetime' },
-    { key: 'url1', type: 'string', size: 2000 },  // Appwrite stores URL as string
-    { key: 'url2', type: 'string', size: 2000 },
-    { key: 'url3', type: 'string', size: 2000 },
-    { key: 'file1', type: 'string', size: 150 },
-    { key: 'file1name', type: 'string', size: 100 },
-    { key: 'file1type', type: 'string', size: 20 },
-    { key: 'file2', type: 'string', size: 150 },
-    { key: 'file2name', type: 'string', size: 100 },
-    { key: 'file2type', type: 'string', size: 20 },
-    { key: 'file3', type: 'string', size: 150 },
-    { key: 'file3name', type: 'string', size: 100 },
-    { key: 'file3type', type: 'string', size: 20 }
-  ],
-  bank: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'deposit', type: 'integer' },
-    { key: 'site', type: 'string', size: 2000 }, // Appwrite stores URL as string
-    { key: 'address', type: 'string', size: 100 },
-    { key: 'withdrawals', type: 'integer' },
-    { key: 'transfer', type: 'integer' },
-    { key: 'activity', type: 'string', size: 2000 }, // Appwrite stores URL as string
-    { key: 'card', type: 'string', size: 100 },
-    { key: 'account', type: 'string', size: 100 }
-  ],
-  // Add simplified schema for other tables (just keys for now)
-  commonaccount: [...Array.from({length: 37}, (_, i) => ({ key: `site${(i + 1).toString().padStart(2, '0')}`, type: 'string', size: 100 })), ...Array.from({length: 37}, (_, i) => ({ key: `note${(i + 1).toString().padStart(2, '0')}`, type: 'string', size: 100 })), { key: 'name', type: 'string', size: 100 }],
-  food: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'amount', type: 'integer' },
-    { key: 'price', type: 'integer' },
-    { key: 'shop', type: 'string', size: 100 },
-    { key: 'todate', type: 'datetime' },
-    { key: 'photo', type: 'string' },
-    { key: 'photohash', type: 'string', size: 256 }
-  ],
-  subscription: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'site', type: 'string' },
-    { key: 'price', type: 'integer' },
-    { key: 'nextdate', type: 'datetime' },
-    { key: 'note', type: 'string', size: 500 },
-    { key: 'account', type: 'string', size: 100 },
-    { key: 'currency', type: 'string', size: 100 },
-    { key: 'continue', type: 'boolean' },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'purpose', type: 'string', size: 100 },
-    { key: 'usageFrequency', type: 'string', size: 50 },
-    { key: 'friendliness', type: 'string', size: 50 },
-    { key: 'alternative', type: 'string', size: 200 },
-    { key: 'retentionRecommendation', type: 'string', size: 50 },
-    { key: 'archived', type: 'boolean' }
-  ],
-  image: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 150 },
-    { key: 'filetype', type: 'string', size: 20 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'hash', type: 'string', size: 300 },
-    { key: 'cover', type: 'boolean' }
-  ],
-  video: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 500 },
-    { key: 'filetype', type: 'string', size: 20 },
-    { key: 'note', type: 'string', size: 500 },
-    { key: 'ref', type: 'string', size: 300 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'hash', type: 'string', size: 300 },
-    { key: 'cover', type: 'string', size: 500 }
-  ],
-  music: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 150 },
-    { key: 'filetype', type: 'string', size: 20 },
-    { key: 'lyrics', type: 'string', size: 3337 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'hash', type: 'string', size: 300 },
-    { key: 'language', type: 'string', size: 100 },
-    { key: 'cover', type: 'string', size: 150 }
-  ],
-  podcast: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 150 },
-    { key: 'filetype', type: 'string', size: 20 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'hash', type: 'string', size: 300 },
-    { key: 'cover', type: 'string', size: 150 }
-  ],
-  commondocument: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'file', type: 'string', size: 150 },
-    { key: 'filetype', type: 'string', size: 20 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'ref', type: 'string', size: 100 },
-    { key: 'category', type: 'string', size: 100 },
-    { key: 'hash', type: 'string', size: 300 },
-    { key: 'cover', type: 'string', size: 150 }
-  ],
-  routine: [
-    { key: 'name', type: 'string', size: 100 },
-    { key: 'note', type: 'string', size: 100 },
-    { key: 'lastdate1', type: 'datetime' },
-    { key: 'lastdate2', type: 'datetime' },
-    { key: 'lastdate3', type: 'datetime' },
-    { key: 'link', type: 'string', size: 2000 },
-    { key: 'photo', type: 'string', size: 2000 }
-  ]
-};
+const normalizeExpectedType = (type) => (type === "url" ? "string" : type);
+
+// Keep database-stats aligned with the latest create-table schema.
+const TABLE_DEFINITIONS = Object.fromEntries(
+  Object.entries(TABLE_SCHEMAS).map(([tableName, schema]) => [
+    tableName,
+    schema.attributes.map((attr) => ({
+      key: attr.key,
+      type: normalizeExpectedType(attr.type),
+      ...(attr.size !== undefined ? { size: attr.size } : {}),
+    })),
+  ])
+);
 
 function compareSchema(expected, actual, tableName = 'unknown') {
   console.log(`\n========== [compareSchema:${tableName}] START ==========`);
