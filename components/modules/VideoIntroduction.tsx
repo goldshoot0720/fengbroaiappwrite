@@ -1518,6 +1518,21 @@ export default function VideoIntroduction() {
                 清理重複 ({duplicateVideosToDelete.length})
               </Button>
             )}
+            <Button
+              onClick={() => {
+                setSelectionMode((prev) => {
+                  const next = !prev;
+                  if (!next) {
+                    setSelectedIds(new Set());
+                  }
+                  return next;
+                });
+              }}
+              variant="outline"
+              className="rounded-xl h-10 px-4"
+            >
+              {selectionMode ? "結束多選" : "多選"}
+            </Button>
             <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
               {selectionMode && filteredVideos.length > 0 && filteredVideos.every((video) => selectedIds.has(video.$id)) ? "取消全選" : "全選"}
             </Button>
@@ -2351,6 +2366,7 @@ function InlineCreateVideoCard({
     filetype: string;
     defaultName: string;
     duplicateVideoName?: string;
+    duplicateVideoId?: string;
   }>>([]);
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -2474,6 +2490,7 @@ function InlineCreateVideoCard({
         filetype,
         defaultName,
         duplicateVideoName: duplicateVideo?.name,
+        duplicateVideoId: duplicateVideo?.$id,
       };
     }));
 
@@ -2499,7 +2516,7 @@ function InlineCreateVideoCard({
       }
 
       if (firstFile.duplicateVideoName) {
-        setDuplicateWarning(`警告：此影片與「${firstFile.duplicateVideoName}」相同，請勿重複上傳！`);
+        setDuplicateWarning(`提醒：此影片與「${firstFile.duplicateVideoName}」相同，可在儲存時選擇用新檔取代。`);
       }
     } else {
       setFormData((prev) => ({
@@ -2512,7 +2529,7 @@ function InlineCreateVideoCard({
       setCoverPreviewUrl('');
 
       if (duplicateCount > 0) {
-        setDuplicateWarning(`提醒：${duplicateCount} 部影片與既有影片重複，儲存時會自動跳過。`);
+        setDuplicateWarning(`提醒：${duplicateCount} 部影片與既有影片重複，儲存時可選擇用新檔取代。`);
       }
     }
 
@@ -2567,15 +2584,23 @@ function InlineCreateVideoCard({
       alert('請輸入影片名稱');
       return;
     }
-    if (selectedFiles.length <= 1 && duplicateWarning) {
-      alert('此影片與既有影片重複，無法上傳！請選擇其他影片。');
-      return;
+    const duplicateItems = selectedFiles.filter((item) => item.duplicateVideoId);
+    if (selectedFiles.length <= 1 && duplicateItems.length > 0) {
+      const confirmed = window.confirm(`此影片與「${duplicateItems[0].duplicateVideoName}」重複，是否用新檔取代舊影片？`);
+      if (!confirmed) return;
     }
 
     setSubmitting(true);
     try {
       if (selectedFiles.length > 1) {
-        const uploadableFiles = selectedFiles.filter((item) => !item.duplicateVideoName);
+        const duplicateCount = duplicateItems.length;
+        let replaceDuplicates = false;
+        if (duplicateCount > 0) {
+          replaceDuplicates = window.confirm(`有 ${duplicateCount} 部影片與既有影片重複，是否用新檔取代舊影片？取消將略過重複項目。`);
+        }
+        const uploadableFiles = replaceDuplicates
+          ? selectedFiles
+          : selectedFiles.filter((item) => !item.duplicateVideoId);
         let successCount = 0;
         let skippedCount = selectedFiles.length - uploadableFiles.length;
         let failedCount = 0;
@@ -2607,8 +2632,12 @@ function InlineCreateVideoCard({
               cover: coverUrl,
             };
 
-            const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
-              method: 'POST',
+            const apiUrl = item.duplicateVideoId
+              ? addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${item.duplicateVideoId}`)
+              : addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
+            const method = item.duplicateVideoId ? 'PUT' : 'POST';
+            const response = await fetch(apiUrl, {
+              method,
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload),
             });
@@ -2646,8 +2675,13 @@ function InlineCreateVideoCard({
           finalFormData.cover = url;
         }
 
-        const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
-          method: 'POST',
+        const singleDuplicateId = duplicateItems[0]?.duplicateVideoId;
+        const apiUrl = singleDuplicateId
+          ? addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${singleDuplicateId}`)
+          : addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
+        const method = singleDuplicateId ? 'PUT' : 'POST';
+        const response = await fetch(apiUrl, {
+          method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(finalFormData),
         });
@@ -2746,7 +2780,7 @@ function InlineCreateVideoCard({
         </div>
       )}
       <div className="flex gap-2 pt-1">
-        <Button onClick={handleSave} disabled={submitting || (selectedFiles.length <= 1 && !!duplicateWarning)} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">
+        <Button onClick={handleSave} disabled={submitting} className="flex-1 gap-1 bg-green-500 hover:bg-green-600 rounded-lg text-xs py-1.5 disabled:opacity-50">
           {submitting ? '新增中...' : '新增'}
         </Button>
         <Button onClick={onCancel} variant="outline" disabled={submitting} className="flex-1 gap-1 rounded-lg text-xs py-1.5">
@@ -3476,6 +3510,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     filetype: string;
     defaultName: string;
     duplicateVideoName?: string;
+    duplicateVideoId?: string;
   }>>([]);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -3612,6 +3647,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         filetype,
         defaultName,
         duplicateVideoName: duplicateVideo?.name,
+        duplicateVideoId: duplicateVideo?.$id,
       };
     }));
 
@@ -3633,7 +3669,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       }
 
       if (firstFile.duplicateVideoName) {
-        setDuplicateWarning(`警告：此影片與「${firstFile.duplicateVideoName}」相同，請勿重複上傳！`);
+        setDuplicateWarning(`提醒：此影片與「${firstFile.duplicateVideoName}」相同，可在儲存時選擇用新檔取代。`);
       }
     } else {
       setFormData((prev) => ({
@@ -3645,7 +3681,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       setSelectedCoverFile(null);
       setCoverPreviewUrl('');
       if (duplicateCount > 0) {
-        setDuplicateWarning(`提醒：${duplicateCount} 部影片與既有影片重複，儲存時會自動跳過。`);
+        setDuplicateWarning(`提醒：${duplicateCount} 部影片與既有影片重複，儲存時可選擇用新檔取代。`);
       }
     }
 
@@ -3730,9 +3766,10 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       return;
     }
 
-    if (selectedFiles.length <= 1 && duplicateWarning) {
-      alert('此影片與既有影片重複，無法上傳！請選擇其他影片。');
-      return;
+    const duplicateItems = selectedFiles.filter((item) => item.duplicateVideoId);
+    if (selectedFiles.length <= 1 && duplicateItems.length > 0) {
+      const confirmed = window.confirm(`此影片與「${duplicateItems[0].duplicateVideoName}」重複，是否用新檔取代舊影片？`);
+      if (!confirmed) return;
     }
 
     setSubmitting(true);
@@ -3740,7 +3777,14 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       let finalFormData = { ...formData };
 
       if (selectedFiles.length > 1 && !video) {
-        const uploadableFiles = selectedFiles.filter((item) => !item.duplicateVideoName);
+        const duplicateCount = duplicateItems.length;
+        let replaceDuplicates = false;
+        if (duplicateCount > 0) {
+          replaceDuplicates = window.confirm(`有 ${duplicateCount} 部影片與既有影片重複，是否用新檔取代舊影片？取消將略過重複項目。`);
+        }
+        const uploadableFiles = replaceDuplicates
+          ? selectedFiles
+          : selectedFiles.filter((item) => !item.duplicateVideoId);
         let successCount = 0;
         let skippedCount = selectedFiles.length - uploadableFiles.length;
         let failedCount = 0;
@@ -3776,8 +3820,12 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
               cover: coverUrl,
             };
 
-            const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO), {
-              method: 'POST',
+            const apiUrl = item.duplicateVideoId
+              ? addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${item.duplicateVideoId}`)
+              : addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
+            const method = item.duplicateVideoId ? 'PUT' : 'POST';
+            const response = await fetch(apiUrl, {
+              method,
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload),
             });
@@ -3822,10 +3870,13 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         }
       }
 
+      const duplicateId = duplicateItems[0]?.duplicateVideoId;
       const apiUrl = video
         ? addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${video.$id}`)
-        : addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
-      const method = video ? 'PUT' : 'POST';
+        : duplicateId
+          ? addAppwriteConfigToUrl(`${API_ENDPOINTS.VIDEO}/${duplicateId}`)
+          : addAppwriteConfigToUrl(API_ENDPOINTS.VIDEO);
+      const method = video || duplicateId ? 'PUT' : 'POST';
 
       const response = await fetch(apiUrl, {
         method,
@@ -4136,7 +4187,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
             </Button>
             <Button
               type="submit"
-              disabled={submitting || (selectedFiles.length <= 1 && !!duplicateWarning)}
+              disabled={submitting}
               className="flex-1 bg-blue-500 hover:bg-blue-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? '處理中...' : (video ? '更新' : '新增')}
