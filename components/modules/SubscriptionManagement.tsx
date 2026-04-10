@@ -368,6 +368,7 @@ export default function SubscriptionManagement() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
+  const [importResult, setImportResult] = useState<{ successCount: number; failCount: number; failureSummary: string } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
@@ -874,6 +875,7 @@ export default function SubscriptionManagement() {
     }
     const reader = new FileReader();
     reader.onload = (loadEvent) => {
+      setImportResult(null);
       setImportPreview(parseCSV(loadEvent.target?.result as string));
     };
     reader.readAsText(file, "UTF-8");
@@ -884,6 +886,7 @@ export default function SubscriptionManagement() {
     if (!importPreview || importPreview.data.length === 0) return;
 
     setImporting(true);
+    setImportResult(null);
     setImportProgress({ current: 0, total: importPreview.data.length });
     setImportDebugMessages([`Import started: ${importPreview.data.length} rows`]);
 
@@ -925,18 +928,13 @@ export default function SubscriptionManagement() {
 
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
-    setImportPreview(null);
     await loadSubscriptions();
     const failureSummary = Array.from(failureReasons.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([reason, count]) => `- ${count} 筆：${reason}`)
       .join("\n");
-    alert(
-      `匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆${
-        failureSummary ? `\n\n失敗原因摘要:\n${failureSummary}` : ""
-      }`
-    );
+    setImportResult({ successCount, failCount, failureSummary });
   };
 
   const handleCopy = (sub: Subscription) => {
@@ -1318,6 +1316,18 @@ export default function SubscriptionManagement() {
               <p className="mt-1 text-sm text-gray-500">請確認 subscription CSV 內容是否正確</p>
             </div>
             <div className="max-h-[50vh] overflow-y-auto p-6">
+              {importResult && (
+                <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-100">
+                  <div className="font-semibold">匯入完成</div>
+                  <div className="mt-1">成功：{importResult.successCount} 筆</div>
+                  <div>失敗：{importResult.failCount} 筆</div>
+                  {importResult.failureSummary && (
+                    <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-white/70 p-3 text-xs leading-5 text-blue-900 dark:bg-black/20 dark:text-blue-100">
+                      {`失敗原因摘要:\n${importResult.failureSummary}`}
+                    </pre>
+                  )}
+                </div>
+              )}
               {importPreview.errors.length > 0 && (
                 <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
                   <h4 className="mb-2 font-semibold text-red-600 dark:text-red-400">格式錯誤</h4>
@@ -1353,7 +1363,7 @@ export default function SubscriptionManagement() {
               )}
             </div>
             <div className="flex flex-col gap-3 border-t border-gray-200 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] dark:border-gray-700 sm:flex-row sm:justify-end">
-              {importing ? (
+              {importing || importResult ? (
                 <div className="flex w-full flex-col gap-3 sm:max-w-xl">
                   <div className="flex items-center gap-3">
                     <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
@@ -1383,10 +1393,33 @@ export default function SubscriptionManagement() {
                       )}
                     </div>
                   </div>
+                  {importResult && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setImportPreview(null);
+                          setImportResult(null);
+                          setImportDebugMessages([]);
+                        }}
+                      >
+                        完成
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
-                  <Button variant="outline" onClick={() => setImportPreview(null)}>取消</Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setImportPreview(null);
+                      setImportResult(null);
+                      setImportDebugMessages([]);
+                    }}
+                  >
+                    取消
+                  </Button>
                   <Button onClick={executeImport} disabled={importPreview.data.length === 0 || importPreview.errors.length > 0}>
                     確認匯入 ({importPreview.data.length} 筆)
                   </Button>
