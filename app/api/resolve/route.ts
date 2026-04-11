@@ -16,6 +16,27 @@ type BigGoCandidate = {
   merchant: string;
 };
 
+type SourceMeta = {
+  title: string;
+  price: number | null;
+  code: string;
+  storeKey: string;
+};
+
+class HttpStatusError extends Error {
+  status: number;
+  requestUrl: string;
+  requestMethod: string;
+
+  constructor(status: number, requestUrl: string, requestMethod: string) {
+    super(`${requestMethod} ${requestUrl} failed with HTTP ${status}`);
+    this.name = "HttpStatusError";
+    this.status = status;
+    this.requestUrl = requestUrl;
+    this.requestMethod = requestMethod;
+  }
+}
+
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
 
@@ -62,7 +83,7 @@ async function fetchText(url: string, init?: RequestInit): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`${init?.method || "GET"} ${url} failed with HTTP ${response.status}`);
+    throw new HttpStatusError(response.status, url, init?.method || "GET");
   }
 
   return await response.text();
@@ -83,13 +104,13 @@ async function fetchJson<T>(url: string, payload: unknown, headers?: HeadersInit
   });
 
   if (!response.ok) {
-    throw new Error(`POST ${url} failed with HTTP ${response.status}`);
+    throw new HttpStatusError(response.status, url, "POST");
   }
 
   return (await response.json()) as T;
 }
 
-function extractProductMeta(html: string, url: string) {
+function extractProductMeta(html: string, url: string): SourceMeta {
   const titlePatterns = [
     /<meta\s+property="og:title"\s+content="([^"]+)"/i,
     /<meta\s+name="twitter:title"\s+content="([^"]+)"/i,
@@ -130,6 +151,31 @@ function extractProductMeta(html: string, url: string) {
     price,
     code: extractProductCode(url),
     storeKey: getStoreKey(url),
+  };
+}
+
+function buildRateLimitedFallback(url: string, sourceMeta: SourceMeta) {
+  const history =
+    sourceMeta.price != null
+      ? [
+          {
+            date: toDateString(Date.now()),
+            price: sourceMeta.price,
+            currency: "TWD",
+          },
+        ]
+      : [];
+
+  return {
+    url,
+    title: sourceMeta.title,
+    source: "BigGo API",
+    currency: "TWD",
+    currentPrice: sourceMeta.price,
+    history,
+    resolvedAt: new Date().toISOString(),
+    notice:
+      "BigGo 目前查詢過於頻繁，暫時回傳 429。已先顯示商品頁可取得的名稱與目前價格，請稍後再試一次。",
   };
 }
 
@@ -274,9 +320,17 @@ async function resolveFromBigGo(url: string, days: number) {
   for (const query of queries) {
     lastQuery = query;
     const searchUrl = `https://biggo.com.tw/s/${encodeURIComponent(query)}/`;
-    const html = await fetchText(searchUrl, {
-      headers: { Referer: "https://biggo.com.tw/" },
-    });
+    let html: string;
+    try {
+      html = await fetchText(searchUrl, {
+        headers: { Referer: "https://biggo.com.tw/" },
+      });
+    } catch (error) {
+      if (error instanceof HttpStatusError && error.status === 429) {
+        return buildRateLimitedFallback(url, sourceMeta);
+      }
+      throw error;
+    }
     candidates = parseBigGoCandidates(html);
     if (candidates.length > 0) break;
   }
@@ -289,21 +343,33 @@ async function resolveFromBigGo(url: string, days: number) {
     candidates
   );
 
-  const historyResponse = await fetchJson<{
+  let historyResponse: {
     title?: string;
     current_price?: number;
     price_history?: Array<{ x: number; y: number }>;
-  }>(
-    "https://biggo.com.tw/api/v1/spa/product/history",
-    {
-      history_id: match.historyId,
-      days,
-    },
-    {
-      region: "tw",
-      referer: `https://biggo.com.tw/s/${encodeURIComponent(lastQuery)}/`,
+  };
+  try {
+    historyResponse = await fetchJson<{
+      title?: string;
+      current_price?: number;
+      price_history?: Array<{ x: number; y: number }>;
+    }>(
+      "https://biggo.com.tw/api/v1/spa/product/history",
+      {
+        history_id: match.historyId,
+        days,
+      },
+      {
+        region: "tw",
+        referer: `https://biggo.com.tw/s/${encodeURIComponent(lastQuery)}/`,
+      }
+    );
+  } catch (error) {
+    if (error instanceof HttpStatusError && error.status === 429) {
+      return buildRateLimitedFallback(url, sourceMeta);
     }
-  );
+    throw error;
+  }
 
   const history = historyResponse.price_history?.length
     ? historyResponse.price_history
