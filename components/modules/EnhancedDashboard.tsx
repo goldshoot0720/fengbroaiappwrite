@@ -258,10 +258,16 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       const dateLabel = now.toLocaleDateString("zh-TW");
       const slotKey = `${dateKey} ${timeLabel}`;
 
-      let stored = { lastSlot: "", count: 0 };
+      let stored: { lastSlot: string; count: number } = { lastSlot: "", count: 0 };
       try {
         const raw = window.localStorage.getItem("sleepReminderDaily");
-        if (raw) stored = JSON.parse(raw) as { lastSlot?: string; count?: number };
+        if (raw) {
+          const parsed = JSON.parse(raw) as { lastSlot?: string; count?: number };
+          stored = {
+            lastSlot: parsed.lastSlot || "",
+            count: parsed.count || 0,
+          };
+        }
       } catch {}
 
       if (stored.lastSlot && !stored.lastSlot.startsWith(dateKey)) {
