@@ -91,15 +91,15 @@ async function fetchJson<T>(url: string, payload: unknown, headers?: HeadersInit
 
 function extractProductMeta(html: string, url: string) {
   const titlePatterns = [
-    /<meta\s+property="og:title"\s+content="([^"]+)"/isu,
-    /<meta\s+name="twitter:title"\s+content="([^"]+)"/isu,
-    /<title>(.*?)<\/title>/isu,
-    /<h1[^>]*>(.*?)<\/h1>/isu,
+    /<meta\s+property="og:title"\s+content="([^"]+)"/i,
+    /<meta\s+name="twitter:title"\s+content="([^"]+)"/i,
+    /<title>([\s\S]*?)<\/title>/i,
+    /<h1[^>]*>([\s\S]*?)<\/h1>/i,
   ];
   const pricePatterns = [
-    /<meta\s+property="product:price:amount"\s+content="([^"]+)"/isu,
-    /"price"\s*:\s*"?(\\?\d[\d,]*)"?/isu,
-    /"salePrice"\s*:\s*"?(\\?\d[\d,]*)"?/isu,
+    /<meta\s+property="product:price:amount"\s+content="([^"]+)"/i,
+    /"price"\s*:\s*"?(\\?\d[\d,]*)"?/i,
+    /"salePrice"\s*:\s*"?(\\?\d[\d,]*)"?/i,
   ];
 
   let title = "";
@@ -162,18 +162,18 @@ function decodeBigGoHtml(html: string): string {
 function parseBigGoCandidates(html: string): BigGoCandidate[] {
   const decoded = decodeBigGoHtml(html);
   const pattern =
-    /"history_id":"(?<historyId>[^"]+)".{0,1200}?"title":"(?<title>[^"]+)".{0,1200}?"purl":"(?<purl>https?:\/\/[^"]+)".{0,1200}?"price":(?<price>\d+|null).{0,1200}?"store":\{"image":"[^"]*","link":"[^"]*","name":"(?<merchant>[^"]+)"/gsu;
+    /"history_id":"([^"]+)"[\s\S]{0,1200}?"title":"([^"]+)"[\s\S]{0,1200}?"purl":"(https?:\/\/[^"]+)"[\s\S]{0,1200}?"price":(\d+|null)[\s\S]{0,1200}?"store":\{"image":"[^"]*","link":"[^"]*","name":"([^"]+)"/g;
 
   const results = new Map<string, BigGoCandidate>();
   for (const match of decoded.matchAll(pattern)) {
-    const groups = match.groups;
-    if (!groups?.historyId || results.has(groups.historyId)) continue;
-    results.set(groups.historyId, {
-      historyId: groups.historyId,
-      title: normalizeSpace(groups.title || ""),
-      purl: normalizeSpace(groups.purl || ""),
-      price: groups.price && groups.price !== "null" ? Number(groups.price) : null,
-      merchant: normalizeSpace(groups.merchant || ""),
+    const historyId = match[1];
+    if (!historyId || results.has(historyId)) continue;
+    results.set(historyId, {
+      historyId,
+      title: normalizeSpace(match[2] || ""),
+      purl: normalizeSpace(match[3] || ""),
+      price: match[4] && match[4] !== "null" ? Number(match[4]) : null,
+      merchant: normalizeSpace(match[5] || ""),
     });
   }
 

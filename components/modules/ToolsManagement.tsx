@@ -7,9 +7,15 @@ import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
 
 type ToolsTab = "price-compare";
+type PriceSource = "local" | "biggo-api";
 
 const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "price-compare", label: "鋒兄比價" },
+];
+
+const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
+  { id: "biggo-api", label: "BigGo API", hint: "查詢 BigGo 歷史價格資料" },
+  { id: "local", label: "本地佔位", hint: "只測試介面流程，不連外查價" },
 ];
 
 type PriceHistoryEntry = {
@@ -36,10 +42,12 @@ type RecentLink = {
 };
 
 const RECENT_KEY = "fengbro.tools.priceHistory.recent";
+const SOURCE_KEY = "fengbro.tools.priceHistory.source";
 
 export default function ToolsManagement() {
   const [activeTab, setActiveTab] = useState<ToolsTab>("price-compare");
   const [targetUrl, setTargetUrl] = useState("");
+  const [priceSource, setPriceSource] = useState<PriceSource>("biggo-api");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState<PriceHistoryResult | null>(null);
@@ -47,6 +55,7 @@ export default function ToolsManagement() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     try {
       const raw = window.localStorage.getItem(RECENT_KEY);
       if (raw) {
@@ -54,7 +63,21 @@ export default function ToolsManagement() {
         setRecentLinks(parsed);
       }
     } catch {}
+
+    try {
+      const savedSource = window.localStorage.getItem(SOURCE_KEY) as PriceSource | null;
+      if (savedSource === "local" || savedSource === "biggo-api") {
+        setPriceSource(savedSource);
+      }
+    } catch {}
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(SOURCE_KEY, priceSource);
+    } catch {}
+  }, [priceSource]);
 
   const sortedRecent = useMemo(() => {
     return [...recentLinks].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
@@ -87,7 +110,9 @@ export default function ToolsManagement() {
     setResult(null);
 
     try {
-      const response = await fetch(`/api/resolve?url=${encodeURIComponent(url)}`);
+      const response = await fetch(
+        `/api/resolve?url=${encodeURIComponent(url)}&source=${encodeURIComponent(priceSource)}`
+      );
       const data = (await response.json()) as PriceHistoryResult & { error?: string };
 
       if (!response.ok) {
@@ -105,7 +130,7 @@ export default function ToolsManagement() {
 
   return (
     <section className="space-y-6">
-      <PageTitle title="鋒兄工具" description="工具模組集中入口與建置狀態" />
+      <PageTitle title="鋒兄工具" description="工具模組集中入口與查價工作台。" />
 
       <DataCard className="p-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -142,17 +167,32 @@ export default function ToolsManagement() {
               placeholder="貼上商品頁面連結，例如 https://..."
               className="flex-1 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-amber-400"
             />
-            <Button
-              onClick={() => handleResolve()}
-              className="gap-2"
-              disabled={loading}
-            >
+            <Button onClick={() => handleResolve()} className="gap-2" disabled={loading}>
               <Search size={16} />
               {loading ? "查詢中" : "查詢歷史價格"}
             </Button>
           </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {PRICE_SOURCES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setPriceSource(item.id)}
+                className={`rounded-2xl border px-3 py-3 text-left transition ${
+                  priceSource === item.id
+                    ? "border-amber-400 bg-white shadow-sm"
+                    : "border-amber-200/80 bg-white/60 hover:border-amber-300"
+                }`}
+              >
+                <div className="text-sm font-semibold text-foreground">{item.label}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{item.hint}</div>
+              </button>
+            ))}
+          </div>
+
           <p className="text-xs text-muted-foreground">
-            使用 <code>/api/resolve</code> 查詢，會保留最近連結方便快速回看。
+            目前會透過 <code>/api/resolve</code> 查詢，並把你選擇的資料來源一起送出。最近連結仍保留在瀏覽器端。
           </p>
         </div>
       </DataCard>
@@ -213,7 +253,8 @@ export default function ToolsManagement() {
                 <div>
                   <p className="text-sm font-semibold">{result.title || "未命名商品"}</p>
                   <p className="text-xs text-muted-foreground">
-                    來源：{result.source || "待設定"} {result.resolvedAt ? `・更新 ${result.resolvedAt}` : ""}
+                    來源：{result.source || "未設定"}
+                    {result.resolvedAt ? ` ・更新 ${result.resolvedAt}` : ""}
                   </p>
                 </div>
                 <div className="text-right text-sm">
@@ -236,7 +277,7 @@ export default function ToolsManagement() {
                 <span className="text-center">價格</span>
                 <span className="text-right">幣別</span>
               </div>
-              {(result.history && result.history.length > 0) ? (
+              {result.history && result.history.length > 0 ? (
                 result.history.map((entry, index) => (
                   <div
                     key={`${entry.date}-${index}`}
