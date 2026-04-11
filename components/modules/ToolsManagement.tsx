@@ -44,6 +44,210 @@ type RecentLink = {
 const RECENT_KEY = "fengbro.tools.priceHistory.recent";
 const SOURCE_KEY = "fengbro.tools.priceHistory.source";
 
+function formatChartPrice(price: number) {
+  return new Intl.NumberFormat("zh-TW").format(price);
+}
+
+function buildChartPath(points: Array<{ x: number; y: number }>) {
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    .join(" ");
+}
+
+function PriceTrendChart({
+  history,
+  currency,
+}: {
+  history: PriceHistoryEntry[];
+  currency?: string;
+}) {
+  const chart = useMemo(() => {
+    const priced = history.filter(
+      (entry): entry is PriceHistoryEntry & { price: number } => typeof entry.price === "number"
+    );
+
+    if (priced.length === 0) {
+      return null;
+    }
+
+    const width = 720;
+    const height = 280;
+    const padding = { top: 24, right: 24, bottom: 40, left: 56 };
+    const innerWidth = width - padding.left - padding.right;
+    const innerHeight = height - padding.top - padding.bottom;
+
+    const prices = priced.map((entry) => entry.price);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const range = Math.max(maxPrice - minPrice, Math.max(1, maxPrice * 0.08));
+    const domainMin = Math.max(0, minPrice - range * 0.2);
+    const domainMax = maxPrice + range * 0.2;
+    const domain = Math.max(domainMax - domainMin, 1);
+
+    const points = priced.map((entry, index) => {
+      const x =
+        padding.left + (priced.length === 1 ? innerWidth / 2 : (index / (priced.length - 1)) * innerWidth);
+      const y = padding.top + ((domainMax - entry.price) / domain) * innerHeight;
+      return { ...entry, x, y };
+    });
+
+    const linePath = buildChartPath(points);
+    const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${(height - padding.bottom).toFixed(2)} L ${points[0].x.toFixed(2)} ${(height - padding.bottom).toFixed(2)} Z`;
+
+    const steps = 4;
+    const gridLines = Array.from({ length: steps + 1 }, (_, index) => {
+      const value = domainMax - (domain / steps) * index;
+      const y = padding.top + (innerHeight / steps) * index;
+      return { value, y };
+    });
+
+    const labels = points.filter((_, index) => {
+      if (points.length <= 4) return true;
+      if (index === 0 || index === points.length - 1) return true;
+      const stride = Math.ceil(points.length / 4);
+      return index % stride === 0;
+    });
+
+    return {
+      areaPath,
+      currency,
+      gridLines,
+      height,
+      labels,
+      latest: priced[priced.length - 1],
+      linePath,
+      maxPrice,
+      minPrice,
+      points,
+      earliest: priced[0],
+      width,
+    };
+  }, [currency, history]);
+
+  if (!chart) {
+    return (
+      <div className="rounded-[28px] border border-dashed border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.95),rgba(255,255,255,0.95))] px-5 py-10 text-center text-sm text-muted-foreground">
+        目前沒有足夠的價格資料可繪製走勢圖。
+      </div>
+    );
+  }
+
+  const delta = chart.latest.price - chart.earliest.price;
+  const deltaTone =
+    delta > 0
+      ? "text-rose-600"
+      : delta < 0
+        ? "text-emerald-600"
+        : "text-amber-700";
+
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
+      <div className="flex flex-col gap-4 border-b border-amber-100 px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700/80">
+            Price Trend
+          </p>
+          <h5 className="mt-2 text-xl font-semibold text-foreground">價格走勢圖表</h5>
+          <p className="mt-1 text-sm text-muted-foreground">
+            根據目前歷史價格資料繪製，方便快速看出高低點與近期變化。
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-right text-xs sm:min-w-[320px]">
+          <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
+            <p className="text-muted-foreground">最低</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {formatChartPrice(chart.minPrice)} {chart.currency || ""}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
+            <p className="text-muted-foreground">最高</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {formatChartPrice(chart.maxPrice)} {chart.currency || ""}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
+            <p className="text-muted-foreground">區間變化</p>
+            <p className={`mt-1 text-sm font-semibold ${deltaTone}`}>
+              {delta > 0 ? "+" : ""}
+              {formatChartPrice(delta)} {chart.currency || ""}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-3 pb-4 pt-3 sm:px-5">
+        <div className="relative overflow-hidden rounded-[24px] border border-amber-100/80 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.14),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,251,235,0.92))] p-3 sm:p-4">
+          <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-[260px] w-full">
+            <defs>
+              <linearGradient id="priceTrendArea" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="rgba(245,158,11,0.34)" />
+                <stop offset="100%" stopColor="rgba(245,158,11,0.02)" />
+              </linearGradient>
+            </defs>
+
+            {chart.gridLines.map((line) => (
+              <g key={line.y}>
+                <line
+                  x1="56"
+                  x2={chart.width - 24}
+                  y1={line.y}
+                  y2={line.y}
+                  stroke="rgba(180, 83, 9, 0.10)"
+                  strokeDasharray="4 8"
+                />
+                <text
+                  x="48"
+                  y={line.y + 4}
+                  textAnchor="end"
+                  fontSize="12"
+                  fill="rgba(120, 53, 15, 0.68)"
+                >
+                  {formatChartPrice(Math.round(line.value))}
+                </text>
+              </g>
+            ))}
+
+            <path d={chart.areaPath} fill="url(#priceTrendArea)" />
+            <path
+              d={chart.linePath}
+              fill="none"
+              stroke="rgba(217, 119, 6, 0.96)"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="4"
+            />
+
+            {chart.points.map((point, index) => {
+              const isLatest = index === chart.points.length - 1;
+              return (
+                <g key={`${point.date}-${index}`}>
+                  {isLatest ? (
+                    <circle cx={point.x} cy={point.y} fill="rgba(245,158,11,0.16)" r="12" />
+                  ) : null}
+                  <circle cx={point.x} cy={point.y} fill="white" r={isLatest ? 6 : 4.5} stroke="rgba(217, 119, 6, 0.96)" strokeWidth="3" />
+                </g>
+              );
+            })}
+
+            {chart.labels.map((point) => (
+              <text
+                key={`${point.date}-label`}
+                x={point.x}
+                y={chart.height - 12}
+                textAnchor="middle"
+                fontSize="12"
+                fill="rgba(120, 53, 15, 0.72)"
+              >
+                {point.date.slice(5)}
+              </text>
+            ))}
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ToolsManagement() {
   const [activeTab, setActiveTab] = useState<ToolsTab>("price-compare");
   const [targetUrl, setTargetUrl] = useState("");
@@ -292,6 +496,8 @@ export default function ToolsManagement() {
                 <div className="px-4 py-3 text-xs text-muted-foreground">尚無歷史價格資料。</div>
               )}
             </div>
+
+            <PriceTrendChart history={result.history || []} currency={result.currency} />
           </div>
         )}
       </DataCard>
