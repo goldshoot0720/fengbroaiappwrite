@@ -50,10 +50,22 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
   const { stats, loading, error: dashboardError } = useDashboardStats();
   const { stats: mediaStats, loading: mediaLoading, error: mediaError } = useMediaStats();
   const notificationSentRef = useRef(false);
+  const sleepReminderRef = useRef<{ activeUntil: number }>({ activeUntil: 0 });
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const [permissionDismissed, setPermissionDismissed] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [sleepReminder, setSleepReminder] = useState<{
+    active: boolean;
+    count: number;
+    dateLabel: string;
+    timeLabel: string;
+  }>({
+    active: false,
+    count: 0,
+    dateLabel: "",
+    timeLabel: "",
+  });
 
   // 偵測環境：iOS、standalone（已安裝 PWA）
   useEffect(() => {
@@ -217,10 +229,95 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [onlyTitle, loading, dashboardError, stats]);
 
+  // 首頁睡眠提示 (00:00 首次，00:00-02:00 每 30 分，02:00-04:00 每 15 分，04:00 最後一次)
+  useEffect(() => {
+    if (!onlyTitle || typeof window === "undefined") return;
+
+    const formatTime = (date: Date) => {
+      const hh = String(date.getHours()).padStart(2, "0");
+      const mm = String(date.getMinutes()).padStart(2, "0");
+      return `${hh}:${mm}`;
+    };
+
+    const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
+
+    const shouldTrigger = (date: Date) => {
+      const h = date.getHours();
+      const m = date.getMinutes();
+      if (h === 4 && m === 0) return true;
+      if (h >= 0 && h < 2 && (m === 0 || m === 30)) return true;
+      if (h >= 2 && h < 4 && (m % 15 === 0)) return true;
+      if (h === 0 && m === 0) return true;
+      return false;
+    };
+
+    const checkSleepReminder = () => {
+      const now = new Date();
+      const dateKey = getDateKey(now);
+      const timeLabel = formatTime(now);
+      const dateLabel = now.toLocaleDateString("zh-TW");
+      const slotKey = `${dateKey} ${timeLabel}`;
+
+      let stored = { lastSlot: "", count: 0 };
+      try {
+        const raw = window.localStorage.getItem("sleepReminderDaily");
+        if (raw) stored = JSON.parse(raw) as { lastSlot?: string; count?: number };
+      } catch {}
+
+      if (stored.lastSlot && !stored.lastSlot.startsWith(dateKey)) {
+        stored = { lastSlot: "", count: 0 };
+      }
+
+      let count = stored.count || 0;
+      let active = false;
+
+      if (shouldTrigger(now) && stored.lastSlot !== slotKey) {
+        count += 1;
+        stored.lastSlot = slotKey;
+        stored.count = count;
+        sleepReminderRef.current.activeUntil = now.getTime() + 2 * 60 * 1000;
+        try {
+          window.localStorage.setItem("sleepReminderDaily", JSON.stringify(stored));
+        } catch {}
+      }
+
+      if (now.getTime() <= sleepReminderRef.current.activeUntil) {
+        active = true;
+      }
+
+      setSleepReminder({
+        active,
+        count,
+        dateLabel,
+        timeLabel,
+      });
+    };
+
+    checkSleepReminder();
+    const timer = window.setInterval(checkSleepReminder, 30 * 1000);
+    return () => window.clearInterval(timer);
+  }, [onlyTitle]);
+
   if (onlyTitle) {
     return (
       <div className="space-y-6 lg:space-y-8">
         <PageTitle title={title} />
+
+        {sleepReminder.active && (
+          <DataCard className="p-4 border border-amber-200 bg-amber-50/80 text-amber-900 shadow-sm dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-100">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-200/70 text-amber-700 dark:bg-amber-800/50 dark:text-amber-200">
+                <BellRing size={20} />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold">首頁睡眠提示</div>
+                <div className="text-xs text-amber-700 dark:text-amber-200">
+                  今天日期：{sleepReminder.dateLabel}，現在時刻：{sleepReminder.timeLabel}，提示次數：{sleepReminder.count} 次
+                </div>
+              </div>
+            </div>
+          </DataCard>
+        )}
 
         <DataCard className="overflow-hidden border-[var(--line-strong)] bg-[linear-gradient(135deg,rgba(18,25,22,0.96),rgba(42,56,49,0.92))] p-0 text-emerald-50 shadow-[0_24px_50px_rgba(15,23,20,0.28)]">
           <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(110,231,183,0.2),transparent_38%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent)] px-3 py-2.5 sm:px-5 sm:py-3">
