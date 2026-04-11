@@ -15,6 +15,7 @@ import {
   Package,
   Play,
   Podcast,
+  Wrench,
   Settings,
   Star,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import PodcastManagement from "@/components/modules/PodcastManagement";
 import RoutineManagement from "@/components/modules/RoutineManagement";
 import SettingsManagement from "@/components/modules/SettingsManagement";
 import SubscriptionManagement from "@/components/modules/SubscriptionManagement";
+import ToolsManagement from "@/components/modules/ToolsManagement";
 import VideoIntroduction from "@/components/modules/VideoIntroduction";
 import { MenuItem } from "@/types";
 
@@ -49,6 +51,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "podcast", label: "Podcast", icon: <Podcast size={18} /> },
   { id: "bank-stats", label: "銀行與資產", icon: <Building2 size={18} /> },
   { id: "routine", label: "例行追蹤", icon: <CalendarClock size={18} /> },
+  { id: "tools", label: "鋒兄工具", icon: <Wrench size={18} /> },
   { id: "settings", label: "設定", icon: <Settings size={18} /> },
   { id: "about", label: "關於系統", icon: <Info size={18} /> },
 ];
@@ -99,6 +102,8 @@ export default function DashboardPage() {
         return <BankManagement />;
       case "routine":
         return <RoutineManagement />;
+      case "tools":
+        return <ToolsManagement />;
       case "settings":
         return <SettingsManagement />;
       case "about":
