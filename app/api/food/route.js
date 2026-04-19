@@ -50,7 +50,7 @@ export async function GET(request) {
     }
     
     const response = await databases.listDocuments(databaseId, collectionId, [
-      sdk.Query.limit(100),
+      sdk.Query.limit(500),
       sdk.Query.orderAsc('todate'),
     ]);
     return NextResponse.json(response.documents);

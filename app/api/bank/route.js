@@ -57,7 +57,7 @@ export async function GET(request) {
       databaseId,
       collectionId,
       [
-        sdk.Query.limit(100),
+        sdk.Query.limit(500),
       ]
     );
     return NextResponse.json(res.documents);

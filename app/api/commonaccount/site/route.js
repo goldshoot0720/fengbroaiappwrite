@@ -36,7 +36,9 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const { databases, databaseId } = createAppwrite(searchParams);
     const collectionId = await getCollectionId(databases, databaseId, 'commonaccount');
-    const res = await databases.listDocuments(databaseId, collectionId);
+    const res = await databases.listDocuments(databaseId, collectionId, [
+      sdk.Query.limit(500)
+    ]);
     return NextResponse.json(res.documents);
   } catch (err) {
     console.error("GET /api/common-account/site error:", err);
