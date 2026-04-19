@@ -71,6 +71,20 @@ function extractProductCode(url: string): string {
   return segments.at(-1) || "product";
 }
 
+function inferSourceMetaFromUrl(url: string): SourceMeta {
+  const code = extractProductCode(url);
+  const storeKey = getStoreKey(url);
+  const storeLabel =
+    storeKey === "pchome" ? "PChome" : storeKey === "momo" ? "momo" : new URL(url).hostname;
+
+  return {
+    title: `${storeLabel} 商品 ${code}`,
+    price: null,
+    code,
+    storeKey,
+  };
+}
+
 async function fetchText(url: string, init?: RequestInit): Promise<string> {
   const response = await fetch(url, {
     ...init,
@@ -306,12 +320,30 @@ function buildHistoryEntries(history: Array<{ x: number; y: number }>, currency 
 }
 
 async function resolveFromBigGo(url: string, days: number) {
-  const sourceHtml = await fetchText(url, {
-    headers: {
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    },
-  });
-  const sourceMeta = extractProductMeta(sourceHtml, url);
+  let sourceMeta: SourceMeta;
+  try {
+    const sourceHtml = await fetchText(url, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    sourceMeta = extractProductMeta(sourceHtml, url);
+  } catch (error) {
+    if (error instanceof HttpStatusError && error.status === 429) {
+      return {
+        url,
+        title: inferSourceMetaFromUrl(url).title,
+        source: "BigGo API",
+        currency: "TWD",
+        currentPrice: null,
+        history: [],
+        resolvedAt: new Date().toISOString(),
+        notice:
+          "來源商品頁目前回傳 429，暫時無法抓取標題與價格，因此這次不送 BigGo 比對。請稍後再試，或改用未被限流的商品連結。",
+      };
+    }
+    throw error;
+  }
   const queries = buildSearchQueries(sourceMeta.title, sourceMeta.code, sourceMeta.storeKey);
 
   let candidates: BigGoCandidate[] = [];
