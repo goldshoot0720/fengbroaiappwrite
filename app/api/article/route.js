@@ -32,6 +32,34 @@ function createAppwrite(searchParams) {
   return { databases, databaseId };
 }
 
+async function listAllArticleDocuments(databases, databaseId, collectionId) {
+  const pageSize = 100;
+  const documents = [];
+  let cursorAfter = null;
+
+  while (true) {
+    const queries = [
+      sdk.Query.limit(pageSize),
+      sdk.Query.orderDesc('$createdAt')
+    ];
+
+    if (cursorAfter) {
+      queries.push(sdk.Query.cursorAfter(cursorAfter));
+    }
+
+    const res = await databases.listDocuments(databaseId, collectionId, queries);
+    documents.push(...res.documents);
+
+    if (!res.documents.length || res.documents.length < pageSize) {
+      break;
+    }
+
+    cursorAfter = res.documents[res.documents.length - 1].$id;
+  }
+
+  return documents;
+}
+
 // 獲取所有文章
 export async function GET(request) {
   try {
@@ -54,11 +82,8 @@ export async function GET(request) {
       );
     }
     
-    const res = await databases.listDocuments(databaseId, collectionId, [
-      sdk.Query.limit(100),
-      sdk.Query.orderDesc('$createdAt')
-    ]);
-    return NextResponse.json(res.documents);
+    const documents = await listAllArticleDocuments(databases, databaseId, collectionId);
+    return NextResponse.json(documents);
   } catch (err) {
     console.error("GET /article error:", err);
     const message = err instanceof Error ? err.message : "Failed to fetch articles";
