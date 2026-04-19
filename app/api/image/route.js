@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listAllDocuments } from "../_lib/listAllDocuments";
 
 const sdk = require('node-appwrite');
 
@@ -40,12 +41,11 @@ export async function GET(request) {
     }
     
     const collectionId = imageCollection.$id;
-    const response = await databases.listDocuments(databaseId, collectionId, [
-      sdk.Query.limit(500),
+    const documents = await listAllDocuments(databases, databaseId, collectionId, sdk, [
       sdk.Query.orderDesc('$createdAt'),
     ]);
     
-    return NextResponse.json(response.documents);
+    return NextResponse.json(documents);
   } catch (err) {
     console.error("GET /api/image error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listAllDocuments } from "../_lib/listAllDocuments";
 
 const sdk = require('node-appwrite');
 
@@ -53,14 +54,8 @@ export async function GET(request) {
         { status: 404 }
       );
     }
-    const res = await databases.listDocuments(
-      databaseId,
-      collectionId,
-      [
-        sdk.Query.limit(500),
-      ]
-    );
-    return NextResponse.json(res.documents);
+    const documents = await listAllDocuments(databases, databaseId, collectionId, sdk);
+    return NextResponse.json(documents);
   } catch (err) {
     console.error("GET /bank error:", err);
     const message = err instanceof Error ? err.message : "Fetch failed";

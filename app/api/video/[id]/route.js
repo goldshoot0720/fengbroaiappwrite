@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listAllDocuments } from "../../_lib/listAllDocuments";
 
 const sdk = require('node-appwrite');
 
@@ -172,8 +173,8 @@ export async function PUT(request, { params }) {
       if (oldFileId && oldFileId !== newFileId) {
         try {
           // Count how many documents reference the old file
-          const allDocs = await databases.listDocuments(databaseId, collectionId);
-          const fileRefCount = allDocs.documents.filter(d => d.$id !== id && d.file === currentDoc.file).length;
+          const allDocs = await listAllDocuments(databases, databaseId, collectionId, sdk);
+          const fileRefCount = allDocs.filter(d => d.$id !== id && d.file === currentDoc.file).length;
           
           // Only delete from storage if no other documents reference it
           if (fileRefCount === 0) {
@@ -196,8 +197,8 @@ export async function PUT(request, { params }) {
       if (oldCoverId && oldCoverId !== newCoverId) {
         try {
           // Count how many documents reference the old cover
-          const allDocs = await databases.listDocuments(databaseId, collectionId);
-          const coverRefCount = allDocs.documents.filter(d => d.$id !== id && d.cover === currentDoc.cover).length;
+          const allDocs = await listAllDocuments(databases, databaseId, collectionId, sdk);
+          const coverRefCount = allDocs.filter(d => d.$id !== id && d.cover === currentDoc.cover).length;
           
           // Only delete from storage if no other documents reference it
           if (coverRefCount === 0) {
@@ -251,8 +252,8 @@ export async function DELETE(request, { params }) {
       if (fileId) {
         try {
           // Count how many documents reference this file
-          const allDocs = await databases.listDocuments(databaseId, collectionId);
-          const fileRefCount = allDocs.documents.filter(d => d.$id !== id && d.file === doc.file).length;
+          const allDocs = await listAllDocuments(databases, databaseId, collectionId, sdk);
+          const fileRefCount = allDocs.filter(d => d.$id !== id && d.file === doc.file).length;
           
           // Only delete from storage if no other documents reference it
           if (fileRefCount === 0) {
@@ -273,8 +274,8 @@ export async function DELETE(request, { params }) {
       if (coverId) {
         try {
           // Count how many documents reference this cover
-          const allDocs = await databases.listDocuments(databaseId, collectionId);
-          const coverRefCount = allDocs.documents.filter(d => d.$id !== id && d.cover === doc.cover).length;
+          const allDocs = await listAllDocuments(databases, databaseId, collectionId, sdk);
+          const coverRefCount = allDocs.filter(d => d.$id !== id && d.cover === doc.cover).length;
           
           // Only delete from storage if no other documents reference it
           if (coverRefCount === 0) {

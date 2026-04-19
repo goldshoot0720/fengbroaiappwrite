@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listAllDocuments } from "../_lib/listAllDocuments";
 
 const sdk = require('node-appwrite');
 
@@ -53,10 +54,8 @@ export async function GET(request) {
       );
     }
     
-    const res = await databases.listDocuments(databaseId, collectionId, [
-      sdk.Query.limit(2026)
-    ]);
-    return NextResponse.json(res.documents);
+    const documents = await listAllDocuments(databases, databaseId, collectionId, sdk);
+    return NextResponse.json(documents);
   } catch (err) {
     console.error("GET /api/common-account error:", err);
     const message = err instanceof Error ? err.message : "Fetch failed";

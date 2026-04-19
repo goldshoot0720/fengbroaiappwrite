@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listAllDocuments } from "../_lib/listAllDocuments";
 
 const sdk = require('node-appwrite');
 
@@ -48,14 +49,8 @@ export async function GET(request) {
     const { databases, databaseId } = createAppwrite(searchParams);
     const collectionId = await getCollectionId(databases, databaseId, 'routine');
 
-    const res = await databases.listDocuments(
-      databaseId,
-      collectionId,
-      [
-        sdk.Query.limit(500),
-      ]
-    );
-    return NextResponse.json(res.documents);
+    const documents = await listAllDocuments(databases, databaseId, collectionId, sdk);
+    return NextResponse.json(documents);
   } catch (err) {
     console.error("GET /api/routine error:", err);
     // Check for bandwidth errors first

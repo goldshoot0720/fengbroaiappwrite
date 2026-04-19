@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listAllDocuments } from "../_lib/listAllDocuments";
 
 const sdk = require('node-appwrite');
 
@@ -78,15 +79,10 @@ export async function GET(request) {
       );
     }
 
-    const res = await databases.listDocuments(
-      databaseId,
-      collectionId,
-      [
-        sdk.Query.limit(500),
-        sdk.Query.orderAsc('nextdate')
-      ]
-    );
-    return NextResponse.json(res.documents);
+    const documents = await listAllDocuments(databases, databaseId, collectionId, sdk, [
+      sdk.Query.orderAsc('nextdate')
+    ]);
+    return NextResponse.json(documents);
   } catch (err) {
     console.error("GET /subscription error:", err);
     const message = err instanceof Error ? err.message : "Fetch failed";
