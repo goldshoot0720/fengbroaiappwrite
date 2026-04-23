@@ -12,11 +12,18 @@ type LandtopProduct = {
   sourceUrl: string;
 };
 
+type LandtopFetchResult = {
+  products: LandtopProduct[];
+  warning?: string;
+  fetchedVia: "direct" | "reader";
+};
+
 const CACHE_SECONDS = 7 * 24 * 60 * 60;
 const LANDTOP_SOURCES: Array<{ brand: LandtopBrand; url: string }> = [
   { brand: "samsung", url: "https://www.landtop.com.tw/brands?brand=samsung" },
   { brand: "apple", url: "https://www.landtop.com.tw/brands?brand=apple" },
 ];
+const READER_BASE_URL = "https://r.jina.ai/http://r.jina.ai/http://";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
@@ -47,13 +54,23 @@ function htmlToLines(html: string): string[] {
     .filter(Boolean);
 }
 
-function parsePrice(line: string): number | null {
+function parsePrice(line: string | undefined): number | null {
+  if (!line) return null;
   const raw = line.replace(/[^\d]/g, "");
   return raw ? Number(raw) : null;
 }
 
+function normalizeProductLine(line: string, fallbackSourceUrl: string): { name: string; sourceUrl: string } {
+  const markdownLink = line.match(/^#{0,3}\s*\[([^\]]+)\]\((https:\/\/www\.landtop\.com\.tw\/products\/[^)]+)\)/i);
+  if (markdownLink) {
+    return { name: normalizeSpace(markdownLink[1]), sourceUrl: markdownLink[2] };
+  }
+
+  return { name: normalizeSpace(line.replace(/^#{1,3}\s*/, "")), sourceUrl: fallbackSourceUrl };
+}
+
 function isProductTitle(line: string, brand: LandtopBrand): boolean {
-  if (line.length > 80) return false;
+  if (line.length > 100) return false;
   if (/^(購買|詳情|全部|手機平板|配件周邊|搜尋|品牌搜尋)$/.test(line)) return false;
 
   if (brand === "samsung") {
@@ -68,13 +85,14 @@ function parseProducts(html: string, brand: LandtopBrand, sourceUrl: string): La
   const products = new Map<string, LandtopProduct>();
 
   for (let index = 0; index < lines.length; index += 1) {
-    const name = lines[index];
+    const productLine = normalizeProductLine(lines[index], sourceUrl);
+    const { name } = productLine;
     if (!isProductTitle(name, brand)) continue;
 
-    const windowLines = lines.slice(index + 1, index + 10);
+    const windowLines = lines.slice(index + 1, index + 14);
     const suggestedLine = windowLines.find((line) => line.includes("建議售價"));
     const landtopLine = windowLines.find((line) => line.includes("地標價"));
-    if (!suggestedLine || !landtopLine) continue;
+    if (!suggestedLine && !landtopLine) continue;
 
     const suggestedPrice = parsePrice(suggestedLine);
     const landtopPrice = parsePrice(landtopLine);
@@ -87,7 +105,7 @@ function parseProducts(html: string, brand: LandtopBrand, sourceUrl: string): La
       suggestedPrice,
       landtopPrice,
       landtopPriceLabel: landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
-      sourceUrl,
+      sourceUrl: productLine.sourceUrl,
     });
   }
 
@@ -108,21 +126,43 @@ function matchesQuery(product: LandtopProduct, query: string): boolean {
   return tokens.every((token) => haystack.includes(token));
 }
 
-async function fetchBrandProducts(brand: LandtopBrand, url: string, refresh: boolean): Promise<LandtopProduct[]> {
-  const response = await fetch(url, {
+async function fetchText(url: string, refresh: boolean): Promise<Response> {
+  const init: RequestInit & { next?: { revalidate: number } } = {
     headers: {
       "User-Agent": USER_AGENT,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+      Referer: "https://www.landtop.com.tw/",
     },
     cache: refresh ? "no-store" : "force-cache",
-    next: refresh ? undefined : { revalidate: CACHE_SECONDS },
-  });
+  };
+  if (!refresh) init.next = { revalidate: CACHE_SECONDS };
 
-  if (!response.ok) {
-    throw new Error(`地標網通 ${brand} 資料抓取失敗：HTTP ${response.status}`);
+  return fetch(url, init);
+}
+
+async function fetchBrandProducts(brand: LandtopBrand, url: string, refresh: boolean): Promise<LandtopFetchResult> {
+  const directResponse = await fetchText(url, refresh);
+
+  if (directResponse.ok) {
+    return {
+      products: parseProducts(await directResponse.text(), brand, url),
+      fetchedVia: "direct",
+    };
   }
 
-  return parseProducts(await response.text(), brand, url);
+  const readerUrl = `${READER_BASE_URL}${url}`;
+  const readerResponse = await fetchText(readerUrl, refresh);
+
+  if (!readerResponse.ok) {
+    throw new Error(`地標網通 ${brand} 資料抓取失敗：HTTP ${directResponse.status} / reader HTTP ${readerResponse.status}`);
+  }
+
+  return {
+    products: parseProducts(await readerResponse.text(), brand, url),
+    warning: `地標網通 ${brand} 直連 HTTP ${directResponse.status}，已改用文字備援。`,
+    fetchedVia: "reader",
+  };
 }
 
 export async function GET(request: Request) {
@@ -134,8 +174,9 @@ export async function GET(request: Request) {
     const productGroups = await Promise.all(
       LANDTOP_SOURCES.map((source) => fetchBrandProducts(source.brand, source.url, refresh))
     );
+    const warnings = productGroups.flatMap((group) => (group.warning ? [group.warning] : []));
     const products = productGroups
-      .flat()
+      .flatMap((group) => group.products)
       .filter((product) => matchesQuery(product, query))
       .sort((a, b) => {
         const aPrice = a.landtopPrice ?? a.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
@@ -150,6 +191,8 @@ export async function GET(request: Request) {
       refresh,
       cacheSeconds: CACHE_SECONDS,
       fetchedAt: new Date().toISOString(),
+      fetchedVia: Array.from(new Set(productGroups.map((group) => group.fetchedVia))),
+      warnings,
       total: products.length,
       products,
     });

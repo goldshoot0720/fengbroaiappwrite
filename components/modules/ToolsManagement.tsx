@@ -59,6 +59,7 @@ type LandtopResult = {
   refresh: boolean;
   cacheSeconds: number;
   fetchedAt: string;
+  warnings?: string[];
   total: number;
   products: LandtopProduct[];
 };
@@ -274,6 +275,7 @@ export default function ToolsManagement() {
   const [landtopLoading, setLandtopLoading] = useState(false);
   const [landtopError, setLandtopError] = useState("");
   const [landtopResult, setLandtopResult] = useState<LandtopResult | null>(null);
+  const [landtopLoadedOnce, setLandtopLoadedOnce] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -328,6 +330,7 @@ export default function ToolsManagement() {
 
   const loadLandtop = useCallback(async (refresh = false, overrideQuery?: string) => {
     const query = (overrideQuery ?? landtopQuery).trim();
+    setLandtopLoadedOnce(true);
     setLandtopLoading(true);
     setLandtopError("");
 
@@ -348,10 +351,10 @@ export default function ToolsManagement() {
   }, [landtopQuery]);
 
   useEffect(() => {
-    if (activeTab === "landtop" && !landtopResult && !landtopLoading) {
+    if (activeTab === "landtop" && !landtopLoadedOnce && !landtopLoading) {
       void loadLandtop(false);
     }
-  }, [activeTab, landtopLoading, landtopResult, loadLandtop]);
+  }, [activeTab, landtopLoadedOnce, landtopLoading, loadLandtop]);
 
   const handleResolve = async (overrideUrl?: string) => {
     const url = (overrideUrl ?? targetUrl).trim();
@@ -563,6 +566,14 @@ export default function ToolsManagement() {
           {landtopError && (
             <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{landtopError}</p>
           )}
+
+          {!landtopError && landtopResult?.warnings?.length ? (
+            <div className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              {landtopResult.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          ) : null}
 
           {!landtopError && landtopResult && (
             <>
