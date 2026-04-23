@@ -1265,8 +1265,8 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}`;
             <p className="text-sm text-gray-500">鋒兄管理系統 v{packageJson.version}</p>
           </div>
           <div className="text-right text-sm text-gray-400">
-            <p>Next.js 16.0</p>
-            <p>React 19</p>
+            <p>Next.js {packageJson.dependencies.next.replace(/^\^/, "")}</p>
+            <p>React {packageJson.dependencies.react.replace(/^\^/, "")}</p>
           </div>
         </div>
       </DataCard>
