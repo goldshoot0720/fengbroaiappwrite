@@ -1884,6 +1884,7 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
             <TableHead className="font-semibold">有效期限</TableHead>
             <TableHead className="font-semibold">數量</TableHead>
             <TableHead className="font-semibold">價格</TableHead>
+            <TableHead className="font-semibold">商店</TableHead>
             <TableHead className="font-semibold">圖片</TableHead>
             {!isEditMode && <TableHead className="font-semibold">操作</TableHead>}
           </TableRow>
@@ -2251,6 +2252,9 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
             </span>
           ) : null}
         </div>
+      </TableCell>
+      <TableCell>
+        <span className="text-gray-700 dark:text-gray-300">{food.shop || ""}</span>
       </TableCell>
       <TableCell>
         <FoodImage food={food} />
@@ -2686,6 +2690,10 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
                   / 小計 NT$ {((food.price || 0) * (food.amount || 0)).toLocaleString("zh-TW")}
                 </span>
               ) : null}
+            </div>
+            <div className="flex items-center gap-1.5 text-xs min-[390px]:text-sm text-gray-500 dark:text-gray-400">
+              <span className="font-medium">商店:</span>
+              <span className="text-gray-900 dark:text-gray-100">{food.shop || ""}</span>
             </div>
             {status !== "normal" && (
               <StatusBadge status={status}>{formatDaysRemaining(daysRemaining)}</StatusBadge>
