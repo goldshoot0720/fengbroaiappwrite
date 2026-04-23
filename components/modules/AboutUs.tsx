@@ -29,7 +29,7 @@ const MODULES = [
   { num: 12, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、餘額、異常提醒與整理入口" },
   { num: 13, name: "鋒兄例行", category: "任務", desc: "例行事項、排程節奏與週期追蹤" },
   { num: 14, name: "鋒兄設定", category: "維運", desc: "Appwrite 設定、Table 初始化、資料統計與 system config" },
-  { num: 15, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、模組總覽與文件中心" },
+  { num: 15, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、版本資訊與文件中心" },
 ];
 
 const DOC_GROUPS = [
@@ -51,6 +51,7 @@ const DOC_GROUPS = [
       ["06_common_accounts.md", "常用入口、置頂與最近使用"],
       ["14_settings.md", "設定頁、初始化、統計與維運工具"],
       ["15_about.md", "關於頁與文件中心規格"],
+      ["components/modules/ToolsManagement.tsx", "手機比價、BigGo、地標網通與傑昇通信整合"],
     ],
   },
   {
@@ -59,12 +60,41 @@ const DOC_GROUPS = [
       ["components/ui/friendly-ai-crud-shell.tsx", "共用友善 AI CRUD 工作台殼層"],
       ["components/modules/SubscriptionManagement.tsx", "訂閱頁最新平衡版 UI 與 CSV 功能"],
       ["components/modules/SettingsManagement.tsx", "Table 初始化、collection id 與系統設定"],
+      ["app/api/_lib/landtop.js", "地標網通品牌頁、商品頁與容量版本解析"],
+      ["app/api/_lib/jyes.js", "傑昇通信價格總覽解析與手機比價來源"],
       ["hooks/useSubscriptions.ts", "訂閱資料存取、統計與到期資訊"],
     ],
   },
 ];
 
 const RELEASE_ITEMS = [
+  {
+    date: "2026-04-23",
+    title: "手機比價升級為雙來源比價工具",
+    bullets: [
+      "原本地標網通子頁已更名為手機比價，整合地標網通與傑昇通信兩個來源。",
+      "同型號會合併顯示地標網通價、傑昇通信價與最低價來源，方便直接比較。",
+      "Samsung A17、iPhone 17、Samsung S26 這類機型會優先展開容量版本，不再只停在品牌頁摘要卡。",
+    ],
+  },
+  {
+    date: "2026-04-23",
+    title: "地標網通加入每 7 天歷史快照",
+    bullets: [
+      "手機比價 API 會在查詢後把地標網通價格寫入 Appwrite 的 landtophistory 集合。",
+      "前端新增歷史價格圖表，可追蹤不同容量版本的週期變化。",
+      "既有 Vercel cron 直接沿用，後續歷史資料會隨每週排程持續累積。",
+    ],
+  },
+  {
+    date: "2026-04-23",
+    title: "系統維運與清單體驗同步更新",
+    bullets: [
+      "列表 API 已統一提高到 500 筆並補上自動分頁，避免 100 筆上限截斷資料。",
+      "鋒兄筆記新增「有附件」分類篩選，快捷篩選在沒有搜尋字時也能正確生效。",
+      "設定頁的應用程式版本與框架版本已改成直接讀 package.json，不再手動寫死。",
+    ],
+  },
   {
     date: "2026-03-12",
     title: "鋒兄關於改版為文件中心",
@@ -197,9 +227,9 @@ function UpdatesSection() {
       />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <InfoCard title="工作台收斂" body="多個模組已改成摘要卡 + 搜尋 + 篩選 + AI 建議的共同骨架，不再各自長相。" />
-        <InfoCard title="訂閱頁落地" body="subscription schema、CSV、ID 搜尋、collection id 顯示與日期快捷鍵都已同步到位。" />
-        <InfoCard title="文件開始同步" body="關於頁與 docs 將以實際程式狀態為準，後續改版有明確入口可回頭查。" />
+        <InfoCard title="手機比價上線" body="工具頁已整合 BigGo、地標網通、傑昇通信，開始從單一來源查價走向真正比價。" />
+        <InfoCard title="歷史價格落地" body="地標網通價格已能每 7 天寫入 Appwrite，前端也有對應歷史圖表。" />
+        <InfoCard title="版本與文件同步" body="關於頁、設定頁與 package.json 已開始同步，減少顯示版本與實際版本不一致的情況。" />
       </div>
 
       <div className="space-y-4">
@@ -252,6 +282,7 @@ function SystemArchitecture() {
             <li>• Appwrite Database 儲存結構化資料</li>
             <li>• Appwrite Storage 管理圖片、影片、音樂、文件、播客等媒體</li>
             <li>• schema 目前採模組獨立 collection，設定頁可初始化與檢查狀態</li>
+            <li>• 手機比價額外接入 BigGo、地標網通、傑昇通信與每週歷史快照</li>
           </ul>
         </DataCard>
       </div>
