@@ -84,7 +84,42 @@ function isProductTitle(name, brand) {
   return /^(iPhone|iPad|AirPods|Apple Watch|Apple\s+)/i.test(name);
 }
 
+function parseBrandProductsFromMarkdown(markdown, brand) {
+  const products = new Map();
+  const pattern =
+    /##\s+\[([^\]]+)\]\((https:\/\/www\.landtop\.com\.tw\/products\/[^)]+)\)[\s\S]{0,240}?建議售價[:：]\$?([\d,]+)[\s\S]{0,120}?地標價[:：](挑戰手機最低價|\$?[\d,]+)/g;
+  let match;
+
+  while ((match = pattern.exec(markdown)) !== null) {
+    const name = normalizeSpace(match[1]);
+    if (!isProductTitle(name, brand)) continue;
+
+    const suggestedPrice = parsePrice(match[3]);
+    const landtopPrice = match[4].includes("挑戰手機最低價") ? null : parsePrice(match[4]);
+    const id = createProductId(brand, name);
+
+    products.set(id, {
+      id,
+      brand,
+      name,
+      suggestedPrice,
+      landtopPrice,
+      landtopPriceLabel: landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
+      sourceUrl: match[2],
+    });
+  }
+
+  return Array.from(products.values());
+}
+
 function parseBrandProducts(html, brand) {
+  if (html.includes("Markdown Content:") && html.includes("## [")) {
+    const markdownProducts = parseBrandProductsFromMarkdown(html, brand);
+    if (markdownProducts.length > 0) {
+      return markdownProducts;
+    }
+  }
+
   const products = new Map();
   const cardPattern =
     /<a[^>]+href="(\/products\/[^"]+)"[\s\S]{0,1800}?(?:<h3[^>]*>|<div class="product-name[^"]*">|<img[^>]+alt=")([\s\S]*?)(?:<\/h3>|<\/div>|")/gi;
@@ -158,6 +193,74 @@ function parseProductVariant(html, brand, sourceUrl) {
   };
 }
 
+function parseProductMarkdownVariants(markdown, brand, sourceUrl) {
+  const normalized = markdown.replace(/\r/g, "");
+  const storageSection = normalized.match(/儲存空間\s+([\s\S]*?)\s+顏色\s+/);
+  const storageVariants = storageSection
+    ? storageSection[1]
+        .split("\n")
+        .map((line) => normalizeSpace(line))
+        .filter((line) => /(\d+G\/\d+G|\d+GB|\d+G)/i.test(line))
+        .map((line) => normalizeVariantName(line))
+    : [];
+
+  const namePattern = new RegExp(
+    `(${brand === "samsung" ? "Samsung" : "Apple|iPhone"}[^\\n]+?(?:\\d+G\\/\\d+G|\\d+GB|\\d+G\\s+\\d+GB))([\\s\\S]{0,220}?建議售價\\s*\\$?[\\d,]+[\\s\\S]{0,120}?地標(?:最低)?價[\\s\\S]{0,80}?\\$?[\\d,]+)`,
+    "gi"
+  );
+
+  const products = new Map();
+  let match;
+
+  while ((match = namePattern.exec(normalized)) !== null) {
+    const name = normalizeVariantName(match[1].split("|")[0]);
+    const chunk = match[2];
+    const suggestedPrice = parsePrice(chunk.match(/建議售價\s*\$?([\d,]+)/)?.[1]);
+    const landtopPrice = parsePrice(chunk.match(/地標(?:最低)?價[\s\S]{0,40}?\$?([\d,]+)/)?.[1]);
+    const id = createProductId(brand, name);
+
+    products.set(id, {
+      id,
+      brand,
+      name,
+      suggestedPrice,
+      landtopPrice,
+      landtopPriceLabel: landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
+      sourceUrl,
+    });
+  }
+
+  if (products.size > 0) {
+    return Array.from(products.values());
+  }
+
+  if (storageVariants.length > 0) {
+    const baseNameMatch = normalized.match(/(?:^|\n)#?\s*Samsung\s+[^\n]+|(?:^|\n)#?\s*(?:Apple|iPhone)\s+[^\n]+/m);
+    const baseName = normalizeSpace((baseNameMatch?.[0] || "").replace(/^#+\s*/, ""));
+    const suggestedPrice = parsePrice(normalized.match(/建議售價\s*\$?([\d,]+)/)?.[1]);
+    const landtopPrice = parsePrice(normalized.match(/地標(?:最低)?價[\s\S]{0,40}?\$?([\d,]+)/)?.[1]);
+
+    if (baseName) {
+      return storageVariants.map((variant) => {
+        const name = normalizeVariantName(`${baseName} ${variant}`);
+        const id = createProductId(brand, name);
+
+        return {
+          id,
+          brand,
+          name,
+          suggestedPrice,
+          landtopPrice,
+          landtopPriceLabel: landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
+          sourceUrl,
+        };
+      });
+    }
+  }
+
+  return [];
+}
+
 async function fetchText(url, refresh, accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8") {
   const init = {
     headers: {
@@ -180,15 +283,22 @@ async function fetchBrandProducts(brand, url, refresh) {
   const directResponse = await fetchText(url, refresh);
 
   if (directResponse.ok) {
-    return {
-      products: parseBrandProducts(await directResponse.text(), brand),
-      fetchedVia: "direct",
-    };
+    const directProducts = parseBrandProducts(await directResponse.text(), brand);
+    if (directProducts.length > 0) {
+      return {
+        products: directProducts,
+        fetchedVia: "direct",
+      };
+    }
   }
 
   const readerResponse = await fetchText(`${READER_BASE_URL}${url}`, refresh);
   if (!readerResponse.ok) {
-    throw new Error(`地標網通 ${brand} 品牌頁抓取失敗：HTTP ${directResponse.status} / reader HTTP ${readerResponse.status}`);
+    return {
+      products: [],
+      fetchedVia: directResponse.ok ? "direct" : "reader",
+      warning: `地標網通 ${brand} 品牌頁抓取失敗：HTTP ${directResponse.status} / reader HTTP ${readerResponse.status}`,
+    };
   }
 
   return {
@@ -254,6 +364,13 @@ async function fetchProductVariantsFromUrl(brand, url, refresh) {
   }
 
   const { html, fetchedVia } = await loadProductPage(url, refresh);
+  if (html.includes("Markdown Content:")) {
+    const markdownProducts = parseProductMarkdownVariants(html, brand, url);
+    if (markdownProducts.length > 0) {
+      return { products: markdownProducts, fetchedVia };
+    }
+  }
+
   const variantLinks = parseProductVariantLinks(html);
 
   if (variantLinks.length === 0) {

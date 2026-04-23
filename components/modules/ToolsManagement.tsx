@@ -40,6 +40,11 @@ type LandtopProduct = {
   landtopPrice: number | null;
   landtopPriceLabel: string;
   sourceUrl: string;
+  jyesPrice?: number | null;
+  jyesPriceLabel?: string | null;
+  jyesUrl?: string | null;
+  bestPrice?: number | null;
+  bestSourceLabel?: string | null;
 };
 
 type LandtopHistoryPoint = {
@@ -73,7 +78,7 @@ type LandtopResult = {
 
 const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "price-compare", label: "鋒兄比價" },
-  { id: "landtop", label: "地標網通" },
+  { id: "landtop", label: "手機比價" },
 ];
 
 const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
@@ -236,10 +241,10 @@ function PriceTrendChart({
 }
 
 function LandtopPriceChart({ products }: { products: LandtopProduct[] }) {
-  const chartProducts = products.filter((product) => product.suggestedPrice || product.landtopPrice).slice(0, 8);
+  const chartProducts = products.filter((product) => product.landtopPrice || product.jyesPrice).slice(0, 8);
   const maxPrice = Math.max(
     1,
-    ...chartProducts.flatMap((product) => [product.suggestedPrice || 0, product.landtopPrice || 0])
+    ...chartProducts.flatMap((product) => [product.landtopPrice || 0, product.jyesPrice || 0])
   );
 
   if (chartProducts.length === 0) {
@@ -255,15 +260,15 @@ function LandtopPriceChart({ products }: { products: LandtopProduct[] }) {
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Landtop Chart</p>
-          <h4 className="mt-1 text-lg font-semibold text-foreground">建議售價 vs 地標價</h4>
+          <h4 className="mt-1 text-lg font-semibold text-foreground">地標網通 vs 傑昇通信</h4>
         </div>
         <BarChart3 className="text-sky-600" size={22} />
       </div>
 
       <div className="space-y-4">
         {chartProducts.map((product) => {
-          const suggestedWidth = `${Math.max(4, ((product.suggestedPrice || 0) / maxPrice) * 100)}%`;
           const landtopWidth = `${Math.max(4, ((product.landtopPrice || 0) / maxPrice) * 100)}%`;
+          const jyesWidth = `${Math.max(4, ((product.jyesPrice || 0) / maxPrice) * 100)}%`;
 
           return (
             <div key={product.id} className="grid gap-2 md:grid-cols-[220px_1fr] md:items-center">
@@ -273,14 +278,7 @@ function LandtopPriceChart({ products }: { products: LandtopProduct[] }) {
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="w-16 text-xs text-muted-foreground">建議價</span>
-                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-slate-400" style={{ width: suggestedWidth }} />
-                  </div>
-                  <span className="w-24 text-right text-xs font-medium">{formatCurrency(product.suggestedPrice)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-16 text-xs text-sky-700">地標價</span>
+                  <span className="w-16 text-xs text-sky-700">地標</span>
                   <div className="h-3 flex-1 overflow-hidden rounded-full bg-sky-100">
                     <div
                       className="h-full rounded-full bg-sky-500"
@@ -289,6 +287,18 @@ function LandtopPriceChart({ products }: { products: LandtopProduct[] }) {
                   </div>
                   <span className="w-24 text-right text-xs font-medium text-sky-700">
                     {product.landtopPrice ? formatCurrency(product.landtopPrice) : "最低價"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-16 text-xs text-violet-700">傑昇</span>
+                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-violet-100">
+                    <div
+                      className="h-full rounded-full bg-violet-500"
+                      style={{ width: product.jyesPrice ? jyesWidth : "4%" }}
+                    />
+                  </div>
+                  <span className="w-24 text-right text-xs font-medium text-violet-700">
+                    {product.jyesPrice ? formatCurrency(product.jyesPrice) : "--"}
                   </span>
                 </div>
               </div>
@@ -376,7 +386,7 @@ function LandtopHistoryChart({
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Weekly History</p>
           <h4 className="mt-1 text-lg font-semibold text-foreground">地標網通歷史價格</h4>
-          <p className="mt-1 text-sm text-muted-foreground">每 7 天記錄一次，顯示不同容量版本的價格走勢。</p>
+          <p className="mt-1 text-sm text-muted-foreground">每 7 天記錄一次，目前保存地標網通的不同容量版本價格走勢。</p>
         </div>
         <div className="grid grid-cols-2 gap-2 text-right text-xs sm:min-w-[220px]">
           <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
@@ -576,7 +586,7 @@ export default function ToolsManagement() {
 
   return (
     <section className="space-y-6">
-      <PageTitle title="鋒兄工具" description="工具模組集中入口與比價工作台。" />
+      <PageTitle title="鋒兄工具" description="工具模組集中入口與手機比價工作台。" />
 
       <DataCard className="p-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -750,9 +760,9 @@ export default function ToolsManagement() {
                 <Smartphone size={20} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">地標網通手機查價</h3>
+                <h3 className="text-lg font-semibold">手機比價</h3>
                 <p className="text-sm text-muted-foreground">
-                  資料來源為 Apple / Samsung 品牌頁，可搜尋 iPhone 17、Samsung S26，並顯示每 7 天歷史圖表。
+                  根據地標網通與傑昇通信比價，可搜尋 iPhone 17、Samsung S26、Samsung A17 等機型。
                 </p>
               </div>
             </div>
@@ -773,12 +783,12 @@ export default function ToolsManagement() {
               onKeyDown={(event) => {
                 if (event.key === "Enter") void loadLandtop(false);
               }}
-              placeholder={`例如 ${getDefaultLandtopQuery()}、iPhone 17 512GB`}
+              placeholder={`例如 ${getDefaultLandtopQuery()}、iPhone 17 512GB、Samsung A17`}
               className="flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
             />
             <Button onClick={() => loadLandtop(false)} className="gap-2" disabled={landtopLoading}>
               <Search size={16} />
-              {landtopLoading ? "搜尋中" : "搜尋手機"}
+              {landtopLoading ? "搜尋中" : "開始比價"}
             </Button>
             <Button onClick={() => loadLandtop(true)} variant="outline" className="gap-2" disabled={landtopLoading}>
               <RefreshCw size={16} />
@@ -805,14 +815,14 @@ export default function ToolsManagement() {
               <div className="grid gap-3 md:grid-cols-2">
                 {landtopResult.products.slice(0, 12).map((product) => {
                   const savings =
-                    product.suggestedPrice && product.landtopPrice
-                      ? product.suggestedPrice - product.landtopPrice
+                    product.bestPrice && product.suggestedPrice
+                      ? product.suggestedPrice - product.bestPrice
                       : null;
 
                   return (
                     <a
                       key={product.id}
-                      href={product.sourceUrl}
+                      href={product.jyesUrl || product.sourceUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:border-sky-300 hover:shadow-md"
@@ -824,22 +834,33 @@ export default function ToolsManagement() {
                         </div>
                         <ExternalLink className="mt-0.5 text-sky-600" size={16} />
                       </div>
-                      <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                      <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
                         <div className="rounded-xl bg-slate-50 px-3 py-2">
                           <p className="text-muted-foreground">建議售價</p>
                           <p className="mt-1 font-semibold">{formatCurrency(product.suggestedPrice)}</p>
                         </div>
                         <div className="rounded-xl bg-sky-50 px-3 py-2">
-                          <p className="text-sky-700/80">地標價</p>
+                          <p className="text-sky-700/80">地標網通</p>
                           <p className="mt-1 font-semibold text-sky-700">{product.landtopPriceLabel}</p>
                         </div>
+                        <div className="rounded-xl bg-violet-50 px-3 py-2">
+                          <p className="text-violet-700/80">傑昇通信</p>
+                          <p className="mt-1 font-semibold text-violet-700">
+                            {product.jyesPriceLabel || (product.jyesPrice ? formatCurrency(product.jyesPrice) : "--")}
+                          </p>
+                        </div>
                         <div className="rounded-xl bg-emerald-50 px-3 py-2">
-                          <p className="text-emerald-700/80">省下</p>
+                          <p className="text-emerald-700/80">最低價</p>
                           <p className="mt-1 font-semibold text-emerald-700">
-                            {savings == null ? "--" : formatCurrency(savings)}
+                            {product.bestPrice == null
+                              ? "--"
+                              : `${formatCurrency(product.bestPrice)}${product.bestSourceLabel ? ` (${product.bestSourceLabel})` : ""}`}
                           </p>
                         </div>
                       </div>
+                      {savings != null && (
+                        <p className="mt-3 text-xs text-emerald-700/80">比建議售價省下 {formatCurrency(savings)}</p>
+                      )}
                     </a>
                   );
                 })}
