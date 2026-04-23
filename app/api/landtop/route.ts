@@ -1,0 +1,162 @@
+import { NextResponse } from "next/server";
+
+type LandtopBrand = "apple" | "samsung";
+
+type LandtopProduct = {
+  id: string;
+  brand: LandtopBrand;
+  name: string;
+  suggestedPrice: number | null;
+  landtopPrice: number | null;
+  landtopPriceLabel: string;
+  sourceUrl: string;
+};
+
+const CACHE_SECONDS = 7 * 24 * 60 * 60;
+const LANDTOP_SOURCES: Array<{ brand: LandtopBrand; url: string }> = [
+  { brand: "samsung", url: "https://www.landtop.com.tw/brands?brand=samsung" },
+  { brand: "apple", url: "https://www.landtop.com.tw/brands?brand=apple" },
+];
+
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
+
+function normalizeSpace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function htmlToLines(html: string): string[] {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "\n")
+    .replace(/<style[\s\S]*?<\/style>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(a|p|div|li|h\d|span|button)>/gi, "\n")
+    .replace(/<[^>]+>/g, "\n")
+    .split("\n")
+    .map((line) => normalizeSpace(decodeHtml(line)))
+    .filter(Boolean);
+}
+
+function parsePrice(line: string): number | null {
+  const raw = line.replace(/[^\d]/g, "");
+  return raw ? Number(raw) : null;
+}
+
+function isProductTitle(line: string, brand: LandtopBrand): boolean {
+  if (line.length > 80) return false;
+  if (/^(購買|詳情|全部|手機平板|配件周邊|搜尋|品牌搜尋)$/.test(line)) return false;
+
+  if (brand === "samsung") {
+    return /^Samsung\s+/i.test(line);
+  }
+
+  return /^(iPhone|iPad|AirPods|Apple Watch|Apple\s+)/i.test(line);
+}
+
+function parseProducts(html: string, brand: LandtopBrand, sourceUrl: string): LandtopProduct[] {
+  const lines = htmlToLines(html);
+  const products = new Map<string, LandtopProduct>();
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const name = lines[index];
+    if (!isProductTitle(name, brand)) continue;
+
+    const windowLines = lines.slice(index + 1, index + 10);
+    const suggestedLine = windowLines.find((line) => line.includes("建議售價"));
+    const landtopLine = windowLines.find((line) => line.includes("地標價"));
+    if (!suggestedLine || !landtopLine) continue;
+
+    const suggestedPrice = parsePrice(suggestedLine);
+    const landtopPrice = parsePrice(landtopLine);
+    const id = `${brand}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+
+    products.set(id, {
+      id,
+      brand,
+      name,
+      suggestedPrice,
+      landtopPrice,
+      landtopPriceLabel: landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
+      sourceUrl,
+    });
+  }
+
+  return Array.from(products.values());
+}
+
+function normalizeQuery(value: string): string[] {
+  return normalizeSpace(value)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function matchesQuery(product: LandtopProduct, query: string): boolean {
+  const tokens = normalizeQuery(query);
+  if (tokens.length === 0) return true;
+  const haystack = `${product.brand} ${product.name}`.toLowerCase();
+  return tokens.every((token) => haystack.includes(token));
+}
+
+async function fetchBrandProducts(brand: LandtopBrand, url: string, refresh: boolean): Promise<LandtopProduct[]> {
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+    },
+    cache: refresh ? "no-store" : "force-cache",
+    next: refresh ? undefined : { revalidate: CACHE_SECONDS },
+  });
+
+  if (!response.ok) {
+    throw new Error(`地標網通 ${brand} 資料抓取失敗：HTTP ${response.status}`);
+  }
+
+  return parseProducts(await response.text(), brand, url);
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get("query") || "";
+    const refresh = searchParams.get("refresh") === "1";
+
+    const productGroups = await Promise.all(
+      LANDTOP_SOURCES.map((source) => fetchBrandProducts(source.brand, source.url, refresh))
+    );
+    const products = productGroups
+      .flat()
+      .filter((product) => matchesQuery(product, query))
+      .sort((a, b) => {
+        const aPrice = a.landtopPrice ?? a.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
+        const bPrice = b.landtopPrice ?? b.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
+        return aPrice - bPrice;
+      });
+
+    return NextResponse.json({
+      source: "地標網通",
+      sourceUrls: LANDTOP_SOURCES.map((source) => source.url),
+      query,
+      refresh,
+      cacheSeconds: CACHE_SECONDS,
+      fetchedAt: new Date().toISOString(),
+      total: products.length,
+      products,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "地標網通資料解析失敗" },
+      { status: 500 }
+    );
+  }
+}

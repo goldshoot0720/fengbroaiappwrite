@@ -3,6 +3,10 @@
     {
       "path": "/api/push-send",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/landtop",
+      "schedule": "0 1 * * 1"
     }
   ]
 }

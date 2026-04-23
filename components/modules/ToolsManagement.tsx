@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Search, Wrench } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BarChart3, ExternalLink, RefreshCw, Search, Smartphone, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
 
-type ToolsTab = "price-compare";
+type ToolsTab = "price-compare" | "landtop";
 type PriceSource = "local" | "biggo-api";
 
 const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "price-compare", label: "鋒兄比價" },
+  { id: "landtop", label: "地標網通" },
 ];
 
 const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
@@ -41,11 +42,37 @@ type RecentLink = {
   updatedAt: number;
 };
 
+type LandtopProduct = {
+  id: string;
+  brand: "apple" | "samsung";
+  name: string;
+  suggestedPrice: number | null;
+  landtopPrice: number | null;
+  landtopPriceLabel: string;
+  sourceUrl: string;
+};
+
+type LandtopResult = {
+  source: string;
+  sourceUrls: string[];
+  query: string;
+  refresh: boolean;
+  cacheSeconds: number;
+  fetchedAt: string;
+  total: number;
+  products: LandtopProduct[];
+};
+
 const RECENT_KEY = "fengbro.tools.priceHistory.recent";
 const SOURCE_KEY = "fengbro.tools.priceHistory.source";
+const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
 
 function formatChartPrice(price: number) {
   return new Intl.NumberFormat("zh-TW").format(price);
+}
+
+function formatCurrency(price: number | null) {
+  return price == null ? "--" : `NT$ ${price.toLocaleString("zh-TW")}`;
 }
 
 function buildChartPath(points: Array<{ x: number; y: number }>) {
@@ -94,26 +121,10 @@ function PriceTrendChart({
     const linePath = buildChartPath(points);
     const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${(height - padding.bottom).toFixed(2)} L ${points[0].x.toFixed(2)} ${(height - padding.bottom).toFixed(2)} Z`;
 
-    const steps = 4;
-    const gridLines = Array.from({ length: steps + 1 }, (_, index) => {
-      const value = domainMax - (domain / steps) * index;
-      const y = padding.top + (innerHeight / steps) * index;
-      return { value, y };
-    });
-
-    const labels = points.filter((_, index) => {
-      if (points.length <= 4) return true;
-      if (index === 0 || index === points.length - 1) return true;
-      const stride = Math.ceil(points.length / 4);
-      return index % stride === 0;
-    });
-
     return {
       areaPath,
       currency,
-      gridLines,
       height,
-      labels,
       latest: priced[priced.length - 1],
       linePath,
       maxPrice,
@@ -127,30 +138,21 @@ function PriceTrendChart({
   if (!chart) {
     return (
       <div className="rounded-[28px] border border-dashed border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.95),rgba(255,255,255,0.95))] px-5 py-10 text-center text-sm text-muted-foreground">
-        目前沒有足夠的價格資料可繪製走勢圖。
+        目前沒有可繪製的價格資料。
       </div>
     );
   }
 
   const delta = chart.latest.price - chart.earliest.price;
-  const deltaTone =
-    delta > 0
-      ? "text-rose-600"
-      : delta < 0
-        ? "text-emerald-600"
-        : "text-amber-700";
+  const deltaTone = delta > 0 ? "text-rose-600" : delta < 0 ? "text-emerald-600" : "text-amber-700";
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
       <div className="flex flex-col gap-4 border-b border-amber-100 px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700/80">
-            Price Trend
-          </p>
-          <h5 className="mt-2 text-xl font-semibold text-foreground">價格走勢圖表</h5>
-          <p className="mt-1 text-sm text-muted-foreground">
-            根據目前歷史價格資料繪製，方便快速看出高低點與近期變化。
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700/80">Price Trend</p>
+          <h5 className="mt-2 text-xl font-semibold text-foreground">歷史價格趨勢</h5>
+          <p className="mt-1 text-sm text-muted-foreground">依資料來源回傳的歷史價格繪製。</p>
         </div>
         <div className="grid grid-cols-3 gap-2 text-right text-xs sm:min-w-[320px]">
           <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
@@ -166,7 +168,7 @@ function PriceTrendChart({
             </p>
           </div>
           <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
-            <p className="text-muted-foreground">區間變化</p>
+            <p className="text-muted-foreground">變化</p>
             <p className={`mt-1 text-sm font-semibold ${deltaTone}`}>
               {delta > 0 ? "+" : ""}
               {formatChartPrice(delta)} {chart.currency || ""}
@@ -184,65 +186,77 @@ function PriceTrendChart({
                 <stop offset="100%" stopColor="rgba(245,158,11,0.02)" />
               </linearGradient>
             </defs>
-
-            {chart.gridLines.map((line) => (
-              <g key={line.y}>
-                <line
-                  x1="56"
-                  x2={chart.width - 24}
-                  y1={line.y}
-                  y2={line.y}
-                  stroke="rgba(180, 83, 9, 0.10)"
-                  strokeDasharray="4 8"
-                />
-                <text
-                  x="48"
-                  y={line.y + 4}
-                  textAnchor="end"
-                  fontSize="12"
-                  fill="rgba(120, 53, 15, 0.68)"
-                >
-                  {formatChartPrice(Math.round(line.value))}
-                </text>
-              </g>
-            ))}
-
             <path d={chart.areaPath} fill="url(#priceTrendArea)" />
-            <path
-              d={chart.linePath}
-              fill="none"
-              stroke="rgba(217, 119, 6, 0.96)"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="4"
-            />
-
-            {chart.points.map((point, index) => {
-              const isLatest = index === chart.points.length - 1;
-              return (
-                <g key={`${point.date}-${index}`}>
-                  {isLatest ? (
-                    <circle cx={point.x} cy={point.y} fill="rgba(245,158,11,0.16)" r="12" />
-                  ) : null}
-                  <circle cx={point.x} cy={point.y} fill="white" r={isLatest ? 6 : 4.5} stroke="rgba(217, 119, 6, 0.96)" strokeWidth="3" />
-                </g>
-              );
-            })}
-
-            {chart.labels.map((point) => (
-              <text
-                key={`${point.date}-label`}
-                x={point.x}
-                y={chart.height - 12}
-                textAnchor="middle"
-                fontSize="12"
-                fill="rgba(120, 53, 15, 0.72)"
-              >
-                {point.date.slice(5)}
-              </text>
+            <path d={chart.linePath} fill="none" stroke="rgba(217, 119, 6, 0.96)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
+            {chart.points.map((point, index) => (
+              <circle key={`${point.date}-${index}`} cx={point.x} cy={point.y} fill="white" r={index === chart.points.length - 1 ? 6 : 4.5} stroke="rgba(217, 119, 6, 0.96)" strokeWidth="3" />
             ))}
           </svg>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function LandtopPriceChart({ products }: { products: LandtopProduct[] }) {
+  const chartProducts = products
+    .filter((product) => product.suggestedPrice || product.landtopPrice)
+    .slice(0, 8);
+  const maxPrice = Math.max(
+    1,
+    ...chartProducts.flatMap((product) => [product.suggestedPrice || 0, product.landtopPrice || 0])
+  );
+
+  if (chartProducts.length === 0) {
+    return (
+      <div className="rounded-[28px] border border-dashed border-sky-200 bg-sky-50/50 px-5 py-10 text-center text-sm text-muted-foreground">
+        搜尋結果目前沒有可繪製價格。
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.95),rgba(255,255,255,0.98))] p-5 shadow-[0_24px_80px_rgba(14,116,144,0.08)]">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Landtop Chart</p>
+          <h4 className="mt-1 text-lg font-semibold text-foreground">建議售價 vs 地標價</h4>
+        </div>
+        <BarChart3 className="text-sky-600" size={22} />
+      </div>
+
+      <div className="space-y-4">
+        {chartProducts.map((product) => {
+          const suggestedWidth = `${Math.max(4, ((product.suggestedPrice || 0) / maxPrice) * 100)}%`;
+          const landtopWidth = `${Math.max(4, ((product.landtopPrice || 0) / maxPrice) * 100)}%`;
+
+          return (
+            <div key={product.id} className="grid gap-2 md:grid-cols-[220px_1fr] md:items-center">
+              <div>
+                <p className="line-clamp-1 text-sm font-semibold text-foreground">{product.name}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{product.brand}</p>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-16 text-xs text-muted-foreground">建議</span>
+                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-slate-400" style={{ width: suggestedWidth }} />
+                  </div>
+                  <span className="w-24 text-right text-xs font-medium">{formatCurrency(product.suggestedPrice)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-16 text-xs text-sky-700">地標</span>
+                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-sky-100">
+                    <div className="h-full rounded-full bg-sky-500" style={{ width: product.landtopPrice ? landtopWidth : "4%" }} />
+                  </div>
+                  <span className="w-24 text-right text-xs font-medium text-sky-700">
+                    {product.landtopPrice ? formatCurrency(product.landtopPrice) : "最低價"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -256,23 +270,27 @@ export default function ToolsManagement() {
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState<PriceHistoryResult | null>(null);
   const [recentLinks, setRecentLinks] = useState<RecentLink[]>([]);
+  const [landtopQuery, setLandtopQuery] = useState("iPhone 17");
+  const [landtopLoading, setLandtopLoading] = useState(false);
+  const [landtopError, setLandtopError] = useState("");
+  const [landtopResult, setLandtopResult] = useState<LandtopResult | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     try {
       const raw = window.localStorage.getItem(RECENT_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as RecentLink[];
-        setRecentLinks(parsed);
-      }
+      if (raw) setRecentLinks(JSON.parse(raw) as RecentLink[]);
     } catch {}
 
     try {
       const savedSource = window.localStorage.getItem(SOURCE_KEY) as PriceSource | null;
-      if (savedSource === "local" || savedSource === "biggo-api") {
-        setPriceSource(savedSource);
-      }
+      if (savedSource === "local" || savedSource === "biggo-api") setPriceSource(savedSource);
+    } catch {}
+
+    try {
+      const savedQuery = window.localStorage.getItem(LANDTOP_QUERY_KEY);
+      if (savedQuery) setLandtopQuery(savedQuery);
     } catch {}
   }, []);
 
@@ -282,6 +300,13 @@ export default function ToolsManagement() {
       window.localStorage.setItem(SOURCE_KEY, priceSource);
     } catch {}
   }, [priceSource]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(LANDTOP_QUERY_KEY, landtopQuery);
+    } catch {}
+  }, [landtopQuery]);
 
   const sortedRecent = useMemo(() => {
     return [...recentLinks].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
@@ -298,14 +323,40 @@ export default function ToolsManagement() {
   const upsertRecentLink = (url: string, title?: string) => {
     const now = Date.now();
     const existing = recentLinks.filter((item) => item.url !== url);
-    const next = [{ url, title, updatedAt: now }, ...existing].slice(0, 12);
-    persistRecentLinks(next);
+    persistRecentLinks([{ url, title, updatedAt: now }, ...existing].slice(0, 12));
   };
+
+  const loadLandtop = useCallback(async (refresh = false, overrideQuery?: string) => {
+    const query = (overrideQuery ?? landtopQuery).trim();
+    setLandtopLoading(true);
+    setLandtopError("");
+
+    try {
+      const params = new URLSearchParams();
+      if (query) params.set("query", query);
+      if (refresh) params.set("refresh", "1");
+
+      const response = await fetch(`/api/landtop?${params.toString()}`);
+      const data = (await response.json()) as LandtopResult & { error?: string };
+      if (!response.ok) throw new Error(data.error || "地標網通資料抓取失敗");
+      setLandtopResult(data);
+    } catch (error) {
+      setLandtopError(error instanceof Error ? error.message : "地標網通資料抓取失敗");
+    } finally {
+      setLandtopLoading(false);
+    }
+  }, [landtopQuery]);
+
+  useEffect(() => {
+    if (activeTab === "landtop" && !landtopResult && !landtopLoading) {
+      void loadLandtop(false);
+    }
+  }, [activeTab, landtopLoading, landtopResult, loadLandtop]);
 
   const handleResolve = async (overrideUrl?: string) => {
     const url = (overrideUrl ?? targetUrl).trim();
     if (!url) {
-      setErrorMessage("請先輸入商品連結");
+      setErrorMessage("請輸入商品網址");
       return;
     }
 
@@ -318,11 +369,7 @@ export default function ToolsManagement() {
         `/api/resolve?url=${encodeURIComponent(url)}&source=${encodeURIComponent(priceSource)}`
       );
       const data = (await response.json()) as PriceHistoryResult & { error?: string };
-
-      if (!response.ok) {
-        throw new Error(data.error || "查詢失敗，請稍後再試");
-      }
-
+      if (!response.ok) throw new Error(data.error || "查詢失敗，請稍後再試");
       setResult(data);
       upsertRecentLink(url, data.title);
     } catch (error) {
@@ -351,156 +398,220 @@ export default function ToolsManagement() {
         </div>
       </DataCard>
 
-      <DataCard className="space-y-4 p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-            <Wrench size={20} />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold">鋒兄比價</h3>
-            <p className="text-sm text-muted-foreground">查詢商品歷史價格與價格變動</p>
-          </div>
-        </div>
+      {activeTab === "price-compare" ? (
+        <>
+          <DataCard className="space-y-4 p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                <Wrench size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">鋒兄比價</h3>
+                <p className="text-sm text-muted-foreground">查詢商品歷史價格與目前價格資料。</p>
+              </div>
+            </div>
 
-        <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-amber-200 bg-amber-50/50 p-4">
-          <label className="text-sm font-medium">商品連結</label>
-          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-amber-200 bg-amber-50/50 p-4">
+              <label className="text-sm font-medium">商品網址</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={targetUrl}
+                  onChange={(event) => setTargetUrl(event.target.value)}
+                  placeholder="貼上商品網址，例如 https://..."
+                  className="flex-1 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-amber-400"
+                />
+                <Button onClick={() => handleResolve()} className="gap-2" disabled={loading}>
+                  <Search size={16} />
+                  {loading ? "查詢中" : "查詢歷史價格"}
+                </Button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PRICE_SOURCES.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setPriceSource(item.id)}
+                    className={`rounded-2xl border px-3 py-3 text-left transition ${
+                      priceSource === item.id
+                        ? "border-amber-400 bg-white shadow-sm"
+                        : "border-amber-200/80 bg-white/60 hover:border-amber-300"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-foreground">{item.label}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{item.hint}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </DataCard>
+
+          {sortedRecent.length > 0 && (
+            <DataCard className="p-6">
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-sm font-semibold">最近連結</h4>
+                <span className="text-xs text-muted-foreground">{sortedRecent.length} 筆</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {sortedRecent.map((item) => (
+                  <button
+                    key={item.url}
+                    type="button"
+                    onClick={() => {
+                      setTargetUrl(item.url);
+                      void handleResolve(item.url);
+                    }}
+                    className="flex flex-col rounded-xl border border-border bg-white px-3 py-2 text-left text-xs shadow-sm transition hover:border-amber-300"
+                  >
+                    <span className="line-clamp-1 font-medium text-foreground">{item.title || "未命名商品"}</span>
+                    <span className="line-clamp-1 text-muted-foreground">{item.url}</span>
+                  </button>
+                ))}
+              </div>
+            </DataCard>
+          )}
+
+          <DataCard className="space-y-4 p-6">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold">歷史價格結果</h4>
+              {result?.url && (
+                <a href={result.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700">
+                  開啟商品 <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
+
+            {loading && <p className="text-sm text-muted-foreground">正在查詢歷史價格資料...</p>}
+            {!loading && errorMessage && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{errorMessage}</p>
+            )}
+            {!loading && !errorMessage && !result && (
+              <p className="text-sm text-muted-foreground">輸入商品網址後，這裡會顯示查價結果。</p>
+            )}
+
+            {!loading && result && (
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-border bg-white p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">{result.title || "未命名商品"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        來源：{result.source || "未知"}
+                        {result.resolvedAt ? ` ・更新 ${result.resolvedAt}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right text-sm">
+                      <p className="text-xs text-muted-foreground">目前價格</p>
+                      <p className="text-lg font-semibold text-amber-700">
+                        {result.currentPrice ?? "--"} {result.currency || ""}
+                      </p>
+                    </div>
+                  </div>
+                  {result.notice && (
+                    <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      {result.notice}
+                    </p>
+                  )}
+                </div>
+
+                <PriceTrendChart history={result.history || []} currency={result.currency} />
+              </div>
+            )}
+          </DataCard>
+        </>
+      ) : (
+        <DataCard className="space-y-5 p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
+                <Smartphone size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">地標網通手機查價</h3>
+                <p className="text-sm text-muted-foreground">
+                  資料來源為 Apple / Samsung 品牌頁，快取 7 天；可搜尋 iPhone 17、Samsung S26。
+                </p>
+              </div>
+            </div>
+            {landtopResult && (
+              <p className="text-xs text-muted-foreground">
+                更新：{new Date(landtopResult.fetchedAt).toLocaleString("zh-TW")}，結果 {landtopResult.total} 筆
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-2xl border border-sky-200 bg-sky-50/60 p-4 sm:flex-row">
             <input
-              value={targetUrl}
-              onChange={(event) => setTargetUrl(event.target.value)}
-              placeholder="貼上商品頁面連結，例如 https://..."
-              className="flex-1 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-amber-400"
+              value={landtopQuery}
+              onChange={(event) => setLandtopQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void loadLandtop(false);
+              }}
+              placeholder="搜尋手機，例如 iPhone 17、Samsung S26"
+              className="flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
             />
-            <Button onClick={() => handleResolve()} className="gap-2" disabled={loading}>
+            <Button onClick={() => loadLandtop(false)} className="gap-2" disabled={landtopLoading}>
               <Search size={16} />
-              {loading ? "查詢中" : "查詢歷史價格"}
+              {landtopLoading ? "搜尋中" : "搜尋手機"}
+            </Button>
+            <Button onClick={() => loadLandtop(true)} variant="outline" className="gap-2" disabled={landtopLoading}>
+              <RefreshCw size={16} />
+              重新抓取
             </Button>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            {PRICE_SOURCES.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setPriceSource(item.id)}
-                className={`rounded-2xl border px-3 py-3 text-left transition ${
-                  priceSource === item.id
-                    ? "border-amber-400 bg-white shadow-sm"
-                    : "border-amber-200/80 bg-white/60 hover:border-amber-300"
-                }`}
-              >
-                <div className="text-sm font-semibold text-foreground">{item.label}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{item.hint}</div>
-              </button>
-            ))}
-          </div>
+          {landtopError && (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{landtopError}</p>
+          )}
 
-          <p className="text-xs text-muted-foreground">
-            目前會透過 <code>/api/resolve</code> 查詢，並把你選擇的資料來源一起送出。最近連結仍保留在瀏覽器端。
-          </p>
-        </div>
-      </DataCard>
+          {!landtopError && landtopResult && (
+            <>
+              <LandtopPriceChart products={landtopResult.products} />
 
-      {sortedRecent.length > 0 && (
-        <DataCard className="p-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-sm font-semibold">最近連結</h4>
-            <span className="text-xs text-muted-foreground">{sortedRecent.length} 筆</span>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {sortedRecent.map((item) => (
-              <button
-                key={item.url}
-                type="button"
-                onClick={() => {
-                  setTargetUrl(item.url);
-                  void handleResolve(item.url);
-                }}
-                className="flex flex-col rounded-xl border border-border bg-white px-3 py-2 text-left text-xs shadow-sm transition hover:border-amber-300"
-              >
-                <span className="line-clamp-1 font-medium text-foreground">{item.title || "未命名商品"}</span>
-                <span className="line-clamp-1 text-muted-foreground">{item.url}</span>
-              </button>
-            ))}
-          </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {landtopResult.products.slice(0, 12).map((product) => {
+                  const savings =
+                    product.suggestedPrice && product.landtopPrice
+                      ? product.suggestedPrice - product.landtopPrice
+                      : null;
+
+                  return (
+                    <a
+                      key={product.id}
+                      href={product.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:border-sky-300 hover:shadow-md"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{product.name}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">{product.brand}</p>
+                        </div>
+                        <ExternalLink className="mt-0.5 text-sky-600" size={16} />
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-muted-foreground">建議售價</p>
+                          <p className="mt-1 font-semibold">{formatCurrency(product.suggestedPrice)}</p>
+                        </div>
+                        <div className="rounded-xl bg-sky-50 px-3 py-2">
+                          <p className="text-sky-700/80">地標價</p>
+                          <p className="mt-1 font-semibold text-sky-700">{product.landtopPriceLabel}</p>
+                        </div>
+                        <div className="rounded-xl bg-emerald-50 px-3 py-2">
+                          <p className="text-emerald-700/80">價差</p>
+                          <p className="mt-1 font-semibold text-emerald-700">{savings == null ? "--" : formatCurrency(savings)}</p>
+                        </div>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </DataCard>
       )}
-
-      <DataCard className="space-y-4 p-6">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold">歷史價格結果</h4>
-          {result?.url && (
-            <a
-              href={result.url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700"
-            >
-              開啟原頁 <ExternalLink size={12} />
-            </a>
-          )}
-        </div>
-
-        {loading && <p className="text-sm text-muted-foreground">正在查詢歷史價格資料...</p>}
-        {!loading && errorMessage && (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{errorMessage}</p>
-        )}
-
-        {!loading && !errorMessage && !result && (
-          <p className="text-sm text-muted-foreground">輸入連結後即可看到最新價格與歷史記錄。</p>
-        )}
-
-        {!loading && result && (
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-border bg-white p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold">{result.title || "未命名商品"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    來源：{result.source || "未設定"}
-                    {result.resolvedAt ? ` ・更新 ${result.resolvedAt}` : ""}
-                  </p>
-                </div>
-                <div className="text-right text-sm">
-                  <p className="text-xs text-muted-foreground">目前價格</p>
-                  <p className="text-lg font-semibold text-amber-700">
-                    {result.currentPrice ?? "--"} {result.currency || ""}
-                  </p>
-                </div>
-              </div>
-              {result.notice && (
-                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  {result.notice}
-                </p>
-              )}
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-border bg-white">
-              <div className="grid grid-cols-3 border-b border-border bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700">
-                <span>日期</span>
-                <span className="text-center">價格</span>
-                <span className="text-right">幣別</span>
-              </div>
-              {result.history && result.history.length > 0 ? (
-                result.history.map((entry, index) => (
-                  <div
-                    key={`${entry.date}-${index}`}
-                    className="grid grid-cols-3 border-b border-border px-4 py-2 text-xs text-muted-foreground last:border-b-0"
-                  >
-                    <span>{entry.date}</span>
-                    <span className="text-center">{entry.price ?? "--"}</span>
-                    <span className="text-right">{entry.currency || result.currency || ""}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="px-4 py-3 text-xs text-muted-foreground">尚無歷史價格資料。</div>
-              )}
-            </div>
-
-            <PriceTrendChart history={result.history || []} currency={result.currency} />
-          </div>
-        )}
-      </DataCard>
     </section>
   );
 }
