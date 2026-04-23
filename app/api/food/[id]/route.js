@@ -75,7 +75,7 @@ export async function PUT(req, context) {
     const docData = {
       name: name || '',
       amount: amount ? parseInt(amount, 10) : 0,
-      todate: formattedDate,
+      todate: formattedDate || null,
       price: price ? parseInt(price, 10) : 0,
     };
     

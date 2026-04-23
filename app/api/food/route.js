@@ -69,14 +69,22 @@ export async function POST(req) {
     
     const body = await req.json();
     const { name, amount, todate, photo, price, shop, photohash } = body;
+    let formattedDate = '';
+    if (todate) {
+      const dateObj = new Date(todate);
+      if (Number.isNaN(dateObj.getTime())) {
+        return NextResponse.json({ error: `Invalid date format: ${todate}` }, { status: 400 });
+      }
+      formattedDate = todate.includes('T') ? dateObj.toISOString() : todate;
+    }
 
     // Build document data, only include defined values
     const docData = {
       name: name || '',
       amount: amount ? parseInt(amount, 10) : 0,
-      todate: todate || '',
       price: price ? parseInt(price, 10) : 0,
     };
+    if (formattedDate) docData.todate = formattedDate;
     
     // Only add optional fields if they have values
     // Use null for empty photo URLs (Appwrite requires valid URL or null)

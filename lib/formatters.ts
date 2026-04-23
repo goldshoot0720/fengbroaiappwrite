@@ -5,7 +5,9 @@
  */
 export function formatDate(dateStr: string): string {
   if (!dateStr) return "";
-  return new Date(dateStr).toISOString().split("T")[0];
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().split("T")[0];
 }
 
 /**
@@ -115,9 +117,11 @@ export function formatCurrency(amount: number | undefined, currency = "NT$"): st
  * 計算距離今天的天數
  */
 export function getDaysFromToday(dateStr: string): number {
+  if (!dateStr) return Number.POSITIVE_INFINITY;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const targetDate = new Date(dateStr);
+  if (Number.isNaN(targetDate.getTime())) return Number.POSITIVE_INFINITY;
   targetDate.setHours(0, 0, 0, 0);
   return Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
@@ -136,6 +140,7 @@ export function getExpiryStatus(daysRemaining: number): "expired" | "urgent" | "
  * 格式化剩餘天數文字
  */
 export function formatDaysRemaining(days: number): string {
+  if (!Number.isFinite(days)) return "未設定日期";
   if (days === 0) return "今天";
   if (days < 0) return `${Math.abs(days)} 天前`;
   return `${days} 天後`;

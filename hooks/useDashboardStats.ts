@@ -213,7 +213,9 @@ export function useDashboardStats() {
         const foodsToProcess = Array.isArray(foods) ? foods : [];
         const foodsExpiring7DaysList: FoodDetail[] = foodsToProcess
           .filter(food => {
+            if (!food.todate) return false;
             const expireDate = new Date(food.todate);
+            if (Number.isNaN(expireDate.getTime())) return false;
             return expireDate <= sevenDaysFromNow && expireDate >= today;
           })
           .map(food => {
@@ -230,7 +232,9 @@ export function useDashboardStats() {
 
         const foodsExpiring30DaysList: FoodDetail[] = foodsToProcess
           .filter(food => {
+            if (!food.todate) return false;
             const expireDate = new Date(food.todate);
+            if (Number.isNaN(expireDate.getTime())) return false;
             return expireDate <= thirtyDaysFromNow && expireDate >= today;
           })
           .map(food => {
@@ -247,7 +251,9 @@ export function useDashboardStats() {
 
         const expiredFoodsList: FoodDetail[] = foodsToProcess
           .filter(food => {
+            if (!food.todate) return false;
             const expireDate = new Date(food.todate);
+            if (Number.isNaN(expireDate.getTime())) return false;
             return expireDate < today;
           })
           .map(food => {

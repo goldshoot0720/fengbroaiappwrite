@@ -10,6 +10,16 @@ import { fetchApi } from "@/hooks/useApi";
 let cachedFoods: Food[] | null = null;
 let cacheTimestamp: number = 0;
 
+function getSortableDateValue(dateStr: string) {
+  if (!dateStr) return Number.POSITIVE_INFINITY;
+  const time = new Date(dateStr).getTime();
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+}
+
+function sortFoodsByExpiryDate(a: Food, b: Food) {
+  return getSortableDateValue(a.todate) - getSortableDateValue(b.todate);
+}
+
 export function useFoods() {
   const [foods, setFoods] = useState<Food[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,9 +62,7 @@ export function useFoods() {
       const resData = await fetchApi<Food[]>(API_ENDPOINTS.FOOD + cacheParam);
       let data: Food[] = Array.isArray(resData) ? resData : [];
       // 按到期日排序
-      data = data.sort(
-        (a, b) => new Date(a.todate).getTime() - new Date(b.todate).getTime()
-      );
+      data = data.sort(sortFoodsByExpiryDate);
       
       // 更新快取
       cachedFoods = data;
@@ -82,9 +90,7 @@ export function useFoods() {
       
       setFoods((prev) => {
         const updated = [...prev, newFood];
-        return updated.sort(
-          (a, b) => new Date(a.todate).getTime() - new Date(b.todate).getTime()
-        );
+        return updated.sort(sortFoodsByExpiryDate);
       });
       cachedFoods = null;
       setRefreshKey();
@@ -107,9 +113,7 @@ export function useFoods() {
       
       setFoods((prev) => {
         const updated = prev.map((f) => (f.$id === id ? updatedFood : f));
-        return updated.sort(
-          (a, b) => new Date(a.todate).getTime() - new Date(b.todate).getTime()
-        );
+        return updated.sort(sortFoodsByExpiryDate);
       });
       cachedFoods = null;
       setRefreshKey();
@@ -203,7 +207,7 @@ export function useFoods() {
 export function getFoodExpiryInfo(food: Food) {
   const daysRemaining = getDaysFromToday(food.todate);
   const status = getExpiryStatus(daysRemaining);
-  const formattedDate = formatDate(food.todate);
+  const formattedDate = formatDate(food.todate) || "未設定";
   
   return {
     daysRemaining,
