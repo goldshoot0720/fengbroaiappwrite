@@ -170,6 +170,20 @@ const TABLE_SCHEMAS = {
       { key: 'link', type: 'url', required: false },
       { key: 'photo', type: 'url', required: false }
     ]
+  },
+  landtophistory: {
+    name: "landtophistory",
+    attributes: [
+      { key: 'source', type: 'string', size: 20, required: true },
+      { key: 'snapshotKey', type: 'string', size: 220, required: true },
+      { key: 'productId', type: 'string', size: 180, required: true },
+      { key: 'brand', type: 'string', size: 20, required: true },
+      { key: 'name', type: 'string', size: 200, required: true },
+      { key: 'sourceUrl', type: 'url', required: false },
+      { key: 'landtopPrice', type: 'integer', required: false },
+      { key: 'suggestedPrice', type: 'integer', required: false },
+      { key: 'snapshotDate', type: 'datetime', required: true }
+    ]
   }
 };
 

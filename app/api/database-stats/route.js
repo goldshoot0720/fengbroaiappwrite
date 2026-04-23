@@ -132,7 +132,7 @@ export async function GET(request) {
     });
     
     // Define expected tables
-    const tableNames = ["article", "bank", "commonaccount", "food", "image", "music", "podcast", "commondocument", "routine", "subscription", "video"];
+    const tableNames = ["article", "bank", "commonaccount", "food", "image", "music", "podcast", "commondocument", "routine", "subscription", "video", "landtophistory"];
     
     // Get each collection's column count and document count dynamically
     const collectionsWithCounts = await Promise.all(
