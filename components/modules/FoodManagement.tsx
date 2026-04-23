@@ -53,6 +53,12 @@ function getFoodMonthValue(food: Food) {
   return date.toISOString().slice(0, 7);
 }
 
+function formatMonthOption(month: string) {
+  const [year, monthNumber] = month.split("-");
+  if (!year || !monthNumber) return month;
+  return `${year} 年 ${monthNumber} 月`;
+}
+
 function getExpiryBucket(daysRemaining: number): FilterMode {
   if (daysRemaining < 0) return "expired";
   if (daysRemaining === 0) return "today";
@@ -1197,11 +1203,6 @@ export default function FoodManagement() {
           <option key={name} value={name} />
         ))}
       </datalist>
-      <datalist id="food-month-suggestions">
-        {monthOptions.map((month) => (
-          <option key={month} value={month} />
-        ))}
-      </datalist>
 
       {/* 搜尋欄位 */}
       {foods.length > 0 && (
@@ -1230,14 +1231,21 @@ export default function FoodManagement() {
             <div className="flex min-w-[220px] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
               <CalendarClock size={18} className="shrink-0 text-gray-400" />
               <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">年月</span>
-              <Input
-                type="month"
-                list="food-month-suggestions"
-                value={monthFilter}
-                onChange={(e) => setMonthFilter(e.target.value)}
-                className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                aria-label="篩選年月"
-              />
+              <Select value={monthFilter || "all"} onValueChange={(value) => setMonthFilter(value === "all" ? "" : value)}>
+                <SelectTrigger className="h-8 min-w-[150px] border-0 bg-transparent px-0 shadow-none focus:ring-0">
+                  <span className={monthFilter ? "text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}>
+                    {monthFilter ? formatMonthOption(monthFilter) : "全部年月"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部年月</SelectItem>
+                  {monthOptions.map((month) => (
+                    <SelectItem key={month} value={month}>
+                      {formatMonthOption(month)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {monthFilter && (
                 <button
                   type="button"
