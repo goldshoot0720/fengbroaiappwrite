@@ -48,6 +48,7 @@ function matchesQuery(product, query) {
 
 function buildProductUrl(name) {
   const slug = name
+    .replace(/\b(\d{3,4})GB\b/gi, "$1G")
     .replace(/^Samsung\s+/i, "SAMSUNG-")
     .replace(/^Apple\s+/i, "APPLE-")
     .replace(/\s+/g, "-")
