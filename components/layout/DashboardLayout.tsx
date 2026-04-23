@@ -292,6 +292,16 @@ function TabletSidebar({
                 <span className="line-clamp-2 text-[11px] font-medium leading-4">
                   {item.label}
                 </span>
+                {item.subtitle ? (
+                  <span
+                    className={cn(
+                      "line-clamp-2 text-[9px] leading-3",
+                      isActive ? "text-[var(--accent-foreground)]/75" : "text-[var(--muted-foreground)]/80"
+                    )}
+                  >
+                    {item.subtitle}
+                  </span>
+                ) : null}
               </button>
             );
           })}
