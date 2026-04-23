@@ -68,6 +68,11 @@ const RECENT_KEY = "fengbro.tools.priceHistory.recent";
 const SOURCE_KEY = "fengbro.tools.priceHistory.source";
 const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
 
+function getDefaultLandtopQuery() {
+  const yearSuffix = new Date().getFullYear().toString().slice(-2);
+  return `Samsung S${yearSuffix}`;
+}
+
 function formatChartPrice(price: number) {
   return new Intl.NumberFormat("zh-TW").format(price);
 }
@@ -271,7 +276,7 @@ export default function ToolsManagement() {
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState<PriceHistoryResult | null>(null);
   const [recentLinks, setRecentLinks] = useState<RecentLink[]>([]);
-  const [landtopQuery, setLandtopQuery] = useState("iPhone 17");
+  const [landtopQuery, setLandtopQuery] = useState(getDefaultLandtopQuery);
   const [landtopLoading, setLandtopLoading] = useState(false);
   const [landtopError, setLandtopError] = useState("");
   const [landtopResult, setLandtopResult] = useState<LandtopResult | null>(null);
@@ -532,7 +537,7 @@ export default function ToolsManagement() {
               <div>
                 <h3 className="text-lg font-semibold">地標網通手機查價</h3>
                 <p className="text-sm text-muted-foreground">
-                  資料來源為 Apple / Samsung 品牌頁，快取 7 天；可搜尋 iPhone 17、Samsung S26。
+                  資料來源為 Apple / Samsung 品牌頁，快取 7 天；預設搜尋今年 Samsung S 系列。
                 </p>
               </div>
             </div>
@@ -550,7 +555,7 @@ export default function ToolsManagement() {
               onKeyDown={(event) => {
                 if (event.key === "Enter") void loadLandtop(false);
               }}
-              placeholder="搜尋手機，例如 iPhone 17、Samsung S26"
+              placeholder={`搜尋手機，例如 ${getDefaultLandtopQuery()}、iPhone 17 512GB`}
               className="flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
             />
             <Button onClick={() => loadLandtop(false)} className="gap-2" disabled={landtopLoading}>
