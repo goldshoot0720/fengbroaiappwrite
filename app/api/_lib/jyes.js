@@ -61,7 +61,7 @@ function buildProductUrl(name) {
 
 function parseJyesProducts(markdown) {
   const products = new Map();
-  const rowPattern = /^([^\t\n]+)\t([^\t\n]+)\t([^\t\n]+)\t([^\t\n]+)\t規格 比較$/gm;
+  const rowPattern = /^([^\t\n]+?)(?:\n[^\t\n]+)*\n?\t([^\t\n]+)\t([^\t\n]+)\t([^\t\n]+)\t[^\t\n]+$/gm;
   let match;
 
   while ((match = rowPattern.exec(markdown)) !== null) {
@@ -80,7 +80,7 @@ function parseJyesProducts(markdown) {
       name,
       suggestedPrice,
       jyesPrice,
-      jyesPriceLabel: jyesPrice == null ? "門市破盤價" : `NT$ ${jyesPrice.toLocaleString("zh-TW")}`,
+      jyesPriceLabel: jyesPrice == null ? "門市洽詢" : `NT$ ${jyesPrice.toLocaleString("zh-TW")}`,
       jyesUrl: buildProductUrl(name),
     });
   }
@@ -99,7 +99,7 @@ export async function fetchJyesCatalog({ query = "", refresh = false } = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`傑昇通信資料抓取失敗：HTTP ${response.status}`);
+    throw new Error(`傑昇通信資料讀取失敗，HTTP ${response.status}`);
   }
 
   const products = parseJyesProducts(await response.text()).filter((product) => matchesQuery(product, query));

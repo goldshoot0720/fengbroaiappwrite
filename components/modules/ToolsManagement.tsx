@@ -826,11 +826,8 @@ export default function ToolsManagement() {
                       : null;
 
                   return (
-                    <a
+                    <div
                       key={product.id}
-                      href={product.jyesUrl || product.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
                       className="rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:border-sky-300 hover:shadow-md"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -838,7 +835,30 @@ export default function ToolsManagement() {
                           <p className="text-sm font-semibold text-foreground">{product.name}</p>
                           <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">{product.brand}</p>
                         </div>
-                        <ExternalLink className="mt-0.5 text-sky-600" size={16} />
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {product.sourceUrl && (
+                            <a
+                              href={product.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
+                            >
+                              地標網通
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
+                          {product.jyesUrl && (
+                            <a
+                              href={product.jyesUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+                            >
+                              傑昇通信
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
+                        </div>
                       </div>
                       <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
                         <div className="rounded-xl bg-slate-50 px-3 py-2">
@@ -867,7 +887,7 @@ export default function ToolsManagement() {
                       {savings != null && (
                         <p className="mt-3 text-xs text-emerald-700/80">比建議售價省下 {formatCurrency(savings)}</p>
                       )}
-                    </a>
+                    </div>
                   );
                 })}
               </div>
