@@ -67,6 +67,11 @@ function formatMonthOption(month: string) {
   return `${month} 月`;
 }
 
+function formatFoodPrice(price?: number) {
+  if (!price) return "未設定";
+  return `NT$ ${price.toLocaleString("zh-TW")}`;
+}
+
 function getExpiryBucket(daysRemaining: number): FilterMode {
   if (daysRemaining < 0) return "expired";
   if (daysRemaining === 0) return "today";
@@ -1878,6 +1883,7 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
             </TableHead>
             <TableHead className="font-semibold">有效期限</TableHead>
             <TableHead className="font-semibold">數量</TableHead>
+            <TableHead className="font-semibold">價格</TableHead>
             <TableHead className="font-semibold">圖片</TableHead>
             {!isEditMode && <TableHead className="font-semibold">操作</TableHead>}
           </TableRow>
@@ -2235,6 +2241,16 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
       </TableCell>
       <TableCell>
         <AmountControl food={food} onAmountChange={onAmountChange} />
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-1">
+          <span className="font-medium text-gray-900 dark:text-gray-100">{formatFoodPrice(food.price)}</span>
+          {(food.price || 0) > 0 && (food.amount || 0) > 0 ? (
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              小計 NT$ {((food.price || 0) * (food.amount || 0)).toLocaleString("zh-TW")}
+            </span>
+          ) : null}
+        </div>
       </TableCell>
       <TableCell>
         <FoodImage food={food} />
@@ -2661,6 +2677,15 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
               <span className={isExpired ? "text-red-600 font-bold" : isExpiringSoon ? "text-amber-600 font-bold" : ""}>
                 {formattedDate}
               </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs min-[390px]:text-sm text-gray-500 dark:text-gray-400">
+              <span className="font-medium">價格:</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100">{formatFoodPrice(food.price)}</span>
+              {(food.price || 0) > 0 && (food.amount || 0) > 0 ? (
+                <span className="text-gray-400 dark:text-gray-500">
+                  / 小計 NT$ {((food.price || 0) * (food.amount || 0)).toLocaleString("zh-TW")}
+                </span>
+              ) : null}
             </div>
             {status !== "normal" && (
               <StatusBadge status={status}>{formatDaysRemaining(daysRemaining)}</StatusBadge>
