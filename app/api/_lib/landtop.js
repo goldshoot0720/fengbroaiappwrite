@@ -38,18 +38,6 @@ function decodeHtml(value) {
     .replace(/&gt;/g, ">");
 }
 
-function htmlToLines(html) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "\n")
-    .replace(/<style[\s\S]*?<\/style>/gi, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(a|p|div|li|h\d|span|button)>/gi, "\n")
-    .replace(/<[^>]+>/g, "\n")
-    .split("\n")
-    .map((line) => normalizeSpace(decodeHtml(line)))
-    .filter(Boolean);
-}
-
 function parsePrice(line) {
   if (!line) return null;
   const raw = line.replace(/[^\d]/g, "");
@@ -61,101 +49,15 @@ function stripTags(value) {
 }
 
 function normalizeVariantName(value) {
-  return normalizeSpace(value.replace(/\b(\d{3,4})G\b/g, "$1GB").replace(/\//g, " "));
+  return normalizeSpace(value.replace(/\b(\d{3,4})G\b/gi, "$1GB").replace(/\//g, " "));
 }
 
-function normalizeProductLine(line, fallbackSourceUrl) {
-  const markdownLink = line.match(/^#{0,3}\s*\[([^\]]+)\]\((https:\/\/www\.landtop\.com\.tw\/products\/[^)]+)\)/i);
-  if (markdownLink) {
-    return { name: normalizeSpace(markdownLink[1]), sourceUrl: markdownLink[2] };
-  }
-
-  return { name: normalizeSpace(line.replace(/^#{1,3}\s*/, "")), sourceUrl: fallbackSourceUrl };
-}
-
-function isProductTitle(line, brand) {
-  if (line.length > 100) return false;
-
-  if (brand === "samsung") {
-    return /^Samsung\s+/i.test(line);
-  }
-
-  return /^(iPhone|iPad|AirPods|Apple Watch|Apple\s+)/i.test(line);
+function hasVariantInfo(name) {
+  return /(\d{3,4}GB|\d{3,4}G|\d+G\s+\d+GB|\d+G\/\d+G)/i.test(name);
 }
 
 function createProductId(brand, name) {
   return `${brand}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
-}
-
-function parseProducts(html, brand, sourceUrl) {
-  const lines = htmlToLines(html);
-  const products = new Map();
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const productLine = normalizeProductLine(lines[index], sourceUrl);
-    const { name } = productLine;
-    if (!isProductTitle(name, brand)) continue;
-
-    const windowLines = lines.slice(index + 1, index + 14);
-    const suggestedLine = windowLines.find((line) => line.includes("建議售價"));
-    const landtopLine = windowLines.find((line) => line.includes("地標價"));
-    if (!suggestedLine && !landtopLine) continue;
-
-    const suggestedPrice = parsePrice(suggestedLine);
-    const landtopPrice = parsePrice(landtopLine);
-    const id = createProductId(brand, name);
-
-    products.set(id, {
-      id,
-      brand,
-      name,
-      suggestedPrice,
-      landtopPrice,
-      landtopPriceLabel: landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
-      sourceUrl: productLine.sourceUrl,
-    });
-  }
-
-  return Array.from(products.values());
-}
-
-function parseProductVariantLinks(html) {
-  const variants = new Map();
-  const pattern =
-    /data-product-id="(\d+)"[\s\S]{0,220}?data-variant-id="(\d+)"[\s\S]{0,160}?<div class="label-price">([^<]+)<\/div>/g;
-  let match;
-
-  while ((match = pattern.exec(html)) !== null) {
-    const label = stripTags(match[3]);
-    if (!label || !/(\d{3,4}GB|\d{3,4}G|\d+G\/\d+G)/i.test(label)) continue;
-    variants.set(match[2], { productId: match[1], variantId: match[2] });
-  }
-
-  return Array.from(variants.values());
-}
-
-function parseProductVariant(html, brand, sourceUrl) {
-  const nameMatch = html.match(/<div class="price-product-name">([\s\S]*?)<\/div>/);
-  if (!nameMatch) return null;
-
-  const rawName = stripTags(nameMatch[1]).split("|")[0];
-  const name = normalizeVariantName(rawName);
-  const suggestedMatch = html.match(/<div class="text-secondary text-strikethrough[^"]*">([\s\S]*?)<\/div>/);
-  const discountMatch = html.match(/<div class="text-red discount-price">([\s\S]*?)<\/div>/);
-  const suggestedPrice = parsePrice(stripTags(suggestedMatch?.[1] || ""));
-  const landtopLabel = stripTags(discountMatch?.[1] || "");
-  const landtopPrice = parsePrice(landtopLabel);
-  const id = createProductId(brand, name);
-
-  return {
-    id,
-    brand,
-    name,
-    suggestedPrice,
-    landtopPrice,
-    landtopPriceLabel: landtopPrice == null ? landtopLabel || "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
-    sourceUrl,
-  };
 }
 
 function normalizeQuery(value) {
@@ -176,11 +78,91 @@ function matchesQuery(product, query) {
   return tokens.every((token) => haystack.includes(token));
 }
 
-async function fetchText(url, refresh) {
+function isProductTitle(name, brand) {
+  if (!name || name.length > 120) return false;
+  if (brand === "samsung") return /^Samsung\s+/i.test(name);
+  return /^(iPhone|iPad|AirPods|Apple Watch|Apple\s+)/i.test(name);
+}
+
+function parseBrandProducts(html, brand) {
+  const products = new Map();
+  const cardPattern =
+    /<a[^>]+href="(\/products\/[^"]+)"[\s\S]{0,1800}?(?:<h3[^>]*>|<div class="product-name[^"]*">|<img[^>]+alt=")([\s\S]*?)(?:<\/h3>|<\/div>|")/gi;
+  let match;
+
+  while ((match = cardPattern.exec(html)) !== null) {
+    const sourceUrl = new URL(match[1], "https://www.landtop.com.tw").toString();
+    const name = normalizeSpace(stripTags(match[2]));
+    if (!isProductTitle(name, brand)) continue;
+
+    const chunk = html.slice(match.index, match.index + 2400);
+    const suggestedMatch = chunk.match(/建議售價[\s\S]{0,120}?(\$?\s*[\d,]+)/i);
+    const landtopMatch =
+      chunk.match(/地標價[\s\S]{0,120}?(\$?\s*[\d,]+)/i) ||
+      chunk.match(/挑戰手機最低價[\s\S]{0,120}?(\$?\s*[\d,]+)/i);
+
+    const suggestedPrice = parsePrice(suggestedMatch?.[1]);
+    const landtopPrice = parsePrice(landtopMatch?.[1]);
+    const id = createProductId(brand, name);
+
+    products.set(id, {
+      id,
+      brand,
+      name,
+      suggestedPrice,
+      landtopPrice,
+      landtopPriceLabel: landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
+      sourceUrl,
+    });
+  }
+
+  return Array.from(products.values());
+}
+
+function parseProductVariantLinks(html) {
+  const variants = new Map();
+  const pattern =
+    /data-product-id="(\d+)"[\s\S]{0,220}?data-variant-id="(\d+)"[\s\S]{0,200}?<div class="label-price">([^<]+)<\/div>/g;
+  let match;
+
+  while ((match = pattern.exec(html)) !== null) {
+    const label = stripTags(match[3]);
+    if (!label || !/(\d{3,4}GB|\d{3,4}G|\d+G\/\d+G)/i.test(label)) continue;
+    variants.set(match[2], { productId: match[1], variantId: match[2] });
+  }
+
+  return Array.from(variants.values());
+}
+
+function parseProductVariant(html, brand, sourceUrl) {
+  const nameMatch = html.match(/<div class="price-product-name">([\s\S]*?)<\/div>/i);
+  if (!nameMatch) return null;
+
+  const rawName = stripTags(nameMatch[1]).split("|")[0];
+  const name = normalizeVariantName(rawName);
+  const suggestedMatch = html.match(/text-strikethrough[^"]*">([\s\S]*?)<\/div>/i);
+  const discountMatch = html.match(/discount-price">([\s\S]*?)<\/div>/i);
+  const suggestedPrice = parsePrice(stripTags(suggestedMatch?.[1] || ""));
+  const landtopLabel = stripTags(discountMatch?.[1] || "");
+  const landtopPrice = parsePrice(landtopLabel);
+  const id = createProductId(brand, name);
+
+  return {
+    id,
+    brand,
+    name,
+    suggestedPrice,
+    landtopPrice,
+    landtopPriceLabel: landtopPrice == null ? landtopLabel || "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
+    sourceUrl,
+  };
+}
+
+async function fetchText(url, refresh, accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8") {
   const init = {
     headers: {
       "User-Agent": USER_AGENT,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      Accept: accept,
       "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
       Referer: "https://www.landtop.com.tw/",
     },
@@ -199,19 +181,18 @@ async function fetchBrandProducts(brand, url, refresh) {
 
   if (directResponse.ok) {
     return {
-      products: parseProducts(await directResponse.text(), brand, url),
+      products: parseBrandProducts(await directResponse.text(), brand),
       fetchedVia: "direct",
     };
   }
 
   const readerResponse = await fetchText(`${READER_BASE_URL}${url}`, refresh);
-
   if (!readerResponse.ok) {
     throw new Error(`地標網通 ${brand} 品牌頁抓取失敗：HTTP ${directResponse.status} / reader HTTP ${readerResponse.status}`);
   }
 
   return {
-    products: parseProducts(await readerResponse.text(), brand, url),
+    products: parseBrandProducts(await readerResponse.text(), brand),
     fetchedVia: "reader",
   };
 }
@@ -238,6 +219,20 @@ async function fetchVariantProduct(brand, url, productId, variantId, refresh) {
   return parseProductVariant(await response.text(), brand, url);
 }
 
+async function loadProductPage(url, refresh) {
+  const productResponse = await fetchText(url, refresh);
+  if (productResponse.ok) {
+    return { html: await productResponse.text(), fetchedVia: "direct" };
+  }
+
+  const readerResponse = await fetchText(`${READER_BASE_URL}${url}`, refresh);
+  if (!readerResponse.ok) {
+    throw new Error(`地標網通商品頁抓取失敗：HTTP ${productResponse.status} / reader HTTP ${readerResponse.status}`);
+  }
+
+  return { html: await readerResponse.text(), fetchedVia: "reader" };
+}
+
 async function fetchProductVariants(source, refresh) {
   const staticVariants = await Promise.all(
     source.variants.map((variantId) =>
@@ -250,33 +245,24 @@ async function fetchProductVariants(source, refresh) {
     return { products: staticProducts, fetchedVia: "direct" };
   }
 
-  const productResponse = await fetchText(source.url, refresh);
-  let productHtml = "";
-  let fetchedVia = "direct";
+  return fetchProductVariantsFromUrl(source.brand, source.url, refresh);
+}
 
-  if (productResponse.ok) {
-    productHtml = await productResponse.text();
-  } else {
-    const readerResponse = await fetchText(`${READER_BASE_URL}${source.url}`, refresh);
-    if (!readerResponse.ok) {
-      throw new Error(
-        `地標網通 ${source.brand} 商品頁抓取失敗：HTTP ${productResponse.status} / reader HTTP ${readerResponse.status}`
-      );
-    }
-    productHtml = await readerResponse.text();
-    fetchedVia = "reader";
+async function fetchProductVariantsFromUrl(brand, url, refresh) {
+  if (!url || !/\/products\//i.test(url)) {
+    return { products: [], fetchedVia: "direct" };
   }
 
-  const variantLinks = parseProductVariantLinks(productHtml);
+  const { html, fetchedVia } = await loadProductPage(url, refresh);
+  const variantLinks = parseProductVariantLinks(html);
+
   if (variantLinks.length === 0) {
-    const product = parseProductVariant(productHtml, source.brand, source.url);
+    const product = parseProductVariant(html, brand, url);
     return { products: product ? [product] : [], fetchedVia };
   }
 
   const variants = await Promise.all(
-    variantLinks.map((variant) =>
-      fetchVariantProduct(source.brand, source.url, variant.productId, variant.variantId, refresh)
-    )
+    variantLinks.map((variant) => fetchVariantProduct(brand, url, variant.productId, variant.variantId, refresh))
   );
 
   return {
@@ -298,6 +284,19 @@ export async function fetchLandtopCatalog({ query = "", refresh = false } = {}) 
     .flatMap((group) => group.products)
     .forEach((product) => allProducts.set(product.id, product));
 
+  const matchedProducts = Array.from(allProducts.values()).filter((product) => matchesQuery(product, query));
+  const expandableProducts = matchedProducts.filter(
+    (product) => !hasVariantInfo(product.name) && /\/products\//i.test(product.sourceUrl)
+  );
+
+  const expandedGroups = await Promise.all(
+    expandableProducts.map((product) => fetchProductVariantsFromUrl(product.brand, product.sourceUrl, refresh))
+  );
+
+  expandedGroups
+    .flatMap((group) => group.products)
+    .forEach((product) => allProducts.set(product.id, product));
+
   const products = Array.from(allProducts.values())
     .filter((product) => matchesQuery(product, query))
     .sort((a, b) => {
@@ -313,7 +312,7 @@ export async function fetchLandtopCatalog({ query = "", refresh = false } = {}) 
     refresh,
     cacheSeconds: CACHE_SECONDS,
     fetchedAt: new Date().toISOString(),
-    fetchedVia: Array.from(new Set(productGroups.map((group) => group.fetchedVia))),
+    fetchedVia: Array.from(new Set([...productGroups, ...expandedGroups].map((group) => group.fetchedVia))),
     warnings,
     total: products.length,
     products,
