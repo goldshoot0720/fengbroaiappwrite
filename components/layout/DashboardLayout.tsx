@@ -292,11 +292,6 @@ function TabletSidebar({
                 <span className="line-clamp-2 text-[11px] font-medium leading-4">
                   {item.label}
                 </span>
-                {item.subLabel ? (
-                  <span className="line-clamp-1 text-[9px] leading-3 opacity-75">
-                    {item.subLabel}
-                  </span>
-                ) : null}
               </button>
             );
           })}
@@ -460,12 +455,7 @@ function MenuItemComponent({
           >
             {item.icon}
           </span>
-          <span className="flex min-w-0 flex-col">
-            <span className="text-sm font-medium tracking-[0.01em]">{item.label}</span>
-            {item.subLabel ? (
-              <span className="mt-0.5 text-[11px] leading-4 opacity-75">{item.subLabel}</span>
-            ) : null}
-          </span>
+          <span className="text-sm font-medium tracking-[0.01em]">{item.label}</span>
         </span>
 
         {hasChildren ? (

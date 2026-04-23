@@ -820,6 +820,11 @@ export default function FoodManagement() {
 
       <SectionHeader
         title="鋒兄食品"
+        titleBadge={
+          <span className="text-sm font-medium text-[var(--muted-foreground)] sm:text-base">
+            （＋商品庫存）
+          </span>
+        }
         subtitle={`共 ${foods.length} 項食品`}
         showAccountLabel={true}
         action={

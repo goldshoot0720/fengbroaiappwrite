@@ -5,6 +5,7 @@ import { cn, getCurrentAccountLabel } from "@/lib/utils";
 
 interface SectionHeaderProps {
   title: string;
+  titleBadge?: React.ReactNode;
   subtitle?: string;
   action?: React.ReactNode;
   accentColor?: string;
@@ -14,6 +15,7 @@ interface SectionHeaderProps {
 
 export function SectionHeader({
   title,
+  titleBadge,
   subtitle,
   action,
   className,
@@ -38,9 +40,12 @@ export function SectionHeader({
         <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
           Workspace Section
         </p>
-        <h1 className="truncate font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
-          {title}
-        </h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="truncate font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
+            {title}
+          </h1>
+          {titleBadge}
+        </div>
         {subtitle ? (
           <p className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
             {subtitle}
