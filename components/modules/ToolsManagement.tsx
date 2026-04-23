@@ -95,6 +95,12 @@ function getDefaultLandtopQuery() {
   return `Samsung ${yearSuffix}`;
 }
 
+function normalizeSavedLandtopQuery(value: string) {
+  const defaultQuery = getDefaultLandtopQuery();
+  const legacyDefaultQuery = `Samsung S${new Date().getFullYear().toString().slice(-2)}`;
+  return value.trim() === legacyDefaultQuery ? defaultQuery : value;
+}
+
 function formatCurrency(price: number | null) {
   return price == null ? "--" : `NT$ ${price.toLocaleString("zh-TW")}`;
 }
@@ -475,7 +481,7 @@ export default function ToolsManagement() {
 
     try {
       const savedQuery = window.localStorage.getItem(LANDTOP_QUERY_KEY);
-      if (savedQuery) setLandtopQuery(savedQuery);
+      if (savedQuery) setLandtopQuery(normalizeSavedLandtopQuery(savedQuery));
     } catch {}
   }, []);
 
