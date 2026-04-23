@@ -23,6 +23,10 @@ const LANDTOP_SOURCES: Array<{ brand: LandtopBrand; url: string }> = [
   { brand: "samsung", url: "https://www.landtop.com.tw/brands?brand=samsung" },
   { brand: "apple", url: "https://www.landtop.com.tw/brands?brand=apple" },
 ];
+const LANDTOP_PRODUCT_SOURCES: Array<{ brand: LandtopBrand; url: string }> = [
+  { brand: "apple", url: "https://www.landtop.com.tw/products/apple-iphone-17" },
+  { brand: "samsung", url: "https://www.landtop.com.tw/products/samsung-s26-ceab4a58-8c4f-4b86-9fbc-9bc3211457a9" },
+];
 const READER_BASE_URL = "https://r.jina.ai/http://r.jina.ai/http://";
 
 const USER_AGENT =
@@ -58,6 +62,14 @@ function parsePrice(line: string | undefined): number | null {
   if (!line) return null;
   const raw = line.replace(/[^\d]/g, "");
   return raw ? Number(raw) : null;
+}
+
+function stripTags(value: string): string {
+  return normalizeSpace(decodeHtml(value.replace(/<[^>]+>/g, " ")));
+}
+
+function normalizeVariantName(value: string): string {
+  return normalizeSpace(value.replace(/\b(\d{3,4})G\b/g, "$1GB").replace(/\//g, " "));
 }
 
 function normalizeProductLine(line: string, fallbackSourceUrl: string): { name: string; sourceUrl: string } {
@@ -112,8 +124,46 @@ function parseProducts(html: string, brand: LandtopBrand, sourceUrl: string): La
   return Array.from(products.values());
 }
 
+function parseProductVariantLinks(html: string): Array<{ productId: string; variantId: string }> {
+  const variants = new Map<string, { productId: string; variantId: string }>();
+  const pattern = /data-product-id="(\d+)"[\s\S]{0,220}?data-variant-id="(\d+)"[\s\S]{0,160}?<div class="label-price">([^<]+)<\/div>/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(html)) !== null) {
+    const label = stripTags(match[3]);
+    if (!label || !/(\d{3,4}GB|\d{3,4}G|\d+G\/\d+G)/i.test(label)) continue;
+    variants.set(match[2], { productId: match[1], variantId: match[2] });
+  }
+
+  return Array.from(variants.values());
+}
+
+function parseProductVariant(html: string, brand: LandtopBrand, sourceUrl: string): LandtopProduct | null {
+  const nameMatch = html.match(/<div class="price-product-name">([\s\S]*?)<\/div>/);
+  if (!nameMatch) return null;
+
+  const rawName = stripTags(nameMatch[1]).split("|")[0];
+  const name = normalizeVariantName(rawName);
+  const suggestedMatch = html.match(/<div class="text-secondary text-strikethrough[^"]*">([\s\S]*?)<\/div>/);
+  const discountMatch = html.match(/<div class="text-red discount-price">([\s\S]*?)<\/div>/);
+  const suggestedPrice = parsePrice(stripTags(suggestedMatch?.[1] || ""));
+  const landtopLabel = stripTags(discountMatch?.[1] || "");
+  const landtopPrice = parsePrice(landtopLabel);
+  const id = `${brand}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+
+  return {
+    id,
+    brand,
+    name,
+    suggestedPrice,
+    landtopPrice,
+    landtopPriceLabel: landtopPrice == null ? landtopLabel || "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
+    sourceUrl,
+  };
+}
+
 function normalizeQuery(value: string): string[] {
-  return normalizeSpace(value)
+  return normalizeSpace(value.replace(/\b(\d{3,4})G\b/gi, "$1GB").replace(/\//g, " "))
     .toLowerCase()
     .split(/\s+/)
     .filter(Boolean);
@@ -122,7 +172,7 @@ function normalizeQuery(value: string): string[] {
 function matchesQuery(product: LandtopProduct, query: string): boolean {
   const tokens = normalizeQuery(query);
   if (tokens.length === 0) return true;
-  const haystack = `${product.brand} ${product.name}`.toLowerCase();
+  const haystack = normalizeSpace(`${product.brand} ${product.name}`.replace(/\b(\d{3,4})G\b/gi, "$1GB").replace(/\//g, " ")).toLowerCase();
   return tokens.every((token) => haystack.includes(token));
 }
 
@@ -165,18 +215,73 @@ async function fetchBrandProducts(brand: LandtopBrand, url: string, refresh: boo
   };
 }
 
+async function fetchProductVariants(brand: LandtopBrand, url: string, refresh: boolean): Promise<LandtopFetchResult> {
+  const productResponse = await fetchText(url, refresh);
+  let productHtml = "";
+  let warning: string | undefined;
+  let fetchedVia: LandtopFetchResult["fetchedVia"] = "direct";
+
+  if (productResponse.ok) {
+    productHtml = await productResponse.text();
+  } else {
+    const readerResponse = await fetchText(`${READER_BASE_URL}${url}`, refresh);
+    if (!readerResponse.ok) {
+      throw new Error(`地標網通商品頁 ${brand} 資料抓取失敗：HTTP ${productResponse.status} / reader HTTP ${readerResponse.status}`);
+    }
+    productHtml = await readerResponse.text();
+    fetchedVia = "reader";
+    warning = `地標網通商品頁 ${brand} 直連 HTTP ${productResponse.status}，商品規格可能只含預設容量。`;
+  }
+
+  const variantLinks = parseProductVariantLinks(productHtml);
+  if (variantLinks.length === 0) {
+    const product = parseProductVariant(productHtml, brand, url);
+    return { products: product ? [product] : [], warning, fetchedVia };
+  }
+
+  const variants = await Promise.all(
+    variantLinks.map(async (variant) => {
+      const variantUrl = `https://www.landtop.com.tw/products/variants?product_id=${variant.productId}&variant_id=${variant.variantId}`;
+      const response = await fetch(variantUrl, {
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "text/vnd.turbo-stream.html",
+          "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+          "X-Requested-With": "XMLHttpRequest",
+          Referer: url,
+        },
+        cache: refresh ? "no-store" : "force-cache",
+        next: refresh ? undefined : { revalidate: CACHE_SECONDS },
+      });
+      if (!response.ok) return null;
+      return parseProductVariant(await response.text(), brand, url);
+    })
+  );
+
+  return {
+    products: variants.filter((product): product is LandtopProduct => Boolean(product)),
+    warning,
+    fetchedVia,
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("query") || "";
     const refresh = searchParams.get("refresh") === "1";
 
-    const productGroups = await Promise.all(
-      LANDTOP_SOURCES.map((source) => fetchBrandProducts(source.brand, source.url, refresh))
-    );
+    const productGroups = await Promise.all([
+      ...LANDTOP_SOURCES.map((source) => fetchBrandProducts(source.brand, source.url, refresh)),
+      ...LANDTOP_PRODUCT_SOURCES.map((source) => fetchProductVariants(source.brand, source.url, refresh)),
+    ]);
     const warnings = productGroups.flatMap((group) => (group.warning ? [group.warning] : []));
-    const products = productGroups
+    const allProducts = new Map<string, LandtopProduct>();
+    productGroups
       .flatMap((group) => group.products)
+      .forEach((product) => allProducts.set(product.id, product));
+
+    const products = Array.from(allProducts.values())
       .filter((product) => matchesQuery(product, query))
       .sort((a, b) => {
         const aPrice = a.landtopPrice ?? a.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
@@ -186,7 +291,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       source: "地標網通",
-      sourceUrls: LANDTOP_SOURCES.map((source) => source.url),
+      sourceUrls: [...LANDTOP_SOURCES, ...LANDTOP_PRODUCT_SOURCES].map((source) => source.url),
       query,
       refresh,
       cacheSeconds: CACHE_SECONDS,
