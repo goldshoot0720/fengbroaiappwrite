@@ -53,10 +53,18 @@ function getFoodMonthValue(food: Food) {
   return date.toISOString().slice(0, 7);
 }
 
+function getFoodDateTime(food: Food) {
+  if (!food.todate) return Number.POSITIVE_INFINITY;
+  const time = new Date(food.todate).getTime();
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+}
+
+function sortFoodsNearToFar(a: Food, b: Food) {
+  return getFoodDateTime(a) - getFoodDateTime(b);
+}
+
 function formatMonthOption(month: string) {
-  const [year, monthNumber] = month.split("-");
-  if (!year || !monthNumber) return month;
-  return `${year} 年 ${monthNumber} 月`;
+  return `${month} 月`;
 }
 
 function getExpiryBucket(daysRemaining: number): FilterMode {
@@ -77,6 +85,7 @@ export default function FoodManagement() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [yearFilter, setYearFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
   const [quickAddForm, setQuickAddForm] = useState<FoodFormData>({
     ...INITIAL_FORM,
@@ -144,10 +153,24 @@ export default function FoodManagement() {
     );
   }, [foods]);
 
-  const monthOptions = useMemo(() => {
-    const months = foods.map(getFoodMonthValue).filter(Boolean);
-    return Array.from(new Set(months)).sort((a, b) => b.localeCompare(a));
+  const yearOptions = useMemo(() => {
+    const years = foods
+      .map(getFoodMonthValue)
+      .filter(Boolean)
+      .map((month) => month.split("-")[0])
+      .filter(Boolean);
+    return Array.from(new Set(years)).sort((a, b) => Number(a) - Number(b));
   }, [foods]);
+
+  const monthOptions = useMemo(() => {
+    const months = foods
+      .map(getFoodMonthValue)
+      .filter(Boolean)
+      .filter((month) => (yearFilter && yearFilter !== "no-date" ? month.startsWith(`${yearFilter}-`) : true))
+      .map((month) => month.split("-")[1])
+      .filter(Boolean);
+    return Array.from(new Set(months)).sort((a, b) => Number(a) - Number(b));
+  }, [foods, yearFilter]);
 
   // 搜尋 + 分區過濾
   const filteredFoods = useMemo(() => {
@@ -158,10 +181,14 @@ export default function FoodManagement() {
         food.shop?.toLowerCase().includes(query);
       const bucket = getExpiryBucket(getFoodExpiryInfo(food).daysRemaining);
       const matchesFilter = filterMode === "all" ? true : bucket === filterMode;
-      const matchesMonth = monthFilter ? getFoodMonthValue(food) === monthFilter : true;
-      return matchesQuery && matchesFilter && matchesMonth;
-    });
-  }, [foods, searchQuery, filterMode, monthFilter]);
+      const foodMonth = getFoodMonthValue(food);
+      const [foodYear, foodMonthNumber] = foodMonth.split("-");
+      const matchesYear =
+        yearFilter === "no-date" ? !foodMonth : yearFilter ? foodYear === yearFilter : true;
+      const matchesMonth = yearFilter === "no-date" ? true : monthFilter ? foodMonthNumber === monthFilter : true;
+      return matchesQuery && matchesFilter && matchesYear && matchesMonth;
+    }).sort(sortFoodsNearToFar);
+  }, [foods, searchQuery, filterMode, yearFilter, monthFilter]);
 
   const dashboardStats = useMemo(() => {
     const expired = foods.filter((food) => getFoodExpiryInfo(food).daysRemaining < 0);
@@ -1228,17 +1255,43 @@ export default function FoodManagement() {
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            <div className="flex min-w-[220px] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex min-w-[320px] flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
               <CalendarClock size={18} className="shrink-0 text-gray-400" />
-              <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">年月</span>
-              <Select value={monthFilter || "all"} onValueChange={(value) => setMonthFilter(value === "all" ? "" : value)}>
-                <SelectTrigger className="h-8 min-w-[150px] border-0 bg-transparent px-0 shadow-none focus:ring-0">
-                  <span className={monthFilter ? "text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}>
-                    {monthFilter ? formatMonthOption(monthFilter) : "全部年月"}
+              <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">日期</span>
+              <Select
+                value={yearFilter || "all"}
+                onValueChange={(value) => {
+                  setYearFilter(value === "all" ? "" : value);
+                  setMonthFilter("");
+                }}
+              >
+                <SelectTrigger className="h-8 min-w-[116px] border-0 bg-transparent px-0 shadow-none focus:ring-0">
+                  <span className={yearFilter ? "text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}>
+                    {yearFilter === "no-date" ? "無日期" : yearFilter || "全部年份"}
                   </span>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部年月</SelectItem>
+                  <SelectItem value="all">全部年份</SelectItem>
+                  <SelectItem value="no-date">無日期</SelectItem>
+                  {yearOptions.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year} 年
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={monthFilter || "all"}
+                onValueChange={(value) => setMonthFilter(value === "all" ? "" : value)}
+                disabled={yearFilter === "no-date"}
+              >
+                <SelectTrigger className="h-8 min-w-[104px] border-0 bg-transparent px-0 shadow-none focus:ring-0 disabled:opacity-50">
+                  <span className={monthFilter ? "text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}>
+                    {monthFilter ? formatMonthOption(monthFilter) : "全部月份"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部月份</SelectItem>
                   {monthOptions.map((month) => (
                     <SelectItem key={month} value={month}>
                       {formatMonthOption(month)}
@@ -1246,10 +1299,13 @@ export default function FoodManagement() {
                   ))}
                 </SelectContent>
               </Select>
-              {monthFilter && (
+              {(yearFilter || monthFilter) && (
                 <button
                   type="button"
-                  onClick={() => setMonthFilter("")}
+                  onClick={() => {
+                    setYearFilter("");
+                    setMonthFilter("");
+                  }}
                   className="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-100"
                   aria-label="清除年月篩選"
                 >
