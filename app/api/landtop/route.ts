@@ -18,14 +18,31 @@ type LandtopFetchResult = {
   fetchedVia: "direct" | "reader";
 };
 
+type LandtopProductSource = {
+  brand: LandtopBrand;
+  url: string;
+  productId: string;
+  variants: string[];
+};
+
 const CACHE_SECONDS = 7 * 24 * 60 * 60;
 const LANDTOP_SOURCES: Array<{ brand: LandtopBrand; url: string }> = [
   { brand: "samsung", url: "https://www.landtop.com.tw/brands?brand=samsung" },
   { brand: "apple", url: "https://www.landtop.com.tw/brands?brand=apple" },
 ];
-const LANDTOP_PRODUCT_SOURCES: Array<{ brand: LandtopBrand; url: string }> = [
-  { brand: "apple", url: "https://www.landtop.com.tw/products/apple-iphone-17" },
-  { brand: "samsung", url: "https://www.landtop.com.tw/products/samsung-s26-ceab4a58-8c4f-4b86-9fbc-9bc3211457a9" },
+const LANDTOP_PRODUCT_SOURCES: LandtopProductSource[] = [
+  {
+    brand: "apple",
+    url: "https://www.landtop.com.tw/products/apple-iphone-17",
+    productId: "3313",
+    variants: ["40", "41"],
+  },
+  {
+    brand: "samsung",
+    url: "https://www.landtop.com.tw/products/samsung-s26-ceab4a58-8c4f-4b86-9fbc-9bc3211457a9",
+    productId: "3469",
+    variants: ["396", "432"],
+  },
 ];
 const READER_BASE_URL = "https://r.jina.ai/http://r.jina.ai/http://";
 
@@ -210,57 +227,75 @@ async function fetchBrandProducts(brand: LandtopBrand, url: string, refresh: boo
 
   return {
     products: parseProducts(await readerResponse.text(), brand, url),
-    warning: `地標網通 ${brand} 直連 HTTP ${directResponse.status}，已改用文字備援。`,
     fetchedVia: "reader",
   };
 }
 
-async function fetchProductVariants(brand: LandtopBrand, url: string, refresh: boolean): Promise<LandtopFetchResult> {
-  const productResponse = await fetchText(url, refresh);
+async function fetchVariantProduct(
+  brand: LandtopBrand,
+  url: string,
+  productId: string,
+  variantId: string,
+  refresh: boolean
+): Promise<LandtopProduct | null> {
+  const variantUrl = `https://www.landtop.com.tw/products/variants?product_id=${productId}&variant_id=${variantId}`;
+  const init: RequestInit & { next?: { revalidate: number } } = {
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept: "text/vnd.turbo-stream.html",
+      "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+      "X-Requested-With": "XMLHttpRequest",
+      Referer: url,
+    },
+    cache: refresh ? "no-store" : "force-cache",
+  };
+  if (!refresh) init.next = { revalidate: CACHE_SECONDS };
+
+  const response = await fetch(variantUrl, init);
+  if (!response.ok) return null;
+  return parseProductVariant(await response.text(), brand, url);
+}
+
+async function fetchProductVariants(source: LandtopProductSource, refresh: boolean): Promise<LandtopFetchResult> {
+  const staticVariants = await Promise.all(
+    source.variants.map((variantId) =>
+      fetchVariantProduct(source.brand, source.url, source.productId, variantId, refresh)
+    )
+  );
+  const staticProducts = staticVariants.filter((product): product is LandtopProduct => Boolean(product));
+  if (staticProducts.length > 0) {
+    return { products: staticProducts, fetchedVia: "direct" };
+  }
+
+  const productResponse = await fetchText(source.url, refresh);
   let productHtml = "";
-  let warning: string | undefined;
   let fetchedVia: LandtopFetchResult["fetchedVia"] = "direct";
 
   if (productResponse.ok) {
     productHtml = await productResponse.text();
   } else {
-    const readerResponse = await fetchText(`${READER_BASE_URL}${url}`, refresh);
+    const readerResponse = await fetchText(`${READER_BASE_URL}${source.url}`, refresh);
     if (!readerResponse.ok) {
-      throw new Error(`地標網通商品頁 ${brand} 資料抓取失敗：HTTP ${productResponse.status} / reader HTTP ${readerResponse.status}`);
+      throw new Error(`地標網通商品頁 ${source.brand} 資料抓取失敗：HTTP ${productResponse.status} / reader HTTP ${readerResponse.status}`);
     }
     productHtml = await readerResponse.text();
     fetchedVia = "reader";
-    warning = `地標網通商品頁 ${brand} 直連 HTTP ${productResponse.status}，商品規格可能只含預設容量。`;
   }
 
   const variantLinks = parseProductVariantLinks(productHtml);
   if (variantLinks.length === 0) {
-    const product = parseProductVariant(productHtml, brand, url);
-    return { products: product ? [product] : [], warning, fetchedVia };
+    const product = parseProductVariant(productHtml, source.brand, source.url);
+    return { products: product ? [product] : [], fetchedVia };
   }
 
   const variants = await Promise.all(
-    variantLinks.map(async (variant) => {
-      const variantUrl = `https://www.landtop.com.tw/products/variants?product_id=${variant.productId}&variant_id=${variant.variantId}`;
-      const response = await fetch(variantUrl, {
-        headers: {
-          "User-Agent": USER_AGENT,
-          Accept: "text/vnd.turbo-stream.html",
-          "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
-          "X-Requested-With": "XMLHttpRequest",
-          Referer: url,
-        },
-        cache: refresh ? "no-store" : "force-cache",
-        next: refresh ? undefined : { revalidate: CACHE_SECONDS },
-      });
-      if (!response.ok) return null;
-      return parseProductVariant(await response.text(), brand, url);
-    })
+    variantLinks.map((variant) =>
+      fetchVariantProduct(source.brand, source.url, variant.productId, variant.variantId, refresh)
+    )
   );
 
   return {
     products: variants.filter((product): product is LandtopProduct => Boolean(product)),
-    warning,
     fetchedVia,
   };
 }
@@ -273,7 +308,7 @@ export async function GET(request: Request) {
 
     const productGroups = await Promise.all([
       ...LANDTOP_SOURCES.map((source) => fetchBrandProducts(source.brand, source.url, refresh)),
-      ...LANDTOP_PRODUCT_SOURCES.map((source) => fetchProductVariants(source.brand, source.url, refresh)),
+      ...LANDTOP_PRODUCT_SOURCES.map((source) => fetchProductVariants(source, refresh)),
     ]);
     const warnings = productGroups.flatMap((group) => (group.warning ? [group.warning] : []));
     const allProducts = new Map<string, LandtopProduct>();
