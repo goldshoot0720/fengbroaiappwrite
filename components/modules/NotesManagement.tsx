@@ -366,19 +366,15 @@ export default function NotesManagement() {
   const filteredArticles = useMemo(() => {
     let result = articles;
     if (categoryFilter) {
-      if (categoryFilter === '__none__') {
+      if (categoryFilter === '__withFiles__') {
+        result = result.filter(article => article.file1 || article.file2 || article.file3);
+      } else if (categoryFilter === '__none__') {
         result = result.filter(article => !article.category || article.category.trim() === '');
       } else {
         result = result.filter(article => article.category === categoryFilter);
       }
     }
-    if (!searchQuery.trim()) return result;
-    const query = searchQuery.toLowerCase();
-    result = result.filter(article =>
-      article.title?.toLowerCase().includes(query) ||
-      article.content?.toLowerCase().includes(query) ||
-      article.category?.toLowerCase().includes(query)
-    );
+
     if (noteFilterMode === "recent") {
       result = result.filter((article) => {
         const diff = Date.now() - new Date(article.$updatedAt || article.newDate).getTime();
@@ -389,6 +385,16 @@ export default function NotesManagement() {
     } else if (noteFilterMode === "withFiles") {
       result = result.filter((article) => article.file1 || article.file2 || article.file3);
     }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(article =>
+        article.title?.toLowerCase().includes(query) ||
+        article.content?.toLowerCase().includes(query) ||
+        article.category?.toLowerCase().includes(query)
+      );
+    }
+
     return result;
   }, [articles, searchQuery, categoryFilter, noteFilterMode, pinnedIds]);
 
@@ -1894,6 +1900,7 @@ export default function NotesManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">📚 全部</SelectItem>
+                <SelectItem value="__withFiles__">📎 有附件</SelectItem>
                 {existingCategories.map(cat => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
