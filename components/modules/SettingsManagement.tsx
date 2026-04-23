@@ -6,6 +6,7 @@ import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
 import { clearAllCaches, getAppwriteConfig } from "@/lib/utils";
+import packageJson from "@/package.json";
 
 interface CollectionStats {
   name: string;
@@ -1261,7 +1262,7 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}`;
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-bold text-lg mb-1">應用程式版本</h3>
-            <p className="text-sm text-gray-500">鋒兄管理系統 v1.0.0</p>
+            <p className="text-sm text-gray-500">鋒兄管理系統 v{packageJson.version}</p>
           </div>
           <div className="text-right text-sm text-gray-400">
             <p>Next.js 16.0</p>
