@@ -1883,8 +1883,6 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
             </TableHead>
             <TableHead className="font-semibold">有效期限</TableHead>
             <TableHead className="font-semibold">數量</TableHead>
-            <TableHead className="font-semibold">價格</TableHead>
-            <TableHead className="font-semibold">商店</TableHead>
             <TableHead className="font-semibold">圖片</TableHead>
             {!isEditMode && <TableHead className="font-semibold">操作</TableHead>}
           </TableRow>
@@ -2216,7 +2214,8 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
   return (
     <TableRow className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/50 ${rowClass}`}>
       <TableCell className="font-medium">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
           {isEditMode && (
             <button
               type="button"
@@ -2230,6 +2229,12 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
           {isEditMode && (
             <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg h-7 px-2" title="編輯"><Pencil size={14} /></Button>
           )}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+            {food.shop ? <span>{food.shop}</span> : null}
+            {food.shop && food.price ? <span className="text-gray-300 dark:text-gray-600">|</span> : null}
+            {food.price ? <span className="font-medium text-gray-700 dark:text-gray-300">{formatFoodPrice(food.price)}</span> : null}
+          </div>
         </div>
       </TableCell>
       <TableCell>
@@ -2242,19 +2247,6 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
       </TableCell>
       <TableCell>
         <AmountControl food={food} onAmountChange={onAmountChange} />
-      </TableCell>
-      <TableCell>
-        <div className="flex flex-col gap-1">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{formatFoodPrice(food.price)}</span>
-          {(food.price || 0) > 0 && (food.amount || 0) > 0 ? (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              小計 NT$ {((food.price || 0) * (food.amount || 0)).toLocaleString("zh-TW")}
-            </span>
-          ) : null}
-        </div>
-      </TableCell>
-      <TableCell>
-        <span className="text-gray-700 dark:text-gray-300">{food.shop || ""}</span>
       </TableCell>
       <TableCell>
         <FoodImage food={food} />
@@ -2682,18 +2674,10 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
                 {formattedDate}
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs min-[390px]:text-sm text-gray-500 dark:text-gray-400">
-              <span className="font-medium">價格:</span>
-              <span className="font-semibold text-gray-900 dark:text-gray-100">{formatFoodPrice(food.price)}</span>
-              {(food.price || 0) > 0 && (food.amount || 0) > 0 ? (
-                <span className="text-gray-400 dark:text-gray-500">
-                  / 小計 NT$ {((food.price || 0) * (food.amount || 0)).toLocaleString("zh-TW")}
-                </span>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-1.5 text-xs min-[390px]:text-sm text-gray-500 dark:text-gray-400">
-              <span className="font-medium">商店:</span>
-              <span className="text-gray-900 dark:text-gray-100">{food.shop || ""}</span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs min-[390px]:text-sm text-gray-500 dark:text-gray-400">
+              {food.shop ? <span>{food.shop}</span> : null}
+              {food.shop && food.price ? <span className="text-gray-300 dark:text-gray-600">|</span> : null}
+              {food.price ? <span className="font-semibold text-gray-900 dark:text-gray-100">{formatFoodPrice(food.price)}</span> : null}
             </div>
             {status !== "normal" && (
               <StatusBadge status={status}>{formatDaysRemaining(daysRemaining)}</StatusBadge>
