@@ -92,7 +92,7 @@ const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
 
 function getDefaultLandtopQuery() {
   const yearSuffix = new Date().getFullYear().toString().slice(-2);
-  return `Samsung S${yearSuffix}`;
+  return `Samsung ${yearSuffix}`;
 }
 
 function formatCurrency(price: number | null) {
@@ -762,7 +762,7 @@ export default function ToolsManagement() {
               <div>
                 <h3 className="text-lg font-semibold">手機比價</h3>
                 <p className="text-sm text-muted-foreground">
-                  根據地標網通與傑昇通信比價，可搜尋 iPhone 17、Samsung S26、Samsung A17 等機型。
+                  根據地標網通與傑昇通信比價，可搜尋 iPhone 17、Samsung 26、Samsung A17 等機型。
                 </p>
               </div>
             </div>
