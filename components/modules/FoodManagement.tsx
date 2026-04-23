@@ -68,7 +68,7 @@ function formatMonthOption(month: string) {
 }
 
 function formatFoodPrice(price?: number) {
-  if (!price) return "未設定";
+  if (!price) return "";
   return `NT$ ${price.toLocaleString("zh-TW")}`;
 }
 
