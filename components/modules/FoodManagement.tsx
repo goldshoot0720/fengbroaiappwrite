@@ -46,6 +46,13 @@ function getSuggestedExpiryDate(days: number) {
   return date.toISOString().split("T")[0];
 }
 
+function getFoodMonthValue(food: Food) {
+  if (!food.todate) return "";
+  const date = new Date(food.todate);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 7);
+}
+
 function getExpiryBucket(daysRemaining: number): FilterMode {
   if (daysRemaining < 0) return "expired";
   if (daysRemaining === 0) return "today";
@@ -64,6 +71,7 @@ export default function FoodManagement() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [monthFilter, setMonthFilter] = useState("");
   const [quickAddForm, setQuickAddForm] = useState<FoodFormData>({
     ...INITIAL_FORM,
     amount: 1,
@@ -130,6 +138,11 @@ export default function FoodManagement() {
     );
   }, [foods]);
 
+  const monthOptions = useMemo(() => {
+    const months = foods.map(getFoodMonthValue).filter(Boolean);
+    return Array.from(new Set(months)).sort((a, b) => b.localeCompare(a));
+  }, [foods]);
+
   // 搜尋 + 分區過濾
   const filteredFoods = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -139,9 +152,10 @@ export default function FoodManagement() {
         food.shop?.toLowerCase().includes(query);
       const bucket = getExpiryBucket(getFoodExpiryInfo(food).daysRemaining);
       const matchesFilter = filterMode === "all" ? true : bucket === filterMode;
-      return matchesQuery && matchesFilter;
+      const matchesMonth = monthFilter ? getFoodMonthValue(food) === monthFilter : true;
+      return matchesQuery && matchesFilter && matchesMonth;
     });
-  }, [foods, searchQuery, filterMode]);
+  }, [foods, searchQuery, filterMode, monthFilter]);
 
   const dashboardStats = useMemo(() => {
     const expired = foods.filter((food) => getFoodExpiryInfo(food).daysRemaining < 0);
@@ -1183,6 +1197,11 @@ export default function FoodManagement() {
           <option key={name} value={name} />
         ))}
       </datalist>
+      <datalist id="food-month-suggestions">
+        {monthOptions.map((month) => (
+          <option key={month} value={month} />
+        ))}
+      </datalist>
 
       {/* 搜尋欄位 */}
       {foods.length > 0 && (
@@ -1208,6 +1227,28 @@ export default function FoodManagement() {
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
+            <div className="flex min-w-[220px] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
+              <CalendarClock size={18} className="shrink-0 text-gray-400" />
+              <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">年月</span>
+              <Input
+                type="month"
+                list="food-month-suggestions"
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                aria-label="篩選年月"
+              />
+              {monthFilter && (
+                <button
+                  type="button"
+                  onClick={() => setMonthFilter("")}
+                  className="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+                  aria-label="清除年月篩選"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
             <div className="relative min-w-[240px] flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
