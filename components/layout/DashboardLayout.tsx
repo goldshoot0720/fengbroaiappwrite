@@ -455,7 +455,19 @@ function MenuItemComponent({
           >
             {item.icon}
           </span>
-          <span className="text-sm font-medium tracking-[0.01em]">{item.label}</span>
+          <span className="min-w-0">
+            <span className="block text-sm font-medium tracking-[0.01em]">{item.label}</span>
+            {item.subtitle ? (
+              <span
+                className={cn(
+                  "mt-0.5 block text-[11px] leading-4",
+                  isActive ? "text-[var(--accent-foreground)]/75" : "text-[var(--muted-foreground)]/80"
+                )}
+              >
+                {item.subtitle}
+              </span>
+            ) : null}
+          </span>
         </span>
 
         {hasChildren ? (
