@@ -125,6 +125,7 @@ export interface DashboardStats {
 export interface MenuItem {
   id: string;
   label: string;
+  subLabel?: string;
   icon?: React.ReactNode;
   children?: MenuItem[];
 }
