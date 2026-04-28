@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronRight,
   Command,
@@ -119,6 +120,7 @@ export default function DashboardLayout({
 
           <main className="flex-1 px-2 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-4 md:pb-8 md:pt-5 xl:px-4 xl:pb-10 xl:pt-6">
             <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 md:gap-5 xl:gap-6">
+              {currentModule === "home" ? <SleepWarningBanner /> : null}
               <TopBar
                 activeLabel={activeItem?.label ?? "首頁"}
                 moduleCount={menuItems.length}
@@ -375,6 +377,70 @@ function BrandBlock({ compact = false }: { compact?: boolean }) {
         <h1 className="truncate font-display text-xl font-semibold tracking-tight text-[var(--foreground)]">
           AI Appwrite Console
         </h1>
+      </div>
+    </div>
+  );
+}
+
+function getTaipeiHour() {
+  const hourPart = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Asia/Taipei",
+  })
+    .formatToParts(new Date())
+    .find((part) => part.type === "hour");
+
+  return Number(hourPart?.value ?? new Date().getHours());
+}
+
+function getSleepWarning() {
+  const hour = getTaipeiHour();
+  if (hour >= 0 && hour <= 2) {
+    return {
+      label: "\u8acb\u5165\u7761",
+      range: "00:00 - 02:59",
+      className: "border-amber-300 bg-amber-50 text-amber-900 shadow-[0_18px_44px_rgba(217,119,6,0.14)]",
+      iconClassName: "bg-amber-100 text-amber-700",
+    };
+  }
+
+  if (hour >= 3 && hour <= 6) {
+    return {
+      label: "\u8acb\u5165\u7761",
+      range: "03:00 - 06:59",
+      className: "border-red-300 bg-red-50 text-red-900 shadow-[0_18px_44px_rgba(220,38,38,0.14)]",
+      iconClassName: "bg-red-100 text-red-700",
+    };
+  }
+
+  return null;
+}
+
+function SleepWarningBanner() {
+  const [warning, setWarning] = useState(getSleepWarning);
+
+  useEffect(() => {
+    const updateWarning = () => setWarning(getSleepWarning());
+    const timer = window.setInterval(updateWarning, 60 * 1000);
+    document.addEventListener("visibilitychange", updateWarning);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", updateWarning);
+    };
+  }, []);
+
+  if (!warning) return null;
+
+  return (
+    <div className={`flex items-center gap-3 rounded-[24px] border px-4 py-3 ${warning.className}`}>
+      <span className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${warning.iconClassName}`}>
+        <AlertTriangle size={20} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-base font-semibold leading-6">{warning.label}</p>
+        <p className="text-xs leading-5 opacity-80">{warning.range}</p>
       </div>
     </div>
   );
