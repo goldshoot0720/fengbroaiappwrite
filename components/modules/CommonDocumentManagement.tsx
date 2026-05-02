@@ -2258,7 +2258,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
     cover: document?.cover || '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [fileHash, setFileHash] = useState<string>('');
@@ -2328,12 +2328,20 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const file = files[0];
+    e.currentTarget.value = '';
 
     const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
       alert('檔案大小不能超過 50MB');
+      return;
+    }
+
+    const oversizedFile = files.find((item) => item.size > maxSize);
+    if (oversizedFile) {
+      alert(`${oversizedFile.name} 檔案大小不可超過 50MB`);
       return;
     }
 
@@ -2355,10 +2363,24 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
       return;
     }
 
+    const invalidFile = files.find((item) => {
+      const itemExt = '.' + item.name.split('.').pop()?.toLowerCase();
+      return !validExtensions.includes(itemExt);
+    });
+    if (invalidFile) {
+      alert(`${invalidFile.name} 檔案類型不支援`);
+      return;
+    }
+
     setUploadStatus('idle');
     setUploadProgress(0);
     setDuplicateWarning('');
-    setSelectedFile(file);
+    setSelectedFiles((prev) => {
+      if (document) return files.slice(0, 1);
+      const existingKeys = new Set(prev.map((item) => `${item.name}-${item.size}-${item.lastModified}`));
+      const nextFiles = files.filter((item) => !existingKeys.has(`${item.name}-${item.size}-${item.lastModified}`));
+      return [...prev, ...nextFiles];
+    });
 
     // Extract filetype from filename
     const filetype = file.name.split('.').pop()?.toLowerCase() || '';
@@ -2412,8 +2434,8 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
       let fileUrl = formData.file;
       let coverUrl = formData.cover;
 
-      if (selectedFile) {
-        const uploadResult = await uploadFileToAppwrite(selectedFile);
+      if (selectedFiles.length > 0 && (selectedFiles.length === 1 || document)) {
+        const uploadResult = await uploadFileToAppwrite(selectedFiles[0]);
         fileUrl = uploadResult.url;
       }
 
@@ -2425,6 +2447,31 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
       const url = document
         ? addAppwriteConfigToUrl(`${API_ENDPOINTS.COMMONDOCUMENT}/${document.$id}`)
         : addAppwriteConfigToUrl(API_ENDPOINTS.COMMONDOCUMENT);
+
+      if (!document && selectedFiles.length > 1) {
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const item = selectedFiles[i];
+          const uploadResult = await uploadFileToAppwrite(item);
+          const itemHash = await calculateFileHash(item);
+          const itemFiletype = item.name.split('.').pop()?.toLowerCase() || '';
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...formData,
+              name: i === 0 && formData.name.trim() ? formData.name : item.name,
+              file: uploadResult.url,
+              cover: coverUrl,
+              filetype: itemFiletype,
+              hash: itemHash,
+            }),
+          });
+
+          if (!response.ok) throw new Error(`新增 ${item.name} 失敗`);
+        }
+        onSuccess();
+        return;
+      }
 
       const response = await fetch(url, {
         method: document ? 'PUT' : 'POST',
@@ -2482,6 +2529,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
               <input
                 type="file"
                 accept=".pdf,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.mov,.avi,.mkv,.mp3,.wav,.m4a,.ogg"
+                multiple={!document}
                 onChange={handleFileSelect}
                 className="hidden"
                 id="file-upload"
@@ -2489,10 +2537,10 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
               <label htmlFor="file-upload" className="cursor-pointer">
                 <Upload className="w-10 h-10 mx-auto mb-3 text-gray-400" />
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {selectedFile ? selectedFile.name : '點擊或拖曳上傳文件'}
+                  {selectedFiles.length > 1 ? `已選擇 ${selectedFiles.length} 個檔案` : selectedFiles[0]?.name || '點擊或拖曳上傳文件'}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  支援 PDF, 文字檔, 程式碼, Office, 壓縮檔, 圖片, 影音 (最大 50MB)
+                  可重複選檔累加；也可按住 Ctrl 或 Shift 多選。支援 PDF, 文字檔, 程式碼, Office, 壓縮檔, 圖片, 影音 (最大 50MB)
                 </p>
               </label>
             </div>
@@ -2518,7 +2566,29 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
             )}
 
             {/* 現有檔案 URL */}
-            {formData.file && !selectedFile && (
+            {!document && selectedFiles.length > 0 && (
+              <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-left dark:border-blue-800 dark:bg-blue-900/20">
+                <p className="mb-2 text-xs font-medium text-blue-700 dark:text-blue-300">將建立 {selectedFiles.length} 份文件</p>
+                <div className="max-h-28 space-y-1 overflow-y-auto text-xs text-blue-700 dark:text-blue-300">
+                  {selectedFiles.map((file) => (
+                    <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center justify-between gap-2">
+                      <p className="truncate">{file.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFiles((prev) => prev.filter((item) => item !== file));
+                        }}
+                        className="shrink-0 rounded-md px-2 py-0.5 text-blue-600 hover:bg-blue-100 dark:text-blue-200 dark:hover:bg-blue-800/40"
+                      >
+                        移除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {formData.file && selectedFiles.length === 0 && (
               <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   目前檔案：{formData.file}
