@@ -724,8 +724,8 @@ export default function CommonDocumentManagement() {
 
   const handleAdd = () => {
     setEditingDocument(null);
-    setShowFormModal(false);
-    setIsInlineCreating(true);
+    setShowFormModal(true);
+    setIsInlineCreating(false);
     setInlineCreateForm({ name: '', file: '', filetype: '', category: '', note: '', ref: '', cover: '', hash: '' });
   };
 
