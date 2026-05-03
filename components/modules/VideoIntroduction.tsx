@@ -1612,7 +1612,7 @@ export default function VideoIntroduction() {
           title="尚無影片"
           description="點擊上方「新增影片」按鈕新增第一個影片"
         />
-      ) : filteredVideos.length === 0 ? (
+      ) : filteredVideos.length === 0 && !isInlineCreating ? (
         <EmptyState
           icon={<Search className="w-12 h-12" />}
           title="無搜尋結果"
