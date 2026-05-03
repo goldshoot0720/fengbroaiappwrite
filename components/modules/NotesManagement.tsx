@@ -665,9 +665,9 @@ export default function NotesManagement() {
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
 
-    const confirmText = `DELETE 鋒兄筆記`;
+    const confirmText = "DELETE article";
     const userInput = prompt(
-      `確定要刪除所選的 ${selectedIds.size} 篇筆記嗎？\n\n目前這一版仍是直接刪除，尚未提供垃圾桶復原。\n\n請輸入以下文字以確認刪除：\n${confirmText}`
+      `將刪除所選的 ${selectedIds.size} 篇筆記。\n\n請輸入以下文字以確認刪除：\n${confirmText}`
     );
     if (userInput !== confirmText) {
       if (userInput !== null) {
@@ -684,7 +684,7 @@ export default function NotesManagement() {
     for (let i = 0; i < ids.length; i++) {
       setBatchDeleteProgress({ current: i + 1, total: ids.length });
       try {
-        await deleteArticle(ids[i]);
+        await fetchApi(`${API_ENDPOINTS.ARTICLE}/${ids[i]}`, { method: "DELETE" });
         successCount++;
       } catch {
         failCount++;
@@ -694,6 +694,7 @@ export default function NotesManagement() {
     setBatchDeleting(false);
     setBatchDeleteProgress({ current: 0, total: 0 });
     setSelectedIds(new Set());
+    await loadArticles(true);
     alert(`批次刪除完成！\n成功: ${successCount} 篇\n失敗: ${failCount} 篇`);
   };
 
@@ -1951,6 +1952,19 @@ export default function NotesManagement() {
                   全選 ({selectedIds.size}/{filteredArticles.length})
                 </span>
               </label>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={handleBatchDelete}
+                disabled={selectedIds.size === 0 || batchDeleting || batchCategorizing}
+                className="rounded-xl flex items-center gap-2 h-9"
+              >
+                <Trash2 size={16} />
+                {batchDeleting
+                  ? `刪除中 (${batchDeleteProgress.current}/${batchDeleteProgress.total})...`
+                  : `刪除所選 (${selectedIds.size})`}
+              </Button>
               {selectedIds.size > 0 && (
                 <>
                   <div className="flex min-w-[220px] flex-1 flex-col gap-2 sm:min-w-[280px] sm:flex-row">
@@ -1993,7 +2007,7 @@ export default function NotesManagement() {
                     size="sm"
                     onClick={handleBatchDelete}
                     disabled={batchDeleting || batchCategorizing}
-                    className="rounded-xl flex items-center gap-2 h-9"
+                    className="hidden"
                   >
                     <Trash2 size={16} />
                     {batchDeleting
