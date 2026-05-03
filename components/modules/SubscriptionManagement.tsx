@@ -1292,30 +1292,51 @@ export default function SubscriptionManagement() {
             </Button>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {duplicateGroups.slice(0, 3).map((group) => (
-              <div key={group.map((sub) => sub.$id).join("-")} className="rounded-2xl border border-amber-200 bg-white/80 p-4 shadow-sm dark:border-amber-900 dark:bg-gray-900/40">
-                <div className="font-semibold text-gray-900 dark:text-gray-100">{group[0]?.name}</div>
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {group.length} 筆 / {group.map((sub) => sub.account || "無帳號").join("、")}
-                </div>
-                <div className="mt-3 space-y-2">
-                  {group.map((sub) => (
-                    <div key={sub.$id} className="flex items-center justify-between gap-3 rounded-xl bg-amber-50/60 px-3 py-2 text-sm dark:bg-amber-950/10">
-                      <div className="min-w-0">
-                        <div className="truncate text-gray-900 dark:text-gray-100">{sub.account || sub.site || sub.$id}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatCurrencyWithExchange(sub.price || 0, sub.currency || "TWD")}
-                          {sub.nextdate ? ` / ${formatDate(sub.nextdate)}` : " / 未設定日期"}
+            {duplicateGroups.slice(0, 3).map((group) => {
+              const editingDuplicate = group.find((sub) => sub.$id === inlineEditingId);
+
+              return (
+                <div key={group.map((sub) => sub.$id).join("-")} className="rounded-2xl border border-amber-200 bg-white/80 p-4 shadow-sm dark:border-amber-900 dark:bg-gray-900/40">
+                  <div className="font-semibold text-gray-900 dark:text-gray-100">{group[0]?.name}</div>
+                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {group.length} 筆 / {group.map((sub) => sub.account || "無帳號").join("、")}
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {group.map((sub) => (
+                      <div key={sub.$id} className="flex items-center justify-between gap-3 rounded-xl bg-amber-50/60 px-3 py-2 text-sm dark:bg-amber-950/10">
+                        <div className="min-w-0">
+                          <div className="truncate text-gray-900 dark:text-gray-100">{sub.account || sub.site || sub.$id}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatCurrencyWithExchange(sub.price || 0, sub.currency || "TWD")}
+                            {sub.nextdate ? ` / ${formatDate(sub.nextdate)}` : " / 未設定日期"}
+                          </div>
                         </div>
+                        <Button type="button" size="sm" variant="outline" className="shrink-0 rounded-lg" onClick={() => handleInlineEdit(sub)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
-                      <Button type="button" size="sm" variant="outline" className="shrink-0 rounded-lg" onClick={() => handleInlineEdit(sub)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                    ))}
+                  </div>
+                  {editingDuplicate && (
+                    <div className="mt-4">
+                      <SubscriptionFormCard
+                        title={`編輯 ${editingDuplicate.name}`}
+                        form={inlineEditForm}
+                        onChange={setInlineEditForm}
+                        onSave={handleInlineSave}
+                        onCancel={() => {
+                          setInlineEditingId(null);
+                          setInlineEditForm(INITIAL_FORM);
+                        }}
+                        existingAccounts={existingAccounts}
+                        tone="blue"
+                        saveLabel="儲存修改"
+                      />
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </DataCard>
       )}
