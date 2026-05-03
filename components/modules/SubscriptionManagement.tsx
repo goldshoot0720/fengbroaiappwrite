@@ -1291,10 +1291,25 @@ export default function SubscriptionManagement() {
               查看第一組重複
             </Button>
           </div>
+          {duplicateGroups.some((group) => group.some((sub) => sub.$id === inlineEditingId)) && (
+            <div className="mt-4">
+              <SubscriptionFormCard
+                title={`編輯 ${inlineEditForm.name || "訂閱"}`}
+                form={inlineEditForm}
+                onChange={setInlineEditForm}
+                onSave={handleInlineSave}
+                onCancel={() => {
+                  setInlineEditingId(null);
+                  setInlineEditForm(INITIAL_FORM);
+                }}
+                existingAccounts={existingAccounts}
+                tone="blue"
+                saveLabel="儲存修改"
+              />
+            </div>
+          )}
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {duplicateGroups.slice(0, 3).map((group) => {
-              const editingDuplicate = group.find((sub) => sub.$id === inlineEditingId);
-
               return (
                 <div key={group.map((sub) => sub.$id).join("-")} className="rounded-2xl border border-amber-200 bg-white/80 p-4 shadow-sm dark:border-amber-900 dark:bg-gray-900/40">
                   <div className="font-semibold text-gray-900 dark:text-gray-100">{group[0]?.name}</div>
@@ -1317,23 +1332,6 @@ export default function SubscriptionManagement() {
                       </div>
                     ))}
                   </div>
-                  {editingDuplicate && (
-                    <div className="mt-4">
-                      <SubscriptionFormCard
-                        title={`編輯 ${editingDuplicate.name}`}
-                        form={inlineEditForm}
-                        onChange={setInlineEditForm}
-                        onSave={handleInlineSave}
-                        onCancel={() => {
-                          setInlineEditingId(null);
-                          setInlineEditForm(INITIAL_FORM);
-                        }}
-                        existingAccounts={existingAccounts}
-                        tone="blue"
-                        saveLabel="儲存修改"
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}

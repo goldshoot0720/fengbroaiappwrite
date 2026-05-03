@@ -418,10 +418,11 @@ function getSleepWarning() {
 }
 
 function SleepWarningBanner() {
-  const [warning, setWarning] = useState(getSleepWarning);
+  const [warning, setWarning] = useState<ReturnType<typeof getSleepWarning>>(null);
 
   useEffect(() => {
     const updateWarning = () => setWarning(getSleepWarning());
+    updateWarning();
     const timer = window.setInterval(updateWarning, 60 * 1000);
     document.addEventListener("visibilitychange", updateWarning);
 
@@ -453,11 +454,27 @@ function TopBar({
   activeLabel: string;
   moduleCount: number;
 }) {
-  const today = new Intl.DateTimeFormat("zh-TW", {
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  }).format(new Date());
+  const [today, setToday] = useState("今日");
+
+  useEffect(() => {
+    const formatter = new Intl.DateTimeFormat("zh-TW", {
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+      timeZone: "Asia/Taipei",
+    });
+
+    const updateToday = () => setToday(formatter.format(new Date()));
+    updateToday();
+
+    const timer = window.setInterval(updateToday, 60 * 1000);
+    document.addEventListener("visibilitychange", updateToday);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", updateToday);
+    };
+  }, []);
 
   return (
     <div className="hidden flex-col gap-3 rounded-[24px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-4 py-4 backdrop-blur-xl md:flex xl:flex-row xl:items-center xl:justify-between xl:gap-4 xl:rounded-[30px] xl:px-6">

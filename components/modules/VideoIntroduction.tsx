@@ -164,12 +164,8 @@ export default function VideoIntroduction() {
   const [showPlayer, setShowPlayer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "withFile" | "missingCover" | "multipart" | "duplicates">("all");
-  const [viewMode, setViewMode] = useState<'youtube' | 'bilibili'>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('video-view-mode') as 'youtube' | 'bilibili') || 'youtube';
-    }
-    return 'youtube';
-  });
+  const [viewMode, setViewMode] = useState<'youtube' | 'bilibili'>('youtube');
+  const [viewModeHydrated, setViewModeHydrated] = useState(false);
   const [importPreview, setImportPreview] = useState<{ data: VideoFormData[]; errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
@@ -1172,10 +1168,19 @@ export default function VideoIntroduction() {
     updateCacheStats();
   }, [updateCacheStats]);
 
+  useEffect(() => {
+    const savedViewMode = localStorage.getItem('video-view-mode');
+    if (savedViewMode === 'youtube' || savedViewMode === 'bilibili') {
+      setViewMode(savedViewMode);
+    }
+    setViewModeHydrated(true);
+  }, []);
+
   // 記住 viewMode 偏好
   useEffect(() => {
+    if (!viewModeHydrated) return;
     localStorage.setItem('video-view-mode', viewMode);
-  }, [viewMode]);
+  }, [viewMode, viewModeHydrated]);
 
   const handleAdd = () => {
     setEditingVideo(null);
