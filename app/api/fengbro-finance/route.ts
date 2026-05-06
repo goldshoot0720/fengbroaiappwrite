@@ -7,10 +7,13 @@ type FinanceInstrument = {
   name: string;
   symbol: string;
   sourceUrl: string;
-  group: "asia" | "commodities" | "rates" | "us" | "crypto";
+  group: "tw" | "asia" | "commodities" | "rates" | "us" | "crypto";
+  provider?: "cnbc" | "yahoo";
 };
 
 const INSTRUMENTS: FinanceInstrument[] = [
+  { id: "taiex", name: "加權指數", symbol: "^TWII", sourceUrl: "https://tw.stock.yahoo.com/s/tse.php", group: "tw", provider: "yahoo" },
+  { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw", provider: "yahoo" },
   { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia" },
   { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia" },
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "commodities" },
@@ -25,6 +28,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
 ];
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
+const YAHOO_CHART_ENDPOINT = "https://query1.finance.yahoo.com/v8/finance/chart";
 
 function asNumber(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -65,6 +69,17 @@ function getRecord(payload: any) {
   return Array.isArray(raw) ? raw[0] : raw;
 }
 
+function getRecordTag(price: number | null, high52: number | null, low52: number | null) {
+  if (price != null && high52 != null && (price >= high52 || nearlyEqual(price, high52))) return "new-high";
+  if (price != null && low52 != null && (price <= low52 || nearlyEqual(price, low52))) return "new-low";
+  return null;
+}
+
+function toNumberList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map(asNumber).filter((item): item is number => item != null);
+}
+
 async function fetchInstrument(instrument: FinanceInstrument) {
   const params = new URLSearchParams({
     symbols: instrument.symbol,
@@ -94,10 +109,6 @@ async function fetchInstrument(instrument: FinanceInstrument) {
   const dayHigh = pickNumber(quote, ["high", "day_high"]);
   const dayLow = pickNumber(quote, ["low", "day_low"]);
 
-  let recordTag: "new-high" | "new-low" | null = null;
-  if (price != null && high52 != null && (price >= high52 || nearlyEqual(price, high52))) recordTag = "new-high";
-  if (price != null && low52 != null && (price <= low52 || nearlyEqual(price, low52))) recordTag = "new-low";
-
   return {
     ...instrument,
     displayName: pickText(quote, ["name", "shortName", "symbolName"]) || instrument.name,
@@ -110,12 +121,68 @@ async function fetchInstrument(instrument: FinanceInstrument) {
     dayHigh,
     dayLow,
     lastUpdated: pickText(quote, ["last_time", "last_time_msec", "time"]) || "",
-    recordTag,
+    recordTag: getRecordTag(price, high52, low52),
   };
 }
 
+async function fetchYahooInstrument(instrument: FinanceInstrument) {
+  const params = new URLSearchParams({
+    range: "1y",
+    interval: "1d",
+    lang: "zh-TW",
+    region: "TW",
+  });
+
+  const response = await fetch(`${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(instrument.symbol)}?${params.toString()}`, {
+    headers: {
+      accept: "application/json,text/plain,*/*",
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) throw new Error(`Yahoo Finance ${response.status}`);
+  const payload = await response.json();
+  const chart = payload?.chart?.result?.[0];
+  if (!chart || typeof chart !== "object") throw new Error("No Yahoo Finance chart data");
+
+  const meta = (chart.meta || {}) as Record<string, unknown>;
+  const quote = (chart.indicators?.quote?.[0] || {}) as Record<string, unknown>;
+  const closes = toNumberList(quote.close);
+  const highs = toNumberList(quote.high);
+  const lows = toNumberList(quote.low);
+  const price = pickNumber(meta, ["regularMarketPrice"]) ?? closes.at(-1) ?? null;
+  const previousClose = closes.length > 1 ? closes[closes.length - 2] : null;
+  const high52 = highs.length ? Math.max(...highs) : null;
+  const low52 = lows.length ? Math.min(...lows) : null;
+  const change = price != null && previousClose != null ? price - previousClose : null;
+  const changePercent = change != null && previousClose ? (change / previousClose) * 100 : null;
+  const marketTime = pickNumber(meta, ["regularMarketTime"]);
+
+  return {
+    ...instrument,
+    displayName: pickText(meta, ["shortName", "longName"]) || instrument.name,
+    price,
+    change,
+    changePercent,
+    currency: pickText(meta, ["currency"]) || "TWD",
+    high52,
+    low52,
+    dayHigh: highs.at(-1) ?? null,
+    dayLow: lows.at(-1) ?? null,
+    lastUpdated: marketTime ? new Date(marketTime * 1000).toISOString() : "",
+    recordTag: getRecordTag(price, high52, low52),
+  };
+}
+
+async function fetchFinanceInstrument(instrument: FinanceInstrument) {
+  if (instrument.provider === "yahoo") return fetchYahooInstrument(instrument);
+  return fetchInstrument(instrument);
+}
+
 export async function GET() {
-  const settled = await Promise.allSettled(INSTRUMENTS.map(fetchInstrument));
+  const settled = await Promise.allSettled(INSTRUMENTS.map(fetchFinanceInstrument));
   const quotes = settled.map((item, index) => {
     if (item.status === "fulfilled") return item.value;
     const instrument = INSTRUMENTS[index];
@@ -138,7 +205,7 @@ export async function GET() {
 
   return NextResponse.json({
     fetchedAt: new Date().toISOString(),
-    source: "CNBC",
+    source: "CNBC / Yahoo Finance",
     quotes,
   });
 }

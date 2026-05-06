@@ -114,7 +114,7 @@ type FengbroFinanceQuote = {
   displayName: string;
   symbol: string;
   sourceUrl: string;
-  group: "asia" | "commodities" | "rates" | "us" | "crypto";
+  group: "tw" | "asia" | "commodities" | "rates" | "us" | "crypto";
   price: number | null;
   change: number | null;
   changePercent: number | null;
@@ -222,6 +222,7 @@ function formatFinanceNumber(value: number | null, maximumFractionDigits = 2) {
 
 function getFinanceGroupLabel(group: FengbroFinanceQuote["group"]) {
   const labels: Record<FengbroFinanceQuote["group"], string> = {
+    tw: "台股",
     asia: "\u4e9e\u6d32\u6307\u6578",
     commodities: "\u5546\u54c1",
     rates: "\u5229\u7387",
@@ -732,7 +733,7 @@ function FengbroFinanceSection({
   onRefresh: () => void;
 }) {
   const groupedQuotes = useMemo(() => {
-    const order: FengbroFinanceQuote["group"][] = ["us", "asia", "commodities", "rates", "crypto"];
+    const order: FengbroFinanceQuote["group"][] = ["tw", "us", "asia", "commodities", "rates", "crypto"];
     return order
       .map((group) => ({ group, quotes: (result?.quotes || []).filter((quote) => quote.group === group) }))
       .filter((item) => item.quotes.length > 0);
