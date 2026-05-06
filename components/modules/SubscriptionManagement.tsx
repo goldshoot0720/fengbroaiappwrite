@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Mic, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +33,14 @@ const INITIAL_FORM: SubscriptionFormData = {
 };
 
 const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
+
+type VoiceCommandRisk = "safe" | "review" | "danger";
+
+type VoiceCommand = {
+  action: string;
+  summary: string;
+  risk: VoiceCommandRisk;
+};
 
 function AccountComboBox({
   value,
@@ -409,6 +417,10 @@ export default function SubscriptionManagement() {
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceFeedback, setVoiceFeedback] = useState("說出例如：匯出 CSV、重新整理、全選、新增訂閱、編輯第一筆、刪除選取。");
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommand | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
@@ -583,6 +595,270 @@ export default function SubscriptionManagement() {
     setDueFilter("all");
     setRenewalFilter("all");
     setSearchQuery(topDuplicate?.[0]?.name || "");
+  };
+
+  const findVoiceTarget = (text: string) => {
+    if (filteredSubscriptions.length === 0) return null;
+    if (text.includes("第一筆") || text.includes("第一個") || text.includes("第1筆") || text.includes("第1個")) {
+      return filteredSubscriptions[0];
+    }
+
+    const normalizedText = normalizeSubscriptionValue(text);
+    return filteredSubscriptions.find((sub) => {
+      const values = [sub.name, sub.site, sub.account, sub.note].map(normalizeSubscriptionValue).filter(Boolean);
+      return values.some((value) => normalizedText.includes(value) || value.includes(normalizedText));
+    }) || filteredSubscriptions[0];
+  };
+
+  const buildVoiceDraft = (text: string): SubscriptionFormData => {
+    const cleaned = text
+      .replace(/新增訂閱|新增|建立訂閱|建立|訂閱/gi, " ")
+      .replace(/價格|金額|月費|費用|台幣|臺幣|新台幣|美金|美元|元|塊/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const priceMatch = text.match(/(?:價格|金額|月費|費用)?\s*(\d+(?:\.\d+)?)/);
+    const dateMatch = text.match(/\d{4}[-/]\d{1,2}[-/]\d{1,2}/);
+    const currency = /usd|美金|美元/i.test(text) ? "USD" : "TWD";
+    const name = cleaned
+      .replace(/\d{4}[-/]\d{1,2}[-/]\d{1,2}/, " ")
+      .replace(/\d+(?:\.\d+)?/, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return {
+      ...INITIAL_FORM,
+      name,
+      price: priceMatch ? Number(priceMatch[1]) : 0,
+      nextdate: dateMatch ? dateMatch[0].replace(/\//g, "-") : "",
+      currency,
+    };
+  };
+
+  const extractVoiceSearchQuery = (text: string) => {
+    return text
+      .replace(/搜尋|查詢|找|查看|search|find/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  const parseVoiceCommand = (text: string): VoiceCommand | null => {
+    const normalized = text.trim().toLowerCase();
+    if (!normalized) return null;
+
+    if (/匯入|import/.test(normalized) && /csv/.test(normalized)) {
+      return { action: "importCsv", summary: "開啟 CSV 檔案選擇器，選檔後仍會顯示匯入預覽。", risk: "review" };
+    }
+    if (/匯出|export/.test(normalized) && /csv/.test(normalized)) {
+      return { action: "exportCsv", summary: `匯出目前 ${subscriptions.length} 筆訂閱為 CSV。`, risk: "safe" };
+    }
+    if (/重新整理|刷新|refresh|reload/.test(normalized)) {
+      return { action: "refresh", summary: "重新向 Appwrite 載入訂閱資料。", risk: "safe" };
+    }
+    if (/取消全選|清除選取|取消選取|unselect/.test(normalized)) {
+      return { action: "clearSelection", summary: `取消目前 ${selectedIds.size} 筆選取。`, risk: "safe" };
+    }
+    if (/全選|select all/.test(normalized)) {
+      return { action: "selectAll", summary: `選取目前篩選結果 ${filteredSubscriptions.length} 筆訂閱。`, risk: "review" };
+    }
+    if (/清除篩選|全部|顯示全部/.test(normalized)) {
+      return { action: "filterAll", summary: "清除搜尋與篩選，回到全部訂閱。", risk: "safe" };
+    }
+    if (/7 天內|七天內|快到期|即將扣款|due/.test(normalized)) {
+      return { action: "filterDueSoon", summary: `切換到 7 天內扣款清單，目前 ${dueSoonSubscriptions.length} 筆。`, risk: "safe" };
+    }
+    if (/未設定|未排扣款|沒日期|無日期/.test(normalized)) {
+      return { action: "filterNoDate", summary: `切換到未設定扣款日清單，目前 ${noDateSubscriptions.length} 筆。`, risk: "safe" };
+    }
+    if (/不續訂|停止續訂|停用/.test(normalized)) {
+      return { action: "filterStopped", summary: `切換到不續訂清單，目前 ${stoppedSubscriptions.length} 筆。`, risk: "safe" };
+    }
+    if (/重複|duplicate/.test(normalized)) {
+      return { action: "filterDuplicates", summary: `查看重複訂閱提醒，目前 ${duplicateGroups.length} 組。`, risk: "safe" };
+    }
+    if (/搜尋|查詢|找|search|find/.test(normalized)) {
+      const query = extractVoiceSearchQuery(text);
+      return query
+        ? { action: "search", summary: `搜尋訂閱關鍵字「${query}」。`, risk: "safe" }
+        : { action: "noop", summary: "請在搜尋指令後面加上關鍵字，例如：搜尋 Netflix。", risk: "safe" };
+    }
+    if (/新增|建立|add|create/.test(normalized)) {
+      const draft = buildVoiceDraft(text);
+      return {
+        action: "add",
+        summary: draft.name
+          ? `開啟新增訂閱表單，預填「${draft.name}」${draft.price ? `、金額 ${draft.price}` : ""}${draft.nextdate ? `、扣款日 ${draft.nextdate}` : ""}。`
+          : "開啟新增訂閱表單，請再手動確認欄位。",
+        risk: "review",
+      };
+    }
+    if (/編輯|修改|edit|update/.test(normalized)) {
+      const target = findVoiceTarget(text);
+      return target
+        ? { action: "edit", summary: `開啟「${target.name}」編輯表單，儲存前還要再按一次。`, risk: "review" }
+        : { action: "noop", summary: "目前找不到可編輯的訂閱。", risk: "safe" };
+    }
+    if (/刪除選取|刪除已選|delete selected/.test(normalized)) {
+      return { action: "deleteSelected", summary: `開啟批次刪除確認，対象為目前選取 ${selectedIds.size} 筆；仍需輸入 ${SUBSCRIPTION_DELETE_CONFIRMATION}。`, risk: "danger" };
+    }
+    if (/刪除|delete|remove/.test(normalized)) {
+      const target = findVoiceTarget(text);
+      return target
+        ? { action: "deleteOne", summary: `選取「${target.name}」並開啟刪除確認；仍需輸入 ${SUBSCRIPTION_DELETE_CONFIRMATION}。`, risk: "danger" }
+        : { action: "noop", summary: "目前找不到可刪除的訂閱。", risk: "safe" };
+    }
+
+    return null;
+  };
+
+  const openBulkDeleteModalForIds = (ids: string[]) => {
+    if (ids.length === 0) {
+      setVoiceFeedback("沒有可刪除的選取項目。");
+      return;
+    }
+    setSelectedIds(new Set(ids));
+    setBulkDeleteOpen(true);
+    setBulkDeleteInput("");
+    setDeleteProgress(0);
+    setDeleteTotal(ids.length);
+    setDeleteDebugMessages([]);
+  };
+
+  const executeVoiceCommand = async () => {
+    if (!pendingVoiceCommand) return;
+    const command = pendingVoiceCommand;
+    setPendingVoiceCommand(null);
+
+    if (command.action === "importCsv") {
+      importInputRef.current?.click();
+      setVoiceFeedback("已開啟 CSV 選擇器，選檔後請在匯入預覽再次確認。");
+      return;
+    }
+    if (command.action === "exportCsv") {
+      await exportToCSV();
+      setVoiceFeedback("已執行匯出 CSV。");
+      return;
+    }
+    if (command.action === "refresh") {
+      await loadSubscriptions(true);
+      setVoiceFeedback("已重新整理訂閱資料。");
+      return;
+    }
+    if (command.action === "selectAll") {
+      setSelectedIds(new Set(filteredSubscriptions.map((sub) => sub.$id)));
+      setVoiceFeedback(`已選取 ${filteredSubscriptions.length} 筆。`);
+      return;
+    }
+    if (command.action === "clearSelection") {
+      setSelectedIds(new Set());
+      setVoiceFeedback("已取消選取。");
+      return;
+    }
+    if (command.action === "filterAll") {
+      applyQuickFilter("all");
+      setVoiceFeedback("已切回全部訂閱。");
+      return;
+    }
+    if (command.action === "filterDueSoon") {
+      applyQuickFilter("dueSoon");
+      setVoiceFeedback("已篩選 7 天內扣款。");
+      return;
+    }
+    if (command.action === "filterNoDate") {
+      applyQuickFilter("noDate");
+      setVoiceFeedback("已篩選未設定扣款日。");
+      return;
+    }
+    if (command.action === "filterStopped") {
+      applyQuickFilter("stopped");
+      setVoiceFeedback("已篩選不續訂。");
+      return;
+    }
+    if (command.action === "filterDuplicates") {
+      applyQuickFilter("duplicates");
+      setVoiceFeedback("已切到重複訂閱提醒。");
+      return;
+    }
+    if (command.action === "search") {
+      const query = extractVoiceSearchQuery(voiceTranscript);
+      setSearchQuery(query);
+      setVoiceFeedback(`已搜尋：${query}`);
+      return;
+    }
+    if (command.action === "add") {
+      const draft = buildVoiceDraft(voiceTranscript);
+      resetInlineStates();
+      setInlineAddForm(draft);
+      setIsInlineAdding(true);
+      setVoiceFeedback("已開啟新增表單，請檢查欄位後再按建立訂閱。");
+      return;
+    }
+    if (command.action === "edit") {
+      const target = findVoiceTarget(voiceTranscript);
+      if (target) {
+        handleInlineEdit(target);
+        setVoiceFeedback(`已開啟 ${target.name} 編輯表單，請檢查後再儲存。`);
+      }
+      return;
+    }
+    if (command.action === "deleteSelected") {
+      openBulkDeleteModalForIds(Array.from(selectedIds));
+      setVoiceFeedback("已開啟批次刪除確認，仍需輸入口令。");
+      return;
+    }
+    if (command.action === "deleteOne") {
+      const target = findVoiceTarget(voiceTranscript);
+      if (target) {
+        openBulkDeleteModalForIds([target.$id]);
+        setVoiceFeedback(`已選取 ${target.name} 並開啟刪除確認，仍需輸入口令。`);
+      }
+    }
+  };
+
+  const handleVoiceText = (text: string) => {
+    setVoiceTranscript(text);
+    const command = parseVoiceCommand(text);
+    if (!command) {
+      setPendingVoiceCommand(null);
+      setVoiceFeedback("聽到了，但還無法判斷指令。可試：匯出 CSV、重新整理、全選、新增訂閱 Netflix 100 元。");
+      return;
+    }
+    setPendingVoiceCommand(command);
+    setVoiceFeedback("已解析指令，請按「確認執行」完成第二次確認。");
+  };
+
+  const startVoiceInput = () => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognitionCtor = (window as typeof window & {
+      SpeechRecognition?: new () => any;
+      webkitSpeechRecognition?: new () => any;
+    }).SpeechRecognition || (window as typeof window & {
+      webkitSpeechRecognition?: new () => any;
+    }).webkitSpeechRecognition;
+
+    if (!SpeechRecognitionCtor) {
+      setVoiceFeedback("此瀏覽器不支援語音辨識，請改用文字指令輸入。");
+      return;
+    }
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "zh-TW";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => {
+      setIsVoiceListening(true);
+      setVoiceFeedback("正在聽你說指令...");
+    };
+    recognition.onresult = (event: any) => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      handleVoiceText(text);
+    };
+    recognition.onerror = () => {
+      setVoiceFeedback("語音辨識失敗，請再試一次或改用文字指令。");
+    };
+    recognition.onend = () => {
+      setIsVoiceListening(false);
+    };
+    recognition.start();
   };
 
   const handleInitializeSubscriptionTable = async () => {
@@ -1223,6 +1499,75 @@ export default function SubscriptionManagement() {
           </div>
         }
       />
+
+      <DataCard className="border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900 dark:bg-sky-950/20">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200">
+                <Mic className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-sky-950 dark:text-sky-100">AI 語音指令</h3>
+                <p className="text-xs text-sky-700/80 dark:text-sky-200/80">語音會先解析成動作，按確認後才執行；刪除仍需輸入口令。</p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-sky-900/90 dark:text-sky-100/90">
+              可說：匯入 CSV、匯出 CSV、重新整理、搜尋 Netflix、全選、取消全選、新增訂閱 Netflix 100 元、編輯第一筆、刪除選取、查看重複訂閱。
+            </p>
+          </div>
+          <div className="w-full space-y-3 xl:max-w-2xl">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={voiceTranscript}
+                onChange={(event) => {
+                  setVoiceTranscript(event.target.value);
+                  setPendingVoiceCommand(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") handleVoiceText(voiceTranscript);
+                }}
+                placeholder="也可以打字：匯出 CSV / 搜尋 Netflix / 新增訂閱 Netflix 100 元 / 刪除選取"
+                className="bg-white/90 dark:bg-gray-950/60"
+              />
+              <Button type="button" variant="outline" onClick={startVoiceInput} disabled={isVoiceListening} className="shrink-0 rounded-xl bg-white/80">
+                <Mic className={`mr-1 h-4 w-4 ${isVoiceListening ? "animate-pulse text-red-500" : ""}`} />
+                {isVoiceListening ? "聆聽中" : "語音輸入"}
+              </Button>
+              <Button type="button" onClick={() => handleVoiceText(voiceTranscript)} className="shrink-0 rounded-xl bg-sky-600 hover:bg-sky-700">
+                解析指令
+              </Button>
+            </div>
+            <div className="rounded-2xl border border-sky-200 bg-white/80 p-3 text-sm text-sky-950 shadow-sm dark:border-sky-900 dark:bg-gray-950/40 dark:text-sky-100">
+              <div className="font-medium">狀態</div>
+              <div className="mt-1 leading-6">{voiceFeedback}</div>
+            </div>
+            {pendingVoiceCommand && (
+              <div className={`rounded-2xl border p-3 text-sm shadow-sm ${pendingVoiceCommand.risk === "danger"
+                ? "border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100"
+                : pendingVoiceCommand.risk === "review"
+                  ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
+                  : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"
+                }`}>
+                <div className="font-semibold">等待第二次確認</div>
+                <div className="mt-1 leading-6">{pendingVoiceCommand.summary}</div>
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setPendingVoiceCommand(null)} className="rounded-xl bg-white/80">
+                    取消
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => void executeVoiceCommand()}
+                    className={pendingVoiceCommand.risk === "danger" ? "rounded-xl bg-red-600 hover:bg-red-700" : "rounded-xl bg-sky-600 hover:bg-sky-700"}
+                  >
+                    確認執行
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </DataCard>
 
       <DataCard className="p-4">
         <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4 dark:border-gray-800">
