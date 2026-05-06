@@ -49,7 +49,7 @@ export function useMediaStats() {
     otherSize: 0,
     totalSize: 0,
     totalFiles: 0,
-    storageLimit: 2 * 1024 * 1024 * 1024, // 2GB
+    storageLimit: Math.floor(1.8 * 1024 * 1024 * 1024),
     usagePercentage: 0,
   });
 

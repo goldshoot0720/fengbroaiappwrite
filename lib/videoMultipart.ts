@@ -1,4 +1,4 @@
-import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import { assertClientStorageQuota, uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
 
 // Keep each uploaded part comfortably below common Appwrite Cloud/bucket limits.
@@ -97,6 +97,8 @@ export async function uploadVideoInParts(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<MultipartUploadResult> {
+  await assertClientStorageQuota(file.size);
+
   const totalParts = Math.ceil(file.size / MAX_VIDEO_PART_SIZE);
   const parts: VideoPartManifestEntry[] = [];
   let uploadedBytes = 0;

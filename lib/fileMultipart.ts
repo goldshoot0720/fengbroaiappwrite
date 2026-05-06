@@ -1,4 +1,4 @@
-import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import { assertClientStorageQuota, uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
 
 export const MULTIPART_UPLOAD_THRESHOLD = 50 * 1024 * 1024;
@@ -99,6 +99,8 @@ export async function uploadFileInParts(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<MultipartFileResult> {
+  await assertClientStorageQuota(file.size);
+
   const totalParts = Math.ceil(file.size / MULTIPART_FILE_PART_SIZE);
   const parts: FilePartManifestEntry[] = [];
   let uploadedBytes = 0;

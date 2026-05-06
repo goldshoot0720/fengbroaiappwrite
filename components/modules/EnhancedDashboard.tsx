@@ -762,6 +762,11 @@ function MediaStorageStats({ stats, onNavigate }: { stats: { totalImages: number
                 style={{ width: `${Math.min(stats.usagePercentage, 100)}%` }}
               />
             </div>
+            {stats.totalSize >= stats.storageLimit ? (
+              <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                File Storage 已超過 1.8GB，上傳已停用。請手動刪除 Appwrite Storage 檔案，直到容量低於 1.8GB 以下。
+              </p>
+            ) : null}
           </div>
 
           {/* 分類統計 */}

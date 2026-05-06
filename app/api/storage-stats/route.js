@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { STORAGE_UPLOAD_LIMIT_BYTES } from "../_lib/storageQuota";
 
 const sdk = require('node-appwrite');
 
@@ -503,7 +504,7 @@ export async function GET(request) {
 
     // Get bucket information (note: bucket details might not include size limit via API)
     // For now, we'll use a default limit or make it configurable
-    const storageLimit = 2 * 1024 * 1024 * 1024; // 2GB default
+    const storageLimit = STORAGE_UPLOAD_LIMIT_BYTES;
     const usagePercentage = storageLimit > 0 ? (totalSize / storageLimit) * 100 : 0;
 
     return NextResponse.json({
@@ -547,7 +548,7 @@ export async function GET(request) {
       stats: {
         totalFiles: 0,
         totalSize: 0,
-        storageLimit: 2 * 1024 * 1024 * 1024,
+        storageLimit: STORAGE_UPLOAD_LIMIT_BYTES,
         usagePercentage: 0,
         images: { count: 0, size: 0 },
         videos: { count: 0, size: 0 },

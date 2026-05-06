@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertStorageQuotaAvailable } from "../_lib/storageQuota";
 
 const sdk = require('node-appwrite');
 
@@ -64,6 +65,7 @@ export async function POST(request) {
       .setKey(apiKey);
 
     const storage = new sdk.Storage(client);
+    await assertStorageQuotaAvailable(storage, bucketId, file.size);
     const fileObject = sdk.InputFile.fromBuffer(buffer, file.name);
     const uploadedFile = await storage.createFile(
       bucketId,
@@ -84,6 +86,6 @@ export async function POST(request) {
 
   } catch (err) {
     console.error('[upload-image] Unexpected error:', err);
-    return NextResponse.json({ error: err.message || '上傳失敗' }, { status: 500 });
+    return NextResponse.json({ error: err.message || '上傳失敗' }, { status: err.status || 500 });
   }
 }

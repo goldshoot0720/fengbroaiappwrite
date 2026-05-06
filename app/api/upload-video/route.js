@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertStorageQuotaAvailable } from "../_lib/storageQuota";
 
 const sdk = require('node-appwrite');
 
@@ -57,6 +58,8 @@ export async function POST(request) {
     }
 
     // 檢查檔案類型
+    await assertStorageQuotaAvailable(storage, bucketId, file.size);
+
     const validTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
     if (!validTypes.includes(file.type)) {
       return NextResponse.json({ error: '只支援 MP4, WebM, OGG, MOV 格式' }, { status: 400 });
@@ -89,6 +92,6 @@ export async function POST(request) {
 
   } catch (err) {
     console.error("POST /api/upload-video error:", err);
-    return NextResponse.json({ error: err.message || '上傳失敗' }, { status: 500 });
+    return NextResponse.json({ error: err.message || '上傳失敗' }, { status: err.status || 500 });
   }
 }

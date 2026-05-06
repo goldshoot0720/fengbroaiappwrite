@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertStorageQuotaAvailable } from "../_lib/storageQuota";
 
 const sdk = require('node-appwrite');
 
@@ -57,6 +58,8 @@ export async function POST(request) {
     }
 
     // 檢查檔案類型
+    await assertStorageQuotaAvailable(storage, bucketId, file.size);
+
     const validTypes = [
       // Audio
       'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/m4a',
@@ -121,6 +124,6 @@ export async function POST(request) {
 
   } catch (err) {
     console.error("POST /api/upload-music error:", err);
-    return NextResponse.json({ error: err.message || '上傳失敗' }, { status: 500 });
+    return NextResponse.json({ error: err.message || '上傳失敗' }, { status: err.status || 500 });
   }
 }
