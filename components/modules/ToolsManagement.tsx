@@ -846,8 +846,8 @@ function FengbroFinanceSection({
   );
 }
 
-export default function ToolsManagement() {
-  const [activeTab, setActiveTab] = useState<ToolsTab>("price-compare");
+export default function ToolsManagement({ initialTab = "price-compare" }: { initialTab?: ToolsTab }) {
+  const [activeTab, setActiveTab] = useState<ToolsTab>(initialTab);
   const [targetUrl, setTargetUrl] = useState("");
   const [priceSource, setPriceSource] = useState<PriceSource>("biggo-api");
   const [loading, setLoading] = useState(false);
@@ -867,6 +867,10 @@ export default function ToolsManagement() {
   const [financeError, setFinanceError] = useState("");
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
   const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

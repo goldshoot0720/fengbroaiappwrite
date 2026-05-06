@@ -15,6 +15,7 @@ import {
   Package,
   Play,
   Podcast,
+  Landmark,
   Settings,
   Star,
   Wrench,
@@ -51,7 +52,15 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "podcast", label: "鋒兄播客", icon: <Podcast size={18} /> },
   { id: "bank-stats", label: "鋒兄銀行", icon: <Building2 size={18} /> },
   { id: "routine", label: "鋒兄例行", icon: <CalendarClock size={18} /> },
-  { id: "tools", label: "鋒兄工具", subtitle: "（＋比價）", icon: <Wrench size={18} /> },
+  {
+    id: "tools",
+    label: "鋒兄工具",
+    subtitle: "（＋比價）",
+    icon: <Wrench size={18} />,
+    children: [
+      { id: "fengbro-finance", label: "鋒兄金融", subtitle: "CNBC 報價", icon: <Landmark size={18} /> },
+    ],
+  },
   { id: "settings", label: "鋒兄設定", icon: <Settings size={18} /> },
   { id: "about", label: "鋒兄關於", icon: <Info size={18} /> },
 ];
@@ -104,6 +113,8 @@ export default function DashboardPage() {
         return <RoutineManagement />;
       case "tools":
         return <ToolsManagement />;
+      case "fengbro-finance":
+        return <ToolsManagement initialTab="fengbro-finance" />;
       case "settings":
         return <SettingsManagement />;
       case "about":

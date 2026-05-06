@@ -49,9 +49,16 @@ export default function DashboardLayout({
   }, []);
 
   const activeItem = useMemo(
-    () => menuItems.find((item) => item.id === currentModule),
+    () => findMenuItem(menuItems, currentModule),
     [currentModule, menuItems]
   );
+
+  useEffect(() => {
+    const parentIds = findMenuParentIds(menuItems, currentModule);
+    if (!parentIds.length) return;
+
+    setExpandedItems((prev) => Array.from(new Set([...prev, ...parentIds])));
+  }, [currentModule, menuItems]);
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev);
@@ -264,6 +271,8 @@ function TabletSidebar({
   menuItems: MenuItem[];
   onMenuClick: (item: MenuItem) => void;
 }) {
+  const tabletItems = useMemo(() => flattenLeafMenuItems(menuItems), [menuItems]);
+
   return (
     <aside className="hidden w-[104px] shrink-0 border-r border-[var(--line-soft)] px-3 py-5 md:flex xl:hidden">
       <div className="surface-panel flex w-full flex-col items-center rounded-[28px] px-2 py-4">
@@ -272,7 +281,7 @@ function TabletSidebar({
           <ThemeToggleCompact />
         </div>
         <nav className="mt-6 flex w-full flex-1 flex-col items-center gap-2 overflow-y-auto">
-          {menuItems.map((item) => {
+          {tabletItems.map((item) => {
             const isActive = currentModule === item.id;
             return (
               <button
@@ -398,6 +407,32 @@ function getTaipeiHour() {
     .find((part) => part.type === "hour");
 
   return Number(hourPart?.value ?? new Date().getHours());
+}
+
+function findMenuItem(items: MenuItem[], targetId: string): MenuItem | undefined {
+  for (const item of items) {
+    if (item.id === targetId) return item;
+    const child = item.children?.length ? findMenuItem(item.children, targetId) : undefined;
+    if (child) return child;
+  }
+
+  return undefined;
+}
+
+function findMenuParentIds(items: MenuItem[], targetId: string, parents: string[] = []): string[] {
+  for (const item of items) {
+    if (item.id === targetId) return parents;
+    if (item.children?.length) {
+      const childParents = findMenuParentIds(item.children, targetId, [...parents, item.id]);
+      if (childParents.length) return childParents;
+    }
+  }
+
+  return [];
+}
+
+function flattenLeafMenuItems(items: MenuItem[]): MenuItem[] {
+  return items.flatMap((item) => (item.children?.length ? flattenLeafMenuItems(item.children) : item));
 }
 
 function getSleepWarning() {
@@ -529,6 +564,7 @@ function MenuItemComponent({
 }) {
   const hasChildren = Boolean(item.children?.length);
   const isExpanded = expandedItems.includes(item.id);
+  const isChildActive = hasChildren ? Boolean(findMenuItem(item.children || [], currentModule)) : false;
   const isActive = currentModule === item.id;
 
   return (
@@ -537,7 +573,7 @@ function MenuItemComponent({
         onClick={() => onMenuClick(item)}
         className={cn(
           "group flex w-full items-center justify-between rounded-[22px] px-4 py-3 text-left transition-all duration-200",
-          isActive
+          isActive || isChildActive
             ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_36px_rgba(199,149,65,0.25)]"
             : "bg-transparent text-[var(--muted-foreground)] hover:bg-white/60 hover:text-[var(--foreground)] dark:hover:bg-white/5",
           isMobile && "min-h-12"
@@ -547,7 +583,7 @@ function MenuItemComponent({
           <span
             className={cn(
               "flex size-9 items-center justify-center rounded-2xl border transition-colors",
-              isActive
+              isActive || isChildActive
                 ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
                 : "border-[var(--line-soft)] bg-white/70 text-[var(--foreground)] dark:bg-white/5"
             )}
@@ -560,7 +596,7 @@ function MenuItemComponent({
               <span
                 className={cn(
                   "mt-0.5 block text-[11px] leading-4",
-                  isActive ? "text-[var(--accent-foreground)]/75" : "text-[var(--muted-foreground)]/80"
+                  isActive || isChildActive ? "text-[var(--accent-foreground)]/75" : "text-[var(--muted-foreground)]/80"
                 )}
               >
                 {item.subtitle}
