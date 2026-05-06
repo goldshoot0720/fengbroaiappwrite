@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BirthdayEasterEgg } from "@/components/ui/birthday-easter-egg";
+import { GlobalVoiceCommandPanel } from "@/components/ui/global-voice-command-panel";
 import { MusicQueuePanel } from "@/components/ui/music-queue-panel";
 import { PodcastQueuePanel } from "@/components/ui/podcast-queue-panel";
 import { ThemeToggleCompact } from "@/components/ui/theme-toggle";
@@ -141,6 +142,11 @@ export default function DashboardLayout({
       <MusicQueuePanel />
       <PodcastQueuePanel />
       <VideoQueuePanel />
+      <GlobalVoiceCommandPanel
+        currentModule={currentModule}
+        menuItems={menuItems}
+        onNavigate={onModuleChange}
+      />
       <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} />
     </div>
   );

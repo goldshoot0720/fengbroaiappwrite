@@ -666,6 +666,12 @@ export default function SubscriptionManagement() {
     if (/7 天內|七天內|快到期|即將扣款|due/.test(normalized)) {
       return { action: "filterDueSoon", summary: `切換到 7 天內扣款清單，目前 ${dueSoonSubscriptions.length} 筆。`, risk: "safe" };
     }
+    if (/已過期|過期|逾期|expired|overdue/.test(normalized)) {
+      return { action: "filterExpired", summary: `切換到已過期清單，目前 ${expiredSubscriptions.length} 筆。`, risk: "safe" };
+    }
+    if (/30 天內|三十天內|一個月內|30天內/.test(normalized)) {
+      return { action: "filter30Days", summary: "切換到 30 天內扣款清單。", risk: "safe" };
+    }
     if (/未設定|未排扣款|沒日期|無日期/.test(normalized)) {
       return { action: "filterNoDate", summary: `切換到未設定扣款日清單，目前 ${noDateSubscriptions.length} 筆。`, risk: "safe" };
     }
@@ -696,6 +702,18 @@ export default function SubscriptionManagement() {
       return target
         ? { action: "edit", summary: `開啟「${target.name}」編輯表單，儲存前還要再按一次。`, risk: "review" }
         : { action: "noop", summary: "目前找不到可編輯的訂閱。", risk: "safe" };
+    }
+    if (/標記|設為|改成|mark/.test(normalized) && /不續訂|停止續訂|停用/.test(normalized)) {
+      const target = findVoiceTarget(text);
+      return target
+        ? { action: "markStopped", summary: `開啟「${target.name}」編輯表單，預先改成不續訂；仍需按儲存。`, risk: "review" }
+        : { action: "noop", summary: "目前找不到可標記的訂閱。", risk: "safe" };
+    }
+    if (/標記|設為|改成|mark/.test(normalized) && /續訂|繼續訂|啟用/.test(normalized)) {
+      const target = findVoiceTarget(text);
+      return target
+        ? { action: "markRenewing", summary: `開啟「${target.name}」編輯表單，預先改成續訂；仍需按儲存。`, risk: "review" }
+        : { action: "noop", summary: "目前找不到可標記的訂閱。", risk: "safe" };
     }
     if (/刪除選取|刪除已選|delete selected/.test(normalized)) {
       return { action: "deleteSelected", summary: `開啟批次刪除確認，対象為目前選取 ${selectedIds.size} 筆；仍需輸入 ${SUBSCRIPTION_DELETE_CONFIRMATION}。`, risk: "danger" };
@@ -763,6 +781,22 @@ export default function SubscriptionManagement() {
       setVoiceFeedback("已篩選 7 天內扣款。");
       return;
     }
+    if (command.action === "filterExpired") {
+      setDueFilter("expired");
+      setRenewalFilter("all");
+      setMonthFilter("all");
+      setSearchQuery("");
+      setVoiceFeedback("已篩選已過期訂閱。");
+      return;
+    }
+    if (command.action === "filter30Days") {
+      setDueFilter("30days");
+      setRenewalFilter("all");
+      setMonthFilter("all");
+      setSearchQuery("");
+      setVoiceFeedback("已篩選 30 天內扣款。");
+      return;
+    }
     if (command.action === "filterNoDate") {
       applyQuickFilter("noDate");
       setVoiceFeedback("已篩選未設定扣款日。");
@@ -797,6 +831,24 @@ export default function SubscriptionManagement() {
       if (target) {
         handleInlineEdit(target);
         setVoiceFeedback(`已開啟 ${target.name} 編輯表單，請檢查後再儲存。`);
+      }
+      return;
+    }
+    if (command.action === "markStopped" || command.action === "markRenewing") {
+      const target = findVoiceTarget(voiceTranscript);
+      if (target) {
+        handleInlineEdit(target);
+        setInlineEditForm({
+          name: target.name,
+          site: target.site || "",
+          price: Number(target.price || 0),
+          nextdate: target.nextdate ? formatDate(target.nextdate) : "",
+          note: target.note || "",
+          account: target.account || "",
+          currency: target.currency || "TWD",
+          continue: command.action === "markRenewing",
+        });
+        setVoiceFeedback(`已預填 ${target.name} 為${command.action === "markRenewing" ? "續訂" : "不續訂"}，請檢查後再儲存。`);
       }
       return;
     }
@@ -1513,7 +1565,7 @@ export default function SubscriptionManagement() {
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-sky-900/90 dark:text-sky-100/90">
-              可說：匯入 CSV、匯出 CSV、重新整理、搜尋 Netflix、全選、取消全選、新增訂閱 Netflix 100 元、編輯第一筆、刪除選取、查看重複訂閱。
+              可說：匯入 CSV、匯出 CSV、重新整理、搜尋 Netflix、已過期、30 天內、全選、新增訂閱 Netflix 100 元、標記第一筆不續訂、編輯第一筆、刪除選取。
             </p>
           </div>
           <div className="w-full space-y-3 xl:max-w-2xl">
