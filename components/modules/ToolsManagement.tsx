@@ -6,7 +6,7 @@ import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
 
-type ToolsTab = "price-compare" | "landtop" | "fengbro-tube";
+type ToolsTab = "price-compare" | "landtop" | "fengbro-tube" | "fengbro-finance";
 type PriceSource = "local" | "biggo-api";
 
 type PriceHistoryEntry = {
@@ -106,10 +106,39 @@ type FengbroTubeResult = {
   recentVideos: Array<FengbroTubeVideo & { channelTitle: string; channelId: string }>;
 };
 
+type FinanceRecordTag = "new-high" | "new-low" | null;
+
+type FengbroFinanceQuote = {
+  id: string;
+  name: string;
+  displayName: string;
+  symbol: string;
+  sourceUrl: string;
+  group: "asia" | "commodities" | "rates" | "us" | "crypto";
+  price: number | null;
+  change: number | null;
+  changePercent: number | null;
+  currency: string;
+  high52: number | null;
+  low52: number | null;
+  dayHigh: number | null;
+  dayLow: number | null;
+  lastUpdated: string;
+  recordTag: FinanceRecordTag;
+  error?: string;
+};
+
+type FengbroFinanceResult = {
+  fetchedAt: string;
+  source: string;
+  quotes: FengbroFinanceQuote[];
+};
+
 const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "price-compare", label: "鋒兄比價" },
   { id: "landtop", label: "手機比價" },
   { id: "fengbro-tube", label: "鋒兄Tube" },
+  { id: "fengbro-finance", label: "\u92d2\u5144\u91d1\u878d" },
 ];
 
 const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
@@ -181,6 +210,31 @@ function getChannelDownfallIndexUpdate(channel: FengbroTubeChannel) {
         publishedAt: matched.video.publishedAt,
       }
     : null;
+}
+
+
+function formatFinanceNumber(value: number | null, maximumFractionDigits = 2) {
+  if (value == null) return "--";
+  return new Intl.NumberFormat("zh-TW", {
+    maximumFractionDigits,
+  }).format(value);
+}
+
+function getFinanceGroupLabel(group: FengbroFinanceQuote["group"]) {
+  const labels: Record<FengbroFinanceQuote["group"], string> = {
+    asia: "\u4e9e\u6d32\u6307\u6578",
+    commodities: "\u5546\u54c1",
+    rates: "\u5229\u7387",
+    us: "\u7f8e\u80a1\u6307\u6578",
+    crypto: "\u52a0\u5bc6\u8ca8\u5e63",
+  };
+  return labels[group];
+}
+
+function getFinanceRecordLabel(tag: FinanceRecordTag) {
+  if (tag === "new-high") return "\u5275\u65b0\u9ad8";
+  if (tag === "new-low") return "\u5275\u65b0\u4f4e";
+  return "";
 }
 
 function buildChartPath(points: Array<{ x: number; y: number }>) {
@@ -665,6 +719,133 @@ function FengbroTubeSection({
   );
 }
 
+
+function FengbroFinanceSection({
+  result,
+  loading,
+  error,
+  onRefresh,
+}: {
+  result: FengbroFinanceResult | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+}) {
+  const groupedQuotes = useMemo(() => {
+    const order: FengbroFinanceQuote["group"][] = ["us", "asia", "commodities", "rates", "crypto"];
+    return order
+      .map((group) => ({ group, quotes: (result?.quotes || []).filter((quote) => quote.group === group) }))
+      .filter((item) => item.quotes.length > 0);
+  }, [result]);
+
+  return (
+    <div className="space-y-5">
+      <DataCard className="overflow-hidden p-0">
+        <div className="flex flex-col gap-4 border-b border-emerald-100 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.96))] p-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+              <BarChart3 size={22} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700/80">FengBro Finance</p>
+              <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄金融</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                CNBC 報價監控：股指、商品、利率與加密貨幣，觸及新高或新低時自動標註。
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {result?.fetchedAt && (
+              <span className="rounded-full border border-emerald-100 bg-white px-3 py-1 text-xs text-muted-foreground">
+                更新：{new Date(result.fetchedAt).toLocaleString("zh-TW")}
+              </span>
+            )}
+            <Button onClick={onRefresh} disabled={loading} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              {loading ? "更新中" : "重新整理"}
+            </Button>
+          </div>
+        </div>
+
+        {error && <div className="m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+
+        {!error && loading && !result && (
+          <div className="p-8 text-center text-sm text-muted-foreground">正在讀取 CNBC 金融報價...</div>
+        )}
+
+        {!error && result && (
+          <div className="space-y-6 p-4 sm:p-6">
+            {groupedQuotes.map(({ group, quotes }) => (
+              <div key={group} className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-semibold text-emerald-800">{getFinanceGroupLabel(group)}</h4>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700">{quotes.length} 項</span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {quotes.map((quote) => {
+                    const recordLabel = getFinanceRecordLabel(quote.recordTag);
+                    const isUp = (quote.change || 0) >= 0;
+                    return (
+                      <div key={quote.id} className="rounded-[24px] border border-border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h5 className="font-semibold text-foreground">{quote.name}</h5>
+                              {recordLabel && (
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-sky-50 text-sky-700 border border-sky-200"}`}>
+                                  {recordLabel}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">{quote.symbol}</p>
+                          </div>
+                          <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100">
+                            CNBC <ExternalLink className="inline h-3 w-3" />
+                          </a>
+                        </div>
+
+                        {quote.error ? (
+                          <p className="mt-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{quote.error}</p>
+                        ) : (
+                          <>
+                            <div className="mt-4 flex items-end justify-between gap-3">
+                              <div>
+                                <p className="text-xs text-muted-foreground">最新價</p>
+                                <p className="mt-1 text-2xl font-semibold text-foreground">
+                                  {formatFinanceNumber(quote.price, group === "rates" ? 3 : 2)}
+                                  {quote.currency ? <span className="ml-1 text-xs font-medium text-muted-foreground">{quote.currency}</span> : null}
+                                </p>
+                              </div>
+                              <div className={`text-right text-sm font-semibold ${isUp ? "text-emerald-700" : "text-red-600"}`}>
+                                <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.change, 2)}</p>
+                                <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.changePercent, 2)}%</p>
+                              </div>
+                            </div>
+                            <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                              <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                <p className="text-muted-foreground">52W High</p>
+                                <p className="mt-1 font-semibold">{formatFinanceNumber(quote.high52, 2)}</p>
+                              </div>
+                              <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                <p className="text-muted-foreground">52W Low</p>
+                                <p className="mt-1 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DataCard>
+    </div>
+  );
+}
+
 export default function ToolsManagement() {
   const [activeTab, setActiveTab] = useState<ToolsTab>("price-compare");
   const [targetUrl, setTargetUrl] = useState("");
@@ -682,6 +863,10 @@ export default function ToolsManagement() {
   const [tubeError, setTubeError] = useState("");
   const [tubeResult, setTubeResult] = useState<FengbroTubeResult | null>(null);
   const [tubeLoadedOnce, setTubeLoadedOnce] = useState(false);
+  const [financeLoading, setFinanceLoading] = useState(false);
+  const [financeError, setFinanceError] = useState("");
+  const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
+  const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -802,6 +987,29 @@ export default function ToolsManagement() {
       void loadTube();
     }
   }, [activeTab, tubeLoadedOnce, tubeLoading, loadTube]);
+
+  const loadFinance = useCallback(async () => {
+    setFinanceLoadedOnce(true);
+    setFinanceLoading(true);
+    setFinanceError("");
+    try {
+      const response = await fetch("/api/fengbro-finance");
+      const data = (await response.json()) as FengbroFinanceResult & { error?: string };
+      if (!response.ok) throw new Error(data.error || "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
+      setFinanceResult(data);
+    } catch (error) {
+      setFinanceError(error instanceof Error ? error.message : "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
+    } finally {
+      setFinanceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "fengbro-finance" && !financeLoadedOnce && !financeLoading) {
+      void loadFinance();
+    }
+  }, [activeTab, financeLoadedOnce, financeLoading, loadFinance]);
+
 
   const handleResolve = async (overrideUrl?: string) => {
     const url = (overrideUrl ?? targetUrl).trim();
@@ -1138,12 +1346,19 @@ export default function ToolsManagement() {
             </>
           )}
         </DataCard>
-      ) : (
+      ) : activeTab === "fengbro-tube" ? (
         <FengbroTubeSection
           result={tubeResult}
           loading={tubeLoading}
           error={tubeError}
           onRefresh={() => void loadTube()}
+        />
+      ) : (
+        <FengbroFinanceSection
+          result={financeResult}
+          loading={financeLoading}
+          error={financeError}
+          onRefresh={() => void loadFinance()}
         />
       )}
     </section>
