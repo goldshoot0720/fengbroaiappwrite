@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v4';
+const CACHE_NAME = 'fengbro-ai-v5';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -192,12 +192,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (
-    request.destination === 'style' ||
-    request.destination === 'script' ||
-    request.destination === 'image' ||
-    request.destination === 'font'
-  ) {
+  if (request.destination === 'style' || request.destination === 'script') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  if (request.destination === 'image' || request.destination === 'font') {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
