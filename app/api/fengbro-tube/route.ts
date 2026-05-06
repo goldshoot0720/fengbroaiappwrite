@@ -50,6 +50,22 @@ function fallbackNameFromUrl(sourceUrl: string) {
   }
 }
 
+function normalizeDigits(value: string) {
+  return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
+}
+
+function extractDownfallIndex(title: string) {
+  const normalizedTitle = normalizeDigits(title);
+  const numberPattern = "([0-9]+(?:\\.[0-9]+)?)";
+  const afterLabel = normalizedTitle.match(new RegExp(`倒台指[數数][^0-9]{0,24}${numberPattern}`));
+  const beforeLabel = normalizedTitle.match(new RegExp(`${numberPattern}\\s*(?:分|%|％)?\\s*倒台指[數数]`));
+  return afterLabel?.[1] || beforeLabel?.[1] || "";
+}
+
+function isHenrenChannel(sourceUrl: string, title: string) {
+  return /henren778/i.test(sourceUrl) || /一[個个]狠人/.test(title);
+}
+
 async function resolveChannelId(sourceUrl: string) {
   const channelUrl = normalizeChannelUrl(sourceUrl);
   const response = await fetch(channelUrl, {
@@ -110,11 +126,26 @@ async function fetchChannel(sourceUrl: string) {
   const xml = await response.text();
   const { feedTitle, entries } = parseFeed(xml);
 
+  const videos = entries.slice(0, 10);
+  const downfallIndexVideo = isHenrenChannel(sourceUrl, feedTitle || title)
+    ? videos
+        .map((video) => ({ video, value: extractDownfallIndex(video.title) }))
+        .find((item) => item.value)
+    : null;
+
   return {
     sourceUrl,
     channelId,
     title: feedTitle || title,
-    videos: entries.slice(0, 10),
+    videos,
+    downfallIndexUpdate: downfallIndexVideo
+      ? {
+          value: downfallIndexVideo.value,
+          title: downfallIndexVideo.video.title,
+          url: downfallIndexVideo.video.url,
+          publishedAt: downfallIndexVideo.video.publishedAt,
+        }
+      : null,
   };
 }
 

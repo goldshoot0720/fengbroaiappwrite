@@ -92,6 +92,12 @@ type FengbroTubeChannel = {
   title: string;
   videos: FengbroTubeVideo[];
   error?: string;
+  downfallIndexUpdate?: {
+    value: string;
+    title: string;
+    url: string;
+    publishedAt: string;
+  } | null;
 };
 
 type FengbroTubeResult = {
@@ -144,6 +150,37 @@ function formatPublishedDate(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function normalizeTubeDigits(value: string) {
+  return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
+}
+
+function extractTubeDownfallIndex(title: string) {
+  const normalizedTitle = normalizeTubeDigits(title);
+  const numberPattern = "([0-9]+(?:\\.[0-9]+)?)";
+  const afterLabel = normalizedTitle.match(new RegExp(`倒台指[數数][^0-9]{0,24}${numberPattern}`));
+  const beforeLabel = normalizedTitle.match(new RegExp(`${numberPattern}\\s*(?:分|%|％)?\\s*倒台指[數数]`));
+  return afterLabel?.[1] || beforeLabel?.[1] || "";
+}
+
+function getChannelDownfallIndexUpdate(channel: FengbroTubeChannel) {
+  if (channel.downfallIndexUpdate) return channel.downfallIndexUpdate;
+  const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
+  if (!isHenrenChannel) return null;
+
+  const matched = channel.videos
+    .map((video) => ({ video, value: extractTubeDownfallIndex(video.title) }))
+    .find((item) => item.value);
+
+  return matched
+    ? {
+        value: matched.value,
+        title: matched.video.title,
+        url: matched.video.url,
+        publishedAt: matched.video.publishedAt,
+      }
+    : null;
 }
 
 function buildChartPath(points: Array<{ x: number; y: number }>) {
@@ -561,11 +598,27 @@ function FengbroTubeSection({
             )}
 
             <div className="grid gap-5">
-              {result.channels.map((channel) => (
+              {result.channels.map((channel) => {
+                const downfallIndexUpdate = getChannelDownfallIndexUpdate(channel);
+
+                return (
                 <div key={channel.sourceUrl} className="rounded-[28px] border border-border bg-white p-4 shadow-sm">
                   <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h4 className="text-lg font-semibold text-foreground">{channel.title}</h4>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-lg font-semibold text-foreground">{channel.title}</h4>
+                        {downfallIndexUpdate && (
+                          <a
+                            href={downfallIndexUpdate.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100"
+                            title={downfallIndexUpdate.title}
+                          >
+                            更新：倒台指數 {downfallIndexUpdate.value}
+                          </a>
+                        )}
+                      </div>
                       <a href={channel.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-red-600 hover:text-red-700">
                         開啟頻道 <ExternalLink className="inline h-3 w-3" />
                       </a>
@@ -602,7 +655,8 @@ function FengbroTubeSection({
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
