@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, ExternalLink, RefreshCw, Search, Smartphone, Wrench } from "lucide-react";
+import { BarChart3, Clock, ExternalLink, Play, RefreshCw, Search, Smartphone, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
 
-type ToolsTab = "price-compare" | "landtop";
+type ToolsTab = "price-compare" | "landtop" | "fengbro-tube";
 type PriceSource = "local" | "biggo-api";
 
 type PriceHistoryEntry = {
@@ -76,9 +76,34 @@ type LandtopResult = {
   snapshotStored?: number;
 };
 
+type FengbroTubeVideo = {
+  videoId: string;
+  title: string;
+  url: string;
+  publishedAt: string;
+  updatedAt: string;
+  thumbnail: string;
+  channelTitle?: string;
+};
+
+type FengbroTubeChannel = {
+  sourceUrl: string;
+  channelId: string;
+  title: string;
+  videos: FengbroTubeVideo[];
+  error?: string;
+};
+
+type FengbroTubeResult = {
+  fetchedAt: string;
+  channels: FengbroTubeChannel[];
+  recentVideos: Array<FengbroTubeVideo & { channelTitle: string; channelId: string }>;
+};
+
 const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "price-compare", label: "鋒兄比價" },
   { id: "landtop", label: "手機比價" },
+  { id: "fengbro-tube", label: "鋒兄Tube" },
 ];
 
 const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
@@ -109,6 +134,16 @@ function formatPriceWithCurrency(price: number | null | undefined, currency?: st
   if (price == null) return "--";
   const formatted = new Intl.NumberFormat("zh-TW").format(price);
   return currency ? `${formatted} ${currency}` : formatted;
+}
+
+function formatPublishedDate(value: string) {
+  if (!value) return "--";
+  return new Intl.DateTimeFormat("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function buildChartPath(points: Array<{ x: number; y: number }>) {
@@ -452,6 +487,130 @@ function LandtopHistoryChart({
   );
 }
 
+function FengbroTubeSection({
+  result,
+  loading,
+  error,
+  onRefresh,
+}: {
+  result: FengbroTubeResult | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <DataCard className="overflow-hidden p-0">
+        <div className="flex flex-col gap-4 border-b border-red-100 bg-[linear-gradient(135deg,rgba(254,242,242,0.98),rgba(255,255,255,0.96))] p-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+              <Play size={22} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600/80">FengBro Tube</p>
+              <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄Tube</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                追蹤指定 YouTube 頻道最新影片，每個頻道顯示 10 部；3 天內有新影片時，首頁會提醒你。
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {result?.fetchedAt && (
+              <span className="rounded-full border border-red-100 bg-white px-3 py-1 text-xs text-muted-foreground">
+                更新：{new Date(result.fetchedAt).toLocaleString("zh-TW")}
+              </span>
+            )}
+            <Button onClick={onRefresh} disabled={loading} className="gap-2 bg-red-600 hover:bg-red-700">
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              {loading ? "更新中" : "重新整理"}
+            </Button>
+          </div>
+        </div>
+
+        {error && <div className="m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+
+        {!error && loading && !result && (
+          <div className="p-8 text-center text-sm text-muted-foreground">正在讀取 YouTube 頻道最新影片...</div>
+        )}
+
+        {!error && result && (
+          <div className="space-y-6 p-4 sm:p-6">
+            {result.recentVideos.length > 0 && (
+              <div className="rounded-[28px] border border-amber-200 bg-amber-50/70 p-4">
+                <div className="mb-3 flex items-center gap-2 text-amber-800">
+                  <Clock size={18} />
+                  <h4 className="font-semibold">3 天內新影片：{result.recentVideos.length} 部</h4>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {result.recentVideos.slice(0, 8).map((video) => (
+                    <a
+                      key={`${video.channelId}-${video.videoId}`}
+                      href={video.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-2xl border border-amber-100 bg-white px-3 py-2 text-sm transition hover:border-amber-300"
+                    >
+                      <div className="line-clamp-1 font-medium text-foreground">{video.title}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {video.channelTitle} / {formatPublishedDate(video.publishedAt)}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-5">
+              {result.channels.map((channel) => (
+                <div key={channel.sourceUrl} className="rounded-[28px] border border-border bg-white p-4 shadow-sm">
+                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h4 className="text-lg font-semibold text-foreground">{channel.title}</h4>
+                      <a href={channel.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-red-600 hover:text-red-700">
+                        開啟頻道 <ExternalLink className="inline h-3 w-3" />
+                      </a>
+                    </div>
+                    {channel.error ? (
+                      <span className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-600">{channel.error}</span>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-muted-foreground">
+                        {channel.videos.length} 部影片
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    {channel.videos.map((video) => (
+                      <a
+                        key={video.videoId}
+                        href={video.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group overflow-hidden rounded-2xl border border-border bg-slate-50 transition hover:border-red-300 hover:bg-white hover:shadow-md"
+                      >
+                        {video.thumbnail ? (
+                          <img src={video.thumbnail} alt={video.title} className="aspect-video w-full object-cover transition group-hover:scale-[1.03]" />
+                        ) : (
+                          <div className="flex aspect-video items-center justify-center bg-red-50 text-red-500">
+                            <Play size={24} />
+                          </div>
+                        )}
+                        <div className="space-y-1 p-3">
+                          <div className="line-clamp-2 text-sm font-medium leading-5 text-foreground">{video.title}</div>
+                          <div className="text-xs text-muted-foreground">{formatPublishedDate(video.publishedAt)}</div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </DataCard>
+    </div>
+  );
+}
+
 export default function ToolsManagement() {
   const [activeTab, setActiveTab] = useState<ToolsTab>("price-compare");
   const [targetUrl, setTargetUrl] = useState("");
@@ -465,6 +624,10 @@ export default function ToolsManagement() {
   const [landtopError, setLandtopError] = useState("");
   const [landtopResult, setLandtopResult] = useState<LandtopResult | null>(null);
   const [landtopLoadedOnce, setLandtopLoadedOnce] = useState(false);
+  const [tubeLoading, setTubeLoading] = useState(false);
+  const [tubeError, setTubeError] = useState("");
+  const [tubeResult, setTubeResult] = useState<FengbroTubeResult | null>(null);
+  const [tubeLoadedOnce, setTubeLoadedOnce] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -563,6 +726,28 @@ export default function ToolsManagement() {
       void loadLandtop(false);
     }
   }, [activeTab, landtopLoadedOnce, landtopLoading, loadLandtop]);
+
+  const loadTube = useCallback(async () => {
+    setTubeLoadedOnce(true);
+    setTubeLoading(true);
+    setTubeError("");
+    try {
+      const response = await fetch("/api/fengbro-tube");
+      const data = (await response.json()) as FengbroTubeResult & { error?: string };
+      if (!response.ok) throw new Error(data.error || "鋒兄Tube 讀取失敗");
+      setTubeResult(data);
+    } catch (error) {
+      setTubeError(error instanceof Error ? error.message : "鋒兄Tube 讀取失敗");
+    } finally {
+      setTubeLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "fengbro-tube" && !tubeLoadedOnce && !tubeLoading) {
+      void loadTube();
+    }
+  }, [activeTab, tubeLoadedOnce, tubeLoading, loadTube]);
 
   const handleResolve = async (overrideUrl?: string) => {
     const url = (overrideUrl ?? targetUrl).trim();
@@ -758,7 +943,7 @@ export default function ToolsManagement() {
             )}
           </DataCard>
         </>
-      ) : (
+      ) : activeTab === "landtop" ? (
         <DataCard className="space-y-5 p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex items-center gap-3">
@@ -899,6 +1084,13 @@ export default function ToolsManagement() {
             </>
           )}
         </DataCard>
+      ) : (
+        <FengbroTubeSection
+          result={tubeResult}
+          loading={tubeLoading}
+          error={tubeError}
+          onRefresh={() => void loadTube()}
+        />
       )}
     </section>
   );

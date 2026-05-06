@@ -14,6 +14,14 @@ import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatCurrency, formatDaysRemaining } from "@/lib/formatters";
 import { FoodDetail, SubscriptionDetail } from "@/types";
 
+type FengbroTubeRecentVideo = {
+  videoId: string;
+  title: string;
+  url: string;
+  publishedAt: string;
+  channelTitle: string;
+};
+
 interface EnhancedDashboardProps {
   onNavigate: (moduleId: string) => void;
   title?: string;
@@ -54,6 +62,8 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
   const [permissionDismissed, setPermissionDismissed] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [tubeRecentVideos, setTubeRecentVideos] = useState<FengbroTubeRecentVideo[]>([]);
+  const [tubeNoticeDismissed, setTubeNoticeDismissed] = useState(false);
 
   // 偵測環境：iOS、standalone（已安裝 PWA）
   useEffect(() => {
@@ -68,6 +78,38 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       (navigator as unknown as { standalone?: boolean }).standalone === true;
     setIsStandalone(standalone);
   }, []);
+
+  useEffect(() => {
+    if (onlyTitle) return;
+    let active = true;
+    const loadTubeNotice = async () => {
+      try {
+        const dismissedKey = window.localStorage.getItem("fengbroTubeNoticeDismissed");
+        const today = new Date().toISOString().slice(0, 10);
+        if (dismissedKey === today) {
+          setTubeNoticeDismissed(true);
+          return;
+        }
+
+        const response = await fetch("/api/fengbro-tube");
+        const data = (await response.json()) as { recentVideos?: FengbroTubeRecentVideo[] };
+        if (active) setTubeRecentVideos((data.recentVideos || []).slice(0, 8));
+      } catch {
+        if (active) setTubeRecentVideos([]);
+      }
+    };
+    void loadTubeNotice();
+    return () => {
+      active = false;
+    };
+  }, [onlyTitle]);
+
+  const handleDismissTubeNotice = () => {
+    setTubeNoticeDismissed(true);
+    try {
+      window.localStorage.setItem("fengbroTubeNoticeDismissed", new Date().toISOString().slice(0, 10));
+    } catch {}
+  };
 
   // 檢查通知權限狀態
   useEffect(() => {
@@ -296,6 +338,39 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-600 dark:text-red-400 whitespace-pre-line">
           {error}
         </div>
+      )}
+
+      {tubeRecentVideos.length > 0 && !tubeNoticeDismissed && (
+        <DataCard className="p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center">
+              <Bell className="text-red-600 dark:text-red-400" size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-red-900 dark:text-red-100">
+                鋒兄Tube 有 {tubeRecentVideos.length} 部 3 天內新影片
+              </p>
+              <div className="mt-2 grid gap-1 text-xs text-red-800 dark:text-red-200 sm:grid-cols-2">
+                {tubeRecentVideos.slice(0, 4).map((video) => (
+                  <a key={video.videoId} href={video.url} target="_blank" rel="noreferrer" className="line-clamp-1 hover:underline">
+                    {video.channelTitle}：{video.title}
+                  </a>
+                ))}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={() => onNavigate("tools")}
+                className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                查看
+              </button>
+              <button onClick={handleDismissTubeNotice} className="p-2 text-red-400 hover:text-red-600 transition-colors" title="今天不再提醒">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        </DataCard>
       )}
 
       {/* iOS 未安裝 PWA 提示 */}
