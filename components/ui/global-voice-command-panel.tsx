@@ -217,6 +217,15 @@ function extractSearchQuery(text: string) {
   return text.replace(/\u641c\u5c0b|\u67e5\u8a62|\u627e|search|find/gi, " ").replace(/\s+/g, " ").trim();
 }
 
+function getActionsForModule(moduleId: string) {
+  return [...(moduleActions[moduleId] || []), ...commonActions];
+}
+
+function removeModuleAlias(text: string, moduleId: string) {
+  const aliases = MODULE_VOICE_META[moduleId]?.aliases || [];
+  return aliases.reduce((result, alias) => result.replace(alias, " "), text).replace(/\s+/g, " ").trim();
+}
+
 export function GlobalVoiceCommandPanel({
   currentModule,
   menuItems,
@@ -227,7 +236,7 @@ export function GlobalVoiceCommandPanel({
   onNavigate: (moduleId: string) => void;
 }) {
   const [transcript, setTranscript] = useState("");
-  const [feedback, setFeedback] = useState("Try: open subscriptions, search Netflix, add, export CSV, select all, delete selected.");
+  const [feedback, setFeedback] = useState("Try: open subscriptions add, images export ZIP, videos Bilibili, search Netflix, select all.");
   const [isListening, setIsListening] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [open, setOpen] = useState(false);
@@ -239,6 +248,10 @@ export function GlobalVoiceCommandPanel({
 
   const currentIndex = flatMenuItems.findIndex((item) => item.id === currentModule);
   const currentModuleName = MODULE_VOICE_META[currentModule]?.name || "Current page";
+  const currentActionChips = useMemo(
+    () => getActionsForModule(currentModule).slice(0, 10),
+    [currentModule]
+  );
 
   const resolveModule = (text: string) => {
     const normalized = normalizeVoiceText(text);
@@ -268,23 +281,36 @@ export function GlobalVoiceCommandPanel({
       return { action: "home", moduleId: "home", summary: `Switch to ${zh.home}.`, risk: "safe" };
     }
 
-    if (/\u641c\u5c0b|\u67e5\u8a62|\u627e|search|find/.test(normalized)) {
-      const query = extractSearchQuery(text);
-      if (query) return { action: "pageSearch", query, summary: `Search "${query}" in ${currentModuleName}.`, risk: "safe" };
+    const target = resolveModule(text);
+    const actionModuleId = target?.id || currentModule;
+    const moduleName = target ? MODULE_VOICE_META[target.id]?.name || target.label : currentModuleName;
+    const actionText = target ? removeModuleAlias(text, target.id) : text;
+    const normalizedActionText = normalizeVoiceText(actionText);
+
+    if (/\u641c\u5c0b|\u67e5\u8a62|\u627e|search|find/.test(normalizedActionText)) {
+      const query = extractSearchQuery(actionText);
+      if (query) {
+        return {
+          action: "pageSearch",
+          moduleId: target?.id,
+          query,
+          summary: `${target ? `Switch to ${moduleName}, then ` : ""}search "${query}".`,
+          risk: "safe",
+        };
+      }
     }
 
-    const currentActions = [...(moduleActions[currentModule] || []), ...commonActions];
-    const pageAction = currentActions.find((candidate) => candidate.aliases.test(normalized));
+    const pageAction = getActionsForModule(actionModuleId).find((candidate) => candidate.aliases.test(normalizedActionText));
     if (pageAction) {
       return {
         action: "pageAction",
+        moduleId: target?.id,
         labels: pageAction.labels,
-        summary: `${pageAction.summary} Target: ${currentModuleName}.`,
+        summary: `${target ? `Switch to ${moduleName}, then ` : ""}${pageAction.summary}`,
         risk: pageAction.risk,
       };
     }
 
-    const target = resolveModule(text);
     if (target) {
       return {
         action: "navigate",
@@ -338,25 +364,38 @@ export function GlobalVoiceCommandPanel({
   const confirmCommand = () => {
     if (!pendingCommand) return;
 
-    if (pendingCommand.moduleId) {
-      onNavigate(pendingCommand.moduleId);
-      setFeedback("Menu switched.");
-      setPendingCommand(null);
-      setOpen(false);
-      return;
-    }
-
     if (pendingCommand.action === "pageSearch" && pendingCommand.query) {
-      const ok = fillVisibleSearch(pendingCommand.query);
-      setFeedback(ok ? `Searched: ${pendingCommand.query}` : "No visible search input found on this page.");
+      if (pendingCommand.moduleId) {
+        onNavigate(pendingCommand.moduleId);
+      }
+      const query = pendingCommand.query;
+      window.setTimeout(() => {
+        const ok = fillVisibleSearch(query);
+        setFeedback(ok ? `Searched: ${query}` : "No visible search input found on this page.");
+      }, pendingCommand.moduleId ? 350 : 0);
       setPendingCommand(null);
       return;
     }
 
     if (pendingCommand.action === "pageAction" && pendingCommand.labels) {
-      const ok = clickVisibleControl(pendingCommand.labels);
-      setFeedback(ok ? "Page action triggered. If a form, preview, or password phrase appears, confirm there too." : "No matching visible control found on this page.");
+      if (pendingCommand.moduleId) {
+        onNavigate(pendingCommand.moduleId);
+      }
+      const labels = pendingCommand.labels;
+      window.setTimeout(() => {
+        const ok = clickVisibleControl(labels);
+        setFeedback(ok ? "Page action triggered. If a form, preview, or password phrase appears, confirm there too." : "No matching visible control found on this page.");
+      }, pendingCommand.moduleId ? 350 : 0);
       setPendingCommand(null);
+      if (pendingCommand.moduleId) setOpen(false);
+      return;
+    }
+
+    if (pendingCommand.moduleId) {
+      onNavigate(pendingCommand.moduleId);
+      setFeedback("Menu switched.");
+      setPendingCommand(null);
+      setOpen(false);
     }
   };
 
@@ -393,7 +432,7 @@ export function GlobalVoiceCommandPanel({
               onKeyDown={(event) => {
                 if (event.key === "Enter") handleVoiceText(transcript);
               }}
-              placeholder="Type or speak: open subscription / search Netflix / add / export CSV / select all"
+              placeholder="Type or speak: open subscription add / search Netflix / images export ZIP / select all"
             />
             <Button type="button" variant="outline" onClick={startVoiceInput} disabled={isListening} className="shrink-0 rounded-xl">
               <Mic className={`mr-1 h-4 w-4 ${isListening ? "animate-pulse text-red-500" : ""}`} />
@@ -449,6 +488,24 @@ export function GlobalVoiceCommandPanel({
             ))}
           </div>
 
+          <div className="mt-2 rounded-2xl border border-gray-200 bg-white/70 p-2 dark:border-gray-800 dark:bg-gray-900/60">
+            <div className="mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.18em] text-gray-400">
+              Current Module Actions
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {currentActionChips.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => handleVoiceText(item.labels[0] || item.key)}
+                  className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-emerald-300 hover:text-emerald-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300"
+                >
+                  {item.labels[0] || item.key}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-2 flex flex-wrap gap-1.5">
             {flatMenuItems.slice(0, 16).map((item) => (
               <button
@@ -468,7 +525,7 @@ export function GlobalVoiceCommandPanel({
         type="button"
         onClick={() => {
           setOpen((prev) => !prev);
-          if (!open) setFeedback("Try: open subscriptions, search Netflix, add, export CSV, select all, delete selected.");
+          if (!open) setFeedback("Try: open subscriptions add, images export ZIP, videos Bilibili, search Netflix, select all.");
         }}
         className="rounded-full bg-emerald-600 px-4 py-6 text-white shadow-[0_18px_48px_rgba(5,150,105,0.28)] hover:bg-emerald-700"
       >
