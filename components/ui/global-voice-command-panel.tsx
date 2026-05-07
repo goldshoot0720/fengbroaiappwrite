@@ -21,6 +21,7 @@ type PendingCommand = {
     | "clickOrdinal"
     | "focusedFill"
     | "clearFocused"
+    | "adjustFocused"
     | "scroll";
   moduleId?: string;
   labels?: string[];
@@ -29,6 +30,8 @@ type PendingCommand = {
   clickText?: string;
   ordinal?: number;
   focusedValue?: string;
+  adjustAmount?: number;
+  adjustUnit?: "number" | "days";
   scrollTarget?: "top" | "bottom" | "up" | "down";
   summary: string;
   risk: VoiceRisk;
@@ -329,6 +332,53 @@ function extractValueAfter(text: string, patterns: RegExp[]) {
   return "";
 }
 
+function stripModuleAliases(text: string) {
+  return Object.values(MODULE_VOICE_META)
+    .flatMap((meta) => [meta.name, ...meta.aliases])
+    .reduce((result, alias) => result.replace(new RegExp(alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " "), text);
+}
+
+function stripFieldPhrases(text: string) {
+  return text
+    .replace(/\u65b0\u589e|\u5efa\u7acb|\u52a0\u5165|\u65b0\u5efa|\u5e6b\u6211|\u4e00\u7b46|add|create|new/gi, " ")
+    .replace(/(?:數量|個數|庫存|價格|金額|費用|到期日?|有效期限|期限|扣款日?|付款日?|續費日?|日期|分類|類別|商店|地點|位置|網站|站台|服務|帳號|帳戶|密碼|幣別|貨幣|網址|連結|備註|說明|內容|amount|quantity|price|cost|date|category|shop|store|site|service|account|password|currency|url|link|note|memo)\s*[^，,。]*/gi, " ")
+    .replace(/\d+(?:\.\d+)?\s*(?:元|塊|個|件|張|首|筆|部|次|nt|twd|usd|jpy|天後|天內|天)/gi, " ")
+    .replace(/(?:今天|今日|明天|後天|\d{1,2}\s*(?:月|\/|-)\s*\d{1,2}\s*(?:日|號)?|20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2})/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferLooseFields(text: string, moduleId: string): VoiceField[] {
+  const fields: VoiceField[] = [];
+  const push = (key: VoiceFieldKey, value: string) => {
+    const cleaned = value.trim();
+    if (cleaned && !fields.some((field) => field.key === key)) fields.push({ key, value: cleaned });
+  };
+
+  const price = text.match(/(\d+(?:\.\d+)?)\s*(?:元|塊|nt|twd|usd|jpy|港幣|美金|日幣)/i);
+  if (price && ["subscription", "food", "bank-stats", "common"].includes(moduleId)) push("price", price[1]);
+
+  const amount = text.match(/(\d{1,4})\s*(?:個|件|張|首|部|筆|瓶|包|盒|份|罐)/i);
+  if (amount && ["food", "images", "videos", "music", "documents", "podcast"].includes(moduleId)) push("amount", amount[1]);
+
+  const dateText = text.match(/(今天|今日|明天|後天|\d{1,3}\s*天後|\d{1,2}\s*(?:月|\/|-)\s*\d{1,2}\s*(?:日|號)?|20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2})/i);
+  if (dateText) push("date", parseVoiceDate(dateText[1]));
+
+  const currency = text.match(/\b(TWD|NTD|USD|JPY|CNY|HKD)\b|台幣|美金|美元|日幣|人民幣|港幣/i);
+  if (currency) {
+    const normalized = currency[0].replace(/台幣|NTD/i, "TWD").replace(/美金|美元/i, "USD").replace(/日幣/i, "JPY").replace(/人民幣/i, "CNY").replace(/港幣/i, "HKD").toUpperCase();
+    push("currency", normalized);
+  }
+
+  const candidateName = stripFieldPhrases(stripModuleAliases(text));
+  if (candidateName) {
+    const nameKey: VoiceFieldKey = ["notes", "videos", "music", "documents", "podcast", "images"].includes(moduleId) ? "title" : "name";
+    push(nameKey, candidateName);
+  }
+
+  return fields;
+}
+
 function buildVoiceFields(text: string): VoiceField[] {
   const loose = normalizeLooseText(text);
   const fields: VoiceField[] = [];
@@ -370,6 +420,14 @@ function buildVoiceFields(text: string): VoiceField[] {
   }
 
   return fields;
+}
+
+function mergeVoiceFields(primary: VoiceField[], inferred: VoiceField[]) {
+  const merged = [...primary];
+  for (const field of inferred) {
+    if (!merged.some((item) => item.key === field.key)) merged.push(field);
+  }
+  return merged;
 }
 
 const fieldMatchers: Record<VoiceFieldKey, RegExp[]> = {
@@ -415,6 +473,24 @@ function clearFocusedControl() {
   const active = getActiveTextControl();
   if (!active) return false;
   setControlValue(active, "");
+  return true;
+}
+
+function adjustFocusedControl(amount: number, unit: "number" | "days") {
+  const active = getActiveTextControl();
+  if (!active) return false;
+
+  if (unit === "days" || active.type === "date") {
+    const date = active.value ? new Date(active.value) : new Date();
+    if (Number.isNaN(date.getTime())) return false;
+    date.setDate(date.getDate() + amount);
+    setControlValue(active, date.toISOString().split("T")[0]);
+    return true;
+  }
+
+  const current = Number(active.value || 0);
+  if (Number.isNaN(current)) return false;
+  setControlValue(active, String(current + amount));
   return true;
 }
 
@@ -483,6 +559,17 @@ function extractFocusedInputValue(text: string) {
   ]);
 }
 
+function extractFocusedAdjustment(text: string) {
+  const normalized = normalizeVoiceText(text);
+  const match = normalized.match(/(?:加|增加|\+|減|減少|-)(\d{1,4})(天|日)?/);
+  if (!match) return null;
+  const sign = /減|減少|-/.test(normalized) ? -1 : 1;
+  return {
+    amount: sign * Number(match[1]),
+    unit: match[2] ? "days" as const : "number" as const,
+  };
+}
+
 function getActionsForModule(moduleId: string) {
   return [...(moduleActions[moduleId] || []), ...commonActions];
 }
@@ -536,6 +623,17 @@ export function GlobalVoiceCommandPanel({
       return { action: "clearFocused", summary: "清空目前聚焦的輸入欄位。", risk: "review" };
     }
 
+    const adjustment = extractFocusedAdjustment(text);
+    if (adjustment && /目前欄位|這個欄位|欄位|日期|數量|價格|金額|加|減|\+|-/.test(text)) {
+      return {
+        action: "adjustFocused",
+        adjustAmount: adjustment.amount,
+        adjustUnit: adjustment.unit,
+        summary: `把目前欄位${adjustment.amount >= 0 ? "增加" : "減少"} ${Math.abs(adjustment.amount)}${adjustment.unit === "days" ? " 天" : ""}。`,
+        risk: "review",
+      };
+    }
+
     const focusedValue = extractFocusedInputValue(text);
     if (focusedValue && !/\u641c\u5c0b|\u67e5\u8a62|\u627e|search|find/.test(normalized)) {
       return {
@@ -582,7 +680,7 @@ export function GlobalVoiceCommandPanel({
     const moduleName = target ? MODULE_VOICE_META[target.id]?.name || target.label : currentModuleName;
     const actionText = target ? removeModuleAlias(text, target.id) : text;
     const normalizedActionText = normalizeVoiceText(actionText);
-    const fields = buildVoiceFields(actionText);
+    const fields = mergeVoiceFields(buildVoiceFields(actionText), inferLooseFields(actionText, actionModuleId));
     const ordinal = extractOrdinal(actionText);
 
     const clickText = extractValueAfter(actionText, [
@@ -707,6 +805,13 @@ export function GlobalVoiceCommandPanel({
     if (pendingCommand.action === "clearFocused") {
       const ok = clearFocusedControl();
       setFeedback(ok ? "已清空目前欄位。" : "目前沒有可清空的聚焦欄位，請先點一下欄位。");
+      setPendingCommand(null);
+      return;
+    }
+
+    if (pendingCommand.action === "adjustFocused" && pendingCommand.adjustAmount !== undefined && pendingCommand.adjustUnit) {
+      const ok = adjustFocusedControl(pendingCommand.adjustAmount, pendingCommand.adjustUnit);
+      setFeedback(ok ? "已調整目前欄位。" : "目前欄位無法調整，請先點日期或數字欄位。");
       setPendingCommand(null);
       return;
     }
