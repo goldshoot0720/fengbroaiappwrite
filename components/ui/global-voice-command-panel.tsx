@@ -9,12 +9,26 @@ import { MenuItem } from "@/types";
 type VoiceRisk = "safe" | "review" | "danger";
 
 type PendingCommand = {
-  action: "navigate" | "next" | "previous" | "home" | "pageAction" | "pageSearch" | "pageFill" | "clickText" | "scroll";
+  action:
+    | "navigate"
+    | "next"
+    | "previous"
+    | "home"
+    | "pageAction"
+    | "pageSearch"
+    | "pageFill"
+    | "clickText"
+    | "clickOrdinal"
+    | "focusedFill"
+    | "clearFocused"
+    | "scroll";
   moduleId?: string;
   labels?: string[];
   query?: string;
   fields?: VoiceField[];
   clickText?: string;
+  ordinal?: number;
+  focusedValue?: string;
   scrollTarget?: "top" | "bottom" | "up" | "down";
   summary: string;
   risk: VoiceRisk;
@@ -30,6 +44,8 @@ type VoiceFieldKey =
   | "shop"
   | "site"
   | "account"
+  | "password"
+  | "currency"
   | "url"
   | "note";
 
@@ -73,14 +89,14 @@ const MODULE_VOICE_META: Record<string, { name: string; aliases: string[] }> = {
   notes: { name: zh.notes, aliases: [zh.notes, "\u7b46\u8a18", "\u6587\u7ae0", "notes", "article"] },
   common: { name: zh.common, aliases: [zh.common, "\u5e38\u7528", "\u5e33\u865f", "\u7db2\u7ad9", "\u5e38\u7528\u5e33\u865f", "common"] },
   images: { name: zh.images, aliases: [zh.images, "\u5716\u7247", "\u7167\u7247", "\u5716\u5eab", "image", "images"] },
-  videos: { name: zh.videos, aliases: [zh.videos, "\u5f71\u7247", "\u8996\u983b", "video", "videos"] },
-  music: { name: zh.music, aliases: [zh.music, "\u97f3\u6a02", "\u6b4c\u66f2", "music"] },
-  documents: { name: zh.documents, aliases: [zh.documents, "\u6587\u4ef6", "\u6a94\u6848", "document", "documents"] },
+  videos: { name: zh.videos, aliases: [zh.videos, "\u5f71\u7247", "\u8996\u983b", "\u5f71\u97f3", "\u92d2\u5144 tube", "video", "videos", "tube"] },
+  music: { name: zh.music, aliases: [zh.music, "\u97f3\u6a02", "\u6b4c\u66f2", "\u97f3\u6a02\u7ba1\u7406", "music", "song"] },
+  documents: { name: zh.documents, aliases: [zh.documents, "\u6587\u4ef6", "\u6a94\u6848", "\u6587\u6a94", "\u8cc7\u6599", "document", "documents", "file"] },
   podcast: { name: zh.podcast, aliases: [zh.podcast, "\u64ad\u5ba2", "\u97f3\u8a0a", "\u7bc0\u76ee", "podcast"] },
-  "bank-stats": { name: zh.bank, aliases: [zh.bank, "\u9280\u884c", "\u8ca1\u52d9", "\u5e33\u6236", "bank"] },
-  routine: { name: zh.routine, aliases: [zh.routine, "\u4f8b\u884c", "\u884c\u7a0b", "\u5f85\u8fa6", "\u7fd2\u6163", "routine"] },
-  tools: { name: zh.tools, aliases: [zh.tools, "\u5de5\u5177", "\u6bd4\u50f9", "tools", "tool"] },
-  settings: { name: zh.settings, aliases: [zh.settings, "\u8a2d\u5b9a", "\u8a2d\u7f6e", "\u914d\u7f6e", "settings"] },
+  "bank-stats": { name: zh.bank, aliases: [zh.bank, "\u9280\u884c", "\u8ca1\u52d9", "\u5e33\u6236", "\u9280\u884c\u7d71\u8a08", "\u8cc7\u91d1", "bank", "finance"] },
+  routine: { name: zh.routine, aliases: [zh.routine, "\u4f8b\u884c", "\u884c\u7a0b", "\u5f85\u8fa6", "\u7fd2\u6163", "\u4f8b\u884c\u516c\u4e8b", "routine", "habit"] },
+  tools: { name: zh.tools, aliases: [zh.tools, "\u5de5\u5177", "\u6bd4\u50f9", "\u5c0f\u5de5\u5177", "\u67e5\u50f9", "tools", "tool"] },
+  settings: { name: zh.settings, aliases: [zh.settings, "\u8a2d\u5b9a", "\u8a2d\u7f6e", "\u914d\u7f6e", "\u7cfb\u7d71\u8a2d\u5b9a", "settings", "config"] },
   about: { name: zh.about, aliases: [zh.about, "\u95dc\u65bc", "\u8aaa\u660e", "\u5c08\u6848\u8aaa\u660e", "about"] },
 };
 
@@ -239,6 +255,18 @@ function clickControlByText(text: string) {
   return Boolean(target);
 }
 
+function clickNthVisibleControl(labels: string[], ordinal: number) {
+  const controls = Array.from(document.querySelectorAll<HTMLElement>("button, [role='button'], label, a"));
+  const matches = controls.filter((control) => {
+    if (!isVisible(control)) return false;
+    const text = normalizeVoiceText(getElementText(control));
+    return labels.some((label) => text.includes(normalizeVoiceText(label)));
+  });
+  const target = matches[Math.max(ordinal - 1, 0)];
+  target?.click();
+  return Boolean(target);
+}
+
 function fillVisibleSearch(query: string) {
   const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input"));
   const target = inputs.find((input) => {
@@ -321,6 +349,8 @@ function buildVoiceFields(text: string): VoiceField[] {
   pushField("shop", extractValueAfter(loose, [/(?:商店|地點|位置|shop|store)\s*([^\s]+)/i]));
   pushField("site", extractValueAfter(loose, [/(?:網站|站台|服務|site|service)\s*([^\s]+)/i]));
   pushField("account", extractValueAfter(loose, [/(?:帳號|帳戶|account)\s*([^\s]+)/i]));
+  pushField("password", extractValueAfter(text, [/(?:密碼|password)\s*([^\s，,。]+)/i]));
+  pushField("currency", extractValueAfter(loose, [/(?:幣別|貨幣|currency)\s*([^\s]+)/i]));
   pushField("url", extractValueAfter(text, [/(https?:\/\/\S+)/i, /(?:網址|連結|url|link)\s*(\S+)/i]));
   pushField("note", extractValueAfter(text, [/(?:備註|說明|內容|note|memo)\s*(.+)$/i]));
 
@@ -333,7 +363,7 @@ function buildVoiceFields(text: string): VoiceField[] {
       .reduce((result, alias) => result.replace(new RegExp(alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " "), text);
     const cleaned = withoutModuleAliases
       .replace(/\u65b0\u589e|\u5efa\u7acb|\u52a0\u5165|\u65b0\u5efa|add|create|new/gi, " ")
-      .replace(/(?:數量|個數|庫存|價格|金額|費用|到期日?|有效期限|期限|扣款日?|付款日?|續費日?|日期|分類|類別|商店|地點|位置|網站|站台|服務|帳號|帳戶|網址|連結|備註|說明|內容|amount|quantity|price|cost|date|category|shop|store|site|service|account|url|link|note|memo)\s*[^，,。]*/gi, " ")
+      .replace(/(?:數量|個數|庫存|價格|金額|費用|到期日?|有效期限|期限|扣款日?|付款日?|續費日?|日期|分類|類別|商店|地點|位置|網站|站台|服務|帳號|帳戶|密碼|幣別|貨幣|網址|連結|備註|說明|內容|amount|quantity|price|cost|date|category|shop|store|site|service|account|password|currency|url|link|note|memo)\s*[^，,。]*/gi, " ")
       .replace(/\s+/g, " ")
       .trim();
     if (cleaned) pushField("name", cleaned);
@@ -352,6 +382,8 @@ const fieldMatchers: Record<VoiceFieldKey, RegExp[]> = {
   shop: [/商店|地點|位置|shop|store/i],
   site: [/網站|站台|服務|site|service/i],
   account: [/帳號|帳戶|account/i],
+  password: [/密碼|password/i],
+  currency: [/幣別|貨幣|currency/i],
   url: [/網址|連結|圖片|影片|音樂|檔案|url|link|photo|image|video|file/i],
   note: [/備註|說明|內容|note|memo|description/i],
 };
@@ -362,6 +394,28 @@ function setControlValue(control: HTMLInputElement | HTMLTextAreaElement, value:
   setter?.call(control, value);
   control.dispatchEvent(new Event("input", { bubbles: true }));
   control.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function getActiveTextControl() {
+  const active = document.activeElement;
+  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+    if (active.type !== "file" && active.type !== "hidden" && !active.disabled && !active.readOnly) return active;
+  }
+  return null;
+}
+
+function fillFocusedControl(value: string) {
+  const active = getActiveTextControl();
+  if (!active) return false;
+  setControlValue(active, value);
+  return true;
+}
+
+function clearFocusedControl() {
+  const active = getActiveTextControl();
+  if (!active) return false;
+  setControlValue(active, "");
+  return true;
 }
 
 function getControlText(control: HTMLInputElement | HTMLTextAreaElement) {
@@ -404,6 +458,31 @@ function scrollPage(target: PendingCommand["scrollTarget"]) {
   if (target === "down") window.scrollBy({ top: Math.round(window.innerHeight * 0.75), behavior: "smooth" });
 }
 
+function extractOrdinal(text: string) {
+  const normalized = normalizeVoiceText(text);
+  const digit = normalized.match(/(?:第)?(\d{1,2})(?:筆|個|首|項|行|張|部)?/);
+  if (digit) return Number(digit[1]);
+  const ordinals: Array<[RegExp, number]> = [
+    [/第一|第1|一筆|第一筆|第一個|首筆/, 1],
+    [/第二|第2|二筆|第二筆|第二個/, 2],
+    [/第三|第3|三筆|第三筆|第三個/, 3],
+    [/第四|第4|四筆|第四筆|第四個/, 4],
+    [/第五|第5|五筆|第五筆|第五個/, 5],
+    [/第六|第6|六筆|第六筆|第六個/, 6],
+    [/第七|第7|七筆|第七筆|第七個/, 7],
+    [/第八|第8|八筆|第八筆|第八個/, 8],
+    [/第九|第9|九筆|第九筆|第九個/, 9],
+    [/第十|第10|十筆|第十筆|第十個/, 10],
+  ];
+  return ordinals.find(([pattern]) => pattern.test(normalized))?.[1] || null;
+}
+
+function extractFocusedInputValue(text: string) {
+  return extractValueAfter(text, [
+    /(?:在目前欄位|目前欄位|這個欄位|欄位|輸入|填入|填上|聽寫|dictate|type|input)\s*(.+)$/i,
+  ]);
+}
+
 function getActionsForModule(moduleId: string) {
   return [...(moduleActions[moduleId] || []), ...commonActions];
 }
@@ -423,7 +502,7 @@ export function GlobalVoiceCommandPanel({
   onNavigate: (moduleId: string) => void;
 }) {
   const [transcript, setTranscript] = useState("");
-  const [feedback, setFeedback] = useState("可說：打開鋒兄食品、新增食品 牛奶 數量 2 到期 7 天後、搜尋 Netflix、圖片匯出 ZIP、全選、往下捲。");
+  const [feedback, setFeedback] = useState("可說：打開鋒兄食品、新增食品 牛奶 數量 2 到期 7 天後、編輯第一筆、輸入備註內容、搜尋 Netflix、往下捲。");
   const [isListening, setIsListening] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [open, setOpen] = useState(false);
@@ -452,6 +531,20 @@ export function GlobalVoiceCommandPanel({
   const parseCommand = (text: string): PendingCommand | null => {
     const normalized = normalizeVoiceText(text);
     if (!normalized) return null;
+
+    if (/\u6e05\u7a7a\u6b04\u4f4d|\u6e05\u9664\u6b04\u4f4d|\u6e05\u7a7a\u76ee\u524d|\u6e05\u9664\u76ee\u524d|clearfield|clearinput/.test(normalized)) {
+      return { action: "clearFocused", summary: "清空目前聚焦的輸入欄位。", risk: "review" };
+    }
+
+    const focusedValue = extractFocusedInputValue(text);
+    if (focusedValue && !/\u641c\u5c0b|\u67e5\u8a62|\u627e|search|find/.test(normalized)) {
+      return {
+        action: "focusedFill",
+        focusedValue,
+        summary: `把「${focusedValue}」輸入到目前聚焦的欄位。`,
+        risk: "review",
+      };
+    }
 
     if (/\u6700\u4e0a\u9762|\u56de\u9802\u90e8|\u9802\u90e8|top/.test(normalized)) {
       return { action: "scroll", scrollTarget: "top", summary: "捲動到頁面最上方。", risk: "safe" };
@@ -490,6 +583,7 @@ export function GlobalVoiceCommandPanel({
     const actionText = target ? removeModuleAlias(text, target.id) : text;
     const normalizedActionText = normalizeVoiceText(actionText);
     const fields = buildVoiceFields(actionText);
+    const ordinal = extractOrdinal(actionText);
 
     const clickText = extractValueAfter(actionText, [
       /(?:\u9ede\u64ca|\u6309\u4e0b|\u57f7\u884c|\u6253\u958b|\u958b\u555f|click|press|open)\s*(.+)$/i,
@@ -518,6 +612,17 @@ export function GlobalVoiceCommandPanel({
     }
 
     const pageAction = getActionsForModule(actionModuleId).find((candidate) => candidate.aliases.test(normalizedActionText));
+    if (pageAction && ordinal) {
+      return {
+        action: "clickOrdinal",
+        moduleId: target?.id,
+        labels: pageAction.labels,
+        ordinal,
+        summary: `${target ? `切到 ${moduleName}，再` : ""}執行第 ${ordinal} 個「${pageAction.labels[0] || pageAction.key}」。`,
+        risk: pageAction.risk,
+      };
+    }
+
     if (pageAction?.key === "add" && fields.length > 0) {
       return {
         action: "pageFill",
@@ -556,7 +661,7 @@ export function GlobalVoiceCommandPanel({
     const command = parseCommand(text);
     if (!command) {
       setPendingCommand(null);
-      setFeedback("還無法判斷指令。可試：打開鋒兄食品、新增食品 牛奶 數量 2 到期 7 天後、搜尋 Netflix、匯出 CSV、往下捲。");
+      setFeedback("還無法判斷指令。可試：打開鋒兄食品、新增食品 牛奶 數量 2 到期 7 天後、編輯第一筆、輸入備註內容、搜尋 Netflix。");
       return;
     }
     setPendingCommand(command);
@@ -592,6 +697,20 @@ export function GlobalVoiceCommandPanel({
   const confirmCommand = () => {
     if (!pendingCommand) return;
 
+    if (pendingCommand.action === "focusedFill" && pendingCommand.focusedValue) {
+      const ok = fillFocusedControl(pendingCommand.focusedValue);
+      setFeedback(ok ? "已輸入到目前欄位。" : "目前沒有可輸入的聚焦欄位，請先點一下欄位。");
+      setPendingCommand(null);
+      return;
+    }
+
+    if (pendingCommand.action === "clearFocused") {
+      const ok = clearFocusedControl();
+      setFeedback(ok ? "已清空目前欄位。" : "目前沒有可清空的聚焦欄位，請先點一下欄位。");
+      setPendingCommand(null);
+      return;
+    }
+
     if (pendingCommand.action === "scroll") {
       scrollPage(pendingCommand.scrollTarget);
       setFeedback("已執行捲動。");
@@ -624,6 +743,20 @@ export function GlobalVoiceCommandPanel({
           const filled = fillVisibleFormFields(fields);
           setFeedback(filled > 0 ? `已預填 ${filled} 個欄位，請檢查後再儲存。` : "已嘗試開啟表單，但沒有找到可預填欄位。");
         }, 220);
+      }, pendingCommand.moduleId ? 350 : 0);
+      setPendingCommand(null);
+      return;
+    }
+
+    if (pendingCommand.action === "clickOrdinal" && pendingCommand.labels && pendingCommand.ordinal) {
+      if (pendingCommand.moduleId) {
+        onNavigate(pendingCommand.moduleId);
+      }
+      const labels = pendingCommand.labels;
+      const ordinal = pendingCommand.ordinal;
+      window.setTimeout(() => {
+        const ok = clickNthVisibleControl(labels, ordinal);
+        setFeedback(ok ? `已執行第 ${ordinal} 個匹配動作。` : `找不到第 ${ordinal} 個匹配按鈕。`);
       }, pendingCommand.moduleId ? 350 : 0);
       setPendingCommand(null);
       return;
@@ -664,7 +797,7 @@ export function GlobalVoiceCommandPanel({
     }
   };
 
-  const quickActions = ["\u65b0\u589e", "\u641c\u5c0b", "\u5132\u5b58", "\u53d6\u6d88", "\u532f\u51fa CSV", "\u532f\u5165 CSV", "\u91cd\u65b0\u6574\u7406", "\u5168\u9078", "\u5f80\u4e0b\u6372", "\u522a\u9664\u9078\u53d6"];
+  const quickActions = ["\u65b0\u589e", "\u7de8\u8f2f\u7b2c\u4e00\u7b46", "\u8f38\u5165 ", "\u6e05\u7a7a\u6b04\u4f4d", "\u641c\u5c0b", "\u5132\u5b58", "\u53d6\u6d88", "\u532f\u51fa CSV", "\u532f\u5165 CSV", "\u91cd\u65b0\u6574\u7406", "\u5168\u9078", "\u5f80\u4e0b\u6372", "\u522a\u9664\u9078\u53d6"];
 
   return (
     <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 z-50 flex max-w-[calc(100vw-1.5rem)] flex-col items-start gap-2 md:bottom-6 md:left-auto md:right-6 md:max-w-[560px]">
@@ -697,7 +830,7 @@ export function GlobalVoiceCommandPanel({
               onKeyDown={(event) => {
                 if (event.key === "Enter") handleVoiceText(transcript);
               }}
-              placeholder="說或輸入：新增食品 牛奶 數量 2 到期 7 天後 / 搜尋 Netflix / 圖片匯出 ZIP"
+              placeholder="說或輸入：新增食品 牛奶 數量 2 到期 7 天後 / 編輯第一筆 / 輸入備註內容"
             />
             <Button type="button" variant="outline" onClick={startVoiceInput} disabled={isListening} className="shrink-0 rounded-xl">
               <Mic className={`mr-1 h-4 w-4 ${isListening ? "animate-pulse text-red-500" : ""}`} />
@@ -790,7 +923,7 @@ export function GlobalVoiceCommandPanel({
         type="button"
         onClick={() => {
           setOpen((prev) => !prev);
-          if (!open) setFeedback("可說：打開鋒兄食品、新增食品 牛奶 數量 2 到期 7 天後、搜尋 Netflix、圖片匯出 ZIP、全選、往下捲。");
+          if (!open) setFeedback("可說：打開鋒兄食品、新增食品 牛奶 數量 2 到期 7 天後、編輯第一筆、輸入備註內容、搜尋 Netflix。");
         }}
         className="rounded-full bg-emerald-600 px-4 py-6 text-white shadow-[0_18px_48px_rgba(5,150,105,0.28)] hover:bg-emerald-700"
       >
