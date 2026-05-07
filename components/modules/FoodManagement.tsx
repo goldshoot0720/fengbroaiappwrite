@@ -80,6 +80,14 @@ function getExpiryBucket(daysRemaining: number): FilterMode {
   return "normal";
 }
 
+function getFoodFormExpiryInfo(form: FoodFormData, id = "") {
+  return getFoodExpiryInfo({
+    ...form,
+    $id: id,
+    photo: form.photo || "",
+  });
+}
+
 export default function FoodManagement() {
   const { foods, loading, error, createFood, updateFood, deleteFood, updateAmount, loadFoods } = useFoods();
   const [form, setForm] = useState<FoodFormData>(INITIAL_FORM);
@@ -1882,6 +1890,7 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
               </div>
             </TableHead>
             <TableHead className="font-semibold">有效期限</TableHead>
+            <TableHead className="font-semibold">剩餘日期</TableHead>
             <TableHead className="font-semibold">數量</TableHead>
             <TableHead className="font-semibold">圖片</TableHead>
             {!isEditMode && <TableHead className="font-semibold">操作</TableHead>}
@@ -2000,6 +2009,11 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
                 </div>
               </TableCell>
               <TableCell>
+                <StatusBadge status={getFoodFormExpiryInfo(inlineAddForm).status}>
+                  {formatDaysRemaining(getFoodFormExpiryInfo(inlineAddForm).daysRemaining)}
+                </StatusBadge>
+              </TableCell>
+              <TableCell>
                 <Input
                   type="number"
                   min="0"
@@ -2040,6 +2054,7 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
                   )}
                 </div>
               </TableCell>
+              {!isEditMode && <TableCell />}
             </TableRow>
           )}
           {foods.map((food) => (
@@ -2173,6 +2188,11 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
           </div>
         </TableCell>
         <TableCell>
+          <StatusBadge status={getFoodFormExpiryInfo(inlineEditForm, food.$id).status}>
+            {formatDaysRemaining(getFoodFormExpiryInfo(inlineEditForm, food.$id).daysRemaining)}
+          </StatusBadge>
+        </TableCell>
+        <TableCell>
           <Input
             type="number"
             min="0"
@@ -2207,6 +2227,7 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
             />
           </div>
         </TableCell>
+        {!isEditMode && <TableCell />}
       </TableRow>
     );
   }
@@ -2240,10 +2261,10 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
       <TableCell>
         <div className="flex flex-col gap-1">
           <span>{formattedDate}</span>
-          {status !== "normal" && (
-            <StatusBadge status={status}>{formatDaysRemaining(daysRemaining)}</StatusBadge>
-          )}
         </div>
+      </TableCell>
+      <TableCell>
+        <StatusBadge status={status}>{formatDaysRemaining(daysRemaining)}</StatusBadge>
       </TableCell>
       <TableCell>
         <AmountControl food={food} onAmountChange={onAmountChange} />
@@ -2674,14 +2695,15 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
                 {formattedDate}
               </span>
             </div>
+            <div className="flex items-center gap-1.5 text-xs min-[390px]:text-sm text-gray-500 dark:text-gray-400">
+              <span className="font-medium">剩餘日期:</span>
+              <StatusBadge status={status}>{formatDaysRemaining(daysRemaining)}</StatusBadge>
+            </div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs min-[390px]:text-sm text-gray-500 dark:text-gray-400">
               {food.shop ? <span>{food.shop}</span> : null}
               {food.shop && food.price ? <span className="text-gray-300 dark:text-gray-600">|</span> : null}
               {food.price ? <span className="font-semibold text-gray-900 dark:text-gray-100">{formatFoodPrice(food.price)}</span> : null}
             </div>
-            {status !== "normal" && (
-              <StatusBadge status={status}>{formatDaysRemaining(daysRemaining)}</StatusBadge>
-            )}
           </div>
         </div>
       </div>
