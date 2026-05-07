@@ -14,6 +14,7 @@ export interface ImageData {
   category: string;
   hash: string;
   cover: boolean;
+  size?: number | null;
   $createdAt: string;
   $updatedAt: string;
 }

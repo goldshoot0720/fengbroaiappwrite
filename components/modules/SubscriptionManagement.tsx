@@ -422,9 +422,19 @@ export default function SubscriptionManagement() {
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommand | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const bulkDeleteInputRef = useRef<HTMLInputElement>(null);
 
   const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
+
+  useEffect(() => {
+    if (!bulkDeleteOpen || isDeleting) return;
+    const focusTimer = window.setTimeout(() => {
+      bulkDeleteInputRef.current?.focus();
+      bulkDeleteInputRef.current?.select();
+    }, 80);
+    return () => window.clearTimeout(focusTimer);
+  }, [bulkDeleteOpen, isDeleting]);
 
   const monthOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1959,6 +1969,8 @@ export default function SubscriptionManagement() {
                   {SUBSCRIPTION_DELETE_CONFIRMATION}
                 </code>
                 <Input
+                  ref={bulkDeleteInputRef}
+                  autoFocus
                   value={bulkDeleteInput}
                   onChange={(event) => setBulkDeleteInput(event.target.value)}
                   placeholder={`輸入 ${SUBSCRIPTION_DELETE_CONFIRMATION}`}

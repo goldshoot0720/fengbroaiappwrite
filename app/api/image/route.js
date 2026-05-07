@@ -11,6 +11,7 @@ function createAppwrite(searchParams) {
   const projectId = searchParams?.get('_project') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
   const databaseId = searchParams?.get('_database') || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
   const apiKey = searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
+  const bucketId = searchParams?.get('_bucket') || process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
 
   if (!endpoint || !projectId || !databaseId || !apiKey) {
     throw new Error("Appwrite configuration is missing");
@@ -22,15 +23,44 @@ function createAppwrite(searchParams) {
     .setKey(apiKey);
 
   const databases = new sdk.Databases(client);
+  const storage = new sdk.Storage(client);
 
-  return { databases, databaseId };
+  return { databases, storage, databaseId, bucketId };
+}
+
+function extractFileIdFromUrl(fileUrl) {
+  if (!fileUrl) return null;
+  const match = fileUrl.match(/\/files\/([^\/]+)\/(?:view|download|preview)/);
+  return match ? match[1] : null;
+}
+
+async function enrichImagesWithSize(documents, storage, bucketId) {
+  if (!bucketId) {
+    return documents.map((doc) => ({ ...doc, size: doc.size ?? null }));
+  }
+
+  return Promise.all(
+    documents.map(async (doc) => {
+      if (typeof doc.size === 'number') return doc;
+      const fileId = extractFileIdFromUrl(doc.file);
+      if (!fileId) return { ...doc, size: null };
+
+      try {
+        const file = await storage.getFile(bucketId, fileId);
+        return { ...doc, size: file.sizeOriginal ?? file.size ?? null };
+      } catch (error) {
+        console.warn(`Failed to read image file size ${fileId}:`, error.message);
+        return { ...doc, size: null };
+      }
+    })
+  );
 }
 
 // GET /api/image - List all images
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const { databases, databaseId } = createAppwrite(searchParams);
+    const { databases, storage, databaseId, bucketId } = createAppwrite(searchParams);
     
     // Get collection ID by name
     const allCollections = await databases.listCollections(databaseId);
@@ -45,7 +75,7 @@ export async function GET(request) {
       sdk.Query.orderDesc('$createdAt'),
     ]);
     
-    return NextResponse.json(documents);
+    return NextResponse.json(await enrichImagesWithSize(documents, storage, bucketId));
   } catch (err) {
     console.error("GET /api/image error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

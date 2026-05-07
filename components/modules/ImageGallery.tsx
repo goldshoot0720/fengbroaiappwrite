@@ -20,6 +20,8 @@ import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import JSZip from "jszip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
+type ImageSortMode = "created-desc" | "size-desc";
+
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
   if (typeof window === 'undefined') return url;
@@ -45,6 +47,16 @@ function addAppwriteConfigToUrl(url: string): string {
 
   const paramString = params.toString();
   return paramString ? `${url}${separator}${paramString}` : url;
+}
+
+function formatFileSize(size?: number | null): string {
+  if (typeof size !== "number" || !Number.isFinite(size) || size < 0) return "--";
+  if (size === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const unitIndex = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+  const value = size / Math.pow(1024, unitIndex);
+  const digits = unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} ${units[unitIndex]}`;
 }
 
 export default function ImageGallery() {
@@ -82,6 +94,7 @@ export default function ImageGallery() {
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "duplicates" | "uncategorized" | "annotated">("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [sortMode, setSortMode] = useState<ImageSortMode>("created-desc");
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
@@ -177,14 +190,28 @@ export default function ImageGallery() {
       return true;
     });
 
-    if (!searchQuery.trim()) return modeFiltered;
-    const query = searchQuery.toLowerCase();
-    return modeFiltered.filter(image =>
-      image.name?.toLowerCase().includes(query) ||
-      image.note?.toLowerCase().includes(query) ||
-      image.category?.toLowerCase().includes(query)
-    );
-  }, [images, searchQuery, workbenchMode, imageHashCounts]);
+    const searched = searchQuery.trim()
+      ? modeFiltered.filter(image => {
+        const query = searchQuery.toLowerCase();
+        return (
+          image.name?.toLowerCase().includes(query) ||
+          image.note?.toLowerCase().includes(query) ||
+          image.category?.toLowerCase().includes(query)
+        );
+      })
+      : modeFiltered;
+
+    if (sortMode === "size-desc") {
+      return [...searched].sort((a, b) => {
+        const left = typeof a.size === "number" ? a.size : -1;
+        const right = typeof b.size === "number" ? b.size : -1;
+        if (right !== left) return right - left;
+        return new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime();
+      });
+    }
+
+    return searched;
+  }, [images, searchQuery, workbenchMode, imageHashCounts, sortMode]);
 
   const existingCategories = useMemo(
     () => Array.from(new Set(images.map((img) => img.category).filter(Boolean))),
@@ -552,16 +579,21 @@ export default function ImageGallery() {
     setTimeout(() => setInlineCreatePreviewLoading(false), 300);
   };
 
-  const uploadInlineCreateFileToAppwrite = async (file: File): Promise<{ url: string; fileId: string }> => {
+  const uploadInlineCreateFileToAppwrite = async (
+    file: File,
+    mapProgress?: (progress: number) => number
+  ): Promise<{ url: string; fileId: string }> => {
     setInlineCreateUploadStatus('uploading');
-    setInlineCreateUploadProgress(0);
+    if (!mapProgress) setInlineCreateUploadProgress(0);
 
     try {
       const result = await uploadToAppwriteStorage(file, (progress) => {
-        setInlineCreateUploadProgress(progress);
+        setInlineCreateUploadProgress(mapProgress ? mapProgress(progress) : progress);
       });
-      setInlineCreateUploadProgress(100);
-      setInlineCreateUploadStatus('success');
+      if (!mapProgress) {
+        setInlineCreateUploadProgress(100);
+        setInlineCreateUploadStatus('success');
+      }
       return result;
     } catch (error) {
       setInlineCreateUploadStatus('error');
@@ -588,10 +620,16 @@ export default function ImageGallery() {
         let successCount = 0;
         let skippedCount = inlineCreateFiles.length - uploadableFiles.length;
         let failedCount = 0;
+        const totalUploadable = Math.max(uploadableFiles.length, 1);
+        setInlineCreateUploadStatus('uploading');
+        setInlineCreateUploadProgress(0);
 
         for (let i = 0; i < uploadableFiles.length; i++) {
           const item = uploadableFiles[i];
-          const { url, fileId } = await uploadInlineCreateFileToAppwrite(item.file);
+          const { url, fileId } = await uploadInlineCreateFileToAppwrite(item.file, (fileProgress) => {
+            return Math.min(99, Math.round(((i + fileProgress / 100) / totalUploadable) * 100));
+          });
+          setInlineCreateUploadProgress(Math.round(((i + 1) / totalUploadable) * 100));
           const payload = {
             ...inlineCreateForm,
             name: item.defaultName,
@@ -609,6 +647,8 @@ export default function ImageGallery() {
           if (response.ok) successCount++;
           else failedCount++;
         }
+        setInlineCreateUploadProgress(100);
+        setInlineCreateUploadStatus(failedCount > 0 && successCount === 0 ? 'error' : 'success');
 
         if (successCount === 0 && skippedCount > 0 && failedCount === 0) {
           throw new Error('選取的圖片都與既有圖片重複，沒有新增任何資料。');
@@ -1323,6 +1363,15 @@ export default function ImageGallery() {
             <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
               {selectionMode && filteredImages.length > 0 && filteredImages.every((image) => selectedIds.has(image.$id)) ? "取消全選" : "全選"}
             </Button>
+            <Select value={sortMode} onValueChange={(value) => setSortMode(value as ImageSortMode)}>
+              <SelectTrigger className="h-10 w-[170px] rounded-xl bg-white/80 text-sm dark:bg-slate-900/70">
+                <SelectValue placeholder="排序" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created-desc">最新建立</SelectItem>
+                <SelectItem value="size-desc">檔案大小：大到小</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="hidden xl:flex overflow-hidden rounded-xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
               <button
                 type="button"
@@ -1769,6 +1818,7 @@ function ImageList({ images, loading, onSelectImage, onEdit, onRefresh, selectio
               <th className="px-4 py-3 font-medium">名稱</th>
               <th className="px-4 py-3 font-medium">分類</th>
               <th className="px-4 py-3 font-medium">備註</th>
+              <th className="px-4 py-3 font-medium">檔案大小</th>
               <th className="px-4 py-3 font-medium">建立日期</th>
               <th className="px-4 py-3 font-medium text-right">操作</th>
             </tr>
@@ -2070,6 +2120,8 @@ function ImageCard({ image, onSelect, onEdit, onRefresh, isEditing, inlineEditFo
         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
           <Calendar className="w-3 h-3" />
           <span>{formatLocalDate(image.$createdAt)}</span>
+          <span>•</span>
+          <span>{formatFileSize(image.size)}</span>
         </div>
 
         {/* 操作按鈕 */}
@@ -2164,6 +2216,7 @@ function ImageListRow({ image, onSelect, onEdit, onRefresh, selectionMode, isSel
           {image.note || <span className="text-xs text-slate-400">無備註</span>}
         </div>
       </td>
+      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{formatFileSize(image.size)}</td>
       <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{formatLocalDate(image.$createdAt)}</td>
       <td className="px-4 py-3">
         <div className="flex justify-end gap-2">
@@ -2221,6 +2274,7 @@ function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () =
                 {formatLocalDate(image.$createdAt)}
               </span>
               {image.category && <span>分類: {image.category}</span>}
+              <span>檔案大小: {formatFileSize(image.size)}</span>
               {image.ref && <span>參考: {image.ref}</span>}
               <span className="ml-auto text-xs opacity-75">點擊空白處關閉</span>
             </div>
