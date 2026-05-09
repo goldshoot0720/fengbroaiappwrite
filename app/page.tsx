@@ -51,7 +51,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "music", label: "鋒兄音樂", icon: <Music size={18} /> },
   { id: "documents", label: "鋒兄文件", icon: <FolderOpen size={18} /> },
   { id: "podcast", label: "鋒兄播客", icon: <Podcast size={18} /> },
-  { id: "bank-stats", label: "鋒兄銀行", subtitle: "(+電子票證)", icon: <Building2 size={18} /> },
+  { id: "bank-stats", label: "鋒兄銀行\n(+電子票證)", icon: <Building2 size={18} /> },
   { id: "routine", label: "鋒兄例行", icon: <CalendarClock size={18} /> },
   {
     id: "tools",

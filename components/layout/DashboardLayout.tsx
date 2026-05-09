@@ -287,7 +287,7 @@ function TabletSidebar({
               <button
                 key={item.id}
                 type="button"
-                title={item.label}
+                title={item.label.replace(/\n/g, " ")}
                 onClick={() => onMenuClick(item)}
                 className={cn(
                   "flex w-full flex-col items-center gap-2 rounded-[22px] px-2 py-3 text-center transition-all duration-200",
@@ -306,7 +306,7 @@ function TabletSidebar({
                 >
                   {item.icon}
                 </span>
-                <span className="line-clamp-2 text-[11px] font-medium leading-4">
+                <span className="line-clamp-2 whitespace-pre-line text-[11px] font-medium leading-4">
                   {item.label}
                 </span>
                 {item.subtitle ? (
@@ -591,7 +591,7 @@ function MenuItemComponent({
             {item.icon}
           </span>
           <span className="min-w-0">
-            <span className="block text-sm font-medium tracking-[0.01em]">{item.label}</span>
+            <span className="block whitespace-pre-line text-sm font-medium tracking-[0.01em]">{item.label}</span>
             {item.subtitle ? (
               <span
                 className={cn(
