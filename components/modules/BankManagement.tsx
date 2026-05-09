@@ -1224,7 +1224,7 @@ export default function BankManagement() {
             </FormGrid>
             <FormActions>
               <Button type="submit" className="h-12 px-6 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl font-medium shadow-lg shadow-blue-500/25">
-                {editingId ? "更新資料" : "新增資料"}
+                {editingId ? "更新資料" : "新增銀行(或電子票證)"}
               </Button>
               <Button type="button" variant="outline" onClick={resetForm} className="h-12 px-6 rounded-xl">取消</Button>
               {editingId && (
