@@ -912,7 +912,7 @@ export default function FoodManagement() {
           className="rounded-xl flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-10 px-4 w-full sm:w-auto"
         >
           {isFormOpen ? <ChevronUp size={18} /> : <Plus size={18} />}
-          {isFormOpen ? "收起表單" : "新增食品"}
+          {isFormOpen ? "收起表單" : "新增食品(或商品)"}
         </Button>
       </div>
 
