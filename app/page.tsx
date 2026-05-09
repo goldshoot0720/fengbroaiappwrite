@@ -17,6 +17,7 @@ import {
   Podcast,
   Landmark,
   Settings,
+  Smartphone,
   Star,
   Wrench,
 } from "lucide-react";
@@ -58,6 +59,9 @@ const MENU_ITEMS: MenuItem[] = [
     subtitle: "（＋比價）",
     icon: <Wrench size={18} />,
     children: [
+      { id: "price-compare", label: "鋒兄比價", icon: <Wrench size={18} /> },
+      { id: "landtop", label: "手機比價", icon: <Smartphone size={18} /> },
+      { id: "fengbro-tube", label: "鋒兄Tube", icon: <Play size={18} /> },
       { id: "fengbro-finance", label: "鋒兄金融", subtitle: "CNBC 報價", icon: <Landmark size={18} /> },
     ],
   },
@@ -113,6 +117,12 @@ export default function DashboardPage() {
         return <RoutineManagement />;
       case "tools":
         return <ToolsManagement />;
+      case "price-compare":
+        return <ToolsManagement initialTab="price-compare" />;
+      case "landtop":
+        return <ToolsManagement initialTab="landtop" />;
+      case "fengbro-tube":
+        return <ToolsManagement initialTab="fengbro-tube" />;
       case "fengbro-finance":
         return <ToolsManagement initialTab="fengbro-finance" />;
       case "settings":
