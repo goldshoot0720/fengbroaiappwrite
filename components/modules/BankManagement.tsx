@@ -643,7 +643,7 @@ export default function BankManagement() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         workspaceCountText={`共 ${taiwanBankAccounts.length} 個銀行帳戶，${electronicTickets.length} 個電子票證`}
-        workspaceDescription="整理銀行帳戶、餘額、備註與交易入口，優先處理資料缺漏、零餘額與常用帳戶配置。"
+        workspaceDescription="台灣的銀行才是銀行喔！銀行以外的先歸類為電子票證喔！銀行帳戶總數是帳戶總數，電子票證總數是電子票證總數。"
         activeMode={workbenchMode}
         onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
         modeItems={[
@@ -654,8 +654,8 @@ export default function BankManagement() {
         ]}
         summaries={[
           { label: "總資產", value: formatCurrency(stats.totalDeposit), tone: "blue" },
-          { label: "銀行帳戶總數", value: taiwanBankAccounts.length, detail: "台灣銀行才算銀行", tone: "green" },
-          { label: "電子票證總數", value: electronicTickets.length, detail: "非銀行先歸類在這裡", tone: electronicTickets.length > 0 ? "amber" : "neutral" },
+          { label: "銀行帳戶總數", value: taiwanBankAccounts.length, detail: "帳戶總數", tone: "green" },
+          { label: "電子票證總數", value: electronicTickets.length, detail: "電子票證總數", tone: electronicTickets.length > 0 ? "amber" : "neutral" },
           { label: "待補欄位", value: banksMissingInfo.length, detail: "缺網站或帳號", tone: banksMissingInfo.length > 0 ? "amber" : "neutral" },
           { label: "零餘額", value: zeroBalanceBanks.length, detail: "可考慮封存或隱藏", tone: zeroBalanceBanks.length > 0 ? "red" : "neutral" },
         ]}
