@@ -751,7 +751,7 @@ export default function BankManagement() {
               className="rounded-xl flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-10 px-4"
             >
               {isFormOpen ? <ChevronUp size={18} /> : <Plus size={18} />}
-              {isFormOpen ? "收起表單" : "新增銀行資料"}
+              {isFormOpen ? "收起表單" : "新增銀行(或電子票證)"}
             </Button>
           </>
         }
@@ -983,7 +983,7 @@ export default function BankManagement() {
       )}
 
       {isFormOpen && (
-        <FormCard title={editingId ? "編輯銀行資料" : "新增銀行資料"} accentColor="from-blue-500 to-blue-600">
+        <FormCard title={editingId ? "編輯銀行資料" : "新增銀行(或電子票證)"} accentColor="from-blue-500 to-blue-600">
           <form onSubmit={handleSubmit} className="space-y-4">
             <FormGrid>
               <div className="space-y-1">
@@ -1239,7 +1239,7 @@ export default function BankManagement() {
 
       <DataCard>
         {banks.length === 0 ? (
-          <EmptyState icon={<Building2 className="w-12 h-12" />} title="暫無銀行資料" description="點擊上方按鈕新增您的第一筆銀行資料" />
+          <EmptyState icon={<Building2 className="w-12 h-12" />} title="暫無銀行資料" description="點擊上方按鈕新增您的第一筆銀行(或電子票證)" />
         ) : filteredBanks.length === 0 ? (
           <EmptyState icon={<Search className="w-12 h-12" />} title="無搜尋結果" description={`找不到「${searchQuery}」相關的銀行`} />
         ) : (

@@ -524,22 +524,6 @@ export default function FoodManagement() {
     }));
   };
 
-  const handleQuickCleanup = async (food: Food, action: CleanupAction) => {
-    const labels: Record<CleanupAction, string> = {
-      eat: "標記吃完",
-      discard: "標記丟棄",
-      delete: "永久刪除",
-    };
-
-    if (!confirm(`確定要${labels[action]}「${food.name}」嗎？`)) return;
-
-    try {
-      await deleteFood(food.$id);
-    } catch {
-      alert(`${labels[action]}失敗，請稍後再試`);
-    }
-  };
-
   const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
     try {
@@ -1340,12 +1324,6 @@ export default function FoodManagement() {
             </Button>
             {selectedIds.size > 0 && (
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => { setCleanupAction("eat"); setBulkDeleteOpen(true); }} className="h-12 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white">
-                  標記吃完 ({selectedIds.size})
-                </Button>
-                <Button onClick={() => { setCleanupAction("discard"); setBulkDeleteOpen(true); }} className="h-12 px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white">
-                  標記丟棄 ({selectedIds.size})
-                </Button>
                 <Button onClick={() => { setCleanupAction("delete"); setBulkDeleteOpen(true); }} className="h-12 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white">
                   真刪除 ({selectedIds.size})
                 </Button>
@@ -1365,7 +1343,6 @@ export default function FoodManagement() {
             <DesktopTable
               foods={filteredFoods}
               onDelete={handleDelete}
-              onQuickCleanup={handleQuickCleanup}
               onAmountChange={updateAmount}
               inlineEditingId={inlineEditingId}
               inlineEditForm={inlineEditForm}
@@ -1396,7 +1373,6 @@ export default function FoodManagement() {
             <MobileList
               foods={filteredFoods}
               onDelete={handleDelete}
-              onQuickCleanup={handleQuickCleanup}
               onAmountChange={updateAmount}
               inlineEditingId={inlineEditingId}
               inlineEditForm={inlineEditForm}
@@ -1519,7 +1495,7 @@ function FoodForm({
   onCancel
 }: FoodFormProps) {
   return (
-    <FormCard title={editingId ? "編輯食品" : "新增食品"} accentColor="from-blue-500 to-blue-600">
+    <FormCard title={editingId ? "編輯食品" : "新增食品(或商品)"} accentColor="from-blue-500 to-blue-600">
       <form onSubmit={onSubmit} className="space-y-4">
         <FormGrid>
           <div className="space-y-1">
@@ -1762,7 +1738,7 @@ function FoodForm({
         </FormGrid>
         <FormActions>
           <Button type="submit" disabled={photoUploading} className="h-12 px-6 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl font-medium shadow-lg shadow-blue-500/25">
-            {photoUploading ? "上傳中..." : editingId ? "更新食品" : "新增食品"}
+            {photoUploading ? "上傳中..." : editingId ? "更新食品" : "新增食品(或商品)"}
           </Button>
           {editingId && (
             <Button type="button" variant="outline" onClick={onCancel} className="h-12 px-6 rounded-xl" disabled={photoUploading}>
@@ -1784,7 +1760,6 @@ function FoodForm({
 interface TableProps {
   foods: Food[];
   onDelete: (id: string) => void;
-  onQuickCleanup: (food: Food, action: CleanupAction) => void;
   onAmountChange: (food: Food, delta: number) => void;
   inlineEditingId: string | null;
   inlineEditForm: FoodFormData;
@@ -1814,7 +1789,7 @@ interface TableProps {
   startInlineAdd: () => void;
 }
 
-function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
+function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="hidden lg:block">
@@ -2062,7 +2037,6 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
               key={food.$id}
               food={food}
               onDelete={onDelete}
-              onQuickCleanup={onQuickCleanup}
               onAmountChange={onAmountChange}
               isEditing={inlineEditingId === food.$id}
               inlineEditForm={inlineEditForm}
@@ -2087,7 +2061,6 @@ function DesktopTable({ foods, onDelete, onQuickCleanup, onAmountChange, inlineE
 interface FoodTableRowProps {
   food: Food;
   onDelete: (id: string) => void;
-  onQuickCleanup: (food: Food, action: CleanupAction) => void;
   onAmountChange: (food: Food, delta: number) => void;
   isEditing: boolean;
   inlineEditForm: FoodFormData;
@@ -2103,7 +2076,7 @@ interface FoodTableRowProps {
   toggleSelect: (id: string) => void;
 }
 
-function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
+function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
   const rowClass = isExpired ? "bg-red-50 dark:bg-red-900/20" : isExpiringSoon ? "bg-yellow-50 dark:bg-yellow-900/20" : "";
 
@@ -2276,8 +2249,6 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
         <TableCell>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg">編輯</Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => onQuickCleanup(food, "eat")} className="rounded-lg border-emerald-200 text-emerald-700 hover:bg-emerald-50">吃完</Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => onQuickCleanup(food, "discard")} className="rounded-lg border-orange-200 text-orange-700 hover:bg-orange-50">丟棄</Button>
             <Button type="button" size="sm" variant="outline" onClick={() => {
               onInlineEdit(food);
               setInlineEditForm({
@@ -2299,7 +2270,7 @@ function FoodTableRow({ food, onDelete, onQuickCleanup, onAmountChange, isEditin
 }
 
 // 手機版列表
-function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
+function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="lg:hidden">
@@ -2501,7 +2472,6 @@ function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEdi
             key={food.$id}
             food={food}
             onDelete={onDelete}
-            onQuickCleanup={onQuickCleanup}
             onAmountChange={onAmountChange}
             isEditing={inlineEditingId === food.$id}
             inlineEditForm={inlineEditForm}
@@ -2525,7 +2495,6 @@ function MobileList({ foods, onDelete, onQuickCleanup, onAmountChange, inlineEdi
 interface FoodMobileCardProps {
   food: Food;
   onDelete: (id: string) => void;
-  onQuickCleanup: (food: Food, action: CleanupAction) => void;
   onAmountChange: (food: Food, delta: number) => void;
   isEditing: boolean;
   inlineEditForm: FoodFormData;
@@ -2541,7 +2510,7 @@ interface FoodMobileCardProps {
   toggleSelect: (id: string) => void;
 }
 
-function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
+function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
 
   if (isEditing) {
@@ -2722,24 +2691,6 @@ function FoodMobileCard({ food, onDelete, onQuickCleanup, onAmountChange, isEdit
               className="h-10 min-[390px]:h-11 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 font-bold w-full"
             >
               編輯
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => onQuickCleanup(food, "eat")}
-              className="h-10 min-[390px]:h-11 rounded-xl font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50 w-full"
-            >
-              吃完
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => onQuickCleanup(food, "discard")}
-              className="h-10 min-[390px]:h-11 rounded-xl font-bold text-orange-700 border-orange-200 hover:bg-orange-50 w-full"
-            >
-              丟棄
             </Button>
             <Button
               type="button"
