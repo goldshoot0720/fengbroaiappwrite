@@ -64,6 +64,108 @@ const FIELD_HINTS = {
   account: "網銀帳號、登入 ID 或使用者名稱。"
 } as const;
 
+const TAIWAN_BANK_KEYWORDS = [
+  "台灣銀行",
+  "臺灣銀行",
+  "土地銀行",
+  "合作金庫",
+  "第一銀行",
+  "華南銀行",
+  "彰化銀行",
+  "上海商銀",
+  "台北富邦",
+  "富邦銀行",
+  "國泰世華",
+  "高雄銀行",
+  "兆豐",
+  "花旗",
+  "王道",
+  "台企銀",
+  "臺企銀",
+  "渣打",
+  "台中銀行",
+  "京城銀行",
+  "滙豐",
+  "匯豐",
+  "瑞興",
+  "華泰",
+  "新光銀行",
+  "陽信",
+  "板信",
+  "三信",
+  "聯邦",
+  "遠東商銀",
+  "元大銀行",
+  "永豐",
+  "玉山",
+  "凱基",
+  "星展",
+  "台新",
+  "安泰",
+  "中國信託",
+  "中信",
+  "將來銀行",
+  "樂天銀行",
+  "連線銀行",
+  "line bank",
+  "richart",
+  "bank"
+];
+
+const TAIWAN_BANK_DOMAINS = [
+  "bot.com.tw",
+  "landbank.com.tw",
+  "tcb-bank.com.tw",
+  "firstbank.com.tw",
+  "hncb.com.tw",
+  "bankchb.com",
+  "scsb.com.tw",
+  "taipeifubon.com.tw",
+  "cathaybk.com.tw",
+  "bok.com.tw",
+  "megabank.com.tw",
+  "citibank.com.tw",
+  "obank.com.tw",
+  "tbb.com.tw",
+  "sc.com",
+  "tcbbank.com.tw",
+  "kingsbank.com.tw",
+  "hsbc.com.tw",
+  "taipeistarbank.com.tw",
+  "entrustbank.com.tw",
+  "skbank.com.tw",
+  "sunnybank.com.tw",
+  "bop.com.tw",
+  "credit.com.tw",
+  "ubot.com.tw",
+  "feib.com.tw",
+  "yuanta.com",
+  "sinopac.com",
+  "esunbank.com.tw",
+  "kgibank.com",
+  "dbs.com.tw",
+  "taishinbank.com.tw",
+  "entiebank.com.tw",
+  "ctbcbank.com",
+  "nextbank.com.tw",
+  "rakuten-bank.com.tw",
+  "linebank.com.tw"
+];
+
+function isTaiwanBankAccount(bank: Bank): boolean {
+  const haystack = [bank.name, bank.site, bank.card, bank.account, bank.address]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (!haystack.trim()) return false;
+
+  return (
+    TAIWAN_BANK_KEYWORDS.some((keyword) => haystack.includes(keyword.toLowerCase())) ||
+    TAIWAN_BANK_DOMAINS.some((domain) => haystack.includes(domain))
+  );
+}
+
 export default function BankManagement() {
   const { banks, loading, error, stats, loadBanks, createBank, updateBank, deleteBank } = useBanks();
   const [form, setForm] = useState<BankFormData>(INITIAL_FORM);
@@ -143,6 +245,16 @@ export default function BankManagement() {
 
   const zeroBalanceBanks = useMemo(
     () => banks.filter((bank) => (bank.deposit || 0) === 0),
+    [banks]
+  );
+
+  const taiwanBankAccounts = useMemo(
+    () => banks.filter(isTaiwanBankAccount),
+    [banks]
+  );
+
+  const electronicTickets = useMemo(
+    () => banks.filter((bank) => !isTaiwanBankAccount(bank)),
     [banks]
   );
 
@@ -530,7 +642,7 @@ export default function BankManagement() {
         searchPlaceholder="搜尋名稱、網站、地址、卡號、帳號..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        workspaceCountText={`共 ${banks.length} 個銀行帳戶`}
+        workspaceCountText={`共 ${taiwanBankAccounts.length} 個銀行帳戶，${electronicTickets.length} 個電子票證`}
         workspaceDescription="整理銀行帳戶、餘額、備註與交易入口，優先處理資料缺漏、零餘額與常用帳戶配置。"
         activeMode={workbenchMode}
         onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
@@ -542,7 +654,8 @@ export default function BankManagement() {
         ]}
         summaries={[
           { label: "總資產", value: formatCurrency(stats.totalDeposit), tone: "blue" },
-          { label: "帳戶數", value: stats.total, tone: "green" },
+          { label: "銀行帳戶總數", value: taiwanBankAccounts.length, detail: "台灣銀行才算銀行", tone: "green" },
+          { label: "電子票證總數", value: electronicTickets.length, detail: "非銀行先歸類在這裡", tone: electronicTickets.length > 0 ? "amber" : "neutral" },
           { label: "待補欄位", value: banksMissingInfo.length, detail: "缺網站或帳號", tone: banksMissingInfo.length > 0 ? "amber" : "neutral" },
           { label: "零餘額", value: zeroBalanceBanks.length, detail: "可考慮封存或隱藏", tone: zeroBalanceBanks.length > 0 ? "red" : "neutral" },
         ]}
@@ -1212,6 +1325,15 @@ export default function BankManagement() {
                           ) : (
                             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{bank.name}</h3>
                           )}
+                          <span
+                            className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                              isTaiwanBankAccount(bank)
+                                ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
+                                : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                            }`}
+                          >
+                            {isTaiwanBankAccount(bank) ? "台灣銀行" : "電子票證"}
+                          </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
