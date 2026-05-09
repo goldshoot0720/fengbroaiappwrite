@@ -39,6 +39,7 @@ import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getExportFilename } from "@/lib/utils";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { SectionHeader } from "@/components/ui/section-header";
 
 const INITIAL_FORM: BankFormData = {
   name: "",
@@ -659,6 +660,19 @@ export default function BankManagement() {
       <FriendlyAiCrudShell
         title="鋒兄銀行"
         description="資產總覽、帳戶工作台與異常整理入口都集中在同一頁，先找得到，再快速更新餘額與資訊。"
+        intro={
+          <SectionHeader
+            title="鋒兄銀行 (+電子票證)"
+            subtitle={`所有資產 ${formatCurrency(allAssetTotal)}，銀行 ${formatCurrency(taiwanBankAssetTotal)}，電子票證 ${formatCurrency(electronicTicketAssetTotal)}`}
+            showAccountLabel={true}
+            action={
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span>即時同步</span>
+              </div>
+            }
+          />
+        }
         searchPlaceholder="搜尋名稱、網站、地址、卡號、帳號..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
