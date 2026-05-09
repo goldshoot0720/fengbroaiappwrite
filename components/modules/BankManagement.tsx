@@ -90,6 +90,9 @@ const TAIWAN_BANK_KEYWORDS = [
   "瑞興",
   "華泰",
   "新光銀行",
+  "中華郵政",
+  "郵局",
+  "郵政",
   "陽信",
   "板信",
   "三信",
@@ -134,6 +137,8 @@ const TAIWAN_BANK_DOMAINS = [
   "taipeistarbank.com.tw",
   "entrustbank.com.tw",
   "skbank.com.tw",
+  "post.gov.tw",
+  "post.com.tw",
   "sunnybank.com.tw",
   "bop.com.tw",
   "credit.com.tw",
@@ -167,7 +172,7 @@ function isTaiwanBankAccount(bank: Bank): boolean {
 }
 
 export default function BankManagement() {
-  const { banks, loading, error, stats, loadBanks, createBank, updateBank, deleteBank } = useBanks();
+  const { banks, loading, error, loadBanks, createBank, updateBank, deleteBank } = useBanks();
   const [form, setForm] = useState<BankFormData>(INITIAL_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -256,6 +261,21 @@ export default function BankManagement() {
   const electronicTickets = useMemo(
     () => banks.filter((bank) => !isTaiwanBankAccount(bank)),
     [banks]
+  );
+
+  const allAssetTotal = useMemo(
+    () => banks.reduce((sum, bank) => sum + (Number(bank.deposit) || 0), 0),
+    [banks]
+  );
+
+  const taiwanBankAssetTotal = useMemo(
+    () => taiwanBankAccounts.reduce((sum, bank) => sum + (Number(bank.deposit) || 0), 0),
+    [taiwanBankAccounts]
+  );
+
+  const electronicTicketAssetTotal = useMemo(
+    () => electronicTickets.reduce((sum, bank) => sum + (Number(bank.deposit) || 0), 0),
+    [electronicTickets]
   );
 
   const topBank = banks[0];
@@ -642,8 +662,8 @@ export default function BankManagement() {
         searchPlaceholder="搜尋名稱、網站、地址、卡號、帳號..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        workspaceCountText={`共 ${taiwanBankAccounts.length} 個銀行帳戶，${electronicTickets.length} 個電子票證`}
-        workspaceDescription="台灣的銀行才是銀行喔！銀行以外的先歸類為電子票證喔！銀行帳戶總數是帳戶總數，電子票證總數是電子票證總數。"
+        workspaceCountText={`所有資產 ${formatCurrency(allAssetTotal)}，銀行 ${formatCurrency(taiwanBankAssetTotal)}，電子票證 ${formatCurrency(electronicTicketAssetTotal)}`}
+        workspaceDescription="台灣的銀行才是銀行喔！中華郵政也屬於台灣銀行；銀行以外的先歸類為電子票證喔！資產分成所有資產、銀行總資產、電子票證總資產。"
         activeMode={workbenchMode}
         onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
         modeItems={[
@@ -653,9 +673,9 @@ export default function BankManagement() {
           { key: "zeroBalance", label: "零餘額", count: zeroBalanceBanks.length },
         ]}
         summaries={[
-          { label: "總資產", value: formatCurrency(stats.totalDeposit), tone: "blue" },
-          { label: "銀行帳戶總數", value: taiwanBankAccounts.length, detail: "帳戶總數", tone: "green" },
-          { label: "電子票證總數", value: electronicTickets.length, detail: "電子票證總數", tone: electronicTickets.length > 0 ? "amber" : "neutral" },
+          { label: "所有資產", value: formatCurrency(allAssetTotal), detail: `全部 ${banks.length} 筆`, tone: "blue" },
+          { label: "銀行總資產", value: formatCurrency(taiwanBankAssetTotal), detail: `${taiwanBankAccounts.length} 個台灣銀行帳戶`, tone: "green" },
+          { label: "電子票證總資產", value: formatCurrency(electronicTicketAssetTotal), detail: `${electronicTickets.length} 個電子票證`, tone: electronicTickets.length > 0 ? "amber" : "neutral" },
           { label: "待補欄位", value: banksMissingInfo.length, detail: "缺網站或帳號", tone: banksMissingInfo.length > 0 ? "amber" : "neutral" },
           { label: "零餘額", value: zeroBalanceBanks.length, detail: "可考慮封存或隱藏", tone: zeroBalanceBanks.length > 0 ? "red" : "neutral" },
         ]}
