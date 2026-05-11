@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Mic, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
