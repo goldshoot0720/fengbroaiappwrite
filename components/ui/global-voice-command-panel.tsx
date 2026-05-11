@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Compass, Mic, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MenuItem } from "@/types";
 
 type VoiceRisk = "safe" | "review" | "danger";
+
+const MIN_VOICE_RECORDING_MS = 10_000;
 
 type PendingCommand = {
   action:
@@ -591,8 +593,23 @@ export function GlobalVoiceCommandPanel({
   const [transcript, setTranscript] = useState("");
   const [feedback, setFeedback] = useState("可說：打開鋒兄食品、新增食品 牛奶 數量 2 到期 7 天後、編輯第一筆、輸入備註內容、搜尋 Netflix、往下捲。");
   const [isListening, setIsListening] = useState(false);
+  const [recordingElapsedMs, setRecordingElapsedMs] = useState(0);
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [open, setOpen] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const recordingStartedAtRef = useRef<number>(0);
+  const manualStopRef = useRef(false);
+
+  const canStopRecording = !isListening || recordingElapsedMs >= MIN_VOICE_RECORDING_MS;
+  const remainingRecordingSeconds = Math.max(0, Math.ceil((MIN_VOICE_RECORDING_MS - recordingElapsedMs) / 1000));
+
+  useEffect(() => {
+    if (!isListening) return;
+    const timer = window.setInterval(() => {
+      setRecordingElapsedMs(Date.now() - recordingStartedAtRef.current);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [isListening]);
 
   const flatMenuItems = useMemo(() => {
     const flatten = (items: MenuItem[]): MenuItem[] => items.flatMap((item) => item.children?.length ? [item, ...flatten(item.children)] : [item]);
@@ -766,7 +783,23 @@ export function GlobalVoiceCommandPanel({
     setFeedback("已解析指令，請再按一次確認執行。");
   };
 
+  const stopVoiceInput = () => {
+    if (!recognitionRef.current) return;
+    if (!canStopRecording) {
+      setFeedback(`錄音至少 10 秒，還要 ${remainingRecordingSeconds} 秒才能結束。`);
+      return;
+    }
+    manualStopRef.current = true;
+    recognitionRef.current.stop();
+    setFeedback("已手動結束錄音，正在整理語音內容。");
+  };
+
   const startVoiceInput = () => {
+    if (isListening) {
+      stopVoiceInput();
+      return;
+    }
+
     const SpeechRecognitionCtor = getSpeechRecognitionCtor();
     if (!SpeechRecognitionCtor) {
       setFeedback("此瀏覽器不支援語音辨識，請改用文字指令輸入。");
@@ -775,20 +808,42 @@ export function GlobalVoiceCommandPanel({
 
     const recognition = new SpeechRecognitionCtor();
     recognition.lang = "zh-TW";
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
+    let finalTranscript = "";
+    let interimTranscript = "";
     recognition.onstart = () => {
+      recognitionRef.current = recognition;
+      manualStopRef.current = false;
+      recordingStartedAtRef.current = Date.now();
+      setRecordingElapsedMs(0);
       setIsListening(true);
       setOpen(true);
-      setFeedback("正在聽你說指令...");
+      setFeedback("錄音已開始，請說完整內容；至少 10 秒後才能手動結束。");
     };
     recognition.onresult = (event: any) => {
-      handleVoiceText(event.results?.[0]?.[0]?.transcript || "");
+      finalTranscript = "";
+      interimTranscript = "";
+      for (let index = 0; index < event.results.length; index += 1) {
+        const text = event.results?.[index]?.[0]?.transcript || "";
+        if (event.results[index].isFinal) finalTranscript += text;
+        else interimTranscript += text;
+      }
+      setTranscript((finalTranscript || interimTranscript).trim());
     };
     recognition.onerror = () => {
       setFeedback("語音辨識失敗，請再試一次或改用文字指令。");
     };
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      const text = (finalTranscript || interimTranscript || transcript).trim();
+      recognitionRef.current = null;
+      setIsListening(false);
+      setRecordingElapsedMs(0);
+      if (text && manualStopRef.current) handleVoiceText(text);
+      else if (manualStopRef.current) setFeedback("已結束錄音，但沒有收到可解析的語音內容。");
+      else setFeedback("錄音已中止，請按開始錄音再試一次。");
+    };
     recognition.start();
   };
 
@@ -937,9 +992,9 @@ export function GlobalVoiceCommandPanel({
               }}
               placeholder="說或輸入：新增食品 牛奶 數量 2 到期 7 天後 / 編輯第一筆 / 輸入備註內容"
             />
-            <Button type="button" variant="outline" onClick={startVoiceInput} disabled={isListening} className="shrink-0 rounded-xl">
+            <Button type="button" variant="outline" onClick={startVoiceInput} className="shrink-0 rounded-xl">
               <Mic className={`mr-1 h-4 w-4 ${isListening ? "animate-pulse text-red-500" : ""}`} />
-              {isListening ? "聆聽中" : "語音"}
+              {isListening ? (canStopRecording ? "結束錄音" : `至少 ${remainingRecordingSeconds} 秒`) : "開始錄音"}
             </Button>
             <Button type="button" onClick={() => handleVoiceText(transcript)} className="shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700">
               解析

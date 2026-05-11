@@ -34,6 +34,7 @@ const INITIAL_FORM: SubscriptionFormData = {
 
 const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
 const SUBSCRIPTION_RECENT_SEARCHES_KEY = "fengbro.subscription.recentSearches";
+const SUBSCRIPTION_MIN_VOICE_RECORDING_MS = 10_000;
 
 type VoiceCommandRisk = "safe" | "review" | "danger";
 
@@ -422,9 +423,16 @@ export default function SubscriptionManagement() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceFeedback, setVoiceFeedback] = useState("說出例如：匯出 CSV、重新整理、全選、新增訂閱、編輯第一筆、刪除選取。");
   const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [voiceRecordingElapsedMs, setVoiceRecordingElapsedMs] = useState(0);
   const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommand | null>(null);
+  const voiceRecognitionRef = useRef<any>(null);
+  const voiceRecordingStartedAtRef = useRef(0);
+  const voiceManualStopRef = useRef(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const bulkDeleteInputRef = useRef<HTMLInputElement>(null);
+
+  const canStopVoiceRecording = !isVoiceListening || voiceRecordingElapsedMs >= SUBSCRIPTION_MIN_VOICE_RECORDING_MS;
+  const remainingVoiceRecordingSeconds = Math.max(0, Math.ceil((SUBSCRIPTION_MIN_VOICE_RECORDING_MS - voiceRecordingElapsedMs) / 1000));
 
   const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
@@ -457,6 +465,14 @@ export default function SubscriptionManagement() {
     }, 80);
     return () => window.clearTimeout(focusTimer);
   }, [bulkDeleteOpen, isDeleting]);
+
+  useEffect(() => {
+    if (!isVoiceListening) return;
+    const timer = window.setInterval(() => {
+      setVoiceRecordingElapsedMs(Date.now() - voiceRecordingStartedAtRef.current);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [isVoiceListening]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -977,7 +993,24 @@ export default function SubscriptionManagement() {
     setVoiceFeedback("已解析指令，請按「確認執行」完成第二次確認。");
   };
 
+  const stopVoiceInput = () => {
+    if (!voiceRecognitionRef.current) return;
+    if (!canStopVoiceRecording) {
+      setVoiceFeedback(`錄音至少 10 秒，還要 ${remainingVoiceRecordingSeconds} 秒才能結束。`);
+      return;
+    }
+
+    voiceManualStopRef.current = true;
+    voiceRecognitionRef.current.stop();
+    setVoiceFeedback("已手動結束錄音，正在整理語音內容。");
+  };
+
   const startVoiceInput = () => {
+    if (isVoiceListening) {
+      stopVoiceInput();
+      return;
+    }
+
     if (typeof window === "undefined") return;
     const SpeechRecognitionCtor = (window as typeof window & {
       SpeechRecognition?: new () => any;
@@ -993,21 +1026,41 @@ export default function SubscriptionManagement() {
 
     const recognition = new SpeechRecognitionCtor();
     recognition.lang = "zh-TW";
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
+    let finalTranscript = "";
+    let interimTranscript = "";
+
     recognition.onstart = () => {
+      voiceRecognitionRef.current = recognition;
+      voiceManualStopRef.current = false;
+      voiceRecordingStartedAtRef.current = Date.now();
+      setVoiceRecordingElapsedMs(0);
       setIsVoiceListening(true);
-      setVoiceFeedback("正在聽你說指令...");
+      setVoiceFeedback("錄音已開始，請說完整內容；至少 10 秒後才能手動結束。");
     };
     recognition.onresult = (event: any) => {
-      const text = event.results?.[0]?.[0]?.transcript || "";
-      handleVoiceText(text);
+      finalTranscript = "";
+      interimTranscript = "";
+      for (let index = 0; index < event.results.length; index += 1) {
+        const text = event.results?.[index]?.[0]?.transcript || "";
+        if (event.results[index].isFinal) finalTranscript += text;
+        else interimTranscript += text;
+      }
+      setVoiceTranscript((finalTranscript || interimTranscript).trim());
     };
     recognition.onerror = () => {
       setVoiceFeedback("語音辨識失敗，請再試一次或改用文字指令。");
     };
     recognition.onend = () => {
+      const text = (finalTranscript || interimTranscript).trim();
+      voiceRecognitionRef.current = null;
       setIsVoiceListening(false);
+      setVoiceRecordingElapsedMs(0);
+      if (text && voiceManualStopRef.current) handleVoiceText(text);
+      else if (voiceManualStopRef.current) setVoiceFeedback("已結束錄音，但沒有收到可解析的語音內容。");
+      else setVoiceFeedback("錄音已中止，請按開始錄音再試一次。");
     };
     recognition.start();
   };
@@ -1710,9 +1763,9 @@ export default function SubscriptionManagement() {
                 placeholder="也可以打字：匯出 CSV / 搜尋 Netflix / 新增訂閱 Netflix 100 元 / 刪除選取"
                 className="bg-white/90 dark:bg-gray-950/60"
               />
-              <Button type="button" variant="outline" onClick={startVoiceInput} disabled={isVoiceListening} className="shrink-0 rounded-xl bg-white/80">
+              <Button type="button" variant="outline" onClick={startVoiceInput} className="shrink-0 rounded-xl bg-white/80">
                 <Mic className={`mr-1 h-4 w-4 ${isVoiceListening ? "animate-pulse text-red-500" : ""}`} />
-                {isVoiceListening ? "聆聽中" : "語音輸入"}
+                {isVoiceListening ? (canStopVoiceRecording ? "結束錄音" : `至少 ${remainingVoiceRecordingSeconds} 秒`) : "開始錄音"}
               </Button>
               <Button type="button" onClick={() => handleVoiceText(voiceTranscript)} className="shrink-0 rounded-xl bg-sky-600 hover:bg-sky-700">
                 解析指令
