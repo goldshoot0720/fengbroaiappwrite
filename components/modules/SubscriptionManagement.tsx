@@ -661,26 +661,74 @@ export default function SubscriptionManagement() {
     }) || filteredSubscriptions[0];
   };
 
+  const formatVoiceDate = (year: number, month: number, day: number) => {
+    if (!year || !month || !day) return "";
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
+  const extractVoiceDate = (text: string) => {
+    const slashDate = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (slashDate) {
+      return {
+        date: formatVoiceDate(Number(slashDate[1]), Number(slashDate[2]), Number(slashDate[3])),
+        raw: slashDate[0],
+      };
+    }
+
+    const zhDate = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日|號|号)?(?:\s*(?:上午|早上|下午|晚上|中午))?/);
+    if (zhDate) {
+      return {
+        date: formatVoiceDate(Number(zhDate[1]), Number(zhDate[2]), Number(zhDate[3])),
+        raw: zhDate[0],
+      };
+    }
+
+    const monthDay = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日|號|号)?(?:\s*(?:上午|早上|下午|晚上|中午))?/);
+    if (monthDay) {
+      return {
+        date: formatVoiceDate(new Date().getFullYear(), Number(monthDay[1]), Number(monthDay[2])),
+        raw: monthDay[0],
+      };
+    }
+
+    return { date: "", raw: "" };
+  };
+
+  const extractVoicePrice = (text: string) => {
+    const explicitPrice = text.match(/(?:價格|金額|月費|費用|付費|收費)\s*(?:是|為|:|：)?\s*(\d+(?:\.\d+)?)/i);
+    if (explicitPrice) return Number(explicitPrice[1]);
+
+    const currencyPrice = text.match(/(?:nt\$|twd|台幣|臺幣|新台幣|美金|美元|usd)?\s*(\d+(?:\.\d+)?)\s*(?:元|塊|twd|usd|美元|美金)/i);
+    return currencyPrice ? Number(currencyPrice[1]) : 0;
+  };
+
+  const extractVoiceName = (text: string, dateRaw: string) => {
+    const quoted = text.match(/[「『"']([^」』"']+)[」』"']/);
+    if (quoted?.[1]) return quoted[1].trim();
+
+    const named = text.match(/(?:叫做|名稱(?:是|為)?|名為)\s*([^，,。]+)/);
+    if (named?.[1]) return named[1].trim();
+
+    return text
+      .replace(dateRaw, " ")
+      .replace(/新增訂閱|新增一筆資料|新增一筆|新增資料|新增|建立訂閱|建立|在鋒兄訂閱|鋒兄訂閱|訂閱/gi, " ")
+      .replace(/叫做|名稱是|名稱為|名為|日期為|日期是|扣款日為|扣款日是|上午|早上|下午|晚上|中午/gi, " ")
+      .replace(/(?:價格|金額|月費|費用|付費|收費)\s*(?:是|為|:|：)?\s*\d+(?:\.\d+)?/gi, " ")
+      .replace(/(?:nt\$|twd|台幣|臺幣|新台幣|美金|美元|usd)?\s*\d+(?:\.\d+)?\s*(?:元|塊|twd|usd|美元|美金)/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
   const buildVoiceDraft = (text: string): SubscriptionFormData => {
-    const cleaned = text
-      .replace(/新增訂閱|新增|建立訂閱|建立|訂閱/gi, " ")
-      .replace(/價格|金額|月費|費用|台幣|臺幣|新台幣|美金|美元|元|塊/gi, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    const priceMatch = text.match(/(?:價格|金額|月費|費用)?\s*(\d+(?:\.\d+)?)/);
-    const dateMatch = text.match(/\d{4}[-/]\d{1,2}[-/]\d{1,2}/);
+    const voiceDate = extractVoiceDate(text);
     const currency = /usd|美金|美元/i.test(text) ? "USD" : "TWD";
-    const name = cleaned
-      .replace(/\d{4}[-/]\d{1,2}[-/]\d{1,2}/, " ")
-      .replace(/\d+(?:\.\d+)?/, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    const name = extractVoiceName(text, voiceDate.raw);
 
     return {
       ...INITIAL_FORM,
       name,
-      price: priceMatch ? Number(priceMatch[1]) : 0,
-      nextdate: dateMatch ? dateMatch[0].replace(/\//g, "-") : "",
+      price: extractVoicePrice(text),
+      nextdate: voiceDate.date,
       currency,
     };
   };
