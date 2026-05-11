@@ -326,6 +326,62 @@ function parseVoiceDate(raw: string) {
   return value;
 }
 
+function extractStructuredVoiceDate(text: string) {
+  const slashDate = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:\s*(?:上午|早上|下午|晚上|中午))?/);
+  if (slashDate) {
+    return {
+      date: `${slashDate[1]}-${slashDate[2].padStart(2, "0")}-${slashDate[3].padStart(2, "0")}`,
+      raw: slashDate[0],
+    };
+  }
+
+  const zhDate = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日|號|号)?(?:\s*(?:上午|早上|下午|晚上|中午))?/);
+  if (zhDate) {
+    return {
+      date: `${zhDate[1]}-${zhDate[2].padStart(2, "0")}-${zhDate[3].padStart(2, "0")}`,
+      raw: zhDate[0],
+    };
+  }
+
+  return { date: "", raw: "" };
+}
+
+function extractStructuredVoiceTimeNote(text: string) {
+  const timeLabel = text.match(/上午|早上|下午|晚上|中午/)?.[0];
+  if (!timeLabel) return "";
+  return `鋒兄語音 ${timeLabel === "早上" ? "上午" : timeLabel}`;
+}
+
+function extractStructuredSubscriptionName(text: string, dateRaw: string) {
+  const quoted = text.match(/[「『"']([^」』"']+)[」』"']/);
+  if (quoted?.[1]) return quoted[1].trim();
+
+  const named = text.match(/(?:叫做|名稱(?:是|為)?|名為)\s*(.+?)(?=\s*(?:日期|時間|扣款日|價格|金額|月費|費用|付費|收費|備註|帳號|網站|$))/);
+  if (named?.[1]) return named[1].trim();
+
+  return text
+    .replace(dateRaw, " ")
+    .replace(/新增訂閱|新增一筆資料|新增一筆|新增資料|新增|建立訂閱|建立|在鋒兄訂閱|鋒兄訂閱|訂閱/gi, " ")
+    .replace(/叫做|名稱是|名稱為|名為|日期為|日期是|時間為|時間是|扣款日為|扣款日是|上午|早上|下午|晚上|中午/gi, " ")
+    .replace(/(?:價格|金額|月費|費用|付費|收費)\s*(?:是|為|:|：)?\s*\d+(?:\.\d+)?/gi, " ")
+    .replace(/(?:nt\$|twd|台幣|臺幣|新台幣|美金|美元|usd)?\s*\d+(?:\.\d+)?\s*(?:元|塊|twd|usd|美元|美金)/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildStructuredSubscriptionFields(text: string): VoiceField[] {
+  const fields: VoiceField[] = [];
+  const push = (key: VoiceFieldKey, value: string) => {
+    const cleaned = value.trim();
+    if (cleaned && !fields.some((field) => field.key === key)) fields.push({ key, value: cleaned });
+  };
+  const voiceDate = extractStructuredVoiceDate(text);
+  push("name", extractStructuredSubscriptionName(text, voiceDate.raw));
+  push("date", voiceDate.date);
+  push("note", extractStructuredVoiceTimeNote(text));
+  return fields;
+}
+
 function extractValueAfter(text: string, patterns: RegExp[]) {
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -697,7 +753,11 @@ export function GlobalVoiceCommandPanel({
     const moduleName = target ? MODULE_VOICE_META[target.id]?.name || target.label : currentModuleName;
     const actionText = target ? removeModuleAlias(text, target.id) : text;
     const normalizedActionText = normalizeVoiceText(actionText);
-    const fields = mergeVoiceFields(buildVoiceFields(actionText), inferLooseFields(actionText, actionModuleId));
+    const structuredFields = actionModuleId === "subscription" ? buildStructuredSubscriptionFields(actionText) : [];
+    const fields = mergeVoiceFields(
+      mergeVoiceFields(structuredFields, buildVoiceFields(actionText)),
+      inferLooseFields(actionText, actionModuleId)
+    );
     const ordinal = extractOrdinal(actionText);
 
     const clickText = extractValueAfter(actionText, [

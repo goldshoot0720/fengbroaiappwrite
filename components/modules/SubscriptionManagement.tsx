@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Mic, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Mic, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +35,7 @@ const INITIAL_FORM: SubscriptionFormData = {
 const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
 const SUBSCRIPTION_RECENT_SEARCHES_KEY = "fengbro.subscription.recentSearches";
 const SUBSCRIPTION_MIN_VOICE_RECORDING_MS = 10_000;
+const SUBSCRIPTION_RECENT_SEARCH_LIMIT = 37;
 
 type VoiceCommandRisk = "safe" | "review" | "danger";
 
@@ -442,9 +443,23 @@ export default function SubscriptionManagement() {
     if (!normalized) return;
 
     setRecentSearches((prev) => {
-      const next = [normalized, ...prev.filter((item) => item.toLowerCase() !== normalized.toLowerCase())].slice(0, 8);
+      const next = [normalized, ...prev.filter((item) => item.toLowerCase() !== normalized.toLowerCase())].slice(0, SUBSCRIPTION_RECENT_SEARCH_LIMIT);
       if (typeof window !== "undefined") {
         localStorage.setItem(SUBSCRIPTION_RECENT_SEARCHES_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+
+  const removeRecentSearch = useCallback((query: string) => {
+    setRecentSearches((prev) => {
+      const next = prev.filter((item) => item !== query);
+      if (typeof window !== "undefined") {
+        if (next.length > 0) {
+          localStorage.setItem(SUBSCRIPTION_RECENT_SEARCHES_KEY, JSON.stringify(next));
+        } else {
+          localStorage.removeItem(SUBSCRIPTION_RECENT_SEARCHES_KEY);
+        }
       }
       return next;
     });
@@ -479,7 +494,7 @@ export default function SubscriptionManagement() {
     try {
       const saved = JSON.parse(localStorage.getItem(SUBSCRIPTION_RECENT_SEARCHES_KEY) || "[]");
       if (Array.isArray(saved)) {
-        setRecentSearches(saved.filter((item): item is string => typeof item === "string").slice(0, 8));
+        setRecentSearches(saved.filter((item): item is string => typeof item === "string").slice(0, SUBSCRIPTION_RECENT_SEARCH_LIMIT));
       }
     } catch {
       setRecentSearches([]);
@@ -683,7 +698,7 @@ export default function SubscriptionManagement() {
   };
 
   const extractVoiceDate = (text: string) => {
-    const slashDate = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    const slashDate = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:\s*(?:上午|早上|下午|晚上|中午))?/);
     if (slashDate) {
       return {
         date: formatVoiceDate(Number(slashDate[1]), Number(slashDate[2]), Number(slashDate[3])),
@@ -718,17 +733,23 @@ export default function SubscriptionManagement() {
     return currencyPrice ? Number(currencyPrice[1]) : 0;
   };
 
+  const extractVoiceTimeNote = (text: string) => {
+    const timeLabel = text.match(/上午|早上|下午|晚上|中午/)?.[0];
+    if (!timeLabel) return "";
+    return `鋒兄語音 ${timeLabel === "早上" ? "上午" : timeLabel}`;
+  };
+
   const extractVoiceName = (text: string, dateRaw: string) => {
     const quoted = text.match(/[「『"']([^」』"']+)[」』"']/);
     if (quoted?.[1]) return quoted[1].trim();
 
-    const named = text.match(/(?:叫做|名稱(?:是|為)?|名為)\s*([^，,。]+)/);
+    const named = text.match(/(?:叫做|名稱(?:是|為)?|名為)\s*(.+?)(?=\s*(?:日期|時間|扣款日|價格|金額|月費|費用|付費|收費|備註|帳號|網站|$))/);
     if (named?.[1]) return named[1].trim();
 
     return text
       .replace(dateRaw, " ")
       .replace(/新增訂閱|新增一筆資料|新增一筆|新增資料|新增|建立訂閱|建立|在鋒兄訂閱|鋒兄訂閱|訂閱/gi, " ")
-      .replace(/叫做|名稱是|名稱為|名為|日期為|日期是|扣款日為|扣款日是|上午|早上|下午|晚上|中午/gi, " ")
+      .replace(/叫做|名稱是|名稱為|名為|日期為|日期是|時間為|時間是|扣款日為|扣款日是|上午|早上|下午|晚上|中午/gi, " ")
       .replace(/(?:價格|金額|月費|費用|付費|收費)\s*(?:是|為|:|：)?\s*\d+(?:\.\d+)?/gi, " ")
       .replace(/(?:nt\$|twd|台幣|臺幣|新台幣|美金|美元|usd)?\s*\d+(?:\.\d+)?\s*(?:元|塊|twd|usd|美元|美金)/gi, " ")
       .replace(/\s+/g, " ")
@@ -739,12 +760,14 @@ export default function SubscriptionManagement() {
     const voiceDate = extractVoiceDate(text);
     const currency = /usd|美金|美元/i.test(text) ? "USD" : "TWD";
     const name = extractVoiceName(text, voiceDate.raw);
+    const note = extractVoiceTimeNote(text);
 
     return {
       ...INITIAL_FORM,
       name,
       price: extractVoicePrice(text),
       nextdate: voiceDate.date,
+      note,
       currency,
     };
   };
@@ -1403,6 +1426,18 @@ export default function SubscriptionManagement() {
     event.target.value = "";
   };
 
+  const getImportExactKey = (item: SubscriptionFormData) => [
+    normalizeSubscriptionValue(item.name),
+    normalizeSubscriptionValue(item.account),
+    normalizeSubscriptionValue(item.site),
+    String(Number(item.price || 0)),
+    item.nextdate || "",
+    normalizeSubscriptionValue(item.currency || "TWD"),
+  ].join("::");
+
+  const getImportNameAccountKey = (item: Pick<SubscriptionFormData, "name" | "account">) =>
+    `${normalizeSubscriptionValue(item.name)}::${normalizeSubscriptionValue(item.account)}`;
+
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
 
@@ -1418,28 +1453,54 @@ export default function SubscriptionManagement() {
     let successCount = 0;
     let failCount = 0;
     const failureReasons = new Map<string, number>();
+    const exactImportIndex = new Map<string, Subscription>();
+    const nameAccountIndex = new Map<string, Subscription>();
+    const nameIndex = new Map<string, Subscription>();
+
+    subscriptions.forEach((sub) => {
+      const formLike: SubscriptionFormData = {
+        name: sub.name || "",
+        site: sub.site || "",
+        price: Number(sub.price || 0),
+        nextdate: sub.nextdate ? formatDate(sub.nextdate) : "",
+        note: sub.note || "",
+        account: sub.account || "",
+        currency: sub.currency || "TWD",
+        continue: sub.continue !== false,
+      };
+      exactImportIndex.set(getImportExactKey(formLike), sub);
+      nameAccountIndex.set(getImportNameAccountKey(formLike), sub);
+      nameIndex.set(normalizeSubscriptionValue(sub.name), sub);
+    });
 
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
       setImportProgress({ current: i + 1, total: importPreview.data.length });
       setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Processing ${formData.name}`]);
       try {
-        const existing = subscriptions.find((sub) =>
-          sub.name === formData.name && (sub.account || "") === (formData.account || "")
-        ) || subscriptions.find((sub) => sub.name === formData.name);
+        const exactKey = getImportExactKey(formData);
+        const nameAccountKey = getImportNameAccountKey(formData);
+        const nameKey = normalizeSubscriptionValue(formData.name);
+        const existing = exactImportIndex.get(exactKey) || nameAccountIndex.get(nameAccountKey) || nameIndex.get(nameKey);
 
         if (existing) {
-          await fetchApi(`${API_ENDPOINTS.SUBSCRIPTION}/${existing.$id}`, {
+          const updated = await fetchApi<Subscription>(`${API_ENDPOINTS.SUBSCRIPTION}/${existing.$id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(formData),
           });
+          exactImportIndex.set(exactKey, updated);
+          nameAccountIndex.set(nameAccountKey, updated);
+          nameIndex.set(nameKey, updated);
         } else {
-          await fetchApi(API_ENDPOINTS.SUBSCRIPTION, {
+          const created = await fetchApi<Subscription>(API_ENDPOINTS.SUBSCRIPTION, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(formData),
           });
+          exactImportIndex.set(exactKey, created);
+          nameAccountIndex.set(nameAccountKey, created);
+          nameIndex.set(nameKey, created);
         }
         successCount++;
         setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Success ${formData.name}`]);
@@ -1612,17 +1673,32 @@ export default function SubscriptionManagement() {
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="font-semibold text-slate-500 dark:text-slate-400">最近搜尋</span>
               {recentSearches.map((item) => (
-                <button
+                <span
                   key={item}
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery(item);
-                    addRecentSearch(item);
-                  }}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
+                  className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
                 >
-                  {item}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery(item);
+                      addRecentSearch(item);
+                    }}
+                    className="px-3 py-1"
+                  >
+                    {item}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`移除最近搜尋 ${item}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      removeRecentSearch(item);
+                    }}
+                    className="border-l border-slate-200 px-1.5 py-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:border-slate-700 dark:hover:bg-red-950/30"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
               ))}
               <button
                 type="button"
