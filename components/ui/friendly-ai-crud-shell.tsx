@@ -37,6 +37,7 @@ interface FriendlyAiCrudShellProps {
   workspaceCountText?: string;
   workspaceDescription?: string;
   workspaceStatusText?: string;
+  searchExtras?: ReactNode;
   toolbar?: ReactNode;
   modeItems?: WorkbenchModeItem[];
   activeMode?: string;
@@ -63,6 +64,7 @@ export function FriendlyAiCrudShell({
   workspaceCountText,
   workspaceDescription,
   workspaceStatusText,
+  searchExtras,
   toolbar,
   modeItems = [],
   activeMode,
@@ -117,6 +119,7 @@ export function FriendlyAiCrudShell({
                 className="h-11 rounded-xl border-slate-200 bg-white pl-10 dark:border-slate-700 dark:bg-slate-950"
               />
             </div>
+            {searchExtras ? <div className="mt-3">{searchExtras}</div> : null}
             {modeItems.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 {modeItems.map((mode) => {

@@ -33,6 +33,7 @@ const INITIAL_FORM: SubscriptionFormData = {
 };
 
 const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
+const SUBSCRIPTION_RECENT_SEARCHES_KEY = "fengbro.subscription.recentSearches";
 
 type VoiceCommandRisk = "safe" | "review" | "danger";
 
@@ -393,6 +394,7 @@ export default function SubscriptionManagement() {
   } = useSubscriptions();
   const [initializingTable, setInitializingTable] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [renewalFilter, setRenewalFilter] = useState<"all" | "renewing" | "stopped">("all");
   const [dueFilter, setDueFilter] = useState<"all" | "expired" | "7days" | "30days" | "nodate">("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
@@ -427,6 +429,26 @@ export default function SubscriptionManagement() {
   const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
 
+  const addRecentSearch = useCallback((query: string) => {
+    const normalized = query.trim();
+    if (!normalized) return;
+
+    setRecentSearches((prev) => {
+      const next = [normalized, ...prev.filter((item) => item.toLowerCase() !== normalized.toLowerCase())].slice(0, 8);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(SUBSCRIPTION_RECENT_SEARCHES_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+
+  const clearRecentSearches = useCallback(() => {
+    setRecentSearches([]);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(SUBSCRIPTION_RECENT_SEARCHES_KEY);
+    }
+  }, []);
+
   useEffect(() => {
     if (!bulkDeleteOpen || isDeleting) return;
     const focusTimer = window.setTimeout(() => {
@@ -435,6 +457,25 @@ export default function SubscriptionManagement() {
     }, 80);
     return () => window.clearTimeout(focusTimer);
   }, [bulkDeleteOpen, isDeleting]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(SUBSCRIPTION_RECENT_SEARCHES_KEY) || "[]");
+      if (Array.isArray(saved)) {
+        setRecentSearches(saved.filter((item): item is string => typeof item === "string").slice(0, 8));
+      }
+    } catch {
+      setRecentSearches([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) return;
+    const timer = window.setTimeout(() => addRecentSearch(query), 800);
+    return () => window.clearTimeout(timer);
+  }, [addRecentSearch, searchQuery]);
 
   const monthOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1465,6 +1506,35 @@ export default function SubscriptionManagement() {
         searchPlaceholder="搜尋 ID、服務名稱、網站、帳號、備註、幣別..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        searchExtras={
+          recentSearches.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-500 dark:text-slate-400">最近搜尋</span>
+              {recentSearches.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery(item);
+                    addRecentSearch(item);
+                  }}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
+                >
+                  {item}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={clearRecentSearches}
+                className="rounded-full px-2 py-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800"
+              >
+                清除
+              </button>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400 dark:text-slate-500">最近搜尋會在這裡顯示。</div>
+          )
+        }
         intro={
           <div className="space-y-4">
             <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
