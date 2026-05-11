@@ -115,7 +115,8 @@ const TABLE_SCHEMAS = {
       { key: 'ref', type: 'string', size: 300, required: false },
       { key: 'category', type: 'string', size: 100, required: false },
       { key: 'hash', type: 'string', size: 300, required: false },
-      { key: 'cover', type: 'string', size: 500, required: false }
+      { key: 'cover', type: 'string', size: 500, required: false },
+      { key: 'fileSize', type: 'integer', required: false }
     ]
   },
   music: {

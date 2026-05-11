@@ -33,6 +33,16 @@ async function getCollectionId(databases, databaseId, name) {
   return col.$id;
 }
 
+function parseFileSize(value) {
+  const fileSize = Number(value);
+  return Number.isFinite(fileSize) && fileSize >= 0 ? Math.round(fileSize) : undefined;
+}
+
+function isMissingFileSizeAttribute(err) {
+  const message = err?.message || "";
+  return message.includes("fileSize") && (message.includes("Unknown attribute") || message.includes("Invalid document structure"));
+}
+
 // GET /api/video - List all videos
 export async function GET(request) {
   try {
@@ -107,13 +117,27 @@ export async function POST(request) {
     if (body.category !== undefined && body.category !== null) data.category = String(body.category).substring(0, 100);
     if (body.hash !== undefined && body.hash !== null) data.hash = String(body.hash).substring(0, 300);
     if (body.cover !== undefined && body.cover !== null) data.cover = String(body.cover).substring(0, 500);
+    const fileSize = parseFileSize(body.fileSize);
+    if (fileSize !== undefined) data.fileSize = fileSize;
 
-    const document = await databases.createDocument(
-      databaseId,
-      collectionId,
-      sdk.ID.unique(),
-      data
-    );
+    let document;
+    try {
+      document = await databases.createDocument(
+        databaseId,
+        collectionId,
+        sdk.ID.unique(),
+        data
+      );
+    } catch (createErr) {
+      if (!isMissingFileSizeAttribute(createErr) || data.fileSize === undefined) throw createErr;
+      const { fileSize: _fileSize, ...fallbackData } = data;
+      document = await databases.createDocument(
+        databaseId,
+        collectionId,
+        sdk.ID.unique(),
+        fallbackData
+      );
+    }
 
     return NextResponse.json(document);
   } catch (err) {

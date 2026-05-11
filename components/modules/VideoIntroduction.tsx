@@ -16,7 +16,7 @@ import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { VideoItem } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { formatLocalDate } from "@/lib/formatters";
+import { formatFileSize as formatStoredFileSize, formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getMultipartVideoDownloadUrl, getProxiedMediaUrl, getProxiedMediaDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
@@ -60,6 +60,102 @@ function getVideoDuplicateKey(video: Pick<VideoData, "hash" | "file">): string |
   if (file) return `file:${file}`;
 
   return null;
+}
+
+function getVideoFileSize(video: Pick<VideoData, "fileSize">): number {
+  return typeof video.fileSize === "number" && Number.isFinite(video.fileSize) ? video.fileSize : 0;
+}
+
+function formatVideoFileSize(video: Pick<VideoData, "fileSize">): string {
+  const size = getVideoFileSize(video);
+  return size > 0 ? formatStoredFileSize(size) : "--";
+}
+
+type VideoUploadProgressStatus = 'pending' | 'uploading' | 'success' | 'error';
+
+type VideoUploadProgressItem = {
+  key: string;
+  name: string;
+  size: number;
+  progress: number;
+  status: VideoUploadProgressStatus;
+  message?: string;
+};
+
+function getSelectedVideoUploadKey(file: File, hash: string): string {
+  return `${hash || file.name}-${file.size}-${file.lastModified}`;
+}
+
+function createUploadProgressItem(file: File, hash: string, name?: string): VideoUploadProgressItem {
+  return {
+    key: getSelectedVideoUploadKey(file, hash),
+    name: name || file.name,
+    size: file.size,
+    progress: 0,
+    status: 'pending',
+  };
+}
+
+function formatVideoUploadSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size >= 10 || unitIndex === 0 ? Math.round(size) : size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function VideoUploadProgressList({ items }: { items: VideoUploadProgressItem[] }) {
+  if (items.length === 0) return null;
+
+  const statusLabel: Record<VideoUploadProgressStatus, string> = {
+    pending: '等待上傳',
+    uploading: '上傳中',
+    success: '完成',
+    error: '失敗',
+  };
+
+  const getBarClassName = (status: VideoUploadProgressStatus) => {
+    if (status === 'success') return 'bg-emerald-500';
+    if (status === 'error') return 'bg-red-500';
+    return 'bg-blue-600';
+  };
+
+  return (
+    <div className="space-y-2 rounded-xl border border-blue-100 bg-blue-50/60 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+      <div className="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-300">
+        <span>影片上傳進度</span>
+        <span>{items.filter((item) => item.status === 'success').length}/{items.length}</span>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.key} className="rounded-lg bg-white/80 p-2 shadow-sm dark:bg-gray-900/40">
+            <div className="mb-1 flex items-start justify-between gap-3 text-xs">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-gray-800 dark:text-gray-100">{item.name}</p>
+                <p className="text-gray-500 dark:text-gray-400">{formatVideoUploadSize(item.size)}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="font-semibold text-gray-700 dark:text-gray-200">{Math.round(item.progress)}%</p>
+                <p className={item.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
+                  {item.message || statusLabel[item.status]}
+                </p>
+              </div>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+              <div
+                className={`h-2 rounded-full transition-all duration-300 ${getBarClassName(item.status)}`}
+                style={{ width: `${Math.min(100, Math.max(0, item.progress))}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function useResolvedVideoSource(video: VideoData) {
@@ -164,6 +260,7 @@ export default function VideoIntroduction() {
   const [showPlayer, setShowPlayer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "withFile" | "missingCover" | "multipart" | "duplicates">("all");
+  const [sortMode, setSortMode] = useState<"createdDesc" | "fileSizeDesc">("createdDesc");
   const [viewMode, setViewMode] = useState<'youtube' | 'bilibili'>('youtube');
   const [viewModeHydrated, setViewModeHydrated] = useState(false);
   const [importPreview, setImportPreview] = useState<{ data: VideoFormData[]; errors: string[] } | null>(null);
@@ -1053,13 +1150,22 @@ export default function VideoIntroduction() {
       return true;
     });
 
-    if (!searchQuery.trim()) return modeFiltered;
-    const query = searchQuery.toLowerCase();
-    return modeFiltered.filter(video =>
-      video.name?.toLowerCase().includes(query) ||
-      video.note?.toLowerCase().includes(query)
-    );
-  }, [videos, searchQuery, workbenchMode, duplicateVideoIds]);
+    const query = searchQuery.trim().toLowerCase();
+    const searched = query
+      ? modeFiltered.filter(video =>
+        video.name?.toLowerCase().includes(query) ||
+        video.note?.toLowerCase().includes(query)
+      )
+      : modeFiltered;
+
+    return [...searched].sort((a, b) => {
+      if (sortMode === "fileSizeDesc") {
+        return getVideoFileSize(b) - getVideoFileSize(a);
+      }
+
+      return new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime();
+    });
+  }, [videos, searchQuery, workbenchMode, duplicateVideoIds, sortMode]);
 
   // Bulk delete state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -1295,6 +1401,7 @@ export default function VideoIntroduction() {
       let fileUrl = inlineEditForm.file;
       let filetype = inlineEditForm.filetype;
       let hash = inlineEditForm.hash;
+      let fileSize = videos.find((item) => item.$id === videoId)?.fileSize;
 
       if (inlineVideoDuplicateWarning) {
         alert('此影片與既有影片重複，無法重新上傳！請選擇其他影片。');
@@ -1310,6 +1417,7 @@ export default function VideoIntroduction() {
           fileUrl = uploadResult.url;
           filetype = uploadResult.filetype || filetype;
           hash = hash || uploadResult.fileId;
+          fileSize = inlineVideoFile.size;
         } catch (uploadError) {
           console.error('影片上傳失敗:', uploadError);
           alert('影片上傳失敗，請稍後再試');
@@ -1347,6 +1455,7 @@ export default function VideoIntroduction() {
           ref: inlineEditForm.ref,
           hash,
           cover: coverUrl,
+          fileSize,
         }),
       });
       if (!response.ok) throw new Error('更新失敗');
@@ -1547,6 +1656,15 @@ export default function VideoIntroduction() {
                 刪除選取 ({selectedIds.size})
               </Button>
             )}
+            <Select value={sortMode} onValueChange={(value: "createdDesc" | "fileSizeDesc") => setSortMode(value)}>
+              <SelectTrigger className="h-10 w-full rounded-xl bg-white sm:w-[170px] dark:bg-gray-900">
+                <SelectValue placeholder="排序" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="createdDesc">最新建立</SelectItem>
+                <SelectItem value="fileSizeDesc">檔案大小 大到小</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="flex w-full items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1 sm:w-auto">
               <button
                 onClick={() => setViewMode("youtube")}
@@ -2376,6 +2494,7 @@ function InlineCreateVideoCard({
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadProgressItems, setUploadProgressItems] = useState<VideoUploadProgressItem[]>([]);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [fileHash, setFileHash] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState('');
@@ -2387,6 +2506,10 @@ function InlineCreateVideoCard({
   const [useCategorySelect, setUseCategorySelect] = useState(true);
 
   const existingCategories = Array.from(new Set(existingVideos.map((v) => v.category).filter(Boolean)));
+
+  const updateUploadProgressItem = (key: string, patch: Partial<VideoUploadProgressItem>) => {
+    setUploadProgressItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+  };
 
   const calculateFileHash = async (file: File): Promise<string> => {
     try {
@@ -2504,6 +2627,7 @@ function InlineCreateVideoCard({
     const duplicateCount = preparedFiles.filter((item) => item.duplicateVideoName).length;
 
     setSelectedFiles(preparedFiles);
+    setUploadProgressItems(preparedFiles.map((item) => createUploadProgressItem(item.file, item.hash, item.defaultName)));
     setSelectedFile(firstFile.file);
     setPreviewUrl(objectUrl);
     setFileHash(firstFile.hash);
@@ -2556,17 +2680,26 @@ function InlineCreateVideoCard({
     setTimeout(() => setCoverPreviewLoading(false), 300);
   };
 
-  const uploadVideoFile = async (file: File): Promise<{ url: string; fileId: string; filetype?: string }> => {
+  const uploadVideoFile = async (file: File, progressKey?: string): Promise<{ url: string; fileId: string; filetype?: string }> => {
     setUploadStatus('uploading');
     setUploadProgress(0);
+    if (progressKey) updateUploadProgressItem(progressKey, { status: 'uploading', progress: 0, message: '上傳中' });
     try {
       const result = file.size > MAX_VIDEO_PART_SIZE
-        ? await uploadVideoInParts(file, setUploadProgress)
-        : await uploadToAppwriteStorage(file, setUploadProgress);
+        ? await uploadVideoInParts(file, (progress) => {
+          setUploadProgress(progress);
+          if (progressKey) updateUploadProgressItem(progressKey, { progress });
+        })
+        : await uploadToAppwriteStorage(file, (progress) => {
+          setUploadProgress(progress);
+          if (progressKey) updateUploadProgressItem(progressKey, { progress });
+        });
       setUploadStatus('success');
+      if (progressKey) updateUploadProgressItem(progressKey, { status: 'success', progress: 100, message: '完成' });
       return result;
     } catch (error) {
       setUploadStatus('error');
+      if (progressKey) updateUploadProgressItem(progressKey, { status: 'error', message: '失敗' });
       throw error;
     }
   };
@@ -2618,8 +2751,9 @@ function InlineCreateVideoCard({
         }
 
         for (const item of uploadableFiles) {
+          const progressKey = getSelectedVideoUploadKey(item.file, item.hash);
           try {
-            const { url, fileId, filetype } = await uploadVideoFile(item.file);
+            const { url, fileId, filetype } = await uploadVideoFile(item.file, progressKey);
             let coverUrl = sharedCoverUrl || '';
             if (!hasSharedCover) {
               const autoCoverFile = await createCoverFileFromVideo(item.file);
@@ -2635,6 +2769,7 @@ function InlineCreateVideoCard({
               filetype: filetype || item.filetype,
               hash: item.hash || fileId,
               cover: coverUrl,
+              fileSize: item.file.size,
             };
 
             const apiUrl = item.duplicateVideoId
@@ -2650,6 +2785,7 @@ function InlineCreateVideoCard({
             if (response.ok) successCount++;
             else failedCount++;
           } catch {
+            updateUploadProgressItem(progressKey, { status: 'error', message: '失敗' });
             failedCount++;
           }
         }
@@ -2667,10 +2803,12 @@ function InlineCreateVideoCard({
         const finalFormData = { ...formData };
 
         if (selectedFile) {
-          const { url, fileId, filetype } = await uploadVideoFile(selectedFile);
+          const progressKey = getSelectedVideoUploadKey(selectedFile, fileHash);
+          const { url, fileId, filetype } = await uploadVideoFile(selectedFile, progressKey);
           finalFormData.file = url;
           finalFormData.filetype = filetype || finalFormData.filetype;
           finalFormData.hash = fileHash || fileId;
+          (finalFormData as typeof finalFormData & { fileSize?: number }).fileSize = selectedFile.size;
         } else if (!finalFormData.hash) {
           finalFormData.hash = `no_file_${Date.now()}`;
         }
@@ -2748,6 +2886,7 @@ function InlineCreateVideoCard({
           將建立 {selectedFiles.length} 筆影片資料，分類、備註與參考會共用；封面會自動使用各自第 1 秒截圖。
         </p>
       )}
+      <VideoUploadProgressList items={uploadProgressItems} />
       {previewUrl && (
         <video src={previewUrl} controls className="max-h-40 w-full rounded-lg border border-gray-200 dark:border-gray-700" />
       )}
@@ -2987,6 +3126,8 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">鋒兄影片</p>
               <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                 <span>{formatLocalDate(video.$createdAt)}</span>
+                <span>•</span>
+                <span>{formatVideoFileSize(video)}</span>
                 <span>•</span>
                 {video.file ? (
                   <span className="text-gray-600 dark:text-gray-400">已發佈</span>
@@ -3253,6 +3394,8 @@ function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDow
           <span>鋒兄影片</span>
           <span>•</span>
           <span>{formatLocalDate(video.$createdAt)}</span>
+          <span>•</span>
+          <span>{formatVideoFileSize(video)}</span>
         </div>
       </div>
     </div>
@@ -3520,6 +3663,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadProgressItems, setUploadProgressItems] = useState<VideoUploadProgressItem[]>([]);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [fileHash, setFileHash] = useState<string>(''); // 儲存檔案 hash
   const [duplicateWarning, setDuplicateWarning] = useState<string>(''); // 重複警告
@@ -3532,6 +3676,10 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
 
   // 獲取所有已存在的分類
   const existingCategories = Array.from(new Set(existingVideos.map(v => v.category).filter(Boolean)));
+
+  const updateUploadProgressItem = (key: string, patch: Partial<VideoUploadProgressItem>) => {
+    setUploadProgressItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+  };
 
   // 計算檔案 SHA-256 hash
   const calculateFileHash = async (file: File): Promise<string> => {
@@ -3661,6 +3809,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     const duplicateCount = preparedFiles.filter((item) => item.duplicateVideoName).length;
 
     setSelectedFiles(preparedFiles);
+    setUploadProgressItems(preparedFiles.map((item) => createUploadProgressItem(item.file, item.hash, item.defaultName)));
     setSelectedFile(firstFile.file);
     setPreviewUrl(objectUrl);
     setFileHash(firstFile.hash);
@@ -3693,23 +3842,28 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
     setTimeout(() => setPreviewLoading(false), 300);
   };
 
-  const uploadFileToAppwrite = async (file: File): Promise<{ url: string; fileId: string; filetype?: string }> => {
+  const uploadFileToAppwrite = async (file: File, progressKey?: string): Promise<{ url: string; fileId: string; filetype?: string }> => {
     setUploadStatus('uploading');
     setUploadProgress(0);
+    if (progressKey) updateUploadProgressItem(progressKey, { status: 'uploading', progress: 0, message: '上傳中' });
 
     try {
       const result = file.size > MAX_VIDEO_PART_SIZE
         ? await uploadVideoInParts(file, (progress) => {
           setUploadProgress(progress);
+          if (progressKey) updateUploadProgressItem(progressKey, { progress });
         })
         : await uploadToAppwriteStorage(file, (progress) => {
           setUploadProgress(progress);
+          if (progressKey) updateUploadProgressItem(progressKey, { progress });
         });
 
       setUploadStatus('success');
+      if (progressKey) updateUploadProgressItem(progressKey, { status: 'success', progress: 100, message: '完成' });
       return result;
     } catch (error) {
       setUploadStatus('error');
+      if (progressKey) updateUploadProgressItem(progressKey, { status: 'error', message: '失敗' });
       throw error;
     }
   };
@@ -3806,8 +3960,9 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         }
 
         for (const item of uploadableFiles) {
+          const progressKey = getSelectedVideoUploadKey(item.file, item.hash);
           try {
-            const { url, fileId, filetype } = await uploadFileToAppwrite(item.file);
+            const { url, fileId, filetype } = await uploadFileToAppwrite(item.file, progressKey);
             let coverUrl = sharedCoverUrl || '';
             if (!hasSharedCover) {
               const autoCoverFile = await createCoverFileFromVideo(item.file);
@@ -3823,6 +3978,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
               filetype: filetype || item.filetype,
               hash: item.hash || fileId,
               cover: coverUrl,
+              fileSize: item.file.size,
             };
 
             const apiUrl = item.duplicateVideoId
@@ -3838,6 +3994,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
             if (response.ok) successCount++;
             else failedCount++;
           } catch {
+            updateUploadProgressItem(progressKey, { status: 'error', message: '失敗' });
             failedCount++;
           }
         }
@@ -3852,11 +4009,13 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
         alert(`批次上傳完成\n成功：${successCount} 部\n跳過重複：${skippedCount} 部\n失敗：${failedCount} 部`);
       } else if (selectedFile) {
         try {
-          const { url, fileId, filetype } = await uploadFileToAppwrite(selectedFile);
+          const progressKey = getSelectedVideoUploadKey(selectedFile, fileHash);
+          const { url, fileId, filetype } = await uploadFileToAppwrite(selectedFile, progressKey);
           finalFormData.file = url;
           finalFormData.filetype = filetype || finalFormData.filetype;
           // 使用已計算的 hash，如果沒有則使用 fileId
           finalFormData.hash = fileHash || fileId;
+          (finalFormData as typeof finalFormData & { fileSize?: number }).fileSize = selectedFile.size;
         } catch (uploadError) {
           throw new Error(`影片上傳失敗: ${uploadError instanceof Error ? uploadError.message : '未知錯誤'}`);
         }
@@ -3971,6 +4130,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
                   將建立 {selectedFiles.length} 筆影片資料，分類、備註與參考會共用；封面會自動使用各自第 1 秒截圖。
                 </p>
               )}
+              <VideoUploadProgressList items={uploadProgressItems} />
               <div className="px-1 h-4">
                 {formData.file || selectedFile ? (
                   <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已備妥 / Ready</span>

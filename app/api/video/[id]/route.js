@@ -36,6 +36,16 @@ async function getCollectionId(databases, databaseId, name) {
   return col.$id;
 }
 
+function parseFileSize(value) {
+  const fileSize = Number(value);
+  return Number.isFinite(fileSize) && fileSize >= 0 ? Math.round(fileSize) : undefined;
+}
+
+function isMissingFileSizeAttribute(err) {
+  const message = err?.message || "";
+  return message.includes("fileSize") && (message.includes("Unknown attribute") || message.includes("Invalid document structure"));
+}
+
 // Extract file ID from Appwrite storage URL
 function extractFileIdFromUrl(fileUrl) {
   if (!fileUrl) return null;
@@ -157,13 +167,27 @@ export async function PUT(request, { params }) {
     if (body.category !== undefined && body.category !== null) data.category = String(body.category).substring(0, 100);
     if (body.hash !== undefined && body.hash !== null) data.hash = String(body.hash).substring(0, 300);
     if (body.cover !== undefined && body.cover !== null) data.cover = String(body.cover).substring(0, 500);
+    const fileSize = parseFileSize(body.fileSize);
+    if (fileSize !== undefined) data.fileSize = fileSize;
 
-    const document = await databases.updateDocument(
-      databaseId,
-      collectionId,
-      id,
-      data
-    );
+    let document;
+    try {
+      document = await databases.updateDocument(
+        databaseId,
+        collectionId,
+        id,
+        data
+      );
+    } catch (updateErr) {
+      if (!isMissingFileSizeAttribute(updateErr) || data.fileSize === undefined) throw updateErr;
+      const { fileSize: _fileSize, ...fallbackData } = data;
+      document = await databases.updateDocument(
+        databaseId,
+        collectionId,
+        id,
+        fallbackData
+      );
+    }
 
     // Handle file deletion if file was removed or changed
     if (currentDoc.file && bucketId) {

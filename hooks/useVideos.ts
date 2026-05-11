@@ -14,6 +14,7 @@ export interface VideoData {
   category: string;
   hash: string;
   cover: string;
+  fileSize?: number;
   $createdAt: string;
   $updatedAt: string;
 }
