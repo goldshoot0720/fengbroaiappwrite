@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, Refrigerator, CalendarClock, Flame, ShoppingBasket, RefreshCw } from "lucide-react";
+import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, Refrigerator, CalendarClock, Flame, ShoppingBasket, RefreshCw, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -530,6 +530,22 @@ export default function FoodManagement() {
       await deleteFood(id);
     } catch {
       alert("刪除失敗，請稍後再試");
+    }
+  };
+
+  const handleDuplicateFood = async (food: Food) => {
+    try {
+      await createFood({
+        name: `${food.name}（複製）`,
+        amount: food.amount,
+        todate: formatDate(food.todate),
+        photo: food.photo || "",
+        price: food.price || 0,
+        shop: food.shop || "",
+        photohash: food.photohash || "",
+      });
+    } catch (err) {
+      alert("複製項目失敗：" + (err instanceof Error ? err.message : "請稍後再試"));
     }
   };
 
@@ -1343,6 +1359,7 @@ export default function FoodManagement() {
             <DesktopTable
               foods={filteredFoods}
               onDelete={handleDelete}
+              onDuplicate={handleDuplicateFood}
               onAmountChange={updateAmount}
               inlineEditingId={inlineEditingId}
               inlineEditForm={inlineEditForm}
@@ -1373,6 +1390,7 @@ export default function FoodManagement() {
             <MobileList
               foods={filteredFoods}
               onDelete={handleDelete}
+              onDuplicate={handleDuplicateFood}
               onAmountChange={updateAmount}
               inlineEditingId={inlineEditingId}
               inlineEditForm={inlineEditForm}
@@ -1760,6 +1778,7 @@ function FoodForm({
 interface TableProps {
   foods: Food[];
   onDelete: (id: string) => void;
+  onDuplicate: (food: Food) => void;
   onAmountChange: (food: Food, delta: number) => void;
   inlineEditingId: string | null;
   inlineEditForm: FoodFormData;
@@ -1789,7 +1808,7 @@ interface TableProps {
   startInlineAdd: () => void;
 }
 
-function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
+function DesktopTable({ foods, onDelete, onDuplicate, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="hidden lg:block">
@@ -2037,6 +2056,7 @@ function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inline
               key={food.$id}
               food={food}
               onDelete={onDelete}
+              onDuplicate={onDuplicate}
               onAmountChange={onAmountChange}
               isEditing={inlineEditingId === food.$id}
               inlineEditForm={inlineEditForm}
@@ -2061,6 +2081,7 @@ function DesktopTable({ foods, onDelete, onAmountChange, inlineEditingId, inline
 interface FoodTableRowProps {
   food: Food;
   onDelete: (id: string) => void;
+  onDuplicate: (food: Food) => void;
   onAmountChange: (food: Food, delta: number) => void;
   isEditing: boolean;
   inlineEditForm: FoodFormData;
@@ -2076,7 +2097,7 @@ interface FoodTableRowProps {
   toggleSelect: (id: string) => void;
 }
 
-function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
+function FoodTableRow({ food, onDelete, onDuplicate, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodTableRowProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
   const rowClass = isExpired ? "bg-red-50 dark:bg-red-900/20" : isExpiringSoon ? "bg-yellow-50 dark:bg-yellow-900/20" : "";
 
@@ -2249,6 +2270,10 @@ function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditFor
         <TableCell>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" onClick={() => onInlineEdit(food)} className="rounded-lg">編輯</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => onDuplicate(food)} className="rounded-lg border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+              <Copy size={14} className="mr-1" />
+              複製
+            </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => {
               onInlineEdit(food);
               setInlineEditForm({
@@ -2270,7 +2295,7 @@ function FoodTableRow({ food, onDelete, onAmountChange, isEditing, inlineEditFor
 }
 
 // 手機版列表
-function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
+function MobileList({ foods, onDelete, onDuplicate, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
       <div className="lg:hidden">
@@ -2472,6 +2497,7 @@ function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEd
             key={food.$id}
             food={food}
             onDelete={onDelete}
+            onDuplicate={onDuplicate}
             onAmountChange={onAmountChange}
             isEditing={inlineEditingId === food.$id}
             inlineEditForm={inlineEditForm}
@@ -2495,6 +2521,7 @@ function MobileList({ foods, onDelete, onAmountChange, inlineEditingId, inlineEd
 interface FoodMobileCardProps {
   food: Food;
   onDelete: (id: string) => void;
+  onDuplicate: (food: Food) => void;
   onAmountChange: (food: Food, delta: number) => void;
   isEditing: boolean;
   inlineEditForm: FoodFormData;
@@ -2510,7 +2537,7 @@ interface FoodMobileCardProps {
   toggleSelect: (id: string) => void;
 }
 
-function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
+function FoodMobileCard({ food, onDelete, onDuplicate, onAmountChange, isEditing, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, isSelected, toggleSelect }: FoodMobileCardProps) {
   const { daysRemaining, status, formattedDate, isExpired, isExpiringSoon } = getFoodExpiryInfo(food);
 
   if (isEditing) {
@@ -2682,7 +2709,7 @@ function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditF
           <AmountControl food={food} onAmountChange={onAmountChange} />
         </div>
         {!isEditMode && (
-          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2">
             <Button
               type="button"
               size="sm"
@@ -2691,6 +2718,16 @@ function FoodMobileCard({ food, onDelete, onAmountChange, isEditing, inlineEditF
               className="h-10 min-[390px]:h-11 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 font-bold w-full"
             >
               編輯
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onDuplicate(food)}
+              className="h-10 min-[390px]:h-11 rounded-xl text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-bold w-full"
+            >
+              <Copy size={14} className="mr-1" />
+              複製
             </Button>
             <Button
               type="button"
