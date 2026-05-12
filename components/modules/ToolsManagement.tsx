@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, Clock, ExternalLink, Play, RefreshCw, Search, Smartphone, Wrench } from "lucide-react";
+import { AlertTriangle, BarChart3, Clock, ExternalLink, Play, RefreshCw, Search, Smartphone, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
@@ -114,7 +114,7 @@ type FengbroFinanceQuote = {
   displayName: string;
   symbol: string;
   sourceUrl: string;
-  group: "tw" | "asia" | "commodities" | "rates" | "us" | "crypto";
+  group: "tw" | "asia" | "commodities" | "rates" | "us" | "crypto" | "valuation";
   price: number | null;
   change: number | null;
   changePercent: number | null;
@@ -125,6 +125,19 @@ type FengbroFinanceQuote = {
   dayLow: number | null;
   lastUpdated: string;
   recordTag: FinanceRecordTag;
+  recordNote?: string;
+  error?: string;
+};
+
+type ShillerPeRatio = {
+  id: string;
+  name: string;
+  sourceUrl: string;
+  current: number | null;
+  recordHigh: number;
+  recordHighDate: string;
+  updatedAt: string;
+  isRecordHigh: boolean;
   error?: string;
 };
 
@@ -132,6 +145,7 @@ type FengbroFinanceResult = {
   fetchedAt: string;
   source: string;
   quotes: FengbroFinanceQuote[];
+  shillerPe?: ShillerPeRatio;
 };
 
 const TOOL_TABS: { id: ToolsTab; label: string }[] = [
@@ -228,6 +242,7 @@ function getFinanceGroupLabel(group: FengbroFinanceQuote["group"]) {
     rates: "\u5229\u7387",
     us: "\u7f8e\u80a1\u6307\u6578",
     crypto: "\u52a0\u5bc6\u8ca8\u5e63",
+    valuation: "估值指標",
   };
   return labels[group];
 }
@@ -733,7 +748,7 @@ function FengbroFinanceSection({
   onRefresh: () => void;
 }) {
   const groupedQuotes = useMemo(() => {
-    const order: FengbroFinanceQuote["group"][] = ["tw", "us", "asia", "commodities", "rates", "crypto"];
+    const order: FengbroFinanceQuote["group"][] = ["tw", "us", "valuation", "asia", "commodities", "rates", "crypto"];
     return order
       .map((group) => ({ group, quotes: (result?.quotes || []).filter((quote) => quote.group === group) }))
       .filter((item) => item.quotes.length > 0);
@@ -776,6 +791,54 @@ function FengbroFinanceSection({
 
         {!error && result && (
           <div className="space-y-6 p-4 sm:p-6">
+            {result.shillerPe && (
+              <div
+                className={`rounded-[24px] border p-4 shadow-sm ${
+                  result.shillerPe.isRecordHigh
+                    ? "border-rose-300 bg-rose-50 text-rose-950"
+                    : "border-emerald-100 bg-emerald-50/70 text-emerald-950"
+                }`}
+              >
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                        result.shillerPe.isRecordHigh ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {result.shillerPe.isRecordHigh ? <AlertTriangle size={20} /> : <BarChart3 size={20} />}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-semibold">Shiller PE Ratio</h4>
+                        {result.shillerPe.isRecordHigh && (
+                          <span className="rounded-full border border-rose-200 bg-white px-2.5 py-1 text-xs font-semibold text-rose-700">
+                            創歷史新高
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm opacity-80">
+                        Max: {formatFinanceNumber(result.shillerPe.recordHigh, 2)} ({result.shillerPe.recordHighDate})
+                        {result.shillerPe.updatedAt ? ` / ${result.shillerPe.updatedAt}` : ""}
+                      </p>
+                      {result.shillerPe.error && <p className="mt-2 text-sm text-rose-600">{result.shillerPe.error}</p>}
+                    </div>
+                  </div>
+                  <div className="text-left md:text-right">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-70">Current</p>
+                    <p className="mt-1 text-3xl font-semibold">{formatFinanceNumber(result.shillerPe.current, 2)}</p>
+                    <a
+                      href={result.shillerPe.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium underline-offset-4 hover:underline"
+                    >
+                      multpl.com <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
             {groupedQuotes.map(({ group, quotes }) => (
               <div key={group} className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
@@ -801,7 +864,7 @@ function FengbroFinanceSection({
                             <p className="mt-1 text-xs text-muted-foreground">{quote.symbol}</p>
                           </div>
                           <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100">
-                            CNBC <ExternalLink className="inline h-3 w-3" />
+                            {quote.id === "shiller-pe" ? "Multpl" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
                           </a>
                         </div>
 
@@ -832,6 +895,11 @@ function FengbroFinanceSection({
                                 <p className="mt-1 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
                               </div>
                             </div>
+                            {quote.recordNote ? (
+                              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                {quote.recordNote}
+                              </p>
+                            ) : null}
                           </>
                         )}
                       </div>

@@ -218,7 +218,7 @@ function DesktopSidebar({
       <div className="surface-panel flex w-full flex-col rounded-[30px] p-4">
         <BrandBlock />
 
-        <div className="mt-6 flex items-center justify-between rounded-[22px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5">
+        <div className="mt-6 rounded-[22px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
               Design Mode
@@ -227,7 +227,9 @@ function DesktopSidebar({
               Impeccable 2026
             </p>
           </div>
-          <ThemeToggleCompact />
+          <div className="mt-3 flex justify-end">
+            <ThemeToggleCompact />
+          </div>
         </div>
 
         <nav className="mt-6 flex-1 space-y-2 overflow-y-auto pr-1">
