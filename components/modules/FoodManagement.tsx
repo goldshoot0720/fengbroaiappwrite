@@ -1986,7 +1986,7 @@ function DesktopTable({ foods, onDelete, onDuplicate, onAmountChange, inlineEdit
                 />
               </TableCell>
               <TableCell>
-                <div className="space-y-2 min-w-[220px]">
+                <div className="space-y-2 w-[260px] max-w-[260px]">
                   <Input
                     type="url"
                     placeholder="圖片網址"
@@ -2018,9 +2018,9 @@ function DesktopTable({ foods, onDelete, onDuplicate, onAmountChange, inlineEdit
               </TableCell>
               {!isEditMode && (
                 <TableCell>
-                  <div className="flex flex-col gap-2 min-w-[96px]">
-                    <Button type="button" size="sm" onClick={onInlineAddSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">新增</Button>
-                    <Button type="button" size="sm" variant="outline" onClick={onInlineAddCancel} className="rounded-xl">取消</Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" onClick={onInlineAddSave} className="rounded-lg h-8 w-8 p-0 bg-green-500 hover:bg-green-600 text-white" title="新增"><Check size={16} /></Button>
+                    <Button type="button" size="sm" variant="outline" onClick={onInlineAddCancel} className="rounded-lg h-8 w-8 p-0" title="取消"><X size={16} /></Button>
                   </div>
                 </TableCell>
               )}

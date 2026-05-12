@@ -214,21 +214,19 @@ function DesktopSidebar({
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <aside className="hidden w-[276px] shrink-0 border-r border-[var(--line-soft)] px-3 py-5 xl:flex">
-      <div className="surface-panel flex w-full flex-col rounded-[30px] p-4">
+    <aside className="hidden w-[236px] shrink-0 border-r border-[var(--line-soft)] px-2 py-5 xl:flex">
+      <div className="surface-panel flex w-full flex-col rounded-[30px] p-3">
         <BrandBlock />
 
-        <div className="mt-6 rounded-[22px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5">
-          <div>
+        <div className="mt-5 flex items-center gap-3 rounded-[22px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5">
+          <ThemeToggleCompact />
+          <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
               Design Mode
             </p>
-            <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
+            <p className="mt-1 truncate text-sm font-medium text-[var(--foreground)]">
               Impeccable 2026
             </p>
-          </div>
-          <div className="mt-3 flex justify-end">
-            <ThemeToggleCompact />
           </div>
         </div>
 
@@ -244,7 +242,7 @@ function DesktopSidebar({
           ))}
         </nav>
 
-        <div className="mt-5 rounded-[24px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-4 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))]">
+        <div className="mt-5 rounded-[24px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.16),rgba(199,149,65,0.04))] p-3 dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(255,255,255,0.03))]">
           <div className="flex items-start gap-3">
             <div className="flex size-11 items-center justify-center rounded-2xl bg-[var(--accent)]/15 text-[var(--accent-strong)]">
               <Sparkles size={18} />
@@ -574,14 +572,14 @@ function MenuItemComponent({
       <button
         onClick={() => onMenuClick(item)}
         className={cn(
-          "group flex w-full items-center justify-between rounded-[22px] px-4 py-3 text-left transition-all duration-200",
+          "group flex w-full items-center justify-between rounded-[22px] px-3 py-3 text-left transition-all duration-200",
           isActive || isChildActive
             ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_36px_rgba(199,149,65,0.25)]"
             : "bg-transparent text-[var(--muted-foreground)] hover:bg-white/60 hover:text-[var(--foreground)] dark:hover:bg-white/5",
           isMobile && "min-h-12"
         )}
       >
-        <span className="flex items-center gap-3">
+        <span className="flex min-w-0 items-center gap-3">
           <span
             className={cn(
               "flex size-9 items-center justify-center rounded-2xl border transition-colors",
@@ -592,7 +590,7 @@ function MenuItemComponent({
           >
             {item.icon}
           </span>
-          <span className="min-w-0">
+          <span className="min-w-0 flex-1">
             <span className="block whitespace-pre-line text-sm font-medium tracking-[0.01em]">{item.label}</span>
             {item.subtitle ? (
               <span
