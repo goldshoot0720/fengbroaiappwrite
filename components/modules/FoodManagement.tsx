@@ -1928,39 +1928,6 @@ function DesktopTable({ foods, onDelete, onDuplicate, onAmountChange, inlineEdit
                       className="h-9 rounded-lg text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Input
-                      type="url"
-                      placeholder="圖片網址"
-                      value={inlineAddForm.photo || ""}
-                      onChange={(e) => setInlineAddForm({ ...inlineAddForm, photo: e.target.value })}
-                      className="h-9 rounded-lg text-sm"
-                    />
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={onInlineAddPhotoFileSelect}
-                      className="h-9 rounded-lg text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:font-medium file:text-blue-700"
-                    />
-                    {inlineAddPhotoUploading && (
-                      <div className="text-xs text-blue-600">圖片上傳中...</div>
-                    )}
-                    {inlineAddPhotoPreviewUrl || inlineAddForm.photo ? (
-                      <img
-                        src={inlineAddPhotoPreviewUrl || inlineAddForm.photo}
-                        alt="圖片預覽"
-                        className="w-16 h-16 object-cover rounded-xl border border-gray-200"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 flex items-center justify-center text-gray-400 border border-dashed border-gray-300 rounded-xl text-xs">
-                        NO IMAGE
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button type="button" size="sm" onClick={onInlineAddSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">新增</Button>
-                    <Button type="button" size="sm" variant="outline" onClick={onInlineAddCancel} className="rounded-xl">取消</Button>
-                  </div>
                 </div>
               </TableCell>
               <TableCell>
@@ -2049,7 +2016,14 @@ function DesktopTable({ foods, onDelete, onDuplicate, onAmountChange, inlineEdit
                   )}
                 </div>
               </TableCell>
-              {!isEditMode && <TableCell />}
+              {!isEditMode && (
+                <TableCell>
+                  <div className="flex flex-col gap-2 min-w-[96px]">
+                    <Button type="button" size="sm" onClick={onInlineAddSave} className="rounded-xl bg-green-500 hover:bg-green-600 text-white">新增</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={onInlineAddCancel} className="rounded-xl">取消</Button>
+                  </div>
+                </TableCell>
+              )}
             </TableRow>
           )}
           {foods.map((food) => (
