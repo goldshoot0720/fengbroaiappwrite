@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, ChevronUp, Search, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, Refrigerator, CalendarClock, Flame, ShoppingBasket, RefreshCw, Copy } from "lucide-react";
+import { Plus, Minus, ChevronDown, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, CalendarClock, RefreshCw, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { SectionHeader } from "@/components/ui/section-header";
 import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
 import { DataCard } from "@/components/ui/data-card";
+import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
@@ -879,82 +879,179 @@ export default function FoodManagement() {
         </div>
       )}
 
-      <SectionHeader
-        title="鋒兄食品"
-        titleBadge={
-          <span className="text-sm font-medium text-[var(--muted-foreground)] sm:text-base">
-            （＋商品庫存）
-          </span>
+      <FriendlyAiCrudShell
+        title="鋒兄食品（＋商品庫存）"
+        description="以目前 Appwrite `food` 表為準，集中管理食品、商品、有效期限、數量、圖片、商店與價格。上方先看臨期與庫存風險，下方再用同一張 CRUD 表格新增、編輯、複製、刪除。"
+        searchPlaceholder="搜尋食品名稱、商店..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        recentSearchKey="food-management"
+        searchExtras={
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-[260px] flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950">
+              <CalendarClock size={18} className="shrink-0 text-slate-400" />
+              <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">日期</span>
+              <Select
+                value={yearFilter || "all"}
+                onValueChange={(value) => {
+                  setYearFilter(value === "all" ? "" : value);
+                  setMonthFilter("");
+                }}
+              >
+                <SelectTrigger className="h-8 min-w-[112px] border-0 bg-transparent px-0 shadow-none focus:ring-0">
+                  <span className={yearFilter ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}>
+                    {yearFilter === "no-date" ? "無日期" : yearFilter || "全部年份"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部年份</SelectItem>
+                  <SelectItem value="no-date">無日期</SelectItem>
+                  {yearOptions.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year} 年
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={monthFilter || "all"}
+                onValueChange={(value) => setMonthFilter(value === "all" ? "" : value)}
+                disabled={yearFilter === "no-date"}
+              >
+                <SelectTrigger className="h-8 min-w-[104px] border-0 bg-transparent px-0 shadow-none focus:ring-0 disabled:opacity-50">
+                  <span className={monthFilter ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}>
+                    {monthFilter ? formatMonthOption(monthFilter) : "全部月份"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部月份</SelectItem>
+                  {monthOptions.map((month) => (
+                    <SelectItem key={month} value={month}>
+                      {formatMonthOption(month)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(yearFilter || monthFilter) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setYearFilter("");
+                    setMonthFilter("");
+                  }}
+                  className="rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                  aria-label="清除年月篩選"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
         }
-        subtitle={`共 ${foods.length} 項食品`}
-        showAccountLabel={true}
-        action={
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span>即時同步</span>
+        intro={
+          <div className="space-y-4">
+            <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
+              <div className="min-w-0 space-y-2">
+                <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">
+                  Workspace Section
+                </p>
+                <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl lg:text-4xl">
+                  鋒兄食品 <span className="text-base font-medium text-slate-500 dark:text-slate-400">（＋商品庫存）</span>
+                </h1>
+                <p className="text-base leading-7 text-slate-600 dark:text-slate-300">
+                  共 {foods.length} 項食品
+                </p>
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+                  APPWRITE-.ENV
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 self-start rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 2xl:self-auto">
+                <div className="h-2 w-2 rounded-full bg-green-500" />
+                <span>即時同步</span>
+              </div>
+            </div>
+            <p className="max-w-4xl text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
+              食品與商品庫存走同一套 CRUD：新增、編輯、複製會先進入表格內編輯列，確認後才寫入；刪除與批次刪除保留確認流程，避免誤刪。
+            </p>
+          </div>
+        }
+        activeMode={filterMode}
+        onModeChange={(mode) => setFilterMode(mode as FilterMode)}
+        modeItems={[
+          { key: "all", label: "全部", count: filterCounts.all },
+          { key: "expired", label: "已過期", count: filterCounts.expired },
+          { key: "today", label: "今天到期", count: filterCounts.today },
+          { key: "3days", label: "3 天內", count: filterCounts["3days"] },
+          { key: "7days", label: "7 天內", count: filterCounts["7days"] },
+          { key: "normal", label: "正常庫存", count: filterCounts.normal },
+        ]}
+        summaries={[
+          {
+            label: "食品總數",
+            value: foods.length,
+            detail: "食品與商品庫存合計",
+            tone: "blue",
+          },
+          {
+            label: "已過期",
+            value: dashboardStats.expired.length,
+            detail: dashboardStats.expired.length > 0 ? "優先批次處理" : "目前沒有過期食品",
+            tone: dashboardStats.expired.length > 0 ? "red" : "green",
+          },
+          {
+            label: "7 天內到期",
+            value: dashboardStats.expiring7Days.length,
+            detail: "適合提前排菜單與分批消耗",
+            tone: dashboardStats.expiring7Days.length > 0 ? "amber" : "neutral",
+          },
+          {
+            label: "低庫存 / 庫存價值",
+            value: dashboardStats.lowStock.length,
+            detail: `約 NT$ ${dashboardStats.totalValue.toLocaleString()} 在庫`,
+            tone: dashboardStats.lowStock.length > 0 ? "green" : "neutral",
+          },
+        ]}
+        suggestions={[
+          dashboardStats.expired.length > 0
+            ? { title: "先處理過期", body: `目前有 ${dashboardStats.expired.length} 項過期食品，建議先刪除或更新日期。`, tone: "red" }
+            : { title: "過期狀態正常", body: "目前沒有過期食品，可以優先看臨期與低庫存。", tone: "green" },
+          dashboardStats.expiring3Days.length > 0
+            ? { title: "3 天內到期", body: `有 ${dashboardStats.expiring3Days.length} 項 3 天內到期，今天適合先安排消耗。`, tone: "amber" }
+            : { title: "短期壓力低", body: "3 天內沒有到期項目，庫存壓力低。", tone: "blue" },
+          dashboardStats.lowStock.length > 0
+            ? { title: "低庫存提醒", body: `目前有 ${dashboardStats.lowStock.length} 項低庫存，可以用複製或新增快速補資料。`, tone: "neutral" }
+            : { title: "庫存維護", body: "目前沒有低庫存項目，表格可用來補圖片、商店與價格。", tone: "neutral" },
+        ]}
+        toolbar={
+          <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 xl:w-auto xl:flex-nowrap">
+            <input type="file" accept=".csv" onChange={handleCSVFileSelect} className="hidden" id="csv-import-food" />
+            <Button onClick={() => loadFoods(true)} variant="outline" className="min-w-[8.5rem] rounded-xl" title="重新整理" disabled={loading}>
+              <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> 重新整理
+            </Button>
+            <Button onClick={() => document.getElementById("csv-import-food")?.click()} variant="outline" className="min-w-[8rem] rounded-xl" title="匯入 CSV">
+              <Upload className="mr-1 h-4 w-4" /> 匯入
+            </Button>
+            <Button onClick={() => void exportToCSV()} variant="outline" className="min-w-[8rem] rounded-xl" title="匯出 CSV">
+              <Download className="mr-1 h-4 w-4" /> 匯出
+            </Button>
+            <Button onClick={handleSelectAll} variant="outline" className="min-w-[7.5rem] rounded-xl">
+              {selectionMode && filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id)) ? "取消全選" : "全選"}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button onClick={() => { setCleanupAction("delete"); setBulkDeleteOpen(true); }} className="min-w-[8.75rem] rounded-xl bg-red-600 text-white hover:bg-red-700">
+                真刪除 ({selectedIds.size})
+              </Button>
+            )}
+            <Button
+              onClick={() => setIsFormOpen(!isFormOpen)}
+              className="min-w-[12rem] rounded-xl bg-blue-600 px-6 text-white hover:bg-blue-700"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              {isFormOpen ? "收起表單" : "新增食品(或商品)"}
+            </Button>
           </div>
         }
       />
-
-      <div className="flex flex-wrap justify-end gap-2">
-        <input type="file" accept=".csv" onChange={handleCSVFileSelect} className="hidden" id="csv-import-food" />
-        <Button onClick={() => loadFoods(true)} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="重新整理" disabled={loading}>
-          <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 重新整理
-        </Button>
-        <Button onClick={() => document.getElementById('csv-import-food')?.click()} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="匯入 CSV">
-          <Upload size={18} /> 匯入
-        </Button>
-        <Button onClick={() => void exportToCSV()} variant="outline" className="rounded-xl flex items-center gap-2 w-full sm:w-auto" title="匯出 CSV">
-          <Download size={18} /> 匯出
-        </Button>
-        <Button
-          onClick={() => setIsFormOpen(!isFormOpen)}
-          variant="outline"
-          className="rounded-xl flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-10 px-4 w-full sm:w-auto"
-        >
-          {isFormOpen ? <ChevronUp size={18} /> : <Plus size={18} />}
-          {isFormOpen ? "收起表單" : "新增食品(或商品)"}
-        </Button>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-        <Card className="border-red-200 bg-gradient-to-br from-red-50 to-white shadow-sm">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2 text-red-600"><Flame size={16} /> 已過期</CardDescription>
-            <CardTitle className="text-3xl text-red-700">{dashboardStats.expired.length}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-red-700/80">
-            {dashboardStats.expired.length > 0 ? "優先批次處理，避免舊品持續堆積。" : "目前沒有過期食品。"}
-          </CardContent>
-        </Card>
-        <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-white shadow-sm">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2 text-orange-600"><CalendarClock size={16} /> 3 天內到期</CardDescription>
-            <CardTitle className="text-3xl text-orange-700">{dashboardStats.expiring3Days.length}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-orange-700/80">
-            今天最需要決策的區塊，先吃清單會以這裡為主。
-          </CardContent>
-        </Card>
-        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-sm">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2 text-amber-600"><Refrigerator size={16} /> 7 天內到期</CardDescription>
-            <CardTitle className="text-3xl text-amber-700">{dashboardStats.expiring7Days.length}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-amber-700/80">
-            適合提前排菜單與分批消耗，避免臨期一起爆量。
-          </CardContent>
-        </Card>
-        <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white shadow-sm">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2 text-emerald-600"><ShoppingBasket size={16} /> 低庫存 / 庫存價值</CardDescription>
-            <CardTitle className="text-3xl text-emerald-700">{dashboardStats.lowStock.length}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-emerald-700/80">
-            約 NT$ {dashboardStats.totalValue.toLocaleString()} 在庫，低庫存 {dashboardStats.lowStock.length} 項。
-          </CardContent>
-        </Card>
-      </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,1fr)]">
         <Card className="border-blue-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-sm">
@@ -1244,111 +1341,6 @@ export default function FoodManagement() {
           <option key={name} value={name} />
         ))}
       </datalist>
-
-      {/* 搜尋欄位 */}
-      {foods.length > 0 && (
-        <div className="space-y-3 mb-4">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: "all", label: "全部" },
-              { key: "expired", label: "已過期" },
-              { key: "today", label: "今天到期" },
-              { key: "3days", label: "3 天內" },
-              { key: "7days", label: "7 天內" },
-              { key: "normal", label: "正常庫存" },
-            ].map((item) => (
-              <Button
-                key={item.key}
-                type="button"
-                variant="outline"
-                onClick={() => setFilterMode(item.key as FilterMode)}
-                className={`rounded-full ${filterMode === item.key ? "border-blue-500 bg-blue-50 text-blue-700" : ""}`}
-              >
-                {item.label} ({filterCounts[item.key as FilterMode]})
-              </Button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="flex min-w-[320px] flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
-              <CalendarClock size={18} className="shrink-0 text-gray-400" />
-              <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">日期</span>
-              <Select
-                value={yearFilter || "all"}
-                onValueChange={(value) => {
-                  setYearFilter(value === "all" ? "" : value);
-                  setMonthFilter("");
-                }}
-              >
-                <SelectTrigger className="h-8 min-w-[116px] border-0 bg-transparent px-0 shadow-none focus:ring-0">
-                  <span className={yearFilter ? "text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}>
-                    {yearFilter === "no-date" ? "無日期" : yearFilter || "全部年份"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部年份</SelectItem>
-                  <SelectItem value="no-date">無日期</SelectItem>
-                  {yearOptions.map((year) => (
-                    <SelectItem key={year} value={year}>
-                      {year} 年
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={monthFilter || "all"}
-                onValueChange={(value) => setMonthFilter(value === "all" ? "" : value)}
-                disabled={yearFilter === "no-date"}
-              >
-                <SelectTrigger className="h-8 min-w-[104px] border-0 bg-transparent px-0 shadow-none focus:ring-0 disabled:opacity-50">
-                  <span className={monthFilter ? "text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}>
-                    {monthFilter ? formatMonthOption(monthFilter) : "全部月份"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部月份</SelectItem>
-                  {monthOptions.map((month) => (
-                    <SelectItem key={month} value={month}>
-                      {formatMonthOption(month)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(yearFilter || monthFilter) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setYearFilter("");
-                    setMonthFilter("");
-                  }}
-                  className="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-                  aria-label="清除年月篩選"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-            <div className="relative min-w-[240px] flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="搜尋食品名稱、商店..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-12 rounded-xl"
-              />
-            </div>
-            <Button onClick={handleSelectAll} variant="outline" className="h-12 px-4 rounded-xl flex items-center gap-2 shrink-0">
-              {selectionMode && filteredFoods.length > 0 && filteredFoods.every(food => selectedIds.has(food.$id)) ? "取消全選" : "全選"}
-            </Button>
-            {selectedIds.size > 0 && (
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={() => { setCleanupAction("delete"); setBulkDeleteOpen(true); }} className="h-12 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white">
-                  真刪除 ({selectedIds.size})
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <DataCard>
         {foods.length === 0 ? (
