@@ -533,20 +533,21 @@ export default function FoodManagement() {
     }
   };
 
-  const handleDuplicateFood = async (food: Food) => {
-    try {
-      await createFood({
-        name: `${food.name}（複製）`,
-        amount: food.amount,
-        todate: formatDate(food.todate),
-        photo: food.photo || "",
-        price: food.price || 0,
-        shop: food.shop || "",
-        photohash: food.photohash || "",
-      });
-    } catch (err) {
-      alert("複製項目失敗：" + (err instanceof Error ? err.message : "請稍後再試"));
-    }
+  const handleDuplicateFood = (food: Food) => {
+    resetInlinePhotoState();
+    resetInlineAddPhotoState();
+    setInlineEditingId(null);
+    setInlineEditForm(INITIAL_FORM);
+    setInlineAddForm({
+      name: `${food.name}（複製）`,
+      amount: food.amount,
+      todate: formatDate(food.todate),
+      photo: food.photo || "",
+      price: food.price || 0,
+      shop: food.shop || "",
+      photohash: food.photohash || "",
+    });
+    setIsInlineAdding(true);
   };
 
   const resetForm = () => {
