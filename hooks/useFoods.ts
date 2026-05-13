@@ -146,20 +146,30 @@ export function useFoods() {
     if (newAmount < 0) return false;
 
     try {
-      await updateFood(food.$id, {
-        name: food.name,
-        amount: newAmount,
-        todate: food.todate,
-        photo: food.photo || '',
-        price: food.price || 0,
-        shop: food.shop || '',
-        photohash: food.photohash || '',
+      const updatedFood = await fetchApi<Food>(`${API_ENDPOINTS.FOOD}/${food.$id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: food.name,
+          amount: newAmount,
+          todate: food.todate,
+          photo: food.photo || '',
+          price: food.price || 0,
+          shop: food.shop || '',
+          photohash: food.photohash || '',
+        }),
+      });
+
+      setFoods((prev) => {
+        const updated = prev.map((f) => (f.$id === food.$id ? updatedFood : f));
+        cachedFoods = updated.sort(sortFoodsByExpiryDate);
+        cacheTimestamp = Date.now();
+        return cachedFoods;
       });
       return true;
     } catch {
       return false;
     }
-  }, [updateFood]);
+  }, []);
 
   // 初始載入
   useEffect(() => {
