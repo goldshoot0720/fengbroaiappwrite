@@ -51,6 +51,8 @@ function getDefaultMusicName(fileName: string): string {
   return fileName.replace(/\.[^/.]+$/, '');
 }
 
+const DEFAULT_MUSIC_LANGUAGES = ['中文', '英語', '日語', '韓語', '粵語'];
+
 export default function MusicManagement() {
   const { music, loading, error, stats, loadMusic } = useMusic();
   const [showFormModal, setShowFormModal] = useState(false);
@@ -60,7 +62,7 @@ export default function MusicManagement() {
     name: '',
     file: '',
     category: '',
-    language: '',
+    language: '中文',
     note: '',
     ref: '',
     lyrics: '',
@@ -736,6 +738,14 @@ export default function MusicManagement() {
     () => music.filter((item) => !item.file),
     [music]
   );
+  const musicLanguageOptions = useMemo(
+    () => Array.from(new Set([...DEFAULT_MUSIC_LANGUAGES, ...music.map((item) => item.language).filter(Boolean)])),
+    [music]
+  );
+  const musicCategoryOptions = useMemo(
+    () => Array.from(new Set(music.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-TW')),
+    [music]
+  );
 
   // 按名稱分組音樂
   const groupedMusic = useMemo(() => {
@@ -801,7 +811,7 @@ export default function MusicManagement() {
       name: '',
       file: '',
       category: '',
-      language: '',
+      language: '中文',
       note: '',
       ref: '',
       lyrics: '',
@@ -854,7 +864,7 @@ export default function MusicManagement() {
 
   const cancelInlineCreate = () => {
     setIsInlineCreating(false);
-    setInlineCreateForm({ name: '', file: '', category: '', language: '', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
+    setInlineCreateForm({ name: '', file: '', category: '', language: '中文', note: '', ref: '', lyrics: '', cover: '', filetype: '' });
     setInlineCreateCoverFile(null);
     setInlineCreateCoverPreview('');
     setInlineCreateCoverUploading(false);
@@ -1027,6 +1037,17 @@ export default function MusicManagement() {
         </div>
       )}
 
+      <datalist id="music-language-options">
+        {musicLanguageOptions.map((language) => (
+          <option key={language} value={language} />
+        ))}
+      </datalist>
+      <datalist id="music-category-options">
+        {musicCategoryOptions.map((category) => (
+          <option key={category} value={category} />
+        ))}
+      </datalist>
+
       <FriendlyAiCrudShell
         title="鋒兄音樂"
         description="音樂檔、歌詞與封面整理成同一個控制台，先找出缺檔、缺封面和可優先補歌詞的曲目。"
@@ -1147,8 +1168,8 @@ export default function MusicManagement() {
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Input placeholder="分類" value={inlineCreateForm.category} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
-                <Input placeholder="語言" value={inlineCreateForm.language} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, language: e.target.value })} className="h-9 rounded-lg text-sm" />
+                <Input list="music-category-options" placeholder="分類（可選既有分類或自行輸入）" value={inlineCreateForm.category} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
+                <Input list="music-language-options" placeholder="語言" value={inlineCreateForm.language} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, language: e.target.value || '中文' })} className="h-9 rounded-lg text-sm" />
               </div>
               <Textarea placeholder="歌詞" value={inlineCreateForm.lyrics} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, lyrics: e.target.value })} className="rounded-lg text-sm h-24 resize-none" />
               <div className="space-y-2">
@@ -1864,12 +1885,14 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Input
+                    list="music-category-options"
                     placeholder="分類"
                     value={inlineEditForm.category}
                     onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
                     className="h-9 rounded-lg text-sm"
                   />
                   <Input
+                    list="music-language-options"
                     placeholder="語言"
                     value={inlineEditForm.language}
                     onChange={(e) => setInlineEditForm({ ...inlineEditForm, language: e.target.value })}
@@ -2371,12 +2394,14 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input
+                list="music-category-options"
                 placeholder="分類"
                 value={inlineEditForm.category}
                 onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
                 className="h-9 rounded-lg text-sm"
               />
               <Input
+                list="music-language-options"
                 placeholder="語言"
                 value={inlineEditForm.language}
                 onChange={(e) => setInlineEditForm({ ...inlineEditForm, language: e.target.value })}
@@ -2807,12 +2832,9 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
   const [useNameSelect, setUseNameSelect] = useState(!music); // 新增時預設顯示選擇框，編輯時顯示輸入框
   const [useLanguageSelect, setUseLanguageSelect] = useState(true); // 語言選擇框
 
-  // 預設語言選項
-  const defaultLanguages = ['中文', '英語', '日語', '韓語', '粵語', '8-bit', 'instrumental', '其他'];
-
   // 獲取所有已存在的語言（包括自訂的）
   const existingLanguages = Array.from(new Set([
-    ...defaultLanguages,
+    ...DEFAULT_MUSIC_LANGUAGES,
     ...existingMusic.map(m => m.language).filter(Boolean)
   ]));
 

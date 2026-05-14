@@ -1,4 +1,4 @@
-import { Client, Storage, ID, Permission, Role } from 'appwrite';
+import { Client, Storage } from 'appwrite';
 import { getAppwriteConfig } from './utils';
 
 export const STORAGE_UPLOAD_LIMIT_BYTES = Math.floor(1.8 * 1024 * 1024 * 1024);
@@ -58,6 +58,57 @@ function getUploadErrorMessage(error: any, file: File): string {
   return rawMessage;
 }
 
+function uploadThroughServerApi(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<{ url: string; fileId: string }> {
+  const config = getAppwriteConfig();
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload-music');
+
+    if (config.endpoint) xhr.setRequestHeader('x-appwrite-endpoint', config.endpoint);
+    if (config.projectId) xhr.setRequestHeader('x-appwrite-project', config.projectId);
+    if (config.apiKey) xhr.setRequestHeader('x-appwrite-key', config.apiKey);
+    if (config.bucketId) xhr.setRequestHeader('x-appwrite-bucket', config.bucketId);
+
+    xhr.upload.onprogress = (event) => {
+      if (!onProgress || !event.lengthComputable) return;
+      onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+    };
+
+    xhr.onload = () => {
+      let payload: any = null;
+      try {
+        payload = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        payload = null;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300 && payload?.url && payload?.fileId) {
+        onProgress?.(100);
+        resolve({ url: payload.url, fileId: payload.fileId });
+        return;
+      }
+
+      reject(new Error(payload?.error || `上傳失敗（HTTP ${xhr.status}）`));
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('上傳連線失敗，請確認網路與 Appwrite 設定。'));
+    };
+
+    xhr.onabort = () => {
+      reject(new Error('上傳已取消。'));
+    };
+
+    xhr.send(formData);
+  });
+}
+
 /**
  * Create Appwrite client for direct storage uploads
  */
@@ -95,33 +146,10 @@ export async function uploadToAppwriteStorage(
 
   await assertClientStorageQuota(file.size);
 
-  const client = createAppwriteClient();
-  const storage = new Storage(client);
-
   try {
-    // Generate unique file ID
-    const fileId = ID.unique();
-
-    // Upload file with progress tracking and public read permissions
-    const response = await storage.createFile(
-      config.bucketId,
-      fileId,
-      file,
-      [Permission.read(Role.any())], // Public read access
-      onProgress ? (progress) => {
-        // Appwrite progress callback receives upload progress
-        const percentage = Math.min(100, Math.round(progress.progress || 0));
-        onProgress(percentage);
-      } : undefined
-    );
-
-    // Construct file URL with project parameter for public access
-    const fileUrl = `${config.endpoint}/storage/buckets/${config.bucketId}/files/${response.$id}/view?project=${config.projectId}`;
-
-    return {
-      url: fileUrl,
-      fileId: response.$id
-    };
+    // Browser direct upload can be blocked by Appwrite CORS settings.
+    // Route through our same-origin API so uploads work even before CORS is configured.
+    return await uploadThroughServerApi(file, onProgress);
   } catch (error: any) {
     console.error('[uploadToAppwriteStorage] Error:', error);
     throw new Error(getUploadErrorMessage(error, file));
