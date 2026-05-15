@@ -149,7 +149,7 @@ export async function uploadVideoInParts(
   // Verify that the uploaded manifest can be downloaded and parsed before
   // we save its URL into the video record. This prevents broken multipart
   // entries from being persisted.
-  await fetchVideoPartManifest(manifestUpload.url);
+  await fetchVideoPartManifestWithRetry(manifestUpload.url);
 
   onProgress?.(100);
 
@@ -161,8 +161,26 @@ export async function uploadVideoInParts(
   };
 }
 
+async function fetchVideoPartManifestWithRetry(manifestUrl: string): Promise<VideoPartManifest> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    try {
+      return await fetchVideoPartManifest(manifestUrl);
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => window.setTimeout(resolve, attempt * 500));
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Manifest verification failed after upload");
+}
+
 export async function fetchVideoPartManifest(manifestUrl: string): Promise<VideoPartManifest> {
   const response = await fetch(getProxiedMediaUrl(getAppwriteDownloadUrl(manifestUrl)), {
+    cache: "no-store",
     headers: {
       Accept: "application/json",
     },

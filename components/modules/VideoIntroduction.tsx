@@ -2701,7 +2701,10 @@ function InlineCreateVideoCard({
       return result;
     } catch (error) {
       setUploadStatus('error');
-      if (progressKey) updateUploadProgressItem(progressKey, { status: 'error', message: '失敗' });
+      if (progressKey) updateUploadProgressItem(progressKey, {
+        status: 'error',
+        message: error instanceof Error ? error.message : '失敗',
+      });
       throw error;
     }
   };
@@ -3865,7 +3868,10 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
       return result;
     } catch (error) {
       setUploadStatus('error');
-      if (progressKey) updateUploadProgressItem(progressKey, { status: 'error', message: '失敗' });
+      if (progressKey) updateUploadProgressItem(progressKey, {
+        status: 'error',
+        message: error instanceof Error ? error.message : '失敗',
+      });
       throw error;
     }
   };
