@@ -51,6 +51,27 @@ interface PlyrPlayerProps {
   }>;
 }
 
+function appendMediaRetryParam(src: string, retry: number) {
+  if (!src || src.startsWith("blob:") || src.startsWith("data:")) return src;
+  const separator = src.includes("?") ? "&" : "?";
+  return `${src}${separator}__media_retry=${retry}`;
+}
+
+function getMediaErrorMessage(error: MediaError | null) {
+  switch (error?.code) {
+    case MediaError.MEDIA_ERR_ABORTED:
+      return "播放已中斷，請再試一次。";
+    case MediaError.MEDIA_ERR_NETWORK:
+      return "影片載入時網路不穩，請重新載入。";
+    case MediaError.MEDIA_ERR_DECODE:
+      return "瀏覽器無法解碼這個影片檔。";
+    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+      return "影片來源暫時無法播放，請重新載入或檢查檔案格式。";
+    default:
+      return "影片暫時無法播放，請重新載入。";
+  }
+}
+
 export function PlyrPlayer({
   type,
   src,
@@ -65,8 +86,10 @@ export function PlyrPlayer({
 }: PlyrPlayerProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<'landscape' | 'portrait' | 'square'>('landscape');
+  const [playbackError, setPlaybackError] = useState("");
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const plyrRef = useRef<any>(null);
+  const retryCountRef = useRef(0);
 
   const getPersistentMedia = useCallback((mediaType: "audio" | "video") => {
     if (typeof window === "undefined") return null;
@@ -93,6 +116,11 @@ export function PlyrPlayer({
     setIsMounted(true);
     setupSinglePlayback();
   }, []);
+
+  useEffect(() => {
+    retryCountRef.current = 0;
+    setPlaybackError("");
+  }, [src]);
 
   // 初始化 Plyr（直接使用 plyr 庫，繞過 plyr-react 的 selector bug）
   useEffect(() => {
@@ -208,6 +236,55 @@ export function PlyrPlayer({
     return () => media.removeEventListener('ended', onEnded);
   }, [onEnded, src, type]);
 
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (!media) return;
+
+    let retryTimer: number | null = null;
+
+    const handleCanPlay = () => {
+      retryCountRef.current = 0;
+      setPlaybackError("");
+    };
+
+    const handleError = () => {
+      if (retryCountRef.current < 2) {
+        retryCountRef.current += 1;
+        const retrySrc = appendMediaRetryParam(src, retryCountRef.current);
+        retryTimer = window.setTimeout(() => {
+          media.src = retrySrc;
+          media.load();
+          if (autoplay) {
+            void media.play().catch(() => {});
+          }
+        }, 600);
+        return;
+      }
+
+      setPlaybackError(getMediaErrorMessage(media.error));
+    };
+
+    media.addEventListener("canplay", handleCanPlay);
+    media.addEventListener("error", handleError);
+
+    return () => {
+      if (retryTimer) window.clearTimeout(retryTimer);
+      media.removeEventListener("canplay", handleCanPlay);
+      media.removeEventListener("error", handleError);
+    };
+  }, [autoplay, src]);
+
+  const handleManualRetry = () => {
+    const media = mediaRef.current;
+    if (!media) return;
+
+    retryCountRef.current = 0;
+    setPlaybackError("");
+    media.src = appendMediaRetryParam(src, Date.now());
+    media.load();
+    void media.play().catch(() => {});
+  };
+
   if (!isMounted) {
     return (
       <div className={className}>
@@ -227,7 +304,7 @@ export function PlyrPlayer({
   }
 
   return (
-    <div className={`${className} ${type === 'video' ? '[&_video]:object-contain' : ''}`}>
+    <div className={`relative ${className} ${type === 'video' ? '[&_video]:object-contain' : ''}`}>
       {type === 'video' ? (
         <video
           ref={mediaRef as React.RefObject<HTMLVideoElement>}
@@ -253,6 +330,20 @@ export function PlyrPlayer({
           src={src}
           preload="metadata"
         />
+      )}
+      {playbackError && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/75 p-4 text-center text-white">
+          <div className="max-w-sm space-y-3">
+            <p className="text-sm font-medium">{playbackError}</p>
+            <button
+              type="button"
+              onClick={handleManualRetry}
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-900 transition hover:bg-gray-100"
+            >
+              重新載入
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v6';
+const CACHE_NAME = 'fengbro-ai-v7';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -32,7 +32,7 @@ async function saveConfig(config) {
       tx.oncomplete = resolve;
       tx.onerror = resolve;
     });
-  } catch (_) {}
+  } catch {}
 }
 
 async function loadConfig() {
@@ -44,7 +44,7 @@ async function loadConfig() {
       req.onsuccess = () => resolve(req.result || {});
       req.onerror = () => resolve({});
     });
-  } catch (_) {
+  } catch {
     return {};
   }
 }
@@ -183,7 +183,26 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
   if (!request.url.startsWith(self.location.origin)) return;
-  if (request.url.includes('/api/media-proxy')) return;
+
+  const requestUrl = new URL(request.url);
+  const isRangeRequest = request.headers.has('range');
+  const acceptHeader = request.headers.get('accept') || '';
+  const isStreamingRequest =
+    isRangeRequest ||
+    request.destination === 'video' ||
+    request.destination === 'audio' ||
+    acceptHeader.includes('video/') ||
+    acceptHeader.includes('audio/') ||
+    requestUrl.pathname.startsWith('/api/media-proxy') ||
+    requestUrl.pathname.startsWith('/api/multipart-video') ||
+    requestUrl.pathname.startsWith('/api/videos/');
+
+  // Media playback uses byte-range responses (206). Cache Storage rejects those
+  // responses, and caching them can make video/audio playback fail intermittently.
+  if (isStreamingRequest) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -196,9 +215,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) {
+          if (response.status === 200) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
           }
           return response;
         })
@@ -212,9 +231,9 @@ self.addEventListener('fetch', (event) => {
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
-          if (response.ok) {
+          if (response.status === 200) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
           }
           return response;
         });
@@ -226,9 +245,9 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok) {
+        if (response.status === 200) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
         }
         return response;
       })

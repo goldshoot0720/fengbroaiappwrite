@@ -147,6 +147,7 @@ function createProxiedResponse(response: Response, url: string, request: NextReq
   // Essential headers for streaming and playback
   const headersToCopy = [
     'content-type',
+    'content-length',
     'content-range',
     'accept-ranges',
     'cache-control',
