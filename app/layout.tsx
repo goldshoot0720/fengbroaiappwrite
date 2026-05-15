@@ -108,7 +108,21 @@ export default function RootLayout({
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', async function() {
                   try {
-                    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+                    const swVersion = 'v8';
+                    let reloadedForSw = sessionStorage.getItem('fengbro_sw_reloaded') === swVersion;
+
+                    navigator.serviceWorker.addEventListener('controllerchange', function() {
+                      if (reloadedForSw) return;
+                      reloadedForSw = true;
+                      sessionStorage.setItem('fengbro_sw_reloaded', swVersion);
+                      window.location.reload();
+                    });
+
+                    const reg = await navigator.serviceWorker.register('/sw.js?v=' + swVersion, {
+                      scope: '/',
+                      updateViaCache: 'none',
+                    });
+                    await reg.update();
 
                     function sendConfigToSW(registration) {
                       const config = {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v7';
+const CACHE_NAME = 'fengbro-ai-v8';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [

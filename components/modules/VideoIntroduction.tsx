@@ -308,7 +308,9 @@ export default function VideoIntroduction() {
       id: video.$id,
       name: video.name,
       category: video.category || '',
-      file: video.file,
+      file: isMultipartVideoFiletype(video.filetype)
+        ? getMultipartVideoPlaybackUrl(video.file)
+        : getProxiedMediaUrl(video.file),
       cover: typeof video.cover === 'string' ? video.cover : '',
     };
     const added = addToQueue(queueItem);
