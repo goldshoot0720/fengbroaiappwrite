@@ -1,4 +1,4 @@
-import { Client, Storage } from 'appwrite';
+import { Client, ID, Permission, Role, Storage } from 'appwrite';
 import { getAppwriteConfig } from './utils';
 
 export const STORAGE_UPLOAD_LIMIT_BYTES = Math.floor(1.8 * 1024 * 1024 * 1024);
@@ -147,9 +147,24 @@ export async function uploadToAppwriteStorage(
   await assertClientStorageQuota(file.size);
 
   try {
-    // Browser direct upload can be blocked by Appwrite CORS settings.
-    // Route through our same-origin API so uploads work even before CORS is configured.
-    return await uploadThroughServerApi(file, onProgress);
+    const client = createAppwriteClient();
+    const storage = new Storage(client);
+    const response = await storage.createFile(
+      config.bucketId,
+      ID.unique(),
+      file,
+      [Permission.read(Role.any())],
+      onProgress
+        ? (progress) => {
+            onProgress(Math.min(100, Math.round(progress.progress || 0)));
+          }
+        : undefined
+    );
+
+    return {
+      url: `${config.endpoint}/storage/buckets/${config.bucketId}/files/${response.$id}/view?project=${config.projectId}`,
+      fileId: response.$id,
+    };
   } catch (error: any) {
     console.error('[uploadToAppwriteStorage] Error:', error);
     throw new Error(getUploadErrorMessage(error, file));
