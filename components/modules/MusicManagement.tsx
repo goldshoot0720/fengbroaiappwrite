@@ -805,8 +805,8 @@ export default function MusicManagement() {
 
   const handleAdd = () => {
     setEditingMusic(null);
-    setShowFormModal(false);
-    setIsInlineCreating(true);
+    setIsInlineCreating(false);
+    setShowFormModal(true);
     setInlineCreateForm({
       name: '',
       file: '',
@@ -824,9 +824,6 @@ export default function MusicManagement() {
     setInlineCreateAudioFile(null);
     setInlineCreateAudioPreview('');
     setInlineCreateAudioUploading(false);
-    window.requestAnimationFrame(() => {
-      document.getElementById('music-inline-create')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
   };
 
   const handleEdit = (musicItem: MusicData) => {
