@@ -824,6 +824,9 @@ export default function MusicManagement() {
     setInlineCreateAudioFile(null);
     setInlineCreateAudioPreview('');
     setInlineCreateAudioUploading(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById('music-inline-create')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   const handleEdit = (musicItem: MusicData) => {
@@ -1121,7 +1124,7 @@ export default function MusicManagement() {
           title="尚無音樂"
           description="點擊上方「新增音樂」按鈕新增第一首音樂"
         />
-      ) : filteredMusic.length === 0 ? (
+      ) : filteredMusic.length === 0 && !isInlineCreating ? (
         <EmptyState
           icon={<Search className="w-12 h-12" />}
           title="無搜尋結果"
@@ -1130,7 +1133,7 @@ export default function MusicManagement() {
       ) : (
         <div className="space-y-3">
           {isInlineCreating && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3">
+            <div id="music-inline-create" className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-blue-500 dark:border-blue-400 p-4 space-y-3 scroll-mt-6">
               <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">新增中</div>
               <Input placeholder="歌曲名稱" value={inlineCreateForm.name} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
               <div className="space-y-2">
