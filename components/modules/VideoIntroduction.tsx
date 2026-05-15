@@ -2789,8 +2789,11 @@ function InlineCreateVideoCard({
 
             if (response.ok) successCount++;
             else failedCount++;
-          } catch {
-            updateUploadProgressItem(progressKey, { status: 'error', message: '失敗' });
+          } catch (error) {
+            updateUploadProgressItem(progressKey, {
+              status: 'error',
+              message: error instanceof Error ? error.message : '失敗',
+            });
             failedCount++;
           }
         }
@@ -4001,8 +4004,11 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
 
             if (response.ok) successCount++;
             else failedCount++;
-          } catch {
-            updateUploadProgressItem(progressKey, { status: 'error', message: '失敗' });
+          } catch (error) {
+            updateUploadProgressItem(progressKey, {
+              status: 'error',
+              message: error instanceof Error ? error.message : '失敗',
+            });
             failedCount++;
           }
         }
