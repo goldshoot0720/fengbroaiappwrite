@@ -500,6 +500,41 @@ export default function RoutineManagement() {
     return parts.join(" 又 ");
   };
 
+  const calculateAbsoluteDayDiff = (date1: string | null, date2: string | null): number | null => {
+    if (!date1 || !date2) return null;
+
+    const first = new Date(date1);
+    const second = new Date(date2);
+
+    if (Number.isNaN(first.getTime()) || Number.isNaN(second.getTime())) return null;
+
+    first.setHours(0, 0, 0, 0);
+    second.setHours(0, 0, 0, 0);
+
+    return Math.abs(Math.round((second.getTime() - first.getTime()) / (1000 * 60 * 60 * 24)));
+  };
+
+  const formatRoutineGap = (compareDate: string | null, currentDate: string | null, compareLabel: string) => {
+    const days = calculateAbsoluteDayDiff(compareDate, currentDate);
+    if (days === null) return "";
+    return `相差 ${days} 天（與${compareLabel}）`;
+  };
+
+  const renderRoutineDate = (date: string | null, compareDate?: string | null, compareLabel?: string) => {
+    const gapText = compareLabel ? formatRoutineGap(compareDate ?? null, date, compareLabel) : "";
+
+    return (
+      <div className="space-y-1">
+        <div>{formatDateTime(date)}</div>
+        {gapText && (
+          <div className="text-[11px] font-medium leading-tight text-slate-500 dark:text-slate-400">
+            {gapText}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const normalizeRoutineLink = (rawLink: string | null | undefined) => {
     const trimmed = rawLink?.trim();
     if (!trimmed) return "";
@@ -1064,9 +1099,9 @@ export default function RoutineManagement() {
                                       </div>
                                     )}
                                   </TableCell>
-                                  <TableCell>{formatDateTime(routine.lastdate1)}</TableCell>
-                                  <TableCell>{formatDateTime(routine.lastdate2)}</TableCell>
-                                  <TableCell>{formatDateTime(routine.lastdate3)}</TableCell>
+                                  <TableCell>{renderRoutineDate(routine.lastdate1, routine.lastdate2, "最近例行之二")}</TableCell>
+                                  <TableCell>{renderRoutineDate(routine.lastdate2, routine.lastdate3, "最近例行之三")}</TableCell>
+                                  <TableCell>{renderRoutineDate(routine.lastdate3)}</TableCell>
                                   <TableCell className="text-right space-x-2">
                                     <Button
                                       size="sm"
@@ -1212,15 +1247,15 @@ export default function RoutineManagement() {
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-gray-500">最近例行之一:</span>
-                                <span>{formatDateTime(routine.lastdate1)}</span>
+                                <span className="text-right">{renderRoutineDate(routine.lastdate1, routine.lastdate2, "最近例行之二")}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-500">最近例行之二:</span>
-                                <span>{formatDateTime(routine.lastdate2)}</span>
+                                <span className="text-right">{renderRoutineDate(routine.lastdate2, routine.lastdate3, "最近例行之三")}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-500">最近例行之三:</span>
-                                <span>{formatDateTime(routine.lastdate3)}</span>
+                                <span className="text-right">{renderRoutineDate(routine.lastdate3)}</span>
                               </div>
                             </div>
                             <div className="flex gap-2 pt-3">
