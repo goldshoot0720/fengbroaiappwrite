@@ -5,6 +5,10 @@
       "schedule": "0 0 * * *"
     },
     {
+      "path": "/api/resend-expiry-notify",
+      "schedule": "5 0 * * *"
+    },
+    {
       "path": "/api/landtop",
       "schedule": "0 1 * * 1"
     }

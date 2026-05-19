@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2 } from "lucide-react";
+import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send } from "lucide-react";
 import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
@@ -60,6 +60,12 @@ export default function SettingsManagement() {
   const [pushConfig, setPushConfig] = useState({
     publicKey: ''
   });
+  const [resendConfig, setResendConfig] = useState({
+    apiKey: '',
+    toEmail: '',
+    fromEmail: 'FengBro <onboarding@resend.dev>'
+  });
+  const [resendTestLoading, setResendTestLoading] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkIsUpdate, setBulkIsUpdate] = useState(false);
   const [bulkQueue, setBulkQueue] = useState<string[]>([]);
@@ -112,6 +118,11 @@ export default function SettingsManagement() {
     setAppwriteConfig(saved);
     setPushConfig({
       publicKey: localStorage.getItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY') || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+    });
+    setResendConfig({
+      apiKey: localStorage.getItem('RESEND_API_KEY') || '',
+      toEmail: localStorage.getItem('RESEND_TO_EMAIL') || '',
+      fromEmail: localStorage.getItem('RESEND_FROM_EMAIL') || 'FengBro <onboarding@resend.dev>'
     });
   }, []);
 
@@ -175,6 +186,56 @@ export default function SettingsManagement() {
     }
     alert('✅ 推播公鑰設定已儲存。\n重新整理後會套用新的推播設定。');
     window.location.reload();
+  };
+
+  const handleSaveResendConfig = () => {
+    if (typeof window === 'undefined') return;
+    const apiKey = resendConfig.apiKey.trim();
+    const toEmail = resendConfig.toEmail.trim();
+    const fromEmail = resendConfig.fromEmail.trim() || 'FengBro <onboarding@resend.dev>';
+
+    if (apiKey) localStorage.setItem('RESEND_API_KEY', apiKey);
+    else localStorage.removeItem('RESEND_API_KEY');
+
+    if (toEmail) localStorage.setItem('RESEND_TO_EMAIL', toEmail);
+    else localStorage.removeItem('RESEND_TO_EMAIL');
+
+    localStorage.setItem('RESEND_FROM_EMAIL', fromEmail);
+    setResendConfig({ apiKey, toEmail, fromEmail });
+    alert('✅ Resend Email 通知設定已儲存。部署環境請同步設定 RESEND_API_KEY / RESEND_TO_EMAIL。');
+  };
+
+  const handleTestResendNotification = async () => {
+    const apiKey = resendConfig.apiKey.trim();
+    const toEmail = resendConfig.toEmail.trim();
+    if (!apiKey || !toEmail) {
+      alert('請先填寫 RESEND API Key 與通知收件 Email');
+      return;
+    }
+
+    setResendTestLoading(true);
+    try {
+      const response = await fetch('/api/resend-expiry-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resendApiKey: apiKey,
+          resendTo: toEmail,
+          resendFrom: resendConfig.fromEmail.trim() || 'FengBro <onboarding@resend.dev>',
+          endpoint: appwriteConfig.endpoint,
+          projectId: appwriteConfig.projectId,
+          databaseId: appwriteConfig.databaseId,
+          appwriteApiKey: appwriteConfig.apiKey,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.error) throw new Error(result.error || 'Resend 測試失敗');
+      alert(result.sent ? `✅ Email 通知已送出：訂閱 ${result.subscriptions}、食品 ${result.foods}` : '✅ 檢查完成，目前沒有符合通知條件的項目');
+    } catch (error) {
+      alert(`❌ Resend 測試失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
+    } finally {
+      setResendTestLoading(false);
+    }
   };
 
   const handleBulkCreate = () => {
@@ -254,6 +315,9 @@ export default function SettingsManagement() {
     localStorage.removeItem('APPWRITE_BUCKET_ID');
     localStorage.removeItem('APPWRITE_API_KEY');
     localStorage.removeItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY');
+    localStorage.removeItem('RESEND_API_KEY');
+    localStorage.removeItem('RESEND_TO_EMAIL');
+    localStorage.removeItem('RESEND_FROM_EMAIL');
     localStorage.removeItem('appwrite_custom_config_saved');
     
     // 清除所有快取
@@ -274,7 +338,10 @@ NEXT_PUBLIC_APPWRITE_PROJECT_ID=${appwriteConfig.projectId}
 APPWRITE_DATABASE_ID=${appwriteConfig.databaseId}
 APPWRITE_BUCKET_ID=${appwriteConfig.bucketId}
 APPWRITE_API_KEY=${appwriteConfig.apiKey}
-NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}`;
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}
+RESEND_API_KEY=${resendConfig.apiKey}
+RESEND_TO_EMAIL=${resendConfig.toEmail}
+RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
     
     navigator.clipboard.writeText(envTemplate).then(() => {
       alert('✅ .env 設定已複製到剪貼簿！\n\n請執行以下步驟：\n1. 在專案根目錄建立或開啟 .env 檔案\n2. 貼上複製的內容\n3. 儲存檔案\n4. 重新啟動開發伺服器 (npm run dev)');
@@ -1117,6 +1184,73 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}`;
                 </div>
               </>
             )}
+          </div>
+        </DataCard>
+
+        {/* Resend Email 通知設定 */}
+        <DataCard className="p-6 md:col-span-2">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-rose-100 dark:bg-rose-900/30">
+              <Mail size={20} className="text-rose-600 dark:text-rose-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">Resend Email 通知</h3>
+              <p className="text-xs text-gray-400">訂閱到期前一天、食品到期前一周各提醒一次</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm text-gray-600 dark:text-gray-400 block">RESEND_API_KEY</label>
+                <Input
+                  type="password"
+                  value={resendConfig.apiKey}
+                  onChange={(e) => setResendConfig({ ...resendConfig, apiKey: e.target.value })}
+                  placeholder="re_..."
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-600 dark:text-gray-400 block">通知收件 Email</label>
+                <Input
+                  type="email"
+                  value={resendConfig.toEmail}
+                  onChange={(e) => setResendConfig({ ...resendConfig, toEmail: e.target.value })}
+                  placeholder="you@example.com"
+                  className="font-mono text-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-gray-600 dark:text-gray-400 block">寄件人</label>
+              <Input
+                value={resendConfig.fromEmail}
+                onChange={(e) => setResendConfig({ ...resendConfig, fromEmail: e.target.value })}
+                placeholder="FengBro <onboarding@resend.dev>"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button onClick={handleSaveResendConfig} variant="outline" className="flex-1">
+                儲存 Resend 設定
+              </Button>
+              <Button
+                onClick={handleTestResendNotification}
+                disabled={resendTestLoading}
+                className="flex-1 flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {resendTestLoading ? (
+                  <><Loader2 size={16} className="animate-spin" /> 測試中...</>
+                ) : (
+                  <><Send size={16} /> 測試到期 Email</>
+                )}
+              </Button>
+            </div>
+            <div className="p-3 bg-rose-50 dark:bg-rose-950 rounded-lg border border-rose-200 dark:border-rose-800">
+              <p className="text-xs text-rose-700 dark:text-rose-300">
+                Vercel Cron 每天 08:05（台灣時間）檢查一次；部署環境需設定 RESEND_API_KEY、RESEND_TO_EMAIL，才會自動寄送 Email。
+              </p>
+            </div>
           </div>
         </DataCard>
 
