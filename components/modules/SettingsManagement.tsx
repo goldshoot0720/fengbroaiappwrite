@@ -63,6 +63,10 @@ export default function SettingsManagement() {
   const [resendConfig, setResendConfig] = useState({
     apiKey: '',
     toEmail: '',
+    apiKey2: '',
+    toEmail2: '',
+    apiKey3: '',
+    toEmail3: '',
     fromEmail: 'FengBro <onboarding@resend.dev>'
   });
   const [resendTestLoading, setResendTestLoading] = useState(false);
@@ -122,6 +126,10 @@ export default function SettingsManagement() {
     setResendConfig({
       apiKey: localStorage.getItem('RESEND_API_KEY') || '',
       toEmail: localStorage.getItem('RESEND_TO_EMAIL') || '',
+      apiKey2: localStorage.getItem('RESEND_API_KEY2') || '',
+      toEmail2: localStorage.getItem('RESEND_TO_EMAIL2') || '',
+      apiKey3: localStorage.getItem('RESEND_API_KEY3') || '',
+      toEmail3: localStorage.getItem('RESEND_TO_EMAIL3') || '',
       fromEmail: localStorage.getItem('RESEND_FROM_EMAIL') || 'FengBro <onboarding@resend.dev>'
     });
   }, []);
@@ -192,6 +200,10 @@ export default function SettingsManagement() {
     if (typeof window === 'undefined') return;
     const apiKey = resendConfig.apiKey.trim();
     const toEmail = resendConfig.toEmail.trim();
+    const apiKey2 = resendConfig.apiKey2.trim();
+    const toEmail2 = resendConfig.toEmail2.trim();
+    const apiKey3 = resendConfig.apiKey3.trim();
+    const toEmail3 = resendConfig.toEmail3.trim();
     const fromEmail = resendConfig.fromEmail.trim() || 'FengBro <onboarding@resend.dev>';
 
     if (apiKey) localStorage.setItem('RESEND_API_KEY', apiKey);
@@ -200,16 +212,32 @@ export default function SettingsManagement() {
     if (toEmail) localStorage.setItem('RESEND_TO_EMAIL', toEmail);
     else localStorage.removeItem('RESEND_TO_EMAIL');
 
+    if (apiKey2) localStorage.setItem('RESEND_API_KEY2', apiKey2);
+    else localStorage.removeItem('RESEND_API_KEY2');
+
+    if (toEmail2) localStorage.setItem('RESEND_TO_EMAIL2', toEmail2);
+    else localStorage.removeItem('RESEND_TO_EMAIL2');
+
+    if (apiKey3) localStorage.setItem('RESEND_API_KEY3', apiKey3);
+    else localStorage.removeItem('RESEND_API_KEY3');
+
+    if (toEmail3) localStorage.setItem('RESEND_TO_EMAIL3', toEmail3);
+    else localStorage.removeItem('RESEND_TO_EMAIL3');
+
     localStorage.setItem('RESEND_FROM_EMAIL', fromEmail);
-    setResendConfig({ apiKey, toEmail, fromEmail });
-    alert('✅ Resend Email 通知設定已儲存。部署環境請同步設定 RESEND_API_KEY / RESEND_TO_EMAIL。');
+    setResendConfig({ apiKey, toEmail, apiKey2, toEmail2, apiKey3, toEmail3, fromEmail });
+    alert('✅ Resend Email 通知設定已儲存。部署環境請同步設定 RESEND_API_KEY / RESEND_TO_EMAIL，可選 RESEND_API_KEY2 / RESEND_TO_EMAIL2、RESEND_API_KEY3 / RESEND_TO_EMAIL3。');
   };
 
   const handleTestResendNotification = async () => {
     const apiKey = resendConfig.apiKey.trim();
     const toEmail = resendConfig.toEmail.trim();
-    if (!apiKey || !toEmail) {
-      alert('請先填寫 RESEND API Key 與通知收件 Email');
+    const apiKey2 = resendConfig.apiKey2.trim();
+    const toEmail2 = resendConfig.toEmail2.trim();
+    const apiKey3 = resendConfig.apiKey3.trim();
+    const toEmail3 = resendConfig.toEmail3.trim();
+    if ((!apiKey || !toEmail) && (!apiKey2 || !toEmail2) && (!apiKey3 || !toEmail3)) {
+      alert('請至少填寫一組 RESEND API Key 與通知收件 Email');
       return;
     }
 
@@ -221,6 +249,10 @@ export default function SettingsManagement() {
         body: JSON.stringify({
           resendApiKey: apiKey,
           resendTo: toEmail,
+          resendApiKey2: apiKey2,
+          resendTo2: toEmail2,
+          resendApiKey3: apiKey3,
+          resendTo3: toEmail3,
           resendFrom: resendConfig.fromEmail.trim() || 'FengBro <onboarding@resend.dev>',
           endpoint: appwriteConfig.endpoint,
           projectId: appwriteConfig.projectId,
@@ -317,6 +349,10 @@ export default function SettingsManagement() {
     localStorage.removeItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY');
     localStorage.removeItem('RESEND_API_KEY');
     localStorage.removeItem('RESEND_TO_EMAIL');
+    localStorage.removeItem('RESEND_API_KEY2');
+    localStorage.removeItem('RESEND_TO_EMAIL2');
+    localStorage.removeItem('RESEND_API_KEY3');
+    localStorage.removeItem('RESEND_TO_EMAIL3');
     localStorage.removeItem('RESEND_FROM_EMAIL');
     localStorage.removeItem('appwrite_custom_config_saved');
     
@@ -341,6 +377,10 @@ APPWRITE_API_KEY=${appwriteConfig.apiKey}
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}
 RESEND_API_KEY=${resendConfig.apiKey}
 RESEND_TO_EMAIL=${resendConfig.toEmail}
+RESEND_API_KEY2=${resendConfig.apiKey2}
+RESEND_TO_EMAIL2=${resendConfig.toEmail2}
+RESEND_API_KEY3=${resendConfig.apiKey3}
+RESEND_TO_EMAIL3=${resendConfig.toEmail3}
 RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
     
     navigator.clipboard.writeText(envTemplate).then(() => {
@@ -1221,6 +1261,50 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                 />
               </div>
             </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm text-gray-600 dark:text-gray-400 block">RESEND_API_KEY2</label>
+                <Input
+                  type="password"
+                  value={resendConfig.apiKey2}
+                  onChange={(e) => setResendConfig({ ...resendConfig, apiKey2: e.target.value })}
+                  placeholder="re_..."
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-600 dark:text-gray-400 block">通知收件 Email 2</label>
+                <Input
+                  type="email"
+                  value={resendConfig.toEmail2}
+                  onChange={(e) => setResendConfig({ ...resendConfig, toEmail2: e.target.value })}
+                  placeholder="you2@example.com"
+                  className="font-mono text-sm"
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm text-gray-600 dark:text-gray-400 block">RESEND_API_KEY3</label>
+                <Input
+                  type="password"
+                  value={resendConfig.apiKey3}
+                  onChange={(e) => setResendConfig({ ...resendConfig, apiKey3: e.target.value })}
+                  placeholder="re_..."
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-600 dark:text-gray-400 block">通知收件 Email 3</label>
+                <Input
+                  type="email"
+                  value={resendConfig.toEmail3}
+                  onChange={(e) => setResendConfig({ ...resendConfig, toEmail3: e.target.value })}
+                  placeholder="you3@example.com"
+                  className="font-mono text-sm"
+                />
+              </div>
+            </div>
             <div className="space-y-2">
               <label className="text-sm text-gray-600 dark:text-gray-400 block">寄件人</label>
               <Input
@@ -1248,7 +1332,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             </div>
             <div className="p-3 bg-rose-50 dark:bg-rose-950 rounded-lg border border-rose-200 dark:border-rose-800">
               <p className="text-xs text-rose-700 dark:text-rose-300">
-                Vercel Cron 每天 08:05（台灣時間）檢查一次；部署環境需設定 RESEND_API_KEY、RESEND_TO_EMAIL，才會自動寄送 Email。
+                Vercel Cron 每天 08:05（台灣時間）檢查一次；部署環境至少需設定一組 RESEND_API_KEY / RESEND_TO_EMAIL，也可設定 RESEND_API_KEY2 / RESEND_TO_EMAIL2、RESEND_API_KEY3 / RESEND_TO_EMAIL3 寄給更多收件人。
               </p>
             </div>
           </div>

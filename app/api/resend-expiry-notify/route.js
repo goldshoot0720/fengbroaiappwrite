@@ -75,15 +75,32 @@ async function readBody(request) {
 }
 
 function getResendConfig(searchParams, body = {}) {
-  return {
-    apiKey: body.resendApiKey || searchParams.get("_resendKey") || process.env.RESEND_API_KEY || "",
-    to: body.resendTo || searchParams.get("_resendTo") || process.env.RESEND_TO_EMAIL || "",
-    from:
-      body.resendFrom ||
-      searchParams.get("_resendFrom") ||
-      process.env.RESEND_FROM_EMAIL ||
-      "FengBro <onboarding@resend.dev>",
-  };
+  const from =
+    body.resendFrom ||
+    searchParams.get("_resendFrom") ||
+    process.env.RESEND_FROM_EMAIL ||
+    "FengBro <onboarding@resend.dev>";
+
+  return [
+    {
+      keyName: "RESEND_API_KEY",
+      apiKey: body.resendApiKey || searchParams.get("_resendKey") || process.env.RESEND_API_KEY || "",
+      to: body.resendTo || searchParams.get("_resendTo") || process.env.RESEND_TO_EMAIL || "",
+      from,
+    },
+    {
+      keyName: "RESEND_API_KEY2",
+      apiKey: body.resendApiKey2 || searchParams.get("_resendKey2") || process.env.RESEND_API_KEY2 || "",
+      to: body.resendTo2 || searchParams.get("_resendTo2") || process.env.RESEND_TO_EMAIL2 || "",
+      from,
+    },
+    {
+      keyName: "RESEND_API_KEY3",
+      apiKey: body.resendApiKey3 || searchParams.get("_resendKey3") || process.env.RESEND_API_KEY3 || "",
+      to: body.resendTo3 || searchParams.get("_resendTo3") || process.env.RESEND_TO_EMAIL3 || "",
+      from,
+    },
+  ].filter((config) => config.apiKey || config.to);
 }
 
 function formatDate(dateStr) {
@@ -187,10 +204,15 @@ async function handleResendExpiryNotify(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const resend = getResendConfig(searchParams, body);
+    const resendConfigs = getResendConfig(searchParams, body);
 
-    if (!resend.apiKey) {
-      return NextResponse.json({ success: true, skipped: true, reason: "RESEND_API_KEY is not configured" });
+    if (resendConfigs.length === 0) {
+      return NextResponse.json({ success: true, skipped: true, reason: "RESEND_API_KEY / RESEND_TO_EMAIL is not configured" });
+    }
+
+    const invalidConfig = resendConfigs.find((config) => !config.apiKey || !config.to);
+    if (invalidConfig) {
+      return NextResponse.json({ error: `${invalidConfig.keyName} requires both API key and recipient email` }, { status: 400 });
     }
 
     const { databases, databaseId } = createAppwrite(searchParams, body);
@@ -202,16 +224,18 @@ async function handleResendExpiryNotify(request) {
     }
 
     const email = buildEmail({ subscriptions, foods, todayKey });
-    const resendResult = await sendResendEmail({
-      ...resend,
-      ...email,
-      idempotencyKey: `fengbro-expiry-${todayKey}`,
-    });
+    const resendResults = await Promise.all(resendConfigs.map((resend, index) =>
+      sendResendEmail({
+        ...resend,
+        ...email,
+        idempotencyKey: `fengbro-expiry-${todayKey}-${index + 1}`,
+      })
+    ));
 
     return NextResponse.json({
       success: true,
-      sent: 1,
-      resendId: resendResult?.id,
+      sent: resendResults.length,
+      resendIds: resendResults.map((result) => result?.id).filter(Boolean),
       subscriptions: subscriptions.length,
       foods: foods.length,
       checkedAt: new Date().toISOString(),
