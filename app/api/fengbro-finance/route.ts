@@ -203,7 +203,7 @@ async function fetchMultplInstrument(instrument: FinanceInstrument) {
   if (price == null) throw new Error("No Shiller PE data");
 
   const changeMatch = text.match(/Current\s+Shiller\s+PE\s+Ratio:\s*[0-9]+(?:\.[0-9]+)?\s*([+-]?[0-9]+(?:\.[0-9]+)?)\s*\(([+-]?[0-9]+(?:\.[0-9]+)?)%\)/i);
-  const maxFromPage = extractFirstNumber(/Max:\s*([0-9]+(?:\.[0-9]+)?)/i, text) ?? SHILLER_PE_RECORD_HIGH;
+  const pageMax = extractFirstNumber(/Max:\s*([0-9]+(?:\.[0-9]+)?)/i, text);
   const minFromPage = extractFirstNumber(/Min:\s*([0-9]+(?:\.[0-9]+)?)/i, text);
   const updatedMatch = text.match(/([0-9]{1,2}:[0-9]{2}\s*[AP]M\s*[A-Z]{2,4},\s*[A-Za-z]{3}\s+[A-Za-z]{3}\s+[0-9]{1,2})/i);
 
@@ -214,13 +214,14 @@ async function fetchMultplInstrument(instrument: FinanceInstrument) {
     change: changeMatch?.[1] ? asNumber(changeMatch[1]) : null,
     changePercent: changeMatch?.[2] ? asNumber(changeMatch[2]) : null,
     currency: "",
-    high52: maxFromPage,
+    high52: SHILLER_PE_RECORD_HIGH,
     low52: minFromPage,
     dayHigh: null,
     dayLow: null,
     lastUpdated: updatedMatch?.[1] || "",
-    recordTag: price >= maxFromPage || nearlyEqual(price, maxFromPage) ? "new-high" : null,
-    recordNote: `Historical max ${maxFromPage} (${SHILLER_PE_RECORD_DATE})`,
+    recordTag: price > SHILLER_PE_RECORD_HIGH ? "new-high" : null,
+    recordNote: `Historical max ${SHILLER_PE_RECORD_HIGH} (${SHILLER_PE_RECORD_DATE})`,
+    pageMax,
   };
 }
 
@@ -262,10 +263,12 @@ export async function GET() {
       name: "Shiller PE Ratio",
       sourceUrl: SHILLER_PE_URL,
       current: shillerQuote?.price ?? null,
-      recordHigh: shillerQuote?.high52 ?? SHILLER_PE_RECORD_HIGH,
+      recordHigh: SHILLER_PE_RECORD_HIGH,
       recordHighDate: SHILLER_PE_RECORD_DATE,
       updatedAt: shillerQuote?.lastUpdated ?? "",
-      isRecordHigh: shillerQuote?.recordTag === "new-high",
+      isRecordHigh:
+        typeof shillerQuote?.price === "number" &&
+        shillerQuote.price > SHILLER_PE_RECORD_HIGH,
       error: shillerQuote && "error" in shillerQuote ? shillerQuote.error : undefined,
     },
   });

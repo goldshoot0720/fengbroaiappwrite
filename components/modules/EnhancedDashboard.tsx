@@ -628,7 +628,7 @@ function ShillerPeNoticeCard({
             Shiller PE Ratio 創新高提醒
           </p>
           <p className="mt-1 text-xs leading-5 text-rose-800 dark:text-rose-200">
-            目前 {notice.current?.toFixed(2) ?? "--"}，已達或突破歷史高點 {notice.recordHigh.toFixed(2)}
+            目前 {notice.current?.toFixed(2) ?? "--"}，已突破歷史高點 {notice.recordHigh.toFixed(2)}
             （{notice.recordHighDate}）。請留意美股估值風險。
           </p>
         </div>
