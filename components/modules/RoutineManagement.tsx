@@ -47,6 +47,12 @@ const INITIAL_FORM: RoutineFormData = {
   photo: "",
 };
 
+const getRoutineDateTime = (date: string | null) => {
+  if (!date) return 0;
+  const time = new Date(date).getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
 export default function RoutineManagement() {
   const { items: routines, loading, error, create, update, remove, fetchAll } = useCrud<Routine>(API_ENDPOINTS.ROUTINE);
   const [form, setForm] = useState<RoutineFormData>(INITIAL_FORM);
@@ -86,12 +92,17 @@ export default function RoutineManagement() {
       return true;
     });
 
-    if (!searchQuery.trim()) return modeFiltered;
-    const query = searchQuery.toLowerCase();
-    return modeFiltered.filter(routine =>
-      routine.name?.toLowerCase().includes(query) ||
-      routine.note?.toLowerCase().includes(query)
-    );
+    const searchFiltered = !searchQuery.trim()
+      ? modeFiltered
+      : modeFiltered.filter(routine => {
+        const query = searchQuery.toLowerCase();
+        return (
+          routine.name?.toLowerCase().includes(query) ||
+          routine.note?.toLowerCase().includes(query)
+        );
+      });
+
+    return [...searchFiltered].sort((a, b) => getRoutineDateTime(b.lastdate1) - getRoutineDateTime(a.lastdate1));
   }, [routines, searchQuery, workbenchMode]);
 
   const routinesWithDate = useMemo(() => routines.filter((routine) => Boolean(routine.lastdate1)), [routines]);
