@@ -85,6 +85,32 @@ function extractFirstNumber(pattern: RegExp, text: string) {
   return match?.[1] ? asNumber(match[1]) : null;
 }
 
+function toReadableText(html: string) {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function parseShillerPeText(text: string) {
+  const price =
+    extractFirstNumber(/Current\s+Shiller\s+PE\s+Ratio(?:\s+is)?\s*:?\s*([0-9]+(?:\.[0-9]+)?)/i, text) ??
+    extractFirstNumber(/\bShiller\s+PE\s+Ratio\s+([0-9]+(?:\.[0-9]+)?)/i, text);
+
+  const changeMatch =
+    text.match(/Current\s+Shiller\s+PE\s+Ratio(?:\s+is)?\s*:?\s*[0-9]+(?:\.[0-9]+)?\s*,?\s*([+-]?[0-9]+(?:\.[0-9]+)?)\s*\(([+-]?[0-9]+(?:\.[0-9]+)?)%\)/i) ??
+    text.match(/\bShiller\s+PE\s+Ratio\s+[0-9]+(?:\.[0-9]+)?\s+([+-]?[0-9]+(?:\.[0-9]+)?)\s*\(([+-]?[0-9]+(?:\.[0-9]+)?)%\)/i);
+
+  return {
+    price,
+    change: changeMatch?.[1] ? asNumber(changeMatch[1]) : null,
+    changePercent: changeMatch?.[2] ? asNumber(changeMatch[2]) : null,
+    pageMax: extractFirstNumber(/Max:\s*([0-9]+(?:\.[0-9]+)?)/i, text),
+    minFromPage: extractFirstNumber(/Min:\s*([0-9]+(?:\.[0-9]+)?)/i, text),
+    updatedAt:
+      text.match(/([0-9]{1,2}:[0-9]{2}\s*[AP]M\s*[A-Z]{2,4},\s*[A-Za-z]{3}\s+[A-Za-z]{3}\s+[0-9]{1,2})/i)?.[1] ||
+      text.match(/\b(At market close\s+[A-Za-z]{3}\s+[A-Za-z]{3}\s+[0-9]{1,2},\s*[0-9]{4})\b/i)?.[1] ||
+      "",
+  };
+}
+
 function toNumberList(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value.map(asNumber).filter((item): item is number => item != null);
@@ -187,41 +213,46 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
 }
 
 async function fetchMultplInstrument(instrument: FinanceInstrument) {
-  const response = await fetch(instrument.sourceUrl, {
-    headers: {
-      accept: "text/html,text/plain,*/*",
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-    },
-    cache: "no-store",
-  });
+  const fetchMultplText = async (url: string) => {
+    const response = await fetch(url, {
+      headers: {
+        accept: "text/html,text/plain,*/*",
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+      },
+      cache: "no-store",
+    });
 
-  if (!response.ok) throw new Error(`Multpl ${response.status}`);
-  const html = await response.text();
-  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const price = extractFirstNumber(/Current\s+Shiller\s+PE\s+Ratio:\s*([0-9]+(?:\.[0-9]+)?)/i, text);
+    if (!response.ok) throw new Error(`Multpl ${response.status}`);
+    return toReadableText(await response.text());
+  };
+
+  const primaryText = await fetchMultplText(instrument.sourceUrl);
+  let parsed = parseShillerPeText(primaryText);
+
+  if (parsed.price == null) {
+    const fallbackText = await fetchMultplText("https://www.multpl.com/");
+    parsed = parseShillerPeText(fallbackText);
+  }
+
+  const price = parsed.price;
   if (price == null) throw new Error("No Shiller PE data");
-
-  const changeMatch = text.match(/Current\s+Shiller\s+PE\s+Ratio:\s*[0-9]+(?:\.[0-9]+)?\s*([+-]?[0-9]+(?:\.[0-9]+)?)\s*\(([+-]?[0-9]+(?:\.[0-9]+)?)%\)/i);
-  const pageMax = extractFirstNumber(/Max:\s*([0-9]+(?:\.[0-9]+)?)/i, text);
-  const minFromPage = extractFirstNumber(/Min:\s*([0-9]+(?:\.[0-9]+)?)/i, text);
-  const updatedMatch = text.match(/([0-9]{1,2}:[0-9]{2}\s*[AP]M\s*[A-Z]{2,4},\s*[A-Za-z]{3}\s+[A-Za-z]{3}\s+[0-9]{1,2})/i);
 
   return {
     ...instrument,
     displayName: instrument.name,
     price,
-    change: changeMatch?.[1] ? asNumber(changeMatch[1]) : null,
-    changePercent: changeMatch?.[2] ? asNumber(changeMatch[2]) : null,
+    change: parsed.change,
+    changePercent: parsed.changePercent,
     currency: "",
     high52: SHILLER_PE_RECORD_HIGH,
-    low52: minFromPage,
+    low52: parsed.minFromPage,
     dayHigh: null,
     dayLow: null,
-    lastUpdated: updatedMatch?.[1] || "",
+    lastUpdated: parsed.updatedAt,
     recordTag: price > SHILLER_PE_RECORD_HIGH ? "new-high" : null,
     recordNote: `Historical max ${SHILLER_PE_RECORD_HIGH} (${SHILLER_PE_RECORD_DATE})`,
-    pageMax,
+    pageMax: parsed.pageMax,
   };
 }
 
