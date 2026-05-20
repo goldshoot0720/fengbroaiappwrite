@@ -436,12 +436,13 @@ export default function BankManagement() {
     setBulkAmountSaving(false);
   };
 
-  const openBulkAmountModal = (type: "income" | "expense") => {
+  const openBulkAmountModal = () => {
     if (selectedIds.size === 0) {
       alert("請先選取要調整金額的銀行");
       return;
     }
-    setBulkAmountType(type);
+    setBulkAmountAction("adjust");
+    setBulkAmountType("income");
     setBulkAmountMode("fixed");
     setBulkAmountValue("");
     setBulkSeparateAmounts({});
@@ -872,20 +873,12 @@ export default function BankManagement() {
             {selectedIds.size > 0 && (
               <>
                 <Button
-                  onClick={() => openBulkAmountModal("income")}
+                  onClick={openBulkAmountModal}
                   variant="outline"
                   className="rounded-xl flex items-center gap-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 h-10 px-4"
                 >
                   <Plus size={18} />
-                  多選 + 金額 ({selectedIds.size})
-                </Button>
-                <Button
-                  onClick={() => openBulkAmountModal("expense")}
-                  variant="outline"
-                  className="rounded-xl flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700 h-10 px-4"
-                >
-                  <Minus size={18} />
-                  多選 - 金額 ({selectedIds.size})
+                  多選金額 ({selectedIds.size})
                 </Button>
                 <Button
                   onClick={openBulkDepositModal}
