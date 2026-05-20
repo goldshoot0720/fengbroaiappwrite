@@ -185,6 +185,7 @@ export default function BankManagement() {
   const [transactionAmount, setTransactionAmount] = useState("");
   const [transactionSaving, setTransactionSaving] = useState(false);
   const [bulkAmountOpen, setBulkAmountOpen] = useState(false);
+  const [bulkAmountAction, setBulkAmountAction] = useState<"adjust" | "set">("adjust");
   const [bulkAmountType, setBulkAmountType] = useState<"income" | "expense">("income");
   const [bulkAmountMode, setBulkAmountMode] = useState<"fixed" | "separate">("fixed");
   const [bulkAmountValue, setBulkAmountValue] = useState("");
@@ -307,6 +308,7 @@ export default function BankManagement() {
     bulkAmountMode === "fixed" ? bulkFixedAmountNumber : Number(bulkSeparateAmounts[bankId]) || 0;
   const getBulkNextDeposit = (bank: Bank) => {
     const amount = getBulkBankAmount(bank.$id);
+    if (bulkAmountAction === "set") return amount;
     const direction = bulkAmountType === "income" ? 1 : -1;
     return (Number(bank.deposit) || 0) + direction * amount;
   };
@@ -416,6 +418,7 @@ export default function BankManagement() {
 
   const resetBulkAmountForm = () => {
     setBulkAmountOpen(false);
+    setBulkAmountAction("adjust");
     setBulkAmountType("income");
     setBulkAmountMode("fixed");
     setBulkAmountValue("");
@@ -435,6 +438,19 @@ export default function BankManagement() {
     setBulkAmountOpen(true);
   };
 
+  const openBulkDepositModal = () => {
+    if (selectedIds.size === 0) {
+      alert("請先選取要修改存款數字的銀行");
+      return;
+    }
+    setBulkAmountAction("set");
+    setBulkAmountType("income");
+    setBulkAmountMode("fixed");
+    setBulkAmountValue("");
+    setBulkSeparateAmounts({});
+    setBulkAmountOpen(true);
+  };
+
   const handleBulkAmountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -443,18 +459,21 @@ export default function BankManagement() {
       return;
     }
 
-    if (bulkAmountMode === "fixed" && (!Number.isFinite(bulkFixedAmountNumber) || bulkFixedAmountNumber <= 0)) {
-      alert("請輸入正確固定金額");
+    if (
+      bulkAmountMode === "fixed" &&
+      (!Number.isFinite(bulkFixedAmountNumber) || (bulkAmountAction === "set" ? bulkFixedAmountNumber < 0 : bulkFixedAmountNumber <= 0))
+    ) {
+      alert(bulkAmountAction === "set" ? "請輸入正確固定存款數字" : "請輸入正確固定金額");
       return;
     }
 
     if (bulkAmountMode === "separate") {
       const invalidBank = selectedBanks.find((bank) => {
         const amount = Number(bulkSeparateAmounts[bank.$id]);
-        return !Number.isFinite(amount) || amount <= 0;
+        return !Number.isFinite(amount) || (bulkAmountAction === "set" ? amount < 0 : amount <= 0);
       });
       if (invalidBank) {
-        alert(`請輸入「${invalidBank.name}」的正確金額`);
+        alert(`請輸入「${invalidBank.name}」的正確${bulkAmountAction === "set" ? "存款數字" : "金額"}`);
         return;
       }
     }
@@ -843,6 +862,14 @@ export default function BankManagement() {
                   <Minus size={18} />
                   多選 - 金額 ({selectedIds.size})
                 </Button>
+                <Button
+                  onClick={openBulkDepositModal}
+                  variant="outline"
+                  className="rounded-xl flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-10 px-4"
+                >
+                  <Wallet size={18} />
+                  多選改存款 ({selectedIds.size})
+                </Button>
                 <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl flex items-center gap-2 h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
                   <Trash2 size={18} />
                   刪除選取 ({selectedIds.size})
@@ -1093,10 +1120,10 @@ export default function BankManagement() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                    多選銀行{bulkAmountType === "income" ? "加金額" : "減金額"}
+                    {bulkAmountAction === "set" ? "多選銀行改存款數字" : `多選銀行${bulkAmountType === "income" ? "加金額" : "減金額"}`}
                   </h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    已選取 {selectedBanks.length} 家銀行，可用同一筆固定金額，也可每家銀行分別輸入。
+                    已選取 {selectedBanks.length} 家銀行，可用同一個固定{bulkAmountAction === "set" ? "存款數字" : "金額"}，也可每家銀行分別輸入。
                   </p>
                 </div>
                 <Button type="button" variant="ghost" size="icon" onClick={resetBulkAmountForm} className="shrink-0 rounded-xl">
@@ -1108,20 +1135,29 @@ export default function BankManagement() {
             <form onSubmit={handleBulkAmountSubmit} className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {bulkAmountAction === "adjust" ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">加 / 減</label>
+                      <Select value={bulkAmountType} onValueChange={(value) => setBulkAmountType(value as "income" | "expense")}>
+                        <SelectTrigger className="h-12 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="income">加金額</SelectItem>
+                          <SelectItem value="expense">減金額</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">動作</label>
+                      <div className="flex h-12 items-center rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                        直接設定存款數字
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">加 / 減</label>
-                    <Select value={bulkAmountType} onValueChange={(value) => setBulkAmountType(value as "income" | "expense")}>
-                      <SelectTrigger className="h-12 rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="income">加金額</SelectItem>
-                        <SelectItem value="expense">減金額</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">金額方式</label>
+                    <label className="text-sm font-medium">{bulkAmountAction === "set" ? "存款數字方式" : "金額方式"}</label>
                     <div className="grid h-12 grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
                       <button
                         type="button"
@@ -1132,7 +1168,7 @@ export default function BankManagement() {
                             : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                         }`}
                       >
-                        固定金額
+                        {bulkAmountAction === "set" ? "固定數字" : "固定金額"}
                       </button>
                       <button
                         type="button"
@@ -1143,7 +1179,7 @@ export default function BankManagement() {
                             : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                         }`}
                       >
-                        分別金額
+                        {bulkAmountAction === "set" ? "分別數字" : "分別金額"}
                       </button>
                     </div>
                   </div>
@@ -1151,12 +1187,12 @@ export default function BankManagement() {
 
                 {bulkAmountMode === "fixed" && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">固定金額</label>
+                    <label className="text-sm font-medium">{bulkAmountAction === "set" ? "固定存款數字" : "固定金額"}</label>
                     <Input
                       type="number"
                       min="0"
                       step="1"
-                      placeholder="每家銀行套用同一筆金額"
+                      placeholder={bulkAmountAction === "set" ? "每家銀行改成同一個存款數字" : "每家銀行套用同一筆金額"}
                       value={bulkAmountValue}
                       onChange={(e) => setBulkAmountValue(e.target.value)}
                       className="h-12 rounded-xl"
@@ -1186,7 +1222,7 @@ export default function BankManagement() {
                                 type="number"
                                 min="0"
                                 step="1"
-                                placeholder="輸入金額"
+                                placeholder={bulkAmountAction === "set" ? "輸入存款數字" : "輸入金額"}
                                 value={bulkSeparateAmounts[bank.$id] || ""}
                                 onChange={(e) => setBulkSeparateAmounts((prev) => ({ ...prev, [bank.$id]: e.target.value }))}
                                 className="h-10 rounded-xl sm:w-40"
@@ -1195,14 +1231,20 @@ export default function BankManagement() {
                             )}
                             <div className="grid grid-cols-2 gap-2 text-right text-sm sm:min-w-56">
                               <div>
-                                <div className={bulkAmountType === "income" ? "font-semibold text-green-600" : "font-semibold text-red-600"}>
-                                  {bulkAmountType === "income" ? "+" : "-"}{formatCurrency(amount)}
+                                <div className={
+                                  bulkAmountAction === "set"
+                                    ? "font-semibold text-blue-600"
+                                    : bulkAmountType === "income"
+                                      ? "font-semibold text-green-600"
+                                      : "font-semibold text-red-600"
+                                }>
+                                  {bulkAmountAction === "set" ? "" : bulkAmountType === "income" ? "+" : "-"}{formatCurrency(amount)}
                                 </div>
-                                <div className="text-xs text-gray-500">本次調整</div>
+                                <div className="text-xs text-gray-500">{bulkAmountAction === "set" ? "存款數字" : "本次調整"}</div>
                               </div>
                               <div>
                                 <div className="font-bold text-blue-600 dark:text-blue-400">{formatCurrency(nextDeposit)}</div>
-                                <div className="text-xs text-gray-500">更新後</div>
+                                <div className="text-xs text-gray-500">{bulkAmountAction === "set" ? "設定後" : "更新後"}</div>
                               </div>
                             </div>
                           </div>
