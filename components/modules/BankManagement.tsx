@@ -304,8 +304,12 @@ export default function BankManagement() {
     : 0;
 
   const bulkFixedAmountNumber = Number(bulkAmountValue) || 0;
-  const getBulkBankAmount = (bankId: string) =>
-    bulkAmountMode === "fixed" ? bulkFixedAmountNumber : Number(bulkSeparateAmounts[bankId]) || 0;
+  const getBulkBankAmountValue = (bankId: string) =>
+    bulkAmountMode === "fixed" ? bulkAmountValue : bulkSeparateAmounts[bankId] || "";
+  const getBulkBankAmount = (bankId: string) => {
+    const value = getBulkBankAmountValue(bankId).trim();
+    return value ? Number(value) : 0;
+  };
   const getBulkNextDeposit = (bank: Bank) => {
     const amount = getBulkBankAmount(bank.$id);
     if (bulkAmountAction === "set") return amount;
@@ -465,17 +469,23 @@ export default function BankManagement() {
       return;
     }
 
-    if (
-      bulkAmountMode === "fixed" &&
-      (!Number.isFinite(bulkFixedAmountNumber) || (bulkAmountAction === "set" ? bulkFixedAmountNumber < 0 : bulkFixedAmountNumber <= 0))
-    ) {
-      alert(bulkAmountAction === "set" ? "請輸入正確固定存款數字" : "請輸入正確固定金額");
-      return;
+    if (bulkAmountMode === "fixed") {
+      const hasValue = bulkAmountValue.trim() !== "";
+      if (
+        !hasValue ||
+        !Number.isFinite(bulkFixedAmountNumber) ||
+        (bulkAmountAction === "set" ? bulkFixedAmountNumber < 0 : bulkFixedAmountNumber <= 0)
+      ) {
+        alert(bulkAmountAction === "set" ? "請輸入正確固定存款數字" : "請輸入正確固定金額");
+        return;
+      }
     }
 
     if (bulkAmountMode === "separate") {
       const invalidBank = selectedBanks.find((bank) => {
-        const amount = Number(bulkSeparateAmounts[bank.$id]);
+        const rawAmount = (bulkSeparateAmounts[bank.$id] || "").trim();
+        const amount = Number(rawAmount);
+        if (!rawAmount) return true;
         return !Number.isFinite(amount) || (bulkAmountAction === "set" ? amount < 0 : amount <= 0);
       });
       if (invalidBank) {
@@ -1224,6 +1234,7 @@ export default function BankManagement() {
                   <div className="max-h-[42vh] space-y-2 overflow-y-auto pr-1">
                     {selectedBanks.map((bank) => {
                       const amount = getBulkBankAmount(bank.$id);
+                      const hasAmount = getBulkBankAmountValue(bank.$id).trim() !== "";
                       const nextDeposit = getBulkNextDeposit(bank);
                       return (
                         <div key={bank.$id} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
@@ -1244,22 +1255,20 @@ export default function BankManagement() {
                                 required
                               />
                             )}
-                            <div className="grid grid-cols-2 gap-2 text-right text-sm sm:min-w-56">
-                              <div>
-                                <div className={
-                                  bulkAmountAction === "set"
-                                    ? "font-semibold text-blue-600"
-                                    : bulkAmountType === "income"
-                                      ? "font-semibold text-green-600"
-                                      : "font-semibold text-red-600"
-                                }>
-                                  {bulkAmountAction === "set" ? "" : bulkAmountType === "income" ? "+" : "-"}{formatCurrency(amount)}
+                            <div className={`${bulkAmountAction === "set" ? "grid-cols-1 sm:min-w-32" : "grid-cols-2 sm:min-w-56"} grid gap-2 text-right text-sm`}>
+                              {bulkAmountAction === "adjust" && (
+                                <div>
+                                  <div className={bulkAmountType === "income" ? "font-semibold text-green-600" : "font-semibold text-red-600"}>
+                                    {bulkAmountType === "income" ? "+" : "-"}{formatCurrency(amount)}
+                                  </div>
+                                  <div className="text-xs text-gray-500">本次調整</div>
                                 </div>
-                                <div className="text-xs text-gray-500">{bulkAmountAction === "set" ? "存款數字" : "本次調整"}</div>
-                              </div>
+                              )}
                               <div>
-                                <div className="font-bold text-blue-600 dark:text-blue-400">{formatCurrency(nextDeposit)}</div>
-                                <div className="text-xs text-gray-500">{bulkAmountAction === "set" ? "設定後" : "更新後"}</div>
+                                <div className="font-bold text-blue-600 dark:text-blue-400">
+                                  {bulkAmountAction === "set" && !hasAmount ? "待輸入" : formatCurrency(nextDeposit)}
+                                </div>
+                                <div className="text-xs text-gray-500">{bulkAmountAction === "set" ? "設定後存款" : "更新後"}</div>
                               </div>
                             </div>
                           </div>
