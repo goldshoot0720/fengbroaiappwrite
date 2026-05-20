@@ -334,13 +334,19 @@ export default function BankManagement() {
     });
   };
 
+  const handleToggleSelectionMode = () => {
+    setSelectionMode((prev) => {
+      if (prev) {
+        setSelectedIds(new Set());
+        return false;
+      }
+      return true;
+    });
+  };
+
   const handleSelectAll = () => {
-    if (!selectionMode) {
-      setSelectionMode(true);
-      setSelectedIds(new Set(filteredBanks.map(b => b.$id).filter(Boolean)));
-    } else if (filteredBanks.length > 0 && filteredBanks.every(b => selectedIds.has(b.$id))) {
+    if (filteredBanks.length > 0 && filteredBanks.every(b => selectedIds.has(b.$id))) {
       setSelectedIds(new Set());
-      setSelectionMode(false);
     } else {
       setSelectedIds(new Set(filteredBanks.map(b => b.$id).filter(Boolean)));
     }
@@ -838,12 +844,21 @@ export default function BankManagement() {
               新增支出
             </Button>
             <Button
-              onClick={handleSelectAll}
+              onClick={handleToggleSelectionMode}
               variant="outline"
               className="rounded-xl flex items-center gap-2 h-10 px-4"
             >
-              {selectionMode && filteredBanks.length > 0 && filteredBanks.every((bank) => selectedIds.has(bank.$id)) ? "取消全選" : "全選"}
+              {selectionMode ? `完成多選 (${selectedIds.size})` : "多選"}
             </Button>
+            {selectionMode && (
+              <Button
+                onClick={handleSelectAll}
+                variant="outline"
+                className="rounded-xl flex items-center gap-2 h-10 px-4"
+              >
+                {filteredBanks.length > 0 && filteredBanks.every((bank) => selectedIds.has(bank.$id)) ? "取消全選" : "全選"}
+              </Button>
+            )}
             {selectedIds.size > 0 && (
               <>
                 <Button
