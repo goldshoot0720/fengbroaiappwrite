@@ -40,6 +40,16 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { getExportFilename } from "@/lib/utils";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { SectionHeader } from "@/components/ui/section-header";
+import {
+  BankBulkAmountAction,
+  BankBulkAmountMode,
+  BankBulkAmountType,
+  buildBankPayload,
+  getBankBulkAmount,
+  getBankBulkNextDeposit,
+  hasBankBulkAmountValue,
+  validateBankBulkAmountDraft,
+} from "@/lib/bankBulkAmount";
 
 const INITIAL_FORM: BankFormData = {
   name: "",
@@ -185,9 +195,9 @@ export default function BankManagement() {
   const [transactionAmount, setTransactionAmount] = useState("");
   const [transactionSaving, setTransactionSaving] = useState(false);
   const [bulkAmountOpen, setBulkAmountOpen] = useState(false);
-  const [bulkAmountAction, setBulkAmountAction] = useState<"adjust" | "set">("adjust");
-  const [bulkAmountType, setBulkAmountType] = useState<"income" | "expense">("income");
-  const [bulkAmountMode, setBulkAmountMode] = useState<"fixed" | "separate">("fixed");
+  const [bulkAmountAction, setBulkAmountAction] = useState<BankBulkAmountAction>("adjust");
+  const [bulkAmountType, setBulkAmountType] = useState<BankBulkAmountType>("income");
+  const [bulkAmountMode, setBulkAmountMode] = useState<BankBulkAmountMode>("fixed");
   const [bulkAmountValue, setBulkAmountValue] = useState("");
   const [bulkSeparateAmounts, setBulkSeparateAmounts] = useState<Record<string, string>>({});
   const [bulkAmountSaving, setBulkAmountSaving] = useState(false);
@@ -303,31 +313,16 @@ export default function BankManagement() {
     ? (Number(selectedTransactionBank.deposit) || 0) + (transactionType === "income" ? transactionAmountNumber : -transactionAmountNumber)
     : 0;
 
-  const bulkFixedAmountNumber = Number(bulkAmountValue) || 0;
-  const getBulkBankAmountValue = (bankId: string) =>
-    bulkAmountMode === "fixed" ? bulkAmountValue : bulkSeparateAmounts[bankId] || "";
-  const getBulkBankAmount = (bankId: string) => {
-    const value = getBulkBankAmountValue(bankId).trim();
-    return value ? Number(value) : 0;
-  };
-  const getBulkNextDeposit = (bank: Bank) => {
-    const amount = getBulkBankAmount(bank.$id);
-    if (bulkAmountAction === "set") return amount;
-    const direction = bulkAmountType === "income" ? 1 : -1;
-    return (Number(bank.deposit) || 0) + direction * amount;
-  };
-
-  const buildBankPayload = (bank: Bank, deposit: number): BankFormData => ({
-    name: bank.name,
-    deposit,
-    site: bank.site || "",
-    address: bank.address || "",
-    withdrawals: bank.withdrawals || 0,
-    transfer: bank.transfer || 0,
-    activity: bank.activity || "",
-    card: bank.card || "",
-    account: bank.account || "",
-  });
+  const bulkAmountDraft = useMemo(
+    () => ({
+      action: bulkAmountAction,
+      type: bulkAmountType,
+      mode: bulkAmountMode,
+      fixedValue: bulkAmountValue,
+      separateValues: bulkSeparateAmounts,
+    }),
+    [bulkAmountAction, bulkAmountMode, bulkAmountType, bulkAmountValue, bulkSeparateAmounts]
+  );
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -465,34 +460,10 @@ export default function BankManagement() {
   const handleBulkAmountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (selectedBanks.length === 0) {
-      alert("請先選取要調整金額的銀行");
+    const validationError = validateBankBulkAmountDraft(selectedBanks, bulkAmountDraft);
+    if (validationError) {
+      alert(validationError);
       return;
-    }
-
-    if (bulkAmountMode === "fixed") {
-      const hasValue = bulkAmountValue.trim() !== "";
-      if (
-        !hasValue ||
-        !Number.isFinite(bulkFixedAmountNumber) ||
-        (bulkAmountAction === "set" ? bulkFixedAmountNumber < 0 : bulkFixedAmountNumber <= 0)
-      ) {
-        alert(bulkAmountAction === "set" ? "請輸入正確固定存款數字" : "請輸入正確固定金額");
-        return;
-      }
-    }
-
-    if (bulkAmountMode === "separate") {
-      const invalidBank = selectedBanks.find((bank) => {
-        const rawAmount = (bulkSeparateAmounts[bank.$id] || "").trim();
-        const amount = Number(rawAmount);
-        if (!rawAmount) return true;
-        return !Number.isFinite(amount) || (bulkAmountAction === "set" ? amount < 0 : amount <= 0);
-      });
-      if (invalidBank) {
-        alert(`請輸入「${invalidBank.name}」的正確${bulkAmountAction === "set" ? "存款數字" : "金額"}`);
-        return;
-      }
     }
 
     setBulkAmountSaving(true);
@@ -502,7 +473,7 @@ export default function BankManagement() {
         selectedBanks.map((bank) =>
           fetchApi(`${API_ENDPOINTS.BANK}/${bank.$id}`, {
             method: "PUT",
-            body: JSON.stringify(buildBankPayload(bank, getBulkNextDeposit(bank))),
+            body: JSON.stringify(buildBankPayload(bank, getBankBulkNextDeposit(bank, bulkAmountDraft))),
           })
         )
       );
@@ -1226,9 +1197,9 @@ export default function BankManagement() {
                   </div>
                   <div className="max-h-[42vh] space-y-2 overflow-y-auto pr-1">
                     {selectedBanks.map((bank) => {
-                      const amount = getBulkBankAmount(bank.$id);
-                      const hasAmount = getBulkBankAmountValue(bank.$id).trim() !== "";
-                      const nextDeposit = getBulkNextDeposit(bank);
+                      const amount = getBankBulkAmount(bulkAmountDraft, bank.$id);
+                      const hasAmount = hasBankBulkAmountValue(bulkAmountDraft, bank.$id);
+                      const nextDeposit = getBankBulkNextDeposit(bank, bulkAmountDraft);
                       return (
                         <div key={bank.$id} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
