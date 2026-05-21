@@ -1,4 +1,4 @@
-import { Bank, BankFormData } from "@/types";
+import { Bank } from "@/types";
 
 export type BankBulkAmountAction = "adjust" | "set";
 export type BankBulkAmountType = "income" | "expense";
@@ -10,20 +10,6 @@ export interface BankBulkAmountDraft {
   mode: BankBulkAmountMode;
   fixedValue: string;
   separateValues: Record<string, string>;
-}
-
-export function buildBankPayload(bank: Bank, deposit: number): BankFormData {
-  return {
-    name: bank.name,
-    deposit,
-    site: bank.site || "",
-    address: bank.address || "",
-    withdrawals: bank.withdrawals || 0,
-    transfer: bank.transfer || 0,
-    activity: bank.activity || "",
-    card: bank.card || "",
-    account: bank.account || "",
-  };
 }
 
 export function getBankBulkAmountValue(draft: BankBulkAmountDraft, bankId: string): string {

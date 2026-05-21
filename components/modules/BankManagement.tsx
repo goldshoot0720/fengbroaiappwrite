@@ -42,28 +42,16 @@ import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { SectionHeader } from "@/components/ui/section-header";
 import { isTaiwanBankAccount } from "@/lib/bankClassification";
 import { BANK_CSV_HEADERS, parseBankCsv, toBankCsvRow } from "@/lib/bankCsv";
+import { INITIAL_BANK_FORM, bankToFormData } from "@/lib/bankForm";
 import {
   BankBulkAmountAction,
   BankBulkAmountMode,
   BankBulkAmountType,
-  buildBankPayload,
   getBankBulkAmount,
   getBankBulkNextDeposit,
   hasBankBulkAmountValue,
   validateBankBulkAmountDraft,
 } from "@/lib/bankBulkAmount";
-
-const INITIAL_FORM: BankFormData = {
-  name: "",
-  deposit: 0,
-  site: "",
-  address: "",
-  withdrawals: 0,
-  transfer: 0,
-  activity: "",
-  card: "",
-  account: ""
-};
 
 const FIELD_HINTS = {
   name: "銀行名稱，例如：中國信託、台新銀行。",
@@ -79,7 +67,7 @@ const FIELD_HINTS = {
 
 export default function BankManagement() {
   const { banks, loading, error, loadBanks, createBank, updateBank, deleteBank } = useBanks();
-  const [form, setForm] = useState<BankFormData>(INITIAL_FORM);
+  const [form, setForm] = useState<BankFormData>(INITIAL_BANK_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,7 +87,7 @@ export default function BankManagement() {
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
-  const [inlineEditForm, setInlineEditForm] = useState<BankFormData>(INITIAL_FORM);
+  const [inlineEditForm, setInlineEditForm] = useState<BankFormData>(INITIAL_BANK_FORM);
 
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -279,24 +267,14 @@ export default function BankManagement() {
   };
 
   const handleEdit = (bank: Bank) => {
-    setForm({
-      name: bank.name,
-      deposit: bank.deposit || 0,
-      site: bank.site || "",
-      address: bank.address || "",
-      withdrawals: bank.withdrawals || 0,
-      transfer: bank.transfer || 0,
-      activity: bank.activity || "",
-      card: bank.card || "",
-      account: bank.account || ""
-    });
+    setForm(bankToFormData(bank));
     setEditingId(bank.$id);
     setIsFormOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetForm = () => {
-    setForm(INITIAL_FORM);
+    setForm(INITIAL_BANK_FORM);
     setEditingId(null);
     setIsFormOpen(false);
   };
@@ -368,7 +346,7 @@ export default function BankManagement() {
         selectedBanks.map((bank) =>
           fetchApi(`${API_ENDPOINTS.BANK}/${bank.$id}`, {
             method: "PUT",
-            body: JSON.stringify(buildBankPayload(bank, getBankBulkNextDeposit(bank, bulkAmountDraft))),
+            body: JSON.stringify(bankToFormData(bank, { deposit: getBankBulkNextDeposit(bank, bulkAmountDraft) })),
           })
         )
       );
@@ -401,7 +379,7 @@ export default function BankManagement() {
     setTransactionSaving(true);
 
     try {
-      await updateBank(selectedTransactionBank.$id, buildBankPayload(selectedTransactionBank, nextDeposit));
+      await updateBank(selectedTransactionBank.$id, bankToFormData(selectedTransactionBank, { deposit: nextDeposit }));
       resetTransactionForm();
     } catch {
       setTransactionSaving(false);
@@ -426,17 +404,7 @@ export default function BankManagement() {
 
   // 開始行內編輯
   const handleInlineEdit = (bank: Bank) => {
-    setInlineEditForm({
-      name: bank.name || '',
-      deposit: bank.deposit || 0,
-      site: bank.site || '',
-      address: bank.address || '',
-      withdrawals: bank.withdrawals || 0,
-      transfer: bank.transfer || 0,
-      activity: bank.activity || '',
-      card: bank.card || '',
-      account: bank.account || '',
-    });
+    setInlineEditForm(bankToFormData(bank));
     setInlineEditingId(bank.$id);
   };
 
@@ -446,7 +414,7 @@ export default function BankManagement() {
     try {
       await updateBank(bankId, inlineEditForm);
       setInlineEditingId(null);
-      setInlineEditForm(INITIAL_FORM);
+      setInlineEditForm(INITIAL_BANK_FORM);
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert('更新失敗，請稍後再試');
@@ -456,7 +424,7 @@ export default function BankManagement() {
   // 取消行內編輯
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
-    setInlineEditForm(INITIAL_FORM);
+    setInlineEditForm(INITIAL_BANK_FORM);
   };
 
   // CSV 匯入/匯出功能
