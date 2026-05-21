@@ -41,6 +41,7 @@ import { getExportFilename } from "@/lib/utils";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { SectionHeader } from "@/components/ui/section-header";
 import { isTaiwanBankAccount } from "@/lib/bankClassification";
+import { BANK_CSV_HEADERS, parseBankCsv, toBankCsvRow } from "@/lib/bankCsv";
 import {
   BankBulkAmountAction,
   BankBulkAmountMode,
@@ -466,26 +467,17 @@ export default function BankManagement() {
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
-  const CSV_HEADERS = ['name', 'deposit', 'site', 'address', 'withdrawals', 'transfer', 'activity', 'card', 'account'];
-  const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length; // 9 欄
 
   const exportToCSV = async () => {
-    const escapeCSV = (val: any) => {
-      if (val === null || val === undefined) return '';
-      const str = String(val);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
-      return str;
-    };
-
     setExporting(true);
     setExportProgress({ current: 0, total: banks.length });
     setExportDebugMessages([`Export started: ${banks.length} rows`]);
 
     try {
-      const rows = [CSV_HEADERS.join(',')];
+      const rows = [BANK_CSV_HEADERS.join(',')];
       for (let i = 0; i < banks.length; i++) {
         const bank = banks[i];
-        rows.push([escapeCSV(bank.name), escapeCSV(bank.deposit || 0), escapeCSV(bank.site || ''), escapeCSV(bank.address || ''), escapeCSV(bank.withdrawals || 0), escapeCSV(bank.transfer || 0), escapeCSV(bank.activity || ''), escapeCSV(bank.card || ''), escapeCSV(bank.account || '')].join(','));
+        rows.push(toBankCsvRow(bank));
         setExportProgress({ current: i + 1, total: banks.length });
         setExportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${banks.length} Exported ${bank.name}`]);
         if (i % 25 === 0) {
@@ -513,82 +505,11 @@ export default function BankManagement() {
     }
   };
 
-  const parseCSVLine = (line: string): string[] => {
-    const result: string[] = []; let current = ''; let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (inQuotes) { if (char === '"') { if (line[i + 1] === '"') { current += '"'; i++; } else { inQuotes = false; } } else { current += char; } }
-      else { if (char === '"') { inQuotes = true; } else if (char === ',') { result.push(current); current = ''; } else { current += char; } }
-    }
-    result.push(current); return result;
-  };
-
-  // 解析完整 CSV（處理多行欄位）
-  const parseFullCSV = (text: string): string[][] => {
-    const rows: string[][] = [];
-    const cleanText = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    let currentRow: string[] = [];
-    let currentField = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < cleanText.length; i++) {
-      const char = cleanText[i];
-
-      if (inQuotes) {
-        if (char === '"') {
-          if (cleanText[i + 1] === '"') { currentField += '"'; i++; }
-          else { inQuotes = false; }
-        } else { currentField += char; }
-      } else {
-        if (char === '"') { inQuotes = true; }
-        else if (char === ',') { currentRow.push(currentField); currentField = ''; }
-        else if (char === '\n') {
-          currentRow.push(currentField);
-          if (currentRow.length > 0 && currentRow.some(f => f.trim())) { rows.push(currentRow); }
-          currentRow = []; currentField = '';
-        } else { currentField += char; }
-      }
-    }
-
-    if (currentField || currentRow.length > 0) {
-      currentRow.push(currentField);
-      if (currentRow.some(f => f.trim())) { rows.push(currentRow); }
-    }
-
-    return rows;
-  };
-
-  const parseCSV = (text: string): { data: BankFormData[], errors: string[] } => {
-    const errors: string[] = []; const data: BankFormData[] = [];
-    const rows = parseFullCSV(text);
-    if (rows.length < 2) { errors.push('CSV 檔案至少需要表頭和一行資料'); return { data, errors }; }
-    const headerValues = rows[0].map(h => h.trim());
-    if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
-      errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
-      return { data, errors };
-    }
-    for (let i = 0; i < CSV_HEADERS.length; i++) {
-      if (headerValues[i] !== CSV_HEADERS[i]) {
-        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${CSV_HEADERS[i]}"，實際 "${headerValues[i]}"`);
-        if (errors.length >= 5) { errors.push('...更多錯誤已省略'); break; }
-      }
-    }
-    if (errors.length > 0) return { data, errors };
-    for (let i = 1; i < rows.length; i++) {
-      const values = rows[i]; const lineNum = i + 1;
-      if (values.length !== EXPECTED_COLUMN_COUNT) { errors.push(`第 ${lineNum} 行: 欄位數量錯誤`); continue; }
-      if (!values[0]?.trim()) { errors.push(`第 ${lineNum} 行: name 欄位不能為空`); continue; }
-      data.push({ name: values[0].trim(), deposit: parseFloat(values[1]) || 0, site: values[2]?.trim() || '', address: values[3]?.trim() || '', withdrawals: parseFloat(values[4]) || 0, transfer: parseFloat(values[5]) || 0, activity: values[6]?.trim() || '', card: values[7]?.trim() || '', account: values[8]?.trim() || '' });
-    }
-    return { data, errors };
-  };
-
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     if (!file.name.endsWith('.csv')) { alert('請選擇 CSV 檔案'); return; }
     const reader = new FileReader();
-    reader.onload = (event) => { setImportPreview(parseCSV(event.target?.result as string)); };
+    reader.onload = (event) => { setImportPreview(parseBankCsv(event.target?.result as string)); };
     reader.readAsText(file, 'UTF-8'); e.target.value = '';
   };
 
