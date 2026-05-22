@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, CalendarClock, RefreshCw, Copy } from "lucide-react";
+import { Plus, Minus, ChevronDown, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, CalendarClock, RefreshCw, Copy, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,6 +31,47 @@ const QUICK_ADD_PRESETS: Record<string, { label: string; amount?: number; days: 
 
 type FilterMode = "all" | "expired" | "today" | "3days" | "7days" | "normal";
 type CleanupAction = "eat" | "discard" | "delete";
+type VoiceRisk = "safe" | "review" | "danger";
+type FoodVoiceAction =
+  | "importCsv"
+  | "exportCsv"
+  | "refresh"
+  | "selectAll"
+  | "clearSelection"
+  | "filterAll"
+  | "filterExpired"
+  | "filterToday"
+  | "filter3Days"
+  | "filter7Days"
+  | "filterNormal"
+  | "filterNoDate"
+  | "search"
+  | "add"
+  | "quickAdd"
+  | "edit"
+  | "duplicate"
+  | "deleteSelected"
+  | "deleteOne"
+  | "eatSelected"
+  | "discardSelected"
+  | "increaseAmount"
+  | "decreaseAmount"
+  | "setAmount"
+  | "setDate"
+  | "setPrice"
+  | "setShop"
+  | "clearDate"
+  | "noop";
+
+type FoodVoiceCommand = {
+  action: FoodVoiceAction;
+  summary: string;
+  risk: VoiceRisk;
+  rawText: string;
+};
+
+const FOOD_MIN_VOICE_RECORDING_MS = 10_000;
+const FOOD_DELETE_CONFIRMATION = "DELETE food";
 
 function addDaysToDate(baseDate: string, days: number) {
   if (!baseDate) return "";
@@ -61,6 +102,52 @@ function getFoodDateTime(food: Food) {
 
 function sortFoodsNearToFar(a: Food, b: Food) {
   return getFoodDateTime(a) - getFoodDateTime(b);
+}
+
+function normalizeFoodVoiceValue(value?: string | number | null) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[，。,.!?！？、：:「」『』"'()（）]/g, "");
+}
+
+function formatVoiceDateValue(year: number, month: number, day: number) {
+  if (!year || !month || !day) return "";
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function chineseNumberToNumber(input: string) {
+  const map: Record<string, number> = {
+    零: 0,
+    一: 1,
+    二: 2,
+    兩: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+    十: 10,
+  };
+  if (/^\d+$/.test(input)) return Number(input);
+  if (input === "十") return 10;
+  if (input.includes("十")) {
+    const [left, right] = input.split("十");
+    return (left ? map[left] ?? 0 : 1) * 10 + (right ? map[right] ?? 0 : 0);
+  }
+  return map[input] ?? 0;
+}
+
+function getSpeechRecognitionCtor() {
+  if (typeof window === "undefined") return null;
+  return (window as typeof window & {
+    SpeechRecognition?: new () => any;
+    webkitSpeechRecognition?: new () => any;
+  }).SpeechRecognition || (window as typeof window & {
+    webkitSpeechRecognition?: new () => any;
+  }).webkitSpeechRecognition || null;
 }
 
 function formatMonthOption(month: string) {
@@ -132,6 +219,16 @@ export default function FoodManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [deleteTotal, setDeleteTotal] = useState(0);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceFeedback, setVoiceFeedback] = useState("可說：新增牛奶 2 瓶 7 天後到期、搜尋 Costco、7 天內、庫存加 3、把第一筆價格改成 99、刪除選取。");
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [voiceRecordingElapsedMs, setVoiceRecordingElapsedMs] = useState(0);
+  const [pendingVoiceCommand, setPendingVoiceCommand] = useState<FoodVoiceCommand | null>(null);
+  const voiceRecognitionRef = useRef<any>(null);
+  const voiceRecordingStartedAtRef = useRef(0);
+  const voiceManualStopRef = useRef(false);
+  const canStopVoiceRecording = !isVoiceListening || voiceRecordingElapsedMs >= FOOD_MIN_VOICE_RECORDING_MS;
+  const remainingVoiceRecordingSeconds = Math.max(0, Math.ceil((FOOD_MIN_VOICE_RECORDING_MS - voiceRecordingElapsedMs) / 1000));
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -291,6 +388,14 @@ export default function FoodManagement() {
     loadFoods(true);
   };
   const deleteSelected = () => setBulkDeleteOpen(true);
+
+  useEffect(() => {
+    if (!isVoiceListening) return;
+    const timer = window.setInterval(() => {
+      setVoiceRecordingElapsedMs(Date.now() - voiceRecordingStartedAtRef.current);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [isVoiceListening]);
 
   useEffect(() => {
     // Clean up object URLs on unmount
@@ -649,6 +754,114 @@ export default function FoodManagement() {
   };
 
   // CSV 匯入/匯出功能
+  const resetFoodFilters = () => {
+    setFilterMode("all");
+    setYearFilter("");
+    setMonthFilter("");
+    setSearchQuery("");
+  };
+
+  const findVoiceTarget = (text: string) => {
+    if (filteredFoods.length === 0) return null;
+    const ordinalMatch = text.match(/第\s*(\d+|[一二兩三四五六七八九十]+)\s*(?:筆|個|項)?/);
+    if (ordinalMatch) {
+      const index = chineseNumberToNumber(ordinalMatch[1]) - 1;
+      if (index >= 0 && index < filteredFoods.length) return filteredFoods[index];
+    }
+    if (/第一筆|第一個|第一項/.test(text)) return filteredFoods[0];
+    if (/最後一筆|最後一個|最後一項/.test(text)) return filteredFoods[filteredFoods.length - 1];
+
+    const normalizedText = normalizeFoodVoiceValue(text);
+    return filteredFoods.find((food) => {
+      const values = [food.name, food.shop, food.todate, food.price, food.amount].map(normalizeFoodVoiceValue).filter(Boolean);
+      return values.some((value) => normalizedText.includes(value) || value.includes(normalizedText));
+    }) || filteredFoods[0];
+  };
+
+  const extractVoiceDate = (text: string) => {
+    const relative = text.match(/(\d+|[一二兩三四五六七八九十]+)\s*(?:天|日)\s*(?:後|內|以後)?/);
+    if (relative) {
+      const days = chineseNumberToNumber(relative[1]);
+      if (days >= 0) return { date: getSuggestedExpiryDate(days), raw: relative[0] };
+    }
+    if (/明天/.test(text)) return { date: getSuggestedExpiryDate(1), raw: "明天" };
+    if (/後天/.test(text)) return { date: getSuggestedExpiryDate(2), raw: "後天" };
+    if (/下週|下禮拜|一週後|一星期後/.test(text)) return { date: getSuggestedExpiryDate(7), raw: text.match(/下週|下禮拜|一週後|一星期後/)?.[0] || "" };
+    if (/月底/.test(text)) {
+      const now = new Date();
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { date: end.toISOString().split("T")[0], raw: "月底" };
+    }
+    const slashDate = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (slashDate) return { date: formatVoiceDateValue(Number(slashDate[1]), Number(slashDate[2]), Number(slashDate[3])), raw: slashDate[0] };
+    const zhDate = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日|號|号)?/);
+    if (zhDate) return { date: formatVoiceDateValue(Number(zhDate[1]), Number(zhDate[2]), Number(zhDate[3])), raw: zhDate[0] };
+    const monthDay = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日|號|号)?/);
+    if (monthDay) return { date: formatVoiceDateValue(new Date().getFullYear(), Number(monthDay[1]), Number(monthDay[2])), raw: monthDay[0] };
+    return { date: "", raw: "" };
+  };
+
+  const extractVoiceNumber = (text: string, labels: string[]) => {
+    for (const label of labels) {
+      const match = text.match(new RegExp(`${label}\\s*(?:是|為|改成|設為|:|：)?\\s*(\\d+(?:\\.\\d+)?)`, "i"));
+      if (match) return Number(match[1]);
+    }
+    return null;
+  };
+
+  const extractVoiceAmount = (text: string) => {
+    const explicitAmount = extractVoiceNumber(text, ["數量", "庫存", "個數", "份數", "amount"]);
+    if (explicitAmount !== null) return explicitAmount;
+    const unitAmount = text.match(/(\d+(?:\.\d+)?)\s*(?:個|瓶|盒|包|袋|罐|份|顆|台|組|件|公斤|kg|公克|g)/i);
+    return unitAmount ? Number(unitAmount[1]) : null;
+  };
+
+  const extractVoicePrice = (text: string) => {
+    const explicitPrice = extractVoiceNumber(text, ["價格", "價錢", "金額", "售價", "price"]);
+    if (explicitPrice !== null) return explicitPrice;
+    const currencyPrice = text.match(/(?:nt\$|twd|台幣|新台幣)?\s*(\d+(?:\.\d+)?)\s*(?:元|塊|twd)/i);
+    return currencyPrice ? Number(currencyPrice[1]) : null;
+  };
+
+  const extractVoiceShop = (text: string) => {
+    const match = text.match(/(?:商店|店家|購買地|賣場|通路|shop)\s*(?:是|為|在|:|：)?\s*([^，。,.!?！？\s]+)/i);
+    return match?.[1]?.trim() || "";
+  };
+
+  const extractVoiceSearchQuery = (text: string) => {
+    return text.replace(/搜尋|查詢|找|查看|search|find|鋒兄食品|食品|庫存|商品/gi, " ").replace(/\s+/g, " ").trim();
+  };
+
+  const extractVoiceName = (text: string, dateRaw: string) => {
+    const quoted = text.match(/[「『"']([^」』"']+)[」』"']/);
+    if (quoted?.[1]) return quoted[1].trim();
+    const named = text.match(/(?:叫做|名稱(?:是|為)?|品名(?:是|為)?|名為)\s*(.+?)(?=\s*(?:數量|庫存|價格|價錢|金額|到期|有效|日期|商店|店家|購買地|賣場|$))/);
+    if (named?.[1]) return named[1].trim();
+    return text
+      .replace(dateRaw, " ")
+      .replace(/新增食品|新增商品|新增庫存|新增一筆資料|新增一筆|新增資料|新增|建立食品|建立商品|建立|在鋒兄食品|鋒兄食品|食品|商品|庫存|到期|有效期限|有效日期/gi, " ")
+      .replace(/叫做|名稱是|名稱為|品名是|品名為|名為|日期為|日期是|明天|後天|下週|下禮拜|月底/gi, " ")
+      .replace(/(?:數量|庫存|個數|份數)\s*(?:是|為|改成|設為|:|：)?\s*\d+(?:\.\d+)?/gi, " ")
+      .replace(/(?:價格|價錢|金額|售價)\s*(?:是|為|改成|設為|:|：)?\s*\d+(?:\.\d+)?/gi, " ")
+      .replace(/(?:nt\$|twd|台幣|新台幣)?\s*\d+(?:\.\d+)?\s*(?:元|塊|twd)/gi, " ")
+      .replace(/(?:商店|店家|購買地|賣場|通路)\s*(?:是|為|在|:|：)?\s*[^，。,.!?！？\s]+/gi, " ")
+      .replace(/\d+\s*(?:個|瓶|盒|包|袋|罐|份|顆|台|組|件|公斤|kg|公克|g)/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  const buildVoiceDraft = (text: string): FoodFormData => {
+    const voiceDate = extractVoiceDate(text);
+    return {
+      ...INITIAL_FORM,
+      name: extractVoiceName(text, voiceDate.raw),
+      amount: extractVoiceAmount(text) ?? 1,
+      todate: voiceDate.date || getSuggestedExpiryDate(7),
+      price: extractVoicePrice(text) ?? 0,
+      shop: extractVoiceShop(text),
+    };
+  };
+
   const [importPreview, setImportPreview] = useState<{ data: FoodFormData[], errors: string[] } | null>(null);
   const [importFormat, setImportFormat] = useState<'appwrite' | 'supabase' | null>(null);
   const [pendingCSVText, setPendingCSVText] = useState<string>('');
@@ -869,6 +1082,379 @@ export default function FoodManagement() {
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
+  const createVoiceCommand = (text: string, action: FoodVoiceAction, summary: string, risk: VoiceRisk = "safe"): FoodVoiceCommand => ({
+    action,
+    summary,
+    risk,
+    rawText: text,
+  });
+
+  const parseVoiceCommand = (text: string): FoodVoiceCommand | null => {
+    const normalized = text.trim();
+    if (!normalized) return null;
+
+    if (/匯入|import/.test(normalized) && /csv/i.test(normalized)) {
+      return createVoiceCommand(normalized, "importCsv", "開啟食品 CSV 檔案選擇器，選檔後仍會顯示匯入預覽。", "review");
+    }
+    if (/匯出|export/.test(normalized) && /csv/i.test(normalized)) {
+      return createVoiceCommand(normalized, "exportCsv", `匯出目前 ${foods.length} 筆食品為 CSV。`);
+    }
+    if (/重新整理|刷新|refresh|reload/.test(normalized)) {
+      return createVoiceCommand(normalized, "refresh", "重新向 Appwrite 載入食品資料。");
+    }
+    if (/取消全選|清除選取|取消選取|unselect/.test(normalized)) {
+      return createVoiceCommand(normalized, "clearSelection", `取消目前 ${selectedIds.size} 筆選取。`);
+    }
+    if (/全選|select all/i.test(normalized)) {
+      return createVoiceCommand(normalized, "selectAll", `選取目前篩選結果 ${filteredFoods.length} 筆食品。`, "review");
+    }
+    if (/清除篩選|顯示全部|全部|filter all/i.test(normalized)) {
+      return createVoiceCommand(normalized, "filterAll", "清除搜尋、年份、月份與狀態篩選。");
+    }
+    if (/無日期|沒日期|未設定日期/.test(normalized)) {
+      return createVoiceCommand(normalized, "filterNoDate", "篩選沒有到期日的食品。");
+    }
+    if (/已過期|過期|expired|overdue/i.test(normalized)) {
+      return createVoiceCommand(normalized, "filterExpired", `切換到已過期清單，目前 ${filterCounts.expired} 筆。`);
+    }
+    if (/今天|今日|今天到期/.test(normalized)) {
+      return createVoiceCommand(normalized, "filterToday", `切換到今天到期清單，目前 ${filterCounts.today} 筆。`);
+    }
+    if (/3\s*天內|三天內/.test(normalized)) {
+      return createVoiceCommand(normalized, "filter3Days", `切換到 3 天內到期清單，目前 ${filterCounts["3days"]} 筆。`);
+    }
+    if (/7\s*天內|七天內|快過期|即將過期/.test(normalized)) {
+      return createVoiceCommand(normalized, "filter7Days", `切換到 7 天內到期清單，目前 ${filterCounts["7days"]} 筆。`);
+    }
+    if (/正常|安全|未過期|normal/i.test(normalized)) {
+      return createVoiceCommand(normalized, "filterNormal", `切換到正常庫存清單，目前 ${filterCounts.normal} 筆。`);
+    }
+    if (/搜尋|查詢|找|search|find/i.test(normalized)) {
+      const query = extractVoiceSearchQuery(normalized);
+      return query
+        ? createVoiceCommand(normalized, "search", `搜尋食品關鍵字「${query}」。`)
+        : createVoiceCommand(normalized, "noop", "請在搜尋指令後面加上關鍵字，例如：搜尋 牛奶。");
+    }
+
+    if (/快速新增|直接新增|立即新增/.test(normalized)) {
+      const draft = buildVoiceDraft(normalized);
+      return draft.name
+        ? createVoiceCommand(normalized, "quickAdd", `直接新增「${draft.name}」，數量 ${draft.amount || 1}，到期日 ${draft.todate || "未設定"}。`, "review")
+        : createVoiceCommand(normalized, "noop", "請說出要新增的食品名稱。");
+    }
+    if (/新增|建立|add|create/i.test(normalized)) {
+      const draft = buildVoiceDraft(normalized);
+      return createVoiceCommand(
+        normalized,
+        "add",
+        draft.name
+          ? `開啟新增列，預填「${draft.name}」、數量 ${draft.amount || 1}、到期日 ${draft.todate || "未設定"}${draft.price ? `、價格 ${draft.price}` : ""}${draft.shop ? `、商店 ${draft.shop}` : ""}。`
+          : "開啟新增列，請再手動確認欄位。",
+        "review"
+      );
+    }
+    if (/複製|copy|duplicate/i.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      return target
+        ? createVoiceCommand(normalized, "duplicate", `複製「${target.name}」成一筆新食品，儲存前可再修改。`, "review")
+        : createVoiceCommand(normalized, "noop", "目前找不到可複製的食品。");
+    }
+    if (/編輯|修改|edit|update/i.test(normalized) && !/數量|庫存|價格|價錢|日期|到期|商店|店家/.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      return target
+        ? createVoiceCommand(normalized, "edit", `開啟「${target.name}」編輯列，儲存前還要再按一次。`, "review")
+        : createVoiceCommand(normalized, "noop", "目前找不到可編輯的食品。");
+    }
+    if (/(加|增加|補貨|\+)/.test(normalized) && /數量|庫存|個|瓶|盒|包|袋|罐|份|顆/.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      const amount = extractVoiceAmount(normalized) || 1;
+      return target
+        ? createVoiceCommand(normalized, "increaseAmount", `把「${target.name}」庫存增加 ${amount}。`, "review")
+        : createVoiceCommand(normalized, "noop", "目前找不到要增加庫存的食品。");
+    }
+    if (/(減|減少|吃掉|用掉|扣|少|-)/.test(normalized) && /數量|庫存|個|瓶|盒|包|袋|罐|份|顆/.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      const amount = extractVoiceAmount(normalized) || 1;
+      return target
+        ? createVoiceCommand(normalized, "decreaseAmount", `把「${target.name}」庫存減少 ${amount}。`, "review")
+        : createVoiceCommand(normalized, "noop", "目前找不到要減少庫存的食品。");
+    }
+    if (/設為|改成|設定|更新/.test(normalized) && /數量|庫存/.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      const amount = extractVoiceAmount(normalized);
+      return target && amount !== null
+        ? createVoiceCommand(normalized, "setAmount", `把「${target.name}」庫存改成 ${amount}。`, "review")
+        : createVoiceCommand(normalized, "noop", "請說出要設定的食品和數量。");
+    }
+    if (/設為|改成|設定|更新/.test(normalized) && /價格|價錢|金額|售價/.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      const price = extractVoicePrice(normalized);
+      return target && price !== null
+        ? createVoiceCommand(normalized, "setPrice", `把「${target.name}」價格改成 ${price}。`, "review")
+        : createVoiceCommand(normalized, "noop", "請說出要設定的食品和價格。");
+    }
+    if (/設為|改成|設定|更新|延長/.test(normalized) && /日期|到期|有效/.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      const date = extractVoiceDate(normalized).date;
+      return target && date
+        ? createVoiceCommand(normalized, "setDate", `把「${target.name}」到期日改成 ${date}。`, "review")
+        : createVoiceCommand(normalized, "noop", "請說出要設定的食品和到期日期。");
+    }
+    if (/清除|移除/.test(normalized) && /日期|到期/.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      return target
+        ? createVoiceCommand(normalized, "clearDate", `清除「${target.name}」的到期日。`, "review")
+        : createVoiceCommand(normalized, "noop", "目前找不到要清除日期的食品。");
+    }
+    if (/設為|改成|設定|更新/.test(normalized) && /商店|店家|購買地|賣場|通路/.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      const shop = extractVoiceShop(normalized);
+      return target && shop
+        ? createVoiceCommand(normalized, "setShop", `把「${target.name}」商店改成 ${shop}。`, "review")
+        : createVoiceCommand(normalized, "noop", "請說出要設定的食品和商店。");
+    }
+    if (/吃完|已吃|已用完/.test(normalized)) {
+      return createVoiceCommand(normalized, "eatSelected", `開啟標記吃完確認，對象為目前選取 ${selectedIds.size} 筆；仍需輸入 ${FOOD_DELETE_CONFIRMATION}。`, "danger");
+    }
+    if (/丟棄|報廢|不要了/.test(normalized)) {
+      return createVoiceCommand(normalized, "discardSelected", `開啟標記丟棄確認，對象為目前選取 ${selectedIds.size} 筆；仍需輸入 ${FOOD_DELETE_CONFIRMATION}。`, "danger");
+    }
+    if (/刪除選取|刪除已選|delete selected/i.test(normalized)) {
+      return createVoiceCommand(normalized, "deleteSelected", `開啟批次刪除確認，對象為目前選取 ${selectedIds.size} 筆；仍需輸入 ${FOOD_DELETE_CONFIRMATION}。`, "danger");
+    }
+    if (/刪除|delete|remove/i.test(normalized)) {
+      const target = findVoiceTarget(normalized);
+      return target
+        ? createVoiceCommand(normalized, "deleteOne", `選取「${target.name}」並開啟刪除確認；仍需輸入 ${FOOD_DELETE_CONFIRMATION}。`, "danger")
+        : createVoiceCommand(normalized, "noop", "目前找不到可刪除的食品。");
+    }
+
+    return createVoiceCommand(normalized, "noop", "聽到了，但還不確定要做什麼。可以試：搜尋牛奶、7 天內、新增雞蛋 10 顆、把第一筆庫存加 2。");
+  };
+
+  const openBulkDeleteModalForIds = (ids: string[], action: CleanupAction) => {
+    if (ids.length === 0) {
+      setVoiceFeedback("請先選取食品，或說出食品名稱，例如：刪除牛奶。");
+      return;
+    }
+    setSelectedIds(new Set(ids));
+    setSelectionMode(true);
+    setCleanupAction(action);
+    setBulkDeleteInput("");
+    setBulkDeleteOpen(true);
+  };
+
+  const updateFoodFromVoice = async (food: Food, patch: Partial<FoodFormData>) => {
+    await updateFood(food.$id, {
+      name: food.name,
+      amount: food.amount || 0,
+      todate: formatDate(food.todate),
+      photo: food.photo || "",
+      price: food.price || 0,
+      shop: food.shop || "",
+      photohash: food.photohash || "",
+      ...patch,
+    });
+  };
+
+  const executeVoiceCommand = async (command: FoodVoiceCommand) => {
+    const text = command.rawText;
+    setPendingVoiceCommand(null);
+    setVoiceFeedback(`執行中：${command.summary}`);
+
+    try {
+      switch (command.action) {
+        case "importCsv":
+          document.getElementById("csv-import-food")?.click();
+          break;
+        case "exportCsv":
+          await exportToCSV();
+          break;
+        case "refresh":
+          loadFoods(true);
+          break;
+        case "selectAll":
+          setSelectionMode(true);
+          setSelectedIds(new Set(filteredFoods.map((food) => food.$id).filter(Boolean)));
+          break;
+        case "clearSelection":
+          setSelectedIds(new Set());
+          setSelectionMode(false);
+          break;
+        case "filterAll":
+          resetFoodFilters();
+          break;
+        case "filterExpired":
+          setFilterMode("expired");
+          break;
+        case "filterToday":
+          setFilterMode("today");
+          break;
+        case "filter3Days":
+          setFilterMode("3days");
+          break;
+        case "filter7Days":
+          setFilterMode("7days");
+          break;
+        case "filterNormal":
+          setFilterMode("normal");
+          break;
+        case "filterNoDate":
+          setFilterMode("all");
+          setYearFilter("no-date");
+          setMonthFilter("");
+          break;
+        case "search":
+          setSearchQuery(extractVoiceSearchQuery(text));
+          break;
+        case "add": {
+          setInlineAddForm(buildVoiceDraft(text));
+          setIsInlineAdding(true);
+          setInlineEditingId(null);
+          setInlineEditForm(INITIAL_FORM);
+          resetInlinePhotoState();
+          resetInlineAddPhotoState();
+          break;
+        }
+        case "quickAdd":
+          await createFood(buildVoiceDraft(text));
+          break;
+        case "edit": {
+          const target = findVoiceTarget(text);
+          if (target) handleInlineEdit(target);
+          break;
+        }
+        case "duplicate": {
+          const target = findVoiceTarget(text);
+          if (target) handleDuplicateFood(target);
+          break;
+        }
+        case "increaseAmount": {
+          const target = findVoiceTarget(text);
+          if (target) await updateAmount(target, extractVoiceAmount(text) || 1);
+          break;
+        }
+        case "decreaseAmount": {
+          const target = findVoiceTarget(text);
+          if (target) await updateAmount(target, -(extractVoiceAmount(text) || 1));
+          break;
+        }
+        case "setAmount": {
+          const target = findVoiceTarget(text);
+          const amount = extractVoiceAmount(text);
+          if (target && amount !== null) await updateFoodFromVoice(target, { amount });
+          break;
+        }
+        case "setPrice": {
+          const target = findVoiceTarget(text);
+          const price = extractVoicePrice(text);
+          if (target && price !== null) await updateFoodFromVoice(target, { price });
+          break;
+        }
+        case "setDate": {
+          const target = findVoiceTarget(text);
+          const date = extractVoiceDate(text).date;
+          if (target && date) await updateFoodFromVoice(target, { todate: date });
+          break;
+        }
+        case "clearDate": {
+          const target = findVoiceTarget(text);
+          if (target) await updateFoodFromVoice(target, { todate: "" });
+          break;
+        }
+        case "setShop": {
+          const target = findVoiceTarget(text);
+          const shop = extractVoiceShop(text);
+          if (target && shop) await updateFoodFromVoice(target, { shop });
+          break;
+        }
+        case "deleteOne": {
+          const target = findVoiceTarget(text);
+          if (target) openBulkDeleteModalForIds([target.$id], "delete");
+          break;
+        }
+        case "deleteSelected":
+          openBulkDeleteModalForIds(Array.from(selectedIds), "delete");
+          break;
+        case "eatSelected":
+          openBulkDeleteModalForIds(Array.from(selectedIds), "eat");
+          break;
+        case "discardSelected":
+          openBulkDeleteModalForIds(Array.from(selectedIds), "discard");
+          break;
+        case "noop":
+        default:
+          setVoiceFeedback(command.summary);
+          return;
+      }
+      setVoiceFeedback(`完成：${command.summary}`);
+    } catch (error) {
+      console.error("Food voice command failed:", error);
+      setVoiceFeedback(error instanceof Error ? `執行失敗：${error.message}` : "執行失敗，請再試一次。");
+    }
+  };
+
+  const handleVoiceText = (text: string) => {
+    const command = parseVoiceCommand(text);
+    if (!command) {
+      setVoiceFeedback("請先輸入或錄到語音指令。");
+      return;
+    }
+    setVoiceTranscript(command.rawText);
+    setVoiceFeedback(command.summary);
+    if (command.risk === "safe") {
+      void executeVoiceCommand(command);
+    } else {
+      setPendingVoiceCommand(command);
+    }
+  };
+
+  const stopVoiceInput = () => {
+    if (!isVoiceListening) return;
+    if (!canStopVoiceRecording) {
+      setVoiceFeedback(`錄音至少 10 秒，還有 ${remainingVoiceRecordingSeconds} 秒。`);
+      return;
+    }
+    voiceManualStopRef.current = true;
+    voiceRecognitionRef.current?.stop?.();
+    setIsVoiceListening(false);
+  };
+
+  const startVoiceInput = () => {
+    const SpeechRecognitionCtor = getSpeechRecognitionCtor();
+    if (!SpeechRecognitionCtor) {
+      setVoiceFeedback("此瀏覽器不支援語音辨識，可以直接在文字框輸入指令後按解析。");
+      return;
+    }
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "zh-TW";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    voiceManualStopRef.current = false;
+    voiceRecordingStartedAtRef.current = Date.now();
+    setVoiceRecordingElapsedMs(0);
+    setIsVoiceListening(true);
+    setPendingVoiceCommand(null);
+    setVoiceFeedback("正在聽鋒兄食品指令，錄音至少 10 秒。");
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result?.[0]?.transcript || "")
+        .join("")
+        .trim();
+      setVoiceTranscript(transcript);
+    };
+    recognition.onerror = (event: any) => {
+      setIsVoiceListening(false);
+      setVoiceFeedback(`語音辨識失敗：${event?.error || "請改用文字指令"}`);
+    };
+    recognition.onend = () => {
+      setIsVoiceListening(false);
+      if (!voiceManualStopRef.current) setVoiceFeedback("語音辨識已結束，可以按解析指令或再錄一次。");
+    };
+    voiceRecognitionRef.current = recognition;
+    recognition.start();
+  };
+
   if (loading) return <FullPageLoading text="載入食品資料中..." />;
 
   return (
@@ -1052,6 +1638,94 @@ export default function FoodManagement() {
           </div>
         }
       />
+
+      <DataCard className="border-emerald-200 bg-emerald-50/70 p-4 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/20">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+              <Mic size={18} />
+              <span>語音 CRUD 管理</span>
+            </div>
+            <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+              支援新增、快速新增、搜尋、篩選、編輯、複製、庫存加減、價格、商店、到期日、CSV 匯入匯出與批次清理。
+            </p>
+            <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+              {voiceFeedback}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={isVoiceListening ? stopVoiceInput : startVoiceInput}
+              className={`min-w-[8.5rem] rounded-xl ${isVoiceListening ? "bg-emerald-700 hover:bg-emerald-800" : "bg-emerald-600 hover:bg-emerald-700"} text-white`}
+            >
+              <Mic className="mr-1 h-4 w-4" />
+              {isVoiceListening ? (canStopVoiceRecording ? "停止錄音" : `${remainingVoiceRecordingSeconds} 秒`) : "開始語音"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-w-[8rem] rounded-xl"
+              onClick={() => handleVoiceText(voiceTranscript)}
+              disabled={!voiceTranscript.trim()}
+            >
+              <Sparkles className="mr-1 h-4 w-4" />
+              解析指令
+            </Button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <Input
+            value={voiceTranscript}
+            onChange={(event) => {
+              setVoiceTranscript(event.target.value);
+              setPendingVoiceCommand(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") handleVoiceText(voiceTranscript);
+            }}
+            placeholder="例：新增牛奶 2 瓶 7 天後到期 / 搜尋 Costco / 把第一筆庫存加 3 / 把雞蛋價格改成 99 / 刪除選取"
+            className="h-12 rounded-xl bg-white dark:bg-slate-950"
+          />
+          <div className="flex flex-wrap gap-2">
+            {["7 天內", "已過期", "無日期", "清除篩選"].map((sample) => (
+              <Button
+                key={sample}
+                type="button"
+                variant="outline"
+                className="h-12 rounded-xl bg-white dark:bg-slate-950"
+                onClick={() => handleVoiceText(sample)}
+              >
+                {sample}
+              </Button>
+            ))}
+          </div>
+        </div>
+        {pendingVoiceCommand && (
+          <div className={`mt-4 rounded-xl border p-3 ${pendingVoiceCommand.risk === "danger" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"}`}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  {pendingVoiceCommand.risk === "danger" ? "需要確認危險操作" : "需要確認後執行"}
+                </p>
+                <p className="mt-1 text-sm leading-6">{pendingVoiceCommand.summary}</p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button type="button" variant="outline" className="rounded-xl bg-white" onClick={() => setPendingVoiceCommand(null)}>
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  className={`rounded-xl text-white ${pendingVoiceCommand.risk === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"}`}
+                  onClick={() => void executeVoiceCommand(pendingVoiceCommand)}
+                >
+                  確認執行
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </DataCard>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,1fr)]">
         <Card className="border-blue-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-sm">
