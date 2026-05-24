@@ -16,6 +16,9 @@ const CHANNEL_SOURCES = [
   "https://www.youtube.com/@jlaw/videos",
   "https://www.youtube.com/@SunChannelHK/videos",
   "https://www.youtube.com/@jilixiaoshimei/videos",
+  "https://www.youtube.com/@informant510/videos",
+  "https://www.youtube.com/@ma-siku/videos",
+  "https://www.youtube.com/@monsterise/videos",
 ];
 
 const uniqueSources = Array.from(new Set(CHANNEL_SOURCES));
@@ -23,6 +26,9 @@ const CHANNEL_TITLE_OVERRIDES: Record<string, string> = {
   jlaw: "夏河東渡",
   sunchannelhk: "Sun Channel",
   jilixiaoshimei: "吉利小师妹",
+  informant510: "线人频道Informant",
+  "ma-siku": "马司库",
+  monsterise: "怪獸崛起 MONSTERISE",
 };
 const YOUTUBE_HEADERS = {
   "user-agent":
