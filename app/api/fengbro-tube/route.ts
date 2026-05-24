@@ -15,12 +15,14 @@ const CHANNEL_SOURCES = [
   "https://www.youtube.com/@%E5%96%B5%E5%96%B5%E7%9C%8B%E4%B8%80%E7%9C%8B/videos",
   "https://www.youtube.com/@jlaw/videos",
   "https://www.youtube.com/@SunChannelHK/videos",
+  "https://www.youtube.com/@jilixiaoshimei/videos",
 ];
 
 const uniqueSources = Array.from(new Set(CHANNEL_SOURCES));
 const CHANNEL_TITLE_OVERRIDES: Record<string, string> = {
   jlaw: "夏河東渡",
   sunchannelhk: "Sun Channel",
+  jilixiaoshimei: "吉利小师妹",
 };
 const YOUTUBE_HEADERS = {
   "user-agent":
