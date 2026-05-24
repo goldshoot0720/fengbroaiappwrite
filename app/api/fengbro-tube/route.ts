@@ -20,6 +20,7 @@ const CHANNEL_SOURCES = [
   "https://www.youtube.com/@ma-siku/videos",
   "https://www.youtube.com/@monsterise/videos",
   "https://www.youtube.com/@NeixianZhang/videos",
+  "https://www.youtube.com/@%E4%BF%AE%E4%BB%99%E8%80%85%E5%B0%8F%E7%83%A8/videos",
 ];
 
 const uniqueSources = Array.from(new Set(CHANNEL_SOURCES));
@@ -31,6 +32,7 @@ const CHANNEL_TITLE_OVERRIDES: Record<string, string> = {
   "ma-siku": "马司库",
   monsterise: "怪獸崛起 MONSTERISE",
   neixianzhang: "張内咸脫口秀",
+  修仙者小烨: "修仙者小烨",
 };
 const YOUTUBE_HEADERS = {
   "user-agent":
