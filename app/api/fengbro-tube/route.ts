@@ -13,9 +13,15 @@ const CHANNEL_SOURCES = [
   "https://www.youtube.com/@quedaren/videos",
   "https://www.youtube.com/@%E5%A4%B8%E5%85%8B%E8%AF%B4",
   "https://www.youtube.com/@%E5%96%B5%E5%96%B5%E7%9C%8B%E4%B8%80%E7%9C%8B/videos",
+  "https://www.youtube.com/@jlaw/videos",
+  "https://www.youtube.com/@SunChannelHK/videos",
 ];
 
 const uniqueSources = Array.from(new Set(CHANNEL_SOURCES));
+const CHANNEL_TITLE_OVERRIDES: Record<string, string> = {
+  jlaw: "夏河東渡",
+  sunchannelhk: "Sun Channel",
+};
 const YOUTUBE_HEADERS = {
   "user-agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
@@ -48,6 +54,19 @@ function fallbackNameFromUrl(sourceUrl: string) {
   } catch {
     return sourceUrl;
   }
+}
+
+function getChannelHandle(sourceUrl: string) {
+  try {
+    const path = decodeURIComponent(new URL(sourceUrl).pathname);
+    return path.match(/^\/@([^/]+)/)?.[1].toLowerCase() || "";
+  } catch {
+    return "";
+  }
+}
+
+function getChannelTitle(sourceUrl: string, title: string) {
+  return CHANNEL_TITLE_OVERRIDES[getChannelHandle(sourceUrl)] || title;
 }
 
 function normalizeDigits(value: string) {
@@ -136,7 +155,7 @@ async function fetchChannel(sourceUrl: string) {
   return {
     sourceUrl,
     channelId,
-    title: feedTitle || title,
+    title: getChannelTitle(sourceUrl, feedTitle || title),
     videos,
     downfallIndexUpdate: downfallIndexVideo
       ? {
@@ -157,7 +176,7 @@ export async function GET() {
     return {
       sourceUrl,
       channelId: "",
-      title: fallbackNameFromUrl(sourceUrl),
+      title: getChannelTitle(sourceUrl, fallbackNameFromUrl(sourceUrl)),
       videos: [],
       error: item.reason instanceof Error ? item.reason.message : "讀取失敗",
     };
