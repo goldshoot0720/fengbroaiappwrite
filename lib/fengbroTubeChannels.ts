@@ -4,6 +4,16 @@ export type FengbroTubeChannelConfig = {
 };
 
 export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
+  sjdiao: "习书记",
+  henren778: "一个狠人",
+  libertas1984: "Cao Cao's daily observation",
+  sunlao: "政經孫老師",
+  torontobigface: "多伦多方脸",
+  junyulan: "君語瀾 JunYuLan",
+  blackwhite_raven: "黑白乌鸦",
+  quedaren: "雀大人 | Miss. Mi",
+  夸克说: "夸克说",
+  喵喵看一看: "小喵看一看「怪事先生」",
   jlaw: "夏河東渡",
   sunchannelhk: "Sun Channel",
   jilixiaoshimei: "吉利小师妹",
@@ -74,6 +84,10 @@ export function getFengbroTubeAlias(sourceUrl: string, fallback = "") {
   return FENGBRO_TUBE_TITLE_OVERRIDES[handle] || fallback;
 }
 
+export function getFengbroTubeFallbackTitle(sourceUrl: string, fallback = "") {
+  return getFengbroTubeAlias(sourceUrl) || fallback || getFengbroTubeHandle(sourceUrl) || sourceUrl;
+}
+
 export function toFengbroTubeChannelConfig(input: unknown): FengbroTubeChannelConfig | null {
   if (typeof input === "string") {
     const sourceUrl = normalizeFengbroTubeSource(input);
@@ -88,7 +102,8 @@ export function toFengbroTubeChannelConfig(input: unknown): FengbroTubeChannelCo
   if (!sourceUrl) return null;
 
   const alias = typeof value.alias === "string" ? value.alias.trim() : "";
-  return { alias: alias || getFengbroTubeAlias(sourceUrl), sourceUrl };
+  const normalizedAlias = alias === "未命名頻道" ? "" : alias;
+  return { alias: normalizedAlias || getFengbroTubeAlias(sourceUrl), sourceUrl };
 }
 
 export function normalizeFengbroTubeChannels(inputs: unknown[]) {

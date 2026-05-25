@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   DEFAULT_FENGBRO_TUBE_CHANNELS,
   type FengbroTubeChannelConfig,
+  getFengbroTubeFallbackTitle,
   normalizeFengbroTubeChannels,
   normalizeFengbroTubeSource,
 } from "@/lib/fengbroTubeChannels";
@@ -186,6 +187,11 @@ function getSavedTubeChannels() {
   } catch {
     return DEFAULT_FENGBRO_TUBE_CHANNELS;
   }
+}
+
+function hasCustomTubeAlias(alias: string) {
+  const normalizedAlias = alias.trim();
+  return Boolean(normalizedAlias && normalizedAlias !== "未命名頻道");
 }
 
 function getDefaultLandtopQuery() {
@@ -656,6 +662,13 @@ function FengbroTubeSection({
   onRefresh: () => void;
 }) {
   const channelCount = result?.sourceCount ?? channelConfigs.length;
+  const resolvedChannelTitleBySource = useMemo(() => {
+    return new Map((result?.channels || []).map((channel) => [channel.sourceUrl, channel.title]));
+  }, [result]);
+  const getChannelConfigLabel = (channel: FengbroTubeChannelConfig) =>
+    hasCustomTubeAlias(channel.alias)
+      ? channel.alias
+      : getFengbroTubeFallbackTitle(channel.sourceUrl, resolvedChannelTitleBySource.get(channel.sourceUrl) || "");
 
   return (
     <div className="space-y-5">
@@ -743,7 +756,7 @@ function FengbroTubeSection({
               {channelConfigs.map((channel) => (
                 <div key={channel.sourceUrl} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50/70 px-3 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{channel.alias || "未命名頻道"}</p>
+                    <p className="truncate text-sm font-semibold text-foreground">{getChannelConfigLabel(channel)}</p>
                     <a href={channel.sourceUrl} target="_blank" rel="noreferrer" className="block truncate text-xs text-red-700 hover:underline">
                       {channel.sourceUrl}
                     </a>
@@ -1197,6 +1210,20 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
       const data = (await response.json()) as FengbroTubeResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "鋒兄Tube 讀取失敗");
       setTubeResult(data);
+      const resolvedTitles = new Map(data.channels.map((channel) => [channel.sourceUrl, channel.title]));
+      setTubeChannelConfigs((currentChannels) =>
+        normalizeFengbroTubeChannels(
+          currentChannels.map((channel) => {
+            const fallbackTitle = getFengbroTubeFallbackTitle(channel.sourceUrl);
+            if (hasCustomTubeAlias(channel.alias) && channel.alias.trim() !== fallbackTitle) return channel;
+            const resolvedTitle = resolvedTitles.get(channel.sourceUrl);
+            return {
+              ...channel,
+              alias: getFengbroTubeFallbackTitle(channel.sourceUrl, resolvedTitle || ""),
+            };
+          })
+        )
+      );
     } catch (error) {
       setTubeError(error instanceof Error ? error.message : "鋒兄Tube 讀取失敗");
     } finally {
@@ -1238,7 +1265,11 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
 
   const handleDeleteTubeChannel = useCallback((sourceUrl: string) => {
     const targetChannel = tubeChannelConfigs.find((channel) => channel.sourceUrl === sourceUrl);
-    const label = targetChannel?.alias || targetChannel?.sourceUrl || "這個頻道";
+    const label = targetChannel
+      ? hasCustomTubeAlias(targetChannel.alias)
+        ? targetChannel.alias
+        : getFengbroTubeFallbackTitle(targetChannel.sourceUrl)
+      : "這個頻道";
     if (typeof window !== "undefined" && !window.confirm(`確定刪除「${label}」？`)) return;
 
     setTubeChannelConfigs((currentChannels) => currentChannels.filter((channel) => channel.sourceUrl !== sourceUrl));
