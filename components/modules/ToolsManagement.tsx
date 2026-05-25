@@ -1,10 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, Clock, ExternalLink, Play, RefreshCw, Search, Smartphone, Wrench } from "lucide-react";
+import { AlertTriangle, BarChart3, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
+import {
+  DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES,
+  dedupeFengbroTubeSources,
+  normalizeFengbroTubeSource,
+} from "@/lib/fengbroTubeChannels";
 
 type ToolsTab = "price-compare" | "landtop" | "fengbro-tube" | "fengbro-finance";
 type PriceSource = "local" | "biggo-api";
@@ -102,6 +107,8 @@ type FengbroTubeChannel = {
 
 type FengbroTubeResult = {
   fetchedAt: string;
+  sourceCount?: number;
+  defaultSourceCount?: number;
   channels: FengbroTubeChannel[];
   recentVideos: Array<FengbroTubeVideo & { channelTitle: string; channelId: string }>;
 };
@@ -163,6 +170,7 @@ const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
 const RECENT_KEY = "fengbro.tools.priceHistory.recent";
 const SOURCE_KEY = "fengbro.tools.priceHistory.source";
 const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
+const TUBE_CHANNELS_KEY = "fengbro.tools.tube.channels";
 
 function getDefaultLandtopQuery() {
   const yearSuffix = new Date().getFullYear().toString().slice(-2);
@@ -598,13 +606,27 @@ function FengbroTubeSection({
   result,
   loading,
   error,
+  channelSources,
+  channelDraft,
+  onChannelDraftChange,
+  onAddChannel,
+  onDeleteChannel,
+  onResetChannels,
   onRefresh,
 }: {
   result: FengbroTubeResult | null;
   loading: boolean;
   error: string;
+  channelSources: string[];
+  channelDraft: string;
+  onChannelDraftChange: (value: string) => void;
+  onAddChannel: () => void;
+  onDeleteChannel: (sourceUrl: string) => void;
+  onResetChannels: () => void;
   onRefresh: () => void;
 }) {
+  const channelCount = result?.sourceCount ?? channelSources.length;
+
   return (
     <div className="space-y-5">
       <DataCard className="overflow-hidden p-0">
@@ -617,7 +639,7 @@ function FengbroTubeSection({
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600/80">FengBro Tube</p>
               <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄Tube</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                追蹤指定 YouTube 頻道最新影片，每個頻道顯示 10 部；3 天內有新影片時，首頁會提醒你。
+                追蹤指定 YouTube 頻道最新影片，每個頻道顯示 10 部；目前追蹤 {channelCount} 個頻道。
               </p>
             </div>
           </div>
@@ -627,10 +649,62 @@ function FengbroTubeSection({
                 更新：{new Date(result.fetchedAt).toLocaleString("zh-TW")}
               </span>
             )}
+            <span className="rounded-full border border-red-100 bg-white px-3 py-1 text-xs text-muted-foreground">
+              頻道：{channelSources.length} / 預設 {DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES.length}
+            </span>
             <Button onClick={onRefresh} disabled={loading} className="gap-2 bg-red-600 hover:bg-red-700">
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               {loading ? "更新中" : "重新整理"}
             </Button>
+          </div>
+        </div>
+
+        <div className="border-b border-red-50 p-4 sm:p-6">
+          <div className="rounded-[28px] border border-red-100 bg-white p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h4 className="font-semibold text-foreground">頻道管理</h4>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  可輸入 YouTube 網址、@handle 或 handle。第一次使用預設 {DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES.length} 個頻道。
+                </p>
+              </div>
+              <Button type="button" variant="outline" onClick={onResetChannels} className="gap-2 rounded-xl">
+                <RotateCcw size={16} />
+                還原預設
+              </Button>
+            </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <input
+                value={channelDraft}
+                onChange={(event) => onChannelDraftChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") onAddChannel();
+                }}
+                placeholder="例如：https://www.youtube.com/@cheapaoe/videos 或 @cheapaoe"
+                className="h-11 flex-1 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-100"
+              />
+              <Button type="button" onClick={onAddChannel} className="gap-2 rounded-xl bg-red-600 hover:bg-red-700">
+                <Plus size={16} />
+                新增頻道
+              </Button>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {channelSources.map((sourceUrl) => (
+                <span key={sourceUrl} className="inline-flex max-w-full items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs text-red-700">
+                  <a href={sourceUrl} target="_blank" rel="noreferrer" className="max-w-[260px] truncate hover:underline">
+                    {sourceUrl}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteChannel(sourceUrl)}
+                    className="rounded-full p-1 text-red-500 transition hover:bg-red-100 hover:text-red-700"
+                    title="刪除頻道"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -932,6 +1006,20 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
   const [tubeError, setTubeError] = useState("");
   const [tubeResult, setTubeResult] = useState<FengbroTubeResult | null>(null);
   const [tubeLoadedOnce, setTubeLoadedOnce] = useState(false);
+  const [tubeChannelSources, setTubeChannelSources] = useState<string[]>(() => {
+    if (typeof window === "undefined") return DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
+    try {
+      const savedTubeChannels = window.localStorage.getItem(TUBE_CHANNELS_KEY);
+      if (!savedTubeChannels) return DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
+      const parsedChannels = JSON.parse(savedTubeChannels) as unknown;
+      if (!Array.isArray(parsedChannels)) return DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
+      const sources = dedupeFengbroTubeSources(parsedChannels.filter((source): source is string => typeof source === "string"));
+      return sources.length > 0 ? sources : DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
+    } catch {
+      return DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
+    }
+  });
+  const [tubeChannelDraft, setTubeChannelDraft] = useState("");
   const [financeLoading, setFinanceLoading] = useState(false);
   const [financeError, setFinanceError] = useState("");
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
@@ -957,8 +1045,14 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     try {
       const savedQuery = window.localStorage.getItem(LANDTOP_QUERY_KEY);
       if (savedQuery) setLandtopQuery(normalizeSavedLandtopQuery(savedQuery));
+
     } catch {}
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(TUBE_CHANNELS_KEY, JSON.stringify(tubeChannelSources));
+  }, [tubeChannelSources]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1044,7 +1138,11 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     setTubeLoading(true);
     setTubeError("");
     try {
-      const response = await fetch("/api/fengbro-tube");
+      const response = await fetch("/api/fengbro-tube", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sources: tubeChannelSources }),
+      });
       const data = (await response.json()) as FengbroTubeResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "鋒兄Tube 讀取失敗");
       setTubeResult(data);
@@ -1053,6 +1151,33 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     } finally {
       setTubeLoading(false);
     }
+  }, [tubeChannelSources]);
+
+  const handleAddTubeChannel = useCallback(() => {
+    const sourceUrl = normalizeFengbroTubeSource(tubeChannelDraft);
+    if (!sourceUrl) {
+      setTubeError("請輸入正確的 YouTube 頻道網址或 @handle");
+      return;
+    }
+
+    setTubeError("");
+    setTubeChannelSources((currentSources) => {
+      if (currentSources.includes(sourceUrl)) return currentSources;
+      return [...currentSources, sourceUrl];
+    });
+    setTubeChannelDraft("");
+    setTubeLoadedOnce(false);
+  }, [tubeChannelDraft]);
+
+  const handleDeleteTubeChannel = useCallback((sourceUrl: string) => {
+    setTubeChannelSources((currentSources) => currentSources.filter((source) => source !== sourceUrl));
+    setTubeLoadedOnce(false);
+  }, []);
+
+  const handleResetTubeChannels = useCallback(() => {
+    setTubeChannelSources(DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES);
+    setTubeChannelDraft("");
+    setTubeLoadedOnce(false);
   }, []);
 
   useEffect(() => {
@@ -1424,6 +1549,12 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
           result={tubeResult}
           loading={tubeLoading}
           error={tubeError}
+          channelSources={tubeChannelSources}
+          channelDraft={tubeChannelDraft}
+          onChannelDraftChange={setTubeChannelDraft}
+          onAddChannel={handleAddTubeChannel}
+          onDeleteChannel={handleDeleteTubeChannel}
+          onResetChannels={handleResetTubeChannels}
           onRefresh={() => void loadTube()}
         />
       ) : (
