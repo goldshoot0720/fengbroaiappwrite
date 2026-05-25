@@ -6,8 +6,9 @@ import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
 import {
-  DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES,
-  dedupeFengbroTubeSources,
+  DEFAULT_FENGBRO_TUBE_CHANNELS,
+  type FengbroTubeChannelConfig,
+  normalizeFengbroTubeChannels,
   normalizeFengbroTubeSource,
 } from "@/lib/fengbroTubeChannels";
 
@@ -171,6 +172,21 @@ const RECENT_KEY = "fengbro.tools.priceHistory.recent";
 const SOURCE_KEY = "fengbro.tools.priceHistory.source";
 const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
 const TUBE_CHANNELS_KEY = "fengbro.tools.tube.channels";
+
+function getSavedTubeChannels() {
+  if (typeof window === "undefined") return DEFAULT_FENGBRO_TUBE_CHANNELS;
+
+  try {
+    const savedTubeChannels = window.localStorage.getItem(TUBE_CHANNELS_KEY);
+    if (!savedTubeChannels) return DEFAULT_FENGBRO_TUBE_CHANNELS;
+    const parsedChannels = JSON.parse(savedTubeChannels) as unknown;
+    if (!Array.isArray(parsedChannels)) return DEFAULT_FENGBRO_TUBE_CHANNELS;
+    const channels = normalizeFengbroTubeChannels(parsedChannels);
+    return channels.length > 0 ? channels : DEFAULT_FENGBRO_TUBE_CHANNELS;
+  } catch {
+    return DEFAULT_FENGBRO_TUBE_CHANNELS;
+  }
+}
 
 function getDefaultLandtopQuery() {
   const yearSuffix = new Date().getFullYear().toString().slice(-2);
@@ -606,26 +622,40 @@ function FengbroTubeSection({
   result,
   loading,
   error,
-  channelSources,
-  channelDraft,
-  onChannelDraftChange,
-  onAddChannel,
+  channelManagerOpen,
+  channelConfigs,
+  channelAliasDraft,
+  channelUrlDraft,
+  editingChannelUrl,
+  onToggleChannelManager,
+  onChannelAliasDraftChange,
+  onChannelUrlDraftChange,
+  onSaveChannel,
+  onEditChannel,
   onDeleteChannel,
+  onCancelEditChannel,
   onResetChannels,
   onRefresh,
 }: {
   result: FengbroTubeResult | null;
   loading: boolean;
   error: string;
-  channelSources: string[];
-  channelDraft: string;
-  onChannelDraftChange: (value: string) => void;
-  onAddChannel: () => void;
+  channelManagerOpen: boolean;
+  channelConfigs: FengbroTubeChannelConfig[];
+  channelAliasDraft: string;
+  channelUrlDraft: string;
+  editingChannelUrl: string | null;
+  onToggleChannelManager: () => void;
+  onChannelAliasDraftChange: (value: string) => void;
+  onChannelUrlDraftChange: (value: string) => void;
+  onSaveChannel: () => void;
+  onEditChannel: (channel: FengbroTubeChannelConfig) => void;
   onDeleteChannel: (sourceUrl: string) => void;
+  onCancelEditChannel: () => void;
   onResetChannels: () => void;
   onRefresh: () => void;
 }) {
-  const channelCount = result?.sourceCount ?? channelSources.length;
+  const channelCount = result?.sourceCount ?? channelConfigs.length;
 
   return (
     <div className="space-y-5">
@@ -650,8 +680,12 @@ function FengbroTubeSection({
               </span>
             )}
             <span className="rounded-full border border-red-100 bg-white px-3 py-1 text-xs text-muted-foreground">
-              頻道：{channelSources.length} / 預設 {DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES.length}
+              頻道：{channelConfigs.length} / 預設 {DEFAULT_FENGBRO_TUBE_CHANNELS.length}
             </span>
+            <Button type="button" variant="outline" onClick={onToggleChannelManager} className="gap-2 rounded-xl">
+              <Wrench size={16} />
+              頻道管理
+            </Button>
             <Button onClick={onRefresh} disabled={loading} className="gap-2 bg-red-600 hover:bg-red-700">
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               {loading ? "更新中" : "重新整理"}
@@ -659,13 +693,14 @@ function FengbroTubeSection({
           </div>
         </div>
 
+        {channelManagerOpen && (
         <div className="border-b border-red-50 p-4 sm:p-6">
           <div className="rounded-[28px] border border-red-100 bg-white p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h4 className="font-semibold text-foreground">頻道管理</h4>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  可輸入 YouTube 網址、@handle 或 handle。第一次使用預設 {DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES.length} 個頻道。
+                  可編輯頻道別名與網址。第一次使用預設 {DEFAULT_FENGBRO_TUBE_CHANNELS.length} 個頻道。
                 </p>
               </div>
               <Button type="button" variant="outline" onClick={onResetChannels} className="gap-2 rounded-xl">
@@ -673,40 +708,65 @@ function FengbroTubeSection({
                 還原預設
               </Button>
             </div>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.4fr)_auto]">
               <input
-                value={channelDraft}
-                onChange={(event) => onChannelDraftChange(event.target.value)}
+                value={channelAliasDraft}
+                onChange={(event) => onChannelAliasDraftChange(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") onAddChannel();
+                  if (event.key === "Enter") onSaveChannel();
                 }}
-                placeholder="例如：https://www.youtube.com/@cheapaoe/videos 或 @cheapaoe"
-                className="h-11 flex-1 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-100"
+                placeholder="頻道別名"
+                className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-100"
               />
-              <Button type="button" onClick={onAddChannel} className="gap-2 rounded-xl bg-red-600 hover:bg-red-700">
+              <input
+                value={channelUrlDraft}
+                onChange={(event) => onChannelUrlDraftChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") onSaveChannel();
+                }}
+                placeholder="頻道網址 / @handle"
+                className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-100"
+              />
+              <Button type="button" onClick={onSaveChannel} className="gap-2 rounded-xl bg-red-600 hover:bg-red-700">
                 <Plus size={16} />
-                新增頻道
+                {editingChannelUrl ? "儲存頻道" : "新增頻道"}
               </Button>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {channelSources.map((sourceUrl) => (
-                <span key={sourceUrl} className="inline-flex max-w-full items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs text-red-700">
-                  <a href={sourceUrl} target="_blank" rel="noreferrer" className="max-w-[260px] truncate hover:underline">
-                    {sourceUrl}
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => onDeleteChannel(sourceUrl)}
-                    className="rounded-full p-1 text-red-500 transition hover:bg-red-100 hover:text-red-700"
-                    title="刪除頻道"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </span>
+            {editingChannelUrl && (
+              <div className="mt-2">
+                <Button type="button" variant="ghost" onClick={onCancelEditChannel} className="h-9 rounded-xl text-sm">
+                  取消編輯
+                </Button>
+              </div>
+            )}
+            <div className="mt-4 grid gap-2 xl:grid-cols-2">
+              {channelConfigs.map((channel) => (
+                <div key={channel.sourceUrl} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50/70 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{channel.alias || "未命名頻道"}</p>
+                    <a href={channel.sourceUrl} target="_blank" rel="noreferrer" className="block truncate text-xs text-red-700 hover:underline">
+                      {channel.sourceUrl}
+                    </a>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button type="button" variant="outline" onClick={() => onEditChannel(channel)} className="h-9 rounded-xl px-3 text-xs">
+                      編輯
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteChannel(channel.sourceUrl)}
+                      className="rounded-full p-2 text-red-500 transition hover:bg-red-100 hover:text-red-700"
+                      title="刪除頻道"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         </div>
+        )}
 
         {error && <div className="m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
 
@@ -1006,20 +1066,11 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
   const [tubeError, setTubeError] = useState("");
   const [tubeResult, setTubeResult] = useState<FengbroTubeResult | null>(null);
   const [tubeLoadedOnce, setTubeLoadedOnce] = useState(false);
-  const [tubeChannelSources, setTubeChannelSources] = useState<string[]>(() => {
-    if (typeof window === "undefined") return DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
-    try {
-      const savedTubeChannels = window.localStorage.getItem(TUBE_CHANNELS_KEY);
-      if (!savedTubeChannels) return DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
-      const parsedChannels = JSON.parse(savedTubeChannels) as unknown;
-      if (!Array.isArray(parsedChannels)) return DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
-      const sources = dedupeFengbroTubeSources(parsedChannels.filter((source): source is string => typeof source === "string"));
-      return sources.length > 0 ? sources : DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
-    } catch {
-      return DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
-    }
-  });
-  const [tubeChannelDraft, setTubeChannelDraft] = useState("");
+  const [tubeChannelManagerOpen, setTubeChannelManagerOpen] = useState(false);
+  const [tubeChannelConfigs, setTubeChannelConfigs] = useState<FengbroTubeChannelConfig[]>(getSavedTubeChannels);
+  const [tubeChannelAliasDraft, setTubeChannelAliasDraft] = useState("");
+  const [tubeChannelUrlDraft, setTubeChannelUrlDraft] = useState("");
+  const [editingTubeChannelUrl, setEditingTubeChannelUrl] = useState<string | null>(null);
   const [financeLoading, setFinanceLoading] = useState(false);
   const [financeError, setFinanceError] = useState("");
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
@@ -1051,8 +1102,8 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(TUBE_CHANNELS_KEY, JSON.stringify(tubeChannelSources));
-  }, [tubeChannelSources]);
+    window.localStorage.setItem(TUBE_CHANNELS_KEY, JSON.stringify(tubeChannelConfigs));
+  }, [tubeChannelConfigs]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1141,7 +1192,7 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
       const response = await fetch("/api/fengbro-tube", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sources: tubeChannelSources }),
+        body: JSON.stringify({ channels: tubeChannelConfigs }),
       });
       const data = (await response.json()) as FengbroTubeResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "鋒兄Tube 讀取失敗");
@@ -1151,34 +1202,56 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     } finally {
       setTubeLoading(false);
     }
-  }, [tubeChannelSources]);
+  }, [tubeChannelConfigs]);
 
-  const handleAddTubeChannel = useCallback(() => {
-    const sourceUrl = normalizeFengbroTubeSource(tubeChannelDraft);
+  const clearTubeChannelForm = useCallback(() => {
+    setTubeChannelAliasDraft("");
+    setTubeChannelUrlDraft("");
+    setEditingTubeChannelUrl(null);
+  }, []);
+
+  const handleSaveTubeChannel = useCallback(() => {
+    const sourceUrl = normalizeFengbroTubeSource(tubeChannelUrlDraft);
     if (!sourceUrl) {
       setTubeError("請輸入正確的 YouTube 頻道網址或 @handle");
       return;
     }
 
     setTubeError("");
-    setTubeChannelSources((currentSources) => {
-      if (currentSources.includes(sourceUrl)) return currentSources;
-      return [...currentSources, sourceUrl];
+    setTubeChannelConfigs((currentChannels) => {
+      const nextChannel = { alias: tubeChannelAliasDraft.trim(), sourceUrl };
+      const filteredChannels = editingTubeChannelUrl
+        ? currentChannels.filter((channel) => channel.sourceUrl !== editingTubeChannelUrl && channel.sourceUrl !== sourceUrl)
+        : currentChannels.filter((channel) => channel.sourceUrl !== sourceUrl);
+      return normalizeFengbroTubeChannels([...filteredChannels, nextChannel]);
     });
-    setTubeChannelDraft("");
+    clearTubeChannelForm();
     setTubeLoadedOnce(false);
-  }, [tubeChannelDraft]);
+  }, [clearTubeChannelForm, editingTubeChannelUrl, tubeChannelAliasDraft, tubeChannelUrlDraft]);
+
+  const handleEditTubeChannel = useCallback((channel: FengbroTubeChannelConfig) => {
+    setTubeChannelManagerOpen(true);
+    setTubeChannelAliasDraft(channel.alias);
+    setTubeChannelUrlDraft(channel.sourceUrl);
+    setEditingTubeChannelUrl(channel.sourceUrl);
+  }, []);
 
   const handleDeleteTubeChannel = useCallback((sourceUrl: string) => {
-    setTubeChannelSources((currentSources) => currentSources.filter((source) => source !== sourceUrl));
+    const targetChannel = tubeChannelConfigs.find((channel) => channel.sourceUrl === sourceUrl);
+    const label = targetChannel?.alias || targetChannel?.sourceUrl || "這個頻道";
+    if (typeof window !== "undefined" && !window.confirm(`確定刪除「${label}」？`)) return;
+
+    setTubeChannelConfigs((currentChannels) => currentChannels.filter((channel) => channel.sourceUrl !== sourceUrl));
+    if (editingTubeChannelUrl === sourceUrl) clearTubeChannelForm();
     setTubeLoadedOnce(false);
-  }, []);
+  }, [clearTubeChannelForm, editingTubeChannelUrl, tubeChannelConfigs]);
 
   const handleResetTubeChannels = useCallback(() => {
-    setTubeChannelSources(DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES);
-    setTubeChannelDraft("");
+    if (typeof window !== "undefined" && !window.confirm(`確定還原預設 ${DEFAULT_FENGBRO_TUBE_CHANNELS.length} 個頻道？`)) return;
+    setTubeChannelConfigs(DEFAULT_FENGBRO_TUBE_CHANNELS);
+    clearTubeChannelForm();
     setTubeLoadedOnce(false);
-  }, []);
+  }, [clearTubeChannelForm]);
 
   useEffect(() => {
     if (activeTab === "fengbro-tube" && !tubeLoadedOnce && !tubeLoading) {
@@ -1549,11 +1622,18 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
           result={tubeResult}
           loading={tubeLoading}
           error={tubeError}
-          channelSources={tubeChannelSources}
-          channelDraft={tubeChannelDraft}
-          onChannelDraftChange={setTubeChannelDraft}
-          onAddChannel={handleAddTubeChannel}
+          channelManagerOpen={tubeChannelManagerOpen}
+          channelConfigs={tubeChannelConfigs}
+          channelAliasDraft={tubeChannelAliasDraft}
+          channelUrlDraft={tubeChannelUrlDraft}
+          editingChannelUrl={editingTubeChannelUrl}
+          onToggleChannelManager={() => setTubeChannelManagerOpen((open) => !open)}
+          onChannelAliasDraftChange={setTubeChannelAliasDraft}
+          onChannelUrlDraftChange={setTubeChannelUrlDraft}
+          onSaveChannel={handleSaveTubeChannel}
+          onEditChannel={handleEditTubeChannel}
           onDeleteChannel={handleDeleteTubeChannel}
+          onCancelEditChannel={clearTubeChannelForm}
           onResetChannels={handleResetTubeChannels}
           onRefresh={() => void loadTube()}
         />

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import {
-  DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES,
-  FENGBRO_TUBE_TITLE_OVERRIDES,
-  dedupeFengbroTubeSources,
+  DEFAULT_FENGBRO_TUBE_CHANNELS,
+  type FengbroTubeChannelConfig,
+  getFengbroTubeAlias,
+  normalizeFengbroTubeChannels,
 } from "@/lib/fengbroTubeChannels";
 
 export const dynamic = "force-dynamic";
@@ -41,17 +42,8 @@ function fallbackNameFromUrl(sourceUrl: string) {
   }
 }
 
-function getChannelHandle(sourceUrl: string) {
-  try {
-    const path = decodeURIComponent(new URL(sourceUrl).pathname);
-    return path.match(/^\/@([^/]+)/)?.[1].toLowerCase() || "";
-  } catch {
-    return "";
-  }
-}
-
-function getChannelTitle(sourceUrl: string, title: string) {
-  return FENGBRO_TUBE_TITLE_OVERRIDES[getChannelHandle(sourceUrl)] || title;
+function getChannelTitle(channel: FengbroTubeChannelConfig, title: string) {
+  return channel.alias || getFengbroTubeAlias(channel.sourceUrl, title) || title;
 }
 
 function normalizeDigits(value: string) {
@@ -120,7 +112,8 @@ function parseFeed(xml: string) {
   return { feedTitle, entries };
 }
 
-async function fetchChannel(sourceUrl: string) {
+async function fetchChannel(channel: FengbroTubeChannelConfig) {
+  const { sourceUrl } = channel;
   const { channelId, title } = await resolveChannelId(sourceUrl);
   const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
   const response = await fetch(feedUrl, {
@@ -140,7 +133,7 @@ async function fetchChannel(sourceUrl: string) {
   return {
     sourceUrl,
     channelId,
-    title: getChannelTitle(sourceUrl, feedTitle || title),
+    title: getChannelTitle(channel, feedTitle || title),
     videos,
     downfallIndexUpdate: downfallIndexVideo
       ? {
@@ -153,16 +146,17 @@ async function fetchChannel(sourceUrl: string) {
   };
 }
 
-async function buildTubeResult(sources: string[]) {
-  const uniqueSources = dedupeFengbroTubeSources(sources);
-  const settled = await Promise.allSettled(uniqueSources.map(fetchChannel));
+async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
+  const uniqueChannels = normalizeFengbroTubeChannels(channelsConfig);
+  const settled = await Promise.allSettled(uniqueChannels.map(fetchChannel));
   const channels = settled.map((item, index) => {
     if (item.status === "fulfilled") return item.value;
-    const sourceUrl = uniqueSources[index];
+    const channel = uniqueChannels[index];
+    const sourceUrl = channel.sourceUrl;
     return {
       sourceUrl,
       channelId: "",
-      title: getChannelTitle(sourceUrl, fallbackNameFromUrl(sourceUrl)),
+      title: getChannelTitle(channel, fallbackNameFromUrl(sourceUrl)),
       videos: [],
       error: item.reason instanceof Error ? item.reason.message : "讀取失敗",
     };
@@ -185,8 +179,8 @@ async function buildTubeResult(sources: string[]) {
 
   return NextResponse.json({
     fetchedAt: new Date().toISOString(),
-    sourceCount: uniqueSources.length,
-    defaultSourceCount: DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES.length,
+    sourceCount: uniqueChannels.length,
+    defaultSourceCount: DEFAULT_FENGBRO_TUBE_CHANNELS.length,
     channels,
     recentVideos: recentVideos.sort(
       (left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime()
@@ -195,17 +189,19 @@ async function buildTubeResult(sources: string[]) {
 }
 
 export async function GET() {
-  return buildTubeResult(DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES);
+  return buildTubeResult(DEFAULT_FENGBRO_TUBE_CHANNELS);
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { sources?: unknown };
-    const sources = Array.isArray(body.sources)
-      ? body.sources.filter((source): source is string => typeof source === "string")
-      : DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES;
-    return buildTubeResult(sources);
+    const body = (await request.json()) as { channels?: unknown; sources?: unknown };
+    const channelInputs = Array.isArray(body.channels)
+      ? body.channels
+      : Array.isArray(body.sources)
+        ? body.sources
+        : DEFAULT_FENGBRO_TUBE_CHANNELS;
+    return buildTubeResult(normalizeFengbroTubeChannels(channelInputs));
   } catch {
-    return buildTubeResult(DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES);
+    return buildTubeResult(DEFAULT_FENGBRO_TUBE_CHANNELS);
   }
 }

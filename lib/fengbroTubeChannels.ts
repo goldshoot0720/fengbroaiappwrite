@@ -1,4 +1,22 @@
-export const DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES = [
+export type FengbroTubeChannelConfig = {
+  alias: string;
+  sourceUrl: string;
+};
+
+export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
+  jlaw: "夏河東渡",
+  sunchannelhk: "Sun Channel",
+  jilixiaoshimei: "吉利小师妹",
+  informant510: "线人频道Informant",
+  "ma-siku": "马司库",
+  monsterise: "怪獸崛起 MONSTERISE",
+  neixianzhang: "張内咸脫口秀",
+  修仙者小烨: "修仙者小烨",
+  xiaoye1757: "修炼者小烨",
+  cheapaoe: "cheap",
+};
+
+const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@SJdiao/videos",
   "https://www.youtube.com/@henren778",
   "https://www.youtube.com/@libertas1984/videos",
@@ -21,19 +39,6 @@ export const DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES = [
   "https://www.youtube.com/@cheapaoe/videos",
 ];
 
-export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
-  jlaw: "夏河東渡",
-  sunchannelhk: "Sun Channel",
-  jilixiaoshimei: "吉利小师妹",
-  informant510: "线人频道Informant",
-  "ma-siku": "马司库",
-  monsterise: "怪獸崛起 MONSTERISE",
-  neixianzhang: "張内咸脫口秀",
-  修仙者小烨: "修仙者小烨",
-  xiaoye1757: "修炼者小烨",
-  cheapaoe: "cheap",
-};
-
 export function normalizeFengbroTubeSource(input: string) {
   const trimmedInput = input.trim();
   if (!trimmedInput) return "";
@@ -55,6 +60,55 @@ export function normalizeFengbroTubeSource(input: string) {
   return `https://www.youtube.com/@${encodeURIComponent(trimmedInput)}/videos`;
 }
 
-export function dedupeFengbroTubeSources(sources: string[]) {
-  return Array.from(new Set(sources.map(normalizeFengbroTubeSource).filter(Boolean)));
+export function getFengbroTubeHandle(sourceUrl: string) {
+  try {
+    const path = decodeURIComponent(new URL(sourceUrl).pathname);
+    return path.match(/^\/@([^/]+)/)?.[1].toLowerCase() || "";
+  } catch {
+    return "";
+  }
 }
+
+export function getFengbroTubeAlias(sourceUrl: string, fallback = "") {
+  const handle = getFengbroTubeHandle(sourceUrl);
+  return FENGBRO_TUBE_TITLE_OVERRIDES[handle] || fallback;
+}
+
+export function toFengbroTubeChannelConfig(input: unknown): FengbroTubeChannelConfig | null {
+  if (typeof input === "string") {
+    const sourceUrl = normalizeFengbroTubeSource(input);
+    if (!sourceUrl) return null;
+    return { alias: getFengbroTubeAlias(sourceUrl), sourceUrl };
+  }
+
+  if (!input || typeof input !== "object") return null;
+  const value = input as { alias?: unknown; sourceUrl?: unknown; url?: unknown };
+  const sourceInput = typeof value.sourceUrl === "string" ? value.sourceUrl : typeof value.url === "string" ? value.url : "";
+  const sourceUrl = normalizeFengbroTubeSource(sourceInput);
+  if (!sourceUrl) return null;
+
+  const alias = typeof value.alias === "string" ? value.alias.trim() : "";
+  return { alias: alias || getFengbroTubeAlias(sourceUrl), sourceUrl };
+}
+
+export function normalizeFengbroTubeChannels(inputs: unknown[]) {
+  const channels: FengbroTubeChannelConfig[] = [];
+  const seen = new Set<string>();
+
+  for (const input of inputs) {
+    const channel = toFengbroTubeChannelConfig(input);
+    if (!channel || seen.has(channel.sourceUrl)) continue;
+    seen.add(channel.sourceUrl);
+    channels.push(channel);
+  }
+
+  return channels;
+}
+
+export function dedupeFengbroTubeSources(sources: string[]) {
+  return normalizeFengbroTubeChannels(sources).map((channel) => channel.sourceUrl);
+}
+
+export const DEFAULT_FENGBRO_TUBE_CHANNELS = normalizeFengbroTubeChannels(DEFAULT_FENGBRO_TUBE_CHANNEL_URLS);
+
+export const DEFAULT_FENGBRO_TUBE_CHANNEL_SOURCES = DEFAULT_FENGBRO_TUBE_CHANNELS.map((channel) => channel.sourceUrl);
