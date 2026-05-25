@@ -24,6 +24,10 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
   修仙者小烨: "修仙者小烨",
   xiaoye1757: "修炼者小烨",
   cheapaoe: "cheap",
+  storytellerhk: "StorytellerHK 說書客",
+  mrshenofficial: "公子沈 Terence Shen",
+  jiangtaigong: "加州姜太公NEWS",
+  gc趙氏讀書生活: "Gavinchiu趙氏讀書生活",
 };
 
 const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
@@ -47,6 +51,10 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@%E4%BF%AE%E4%BB%99%E8%80%85%E5%B0%8F%E7%83%A8/videos",
   "https://www.youtube.com/@xiaoye1757/videos",
   "https://www.youtube.com/@cheapaoe/videos",
+  "https://www.youtube.com/@StorytellerHK/videos",
+  "https://www.youtube.com/@mrshenofficial/videos",
+  "https://www.youtube.com/@jiangtaigong/videos",
+  "https://www.youtube.com/@GC%E8%B6%99%E6%B0%8F%E8%AE%80%E6%9B%B8%E7%94%9F%E6%B4%BB",
 ];
 
 export function normalizeFengbroTubeSource(input: string) {
