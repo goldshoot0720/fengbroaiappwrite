@@ -212,11 +212,11 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     if (now.getHours() < 5) return;
 
     const today = now.toISOString().slice(0, 10);
-    const storageKey = "dashboardNotificationDaily";
+    const storageKey = "dashboardNotificationSession";
     let notified: Record<string, string> = {};
 
     try {
-      const raw = window.localStorage.getItem(storageKey);
+      const raw = window.sessionStorage.getItem(storageKey);
       if (raw) notified = JSON.parse(raw) as Record<string, string>;
     } catch {}
 
@@ -287,7 +287,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
 
     if (hasNew) {
       try {
-        window.localStorage.setItem(storageKey, JSON.stringify(updated));
+        window.sessionStorage.setItem(storageKey, JSON.stringify(updated));
       } catch {}
     }
   };
