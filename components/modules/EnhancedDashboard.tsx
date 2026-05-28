@@ -315,6 +315,30 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [onlyTitle, loading, dashboardError, stats]);
 
+  useEffect(() => {
+    if (onlyTitle || loading || dashboardError) return;
+
+    const scheduleNextDailyCheck = () => {
+      const now = new Date();
+      const next = new Date(now);
+      next.setHours(5, 21, 0, 0);
+      if (next.getTime() <= now.getTime()) {
+        next.setDate(next.getDate() + 1);
+      }
+
+      const timeout = window.setTimeout(() => {
+        notificationSentRef.current = false;
+        void sendNotifications();
+        scheduleNextDailyCheck();
+      }, next.getTime() - now.getTime());
+
+      return timeout;
+    };
+
+    const timeout = scheduleNextDailyCheck();
+    return () => window.clearTimeout(timeout);
+  }, [onlyTitle, loading, dashboardError, stats, shillerPeNotice?.isRecordHigh, shillerPeNotice?.current]);
+
   if (onlyTitle) {
     return (
       <div className="space-y-6 lg:space-y-8">
