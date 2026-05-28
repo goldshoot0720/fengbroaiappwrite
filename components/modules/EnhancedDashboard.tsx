@@ -209,7 +209,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     if (Notification.permission !== "granted") return;
 
     const now = new Date();
-    if (now.getHours() < 6) return;
+    if (now.getHours() < 5) return;
 
     const today = now.toISOString().slice(0, 10);
     const storageKey = "dashboardNotificationDaily";

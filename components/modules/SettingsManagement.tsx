@@ -1218,7 +1218,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                   <p className="text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
                     <span className="text-base">💡</span>
                     <span>
-                      <strong>先儲存推播公鑰，再啟用推播通知。</strong> 每天 08:00（台灣時間）會自動推播到期提醒，即使 APP 完全關閉也能收到通知。
+                      <strong>先儲存推播公鑰，再啟用推播通知。</strong> 每天 05:06（台灣時間）會自動推播到期提醒，即使 APP 完全關閉也能收到通知。
                     </span>
                   </p>
                 </div>
@@ -1332,7 +1332,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             </div>
             <div className="p-3 bg-rose-50 dark:bg-rose-950 rounded-lg border border-rose-200 dark:border-rose-800">
               <p className="text-xs text-rose-700 dark:text-rose-300">
-                Vercel Cron 每天 08:05（台灣時間）檢查一次；部署環境至少需設定一組 RESEND_API_KEY / RESEND_TO_EMAIL，也可設定 RESEND_API_KEY2 / RESEND_TO_EMAIL2、RESEND_API_KEY3 / RESEND_TO_EMAIL3 寄給更多收件人。
+                Vercel Cron 每天 05:16（台灣時間）檢查一次；部署環境至少需設定一組 RESEND_API_KEY / RESEND_TO_EMAIL，也可設定 RESEND_API_KEY2 / RESEND_TO_EMAIL2、RESEND_API_KEY3 / RESEND_TO_EMAIL3 寄給更多收件人。
               </p>
             </div>
           </div>
