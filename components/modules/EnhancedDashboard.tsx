@@ -356,7 +356,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
           <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(110,231,183,0.2),transparent_38%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent)] px-3 py-2.5 sm:px-5 sm:py-3">
             <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-200/80 sm:text-[11px] sm:tracking-[0.38em]">ASCII Welcome</p>
           </div>
-          <div className="px-3 py-3 sm:px-5 sm:py-5">
+          <div className="grid gap-4 px-3 py-3 lg:grid-cols-[minmax(0,1.8fr)_minmax(260px,0.7fr)] sm:px-5 sm:py-5">
             <div className="overflow-hidden rounded-[28px] border border-slate-300/80 bg-[linear-gradient(180deg,rgba(241,244,248,0.98),rgba(223,229,236,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
               <div className="flex items-center gap-2 border-b border-slate-300/80 px-3 py-3 sm:px-4">
                 <span className="h-3 w-3 rounded-full bg-[#e9c86b]" />
@@ -375,6 +375,17 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
                 </pre>
               </div>
             </div>
+            <figure className="relative m-0 min-h-[280px] overflow-hidden rounded-[28px] border border-white/15 bg-white/10 shadow-[0_18px_36px_rgba(0,0,0,0.24)] sm:min-h-[360px] lg:min-h-0">
+              <NextImage
+                src="/fengbro-profile.png"
+                alt="鋒兄人物圖"
+                width={1086}
+                height={1448}
+                priority
+                className="h-full w-full object-cover"
+                sizes="(max-width: 1024px) 100vw, 340px"
+              />
+            </figure>
           </div>
         </DataCard>
         
@@ -398,25 +409,15 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
             </div>
           </DataCard>
 
-          <DataCard className="overflow-hidden p-0 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border-purple-100 dark:border-purple-800">
-            <div className="grid gap-0 sm:grid-cols-[0.88fr_1fr]">
-              <div className="relative min-h-[260px] bg-slate-100 dark:bg-slate-900 sm:min-h-[360px]">
-                <NextImage
-                  src="/fengbro-profile.png"
-                  alt="鋒兄人物圖"
-                  width={1086}
-                  height={1448}
-                  priority
-                  className="h-full w-full object-cover"
-                  sizes="(max-width: 768px) 100vw, 360px"
-                />
+          <DataCard className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border-purple-100 dark:border-purple-800 flex flex-col justify-center">
+            <div className="text-center space-y-4">
+              <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-xl rotate-3 hover:rotate-0 transition-transform duration-300">
+                <span className="text-white font-bold text-3xl">鋒</span>
               </div>
-              <div className="flex flex-col justify-center space-y-4 p-6 text-center sm:text-left">
               <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">本網站建置</h3>
-              <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+              <p className="text-gray-600 dark:text-gray-300 leading-relaxed max-w-sm mx-auto">
                 透過現代化的技術棧，為您提供極致流暢且安全的資訊管理體驗。
               </p>
-              </div>
             </div>
           </DataCard>
         </div>
