@@ -43,7 +43,8 @@ function fallbackNameFromUrl(sourceUrl: string) {
 }
 
 function getChannelTitle(channel: FengbroTubeChannelConfig, title: string) {
-  return channel.alias || getFengbroTubeAlias(channel.sourceUrl, title) || title;
+  const defaultAlias = getFengbroTubeAlias(channel.sourceUrl);
+  return !channel.alias || channel.alias === defaultAlias ? title : channel.alias;
 }
 
 function normalizeDigits(value: string) {
@@ -146,6 +147,16 @@ async function fetchChannel(channel: FengbroTubeChannelConfig) {
   };
 }
 
+function getLatestChannelTime(channel: { videos: Array<{ publishedAt: string; updatedAt: string }> }) {
+  return Math.max(
+    0,
+    ...channel.videos.map((video) => {
+      const time = new Date(video.publishedAt || video.updatedAt).getTime();
+      return Number.isFinite(time) ? time : 0;
+    })
+  );
+}
+
 async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
   const uniqueChannels = normalizeFengbroTubeChannels(channelsConfig);
   const settled = await Promise.allSettled(uniqueChannels.map(fetchChannel));
@@ -160,7 +171,7 @@ async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
       videos: [],
       error: item.reason instanceof Error ? item.reason.message : "讀取失敗",
     };
-  });
+  }).sort((left, right) => getLatestChannelTime(right) - getLatestChannelTime(left));
 
   const now = Date.now();
   const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
