@@ -127,6 +127,21 @@ function classifyStorageFile(file) {
   return 'other';
 }
 
+function getStorageFileSize(file) {
+  return Number(file?.sizeOriginal || file?.size || 0) || 0;
+}
+
+function createEmptyOrphanedSizeByType() {
+  return {
+    images: 0,
+    videos: 0,
+    music: 0,
+    documents: 0,
+    podcasts: 0,
+    other: 0
+  };
+}
+
 // Helper function to get all files from storage
 async function getAllStorageFiles(storage, bucketId) {
   let allFiles = [];
@@ -305,39 +320,58 @@ async function countOrphanedFiles(appwriteConfig) {
       podcasts: 0,
       other: 0
     };
+    const orphanedSizeByType = createEmptyOrphanedSizeByType();
 
     orphanedFiles.forEach(file => {
       const kind = classifyStorageFile(file);
+      const size = getStorageFileSize(file);
       if (kind === 'images') {
         orphanedByType.images++;
+        orphanedSizeByType.images += size;
         console.log(`  🖼️ 圖片: ${file.name}`);
       } else if (kind === 'videos') {
         orphanedByType.videos++;
+        orphanedSizeByType.videos += size;
         console.log(`  🎥 影片: ${file.name}`);
       } else if (kind === 'audio') {
         orphanedByType.music++;
         orphanedByType.podcasts++;
+        orphanedSizeByType.music += size;
+        orphanedSizeByType.podcasts += size;
         console.log(`  🎵 音訊: ${file.name}`);
       } else if (kind === 'documents') {
         orphanedByType.documents++;
+        orphanedSizeByType.documents += size;
         console.log(`  📄 文件: ${file.name}`);
       } else {
         orphanedByType.other++;
+        orphanedSizeByType.other += size;
         console.log(`  ❓ 其他: ${file.name}`);
       }
     });
+
+    const totalSize = allFiles.reduce((sum, file) => sum + getStorageFileSize(file), 0);
+    const orphanedSize = orphanedFiles.reduce((sum, file) => sum + getStorageFileSize(file), 0);
+    const referencedSize = referencedFiles.reduce((sum, file) => sum + getStorageFileSize(file), 0);
+    const orphanedSizePercentage = totalSize > 0 ? (orphanedSize / totalSize) * 100 : 0;
 
     console.log('\n=== 掃描完成 ===');
     console.log(`總計: ${allFiles.length} 個檔案`);
     console.log(`已引用: ${referencedFiles.length} 個`);
     console.log(`多餘: ${orphanedFiles.length} 個`);
+    console.log(`多餘推估容量: ${orphanedSize} bytes`);
 
     return NextResponse.json({
       success: true,
       totalFiles: allFiles.length,
       referencedFiles: referencedIds.size,
       orphanedFiles: orphanedFiles.length,
+      totalSize,
+      referencedSize,
+      orphanedSize,
+      orphanedSizePercentage,
       orphanedByType,
+      orphanedSizeByType,
       collectionCounts, // Include document counts per collection
       orphanedFileIds: orphanedFiles.map(f => f.$id)
     });
@@ -348,13 +382,19 @@ async function countOrphanedFiles(appwriteConfig) {
       totalFiles: 0,
       referencedFiles: 0,
       orphanedFiles: 0,
+      totalSize: 0,
+      referencedSize: 0,
+      orphanedSize: 0,
+      orphanedSizePercentage: 0,
       orphanedByType: {
         images: 0,
         videos: 0,
         music: 0,
         documents: 0,
-        podcasts: 0
-      }
+        podcasts: 0,
+        other: 0
+      },
+      orphanedSizeByType: createEmptyOrphanedSizeByType()
     }, { status: 500 });
   }
 }
@@ -392,6 +432,7 @@ export async function POST(request) {
 
     // Find orphaned files
     const orphanedFiles = allFiles.filter(file => !referencedIds.has(file.$id));
+    const orphanedSize = orphanedFiles.reduce((sum, file) => sum + getStorageFileSize(file), 0);
 
     // Delete orphaned files
     let deletedCount = 0;
@@ -411,7 +452,9 @@ export async function POST(request) {
       success: true,
       deletedCount,
       failedCount,
-      totalOrphaned: orphanedFiles.length
+      totalOrphaned: orphanedFiles.length,
+      reclaimedSize: deletedCount === orphanedFiles.length ? orphanedSize : null,
+      orphanedSize
     });
   } catch (error) {
     console.error('Delete orphaned files error:', error);
@@ -478,7 +521,7 @@ export async function GET(request) {
     let otherCount = 0;
 
     allFiles.forEach(file => {
-      const size = file.sizeOriginal || 0;
+      const size = getStorageFileSize(file);
       const kind = classifyStorageFile(file);
 
       if (kind === 'images') {

@@ -6,6 +6,7 @@ import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
 import { clearAllCaches, getAppwriteConfig } from "@/lib/utils";
+import { formatFileSize } from "@/lib/formatters";
 import packageJson from "@/package.json";
 
 interface CollectionStats {
@@ -721,6 +722,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
       `- 音樂：${storageStats.orphanedByType?.music || 0} 個\n` +
       `- 文件：${storageStats.orphanedByType?.documents || 0} 個\n` +
       `- 播客：${storageStats.orphanedByType?.podcasts || 0} 個\n\n` +
+      `推估可釋放空間：${formatFileSize(storageStats.orphanedSize || 0)}\n\n` +
       `這個操作不可逆轉！確定要繼續嗎？`
     );
 
@@ -777,7 +779,8 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
 
       alert(`✅ 刪除完成！\n\n` +
         `成功刪除：${data.deletedCount} 個檔案\n` +
-        `失敗：${data.failedCount} 個`);
+        `失敗：${data.failedCount} 個\n` +
+        `推估釋放空間：${formatFileSize(data.orphanedSize || 0)}`);
       
       setStorageStats(null);
     } catch (error) {
@@ -1409,7 +1412,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             
             {storageStats && (
               <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">總檔案數</span>
                     <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{storageStats.totalFiles}</p>
@@ -1422,7 +1425,47 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                     <span className="text-gray-600 dark:text-gray-400">多餘檔案</span>
                     <p className="text-lg font-bold text-red-600">{storageStats.orphanedFiles}</p>
                   </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">推估可釋放</span>
+                    <p className="text-lg font-bold text-red-600">{formatFileSize(storageStats.orphanedSize || 0)}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Storage 總量</span>
+                    <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatFileSize(storageStats.totalSize || 0)}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">已引用空間</span>
+                    <p className="text-lg font-bold text-green-600">{formatFileSize(storageStats.referencedSize || 0)}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">多餘占比</span>
+                    <p className="text-lg font-bold text-red-600">{(storageStats.orphanedSizePercentage || 0).toFixed(1)}%</p>
+                  </div>
                 </div>
+                {storageStats.orphanedSizeByType && (
+                  <div className="border-t border-amber-200 dark:border-amber-800 pt-3">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">多餘檔案推估空間：</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                      {[
+                        ['圖片', 'images'],
+                        ['影片', 'videos'],
+                        ['音樂', 'music'],
+                        ['文件', 'documents'],
+                        ['播客', 'podcasts'],
+                        ['其他', 'other'],
+                      ].map(([label, key]) => (
+                        <div key={key} className="flex items-center justify-between px-2 py-1 bg-white dark:bg-gray-800 rounded">
+                          <span className="text-gray-600 dark:text-gray-400">
+                            {label} {storageStats.orphanedByType?.[key] || 0} 個
+                          </span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">
+                            {formatFileSize(storageStats.orphanedSizeByType?.[key] || 0)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {storageStats.collectionCounts && (
                   <div className="border-t border-amber-200 dark:border-amber-800 pt-3">
                     <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">表格引用明細：</p>
