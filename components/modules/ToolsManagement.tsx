@@ -1025,6 +1025,11 @@ function FengbroFinanceSection({
                                   {recordLabel}
                                 </span>
                               )}
+                              {quote.isThresholdAlert && (
+                                <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                  突破門檻
+                                </span>
+                              )}
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">{quote.symbol}</p>
                           </div>
@@ -1063,6 +1068,11 @@ function FengbroFinanceSection({
                             {quote.recordNote ? (
                               <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
                                 {quote.recordNote}
+                              </p>
+                            ) : null}
+                            {quote.alertMessage ? (
+                              <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                {quote.alertMessage}
                               </p>
                             ) : null}
                           </>
@@ -1676,15 +1686,15 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
           </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 shadow-sm">
               <button
                 type="button"
                 onClick={() => setLandtopAppleOpen((open) => !open)}
-                className="flex w-full items-center justify-between text-left"
+                className="flex w-full items-center justify-between gap-3 text-left"
               >
                 <div>
                   <p className="text-sm font-semibold text-foreground">蘋果手機區塊</p>
-                  <p className="mt-1 text-xs text-muted-foreground">預設查詢：{getAppleDefaultLandtopQuery()}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">預設查詢：{getAppleDefaultLandtopQuery()}，每年九月切換新基準。</p>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-muted-foreground">
                   {landtopAppleOpen ? "收合" : "展開"}
@@ -1697,33 +1707,43 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
                     value={landtopAppleQuery}
                     onChange={(event) => setLandtopAppleQuery(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") runLandtopSearch(landtopAppleQuery);
+                      if (event.key === "Enter") runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), false);
                     }}
-                    placeholder={getAppleDefaultLandtopQuery()}
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
+                    placeholder={`例如 ${getAppleDefaultLandtopQuery()}、iPhone 17 512GB`}
+                    className="min-w-0 flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
                   />
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery())}
+                    onClick={() => runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), false)}
                     disabled={landtopLoading}
+                    className="gap-2"
                   >
-                    搜尋蘋果
+                    <Search size={16} />
+                    {landtopLoading ? "搜尋中" : "搜尋蘋果"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), true)}
+                    disabled={landtopLoading}
+                    className="gap-2"
+                  >
+                    <RefreshCw size={16} />
+                    重新抓取
                   </Button>
                 </div>
               )}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 shadow-sm">
               <button
                 type="button"
                 onClick={() => setLandtopSamsungOpen((open) => !open)}
-                className="flex w-full items-center justify-between text-left"
+                className="flex w-full items-center justify-between gap-3 text-left"
               >
                 <div>
                   <p className="text-sm font-semibold text-foreground">三星手機區塊</p>
-                  <p className="mt-1 text-xs text-muted-foreground">預設查詢：{getSamsungDefaultLandtopQuery()}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">預設查詢：{getSamsungDefaultLandtopQuery()}，三月前用去年末兩碼。</p>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-muted-foreground">
                   {landtopSamsungOpen ? "收合" : "展開"}
@@ -1736,43 +1756,33 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
                     value={landtopSamsungQuery}
                     onChange={(event) => setLandtopSamsungQuery(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") runLandtopSearch(landtopSamsungQuery);
+                      if (event.key === "Enter") runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), false);
                     }}
-                    placeholder={getSamsungDefaultLandtopQuery()}
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
+                    placeholder={`例如 ${getSamsungDefaultLandtopQuery()}、Samsung A17`}
+                    className="min-w-0 flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
                   />
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery())}
+                    onClick={() => runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), false)}
                     disabled={landtopLoading}
+                    className="gap-2"
                   >
-                    搜尋三星
+                    <Search size={16} />
+                    {landtopLoading ? "搜尋中" : "搜尋三星"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), true)}
+                    disabled={landtopLoading}
+                    className="gap-2"
+                  >
+                    <RefreshCw size={16} />
+                    重新抓取
                   </Button>
                 </div>
               )}
             </div>
-          </div>
-
-          <div className="flex flex-col gap-2 rounded-2xl border border-sky-200 bg-sky-50/60 p-4 sm:flex-row">
-            <input
-              value={landtopQuery}
-              onChange={(event) => setLandtopQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") void loadLandtop(false);
-              }}
-              placeholder={`例如 ${getSamsungDefaultLandtopQuery()}、${getAppleDefaultLandtopQuery()} 512GB、Samsung A17`}
-              className="flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
-            />
-            <Button onClick={() => loadLandtop(false)} className="gap-2" disabled={landtopLoading}>
-              <Search size={16} />
-              {landtopLoading ? "搜尋中" : "開始比價"}
-            </Button>
-            <Button onClick={() => loadLandtop(true)} variant="outline" className="gap-2" disabled={landtopLoading}>
-              <RefreshCw size={16} />
-              重新抓取
-            </Button>
           </div>
 
           {landtopError && (
