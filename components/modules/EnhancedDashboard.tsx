@@ -23,13 +23,17 @@ type FengbroTubeRecentVideo = {
   channelTitle: string;
 };
 
-type ShillerPeNotice = {
+type FinanceAlertNotice = {
+  id: string;
+  name: string;
+  displayName?: string;
+  symbol: string;
   current: number | null;
-  recordHigh: number;
-  recordHighDate: string;
+  threshold: number;
+  currency?: string;
   sourceUrl: string;
   updatedAt?: string;
-  isRecordHigh: boolean;
+  message?: string;
 };
 
 interface EnhancedDashboardProps {
@@ -74,8 +78,8 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
   const [isIOS, setIsIOS] = useState(false);
   const [tubeRecentVideos, setTubeRecentVideos] = useState<FengbroTubeRecentVideo[]>([]);
   const [tubeNoticeDismissed, setTubeNoticeDismissed] = useState(false);
-  const [shillerPeNotice, setShillerPeNotice] = useState<ShillerPeNotice | null>(null);
-  const [shillerPeDismissed, setShillerPeDismissed] = useState(false);
+  const [financeAlerts, setFinanceAlerts] = useState<FinanceAlertNotice[]>([]);
+  const [financeAlertsDismissed, setFinanceAlertsDismissed] = useState(false);
 
   // 偵測環境：iOS、standalone（已安裝 PWA）
   useEffect(() => {
@@ -118,24 +122,24 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
 
   useEffect(() => {
     let active = true;
-    const loadShillerPeNotice = async () => {
+    const loadFinanceAlerts = async () => {
       try {
         const today = new Date().toISOString().slice(0, 10);
-        if (window.localStorage.getItem("fengbroShillerPeNoticeDismissed") === today) {
-          setShillerPeDismissed(true);
+        if (window.localStorage.getItem("fengbroFinanceAlertsDismissed") === today) {
+          setFinanceAlertsDismissed(true);
           return;
         }
 
         const response = await fetch("/api/fengbro-finance");
-        const data = (await response.json()) as { shillerPe?: ShillerPeNotice };
+        const data = (await response.json()) as { financeAlerts?: FinanceAlertNotice[] };
         if (!active) return;
-        setShillerPeNotice(data.shillerPe?.isRecordHigh ? data.shillerPe : null);
+        setFinanceAlerts(data.financeAlerts || []);
       } catch {
-        if (active) setShillerPeNotice(null);
+        if (active) setFinanceAlerts([]);
       }
     };
 
-    void loadShillerPeNotice();
+    void loadFinanceAlerts();
     return () => {
       active = false;
     };
@@ -148,10 +152,10 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     } catch {}
   };
 
-  const handleDismissShillerPeNotice = () => {
-    setShillerPeDismissed(true);
+  const handleDismissFinanceAlerts = () => {
+    setFinanceAlertsDismissed(true);
     try {
-      window.localStorage.setItem("fengbroShillerPeNoticeDismissed", new Date().toISOString().slice(0, 10));
+      window.localStorage.setItem("fengbroFinanceAlertsDismissed", new Date().toISOString().slice(0, 10));
     } catch {}
   };
 
@@ -273,13 +277,13 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       }
     }
 
-    if (shillerPeNotice?.isRecordHigh) {
-      const key = `shiller-pe-${shillerPeNotice.current ?? "na"}-${today}`;
+    for (const alert of financeAlerts) {
+      const key = `finance-${alert.id}-${alert.current ?? "na"}-${today}`;
       if (notified[key] !== "shown") {
-        await showSwNotification("Shiller PE Ratio 創新高", {
-          body: `目前 ${shillerPeNotice.current ?? "--"}，歷史 Max ${shillerPeNotice.recordHigh} (${shillerPeNotice.recordHighDate})`,
+        await showSwNotification(`${alert.name} 突破提醒`, {
+          body: `目前 ${alert.current ?? "--"}${alert.currency ? ` ${alert.currency}` : ""}，已突破 ${alert.threshold}`,
           icon: "/favicon.ico",
-          tag: "shiller-pe-record-high",
+          tag: `finance-${alert.id}`,
         });
         updated[key] = "shown";
         hasNew = true;
@@ -298,7 +302,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     if (onlyTitle || loading || dashboardError || notificationSentRef.current) return;
     sendNotifications();
     notificationSentRef.current = true;
-  }, [loading, dashboardError, onlyTitle, stats.subscriptionsExpiring3DaysList.length, stats.foodsExpiring7DaysList.length, stats.expiredFoodsList.length, shillerPeNotice?.isRecordHigh, shillerPeNotice?.current]);
+  }, [loading, dashboardError, onlyTitle, stats.subscriptionsExpiring3DaysList.length, stats.foodsExpiring7DaysList.length, stats.expiredFoodsList.length, financeAlerts.length]);
 
   // PWA 從背景回到前景時重新檢查通知
   useEffect(() => {
@@ -338,17 +342,17 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
 
     const timeout = scheduleNextDailyCheck();
     return () => window.clearTimeout(timeout);
-  }, [onlyTitle, loading, dashboardError, stats, shillerPeNotice?.isRecordHigh, shillerPeNotice?.current]);
+  }, [onlyTitle, loading, dashboardError, stats, financeAlerts.length]);
 
   if (onlyTitle) {
     return (
       <div className="space-y-6 lg:space-y-8">
         <PageTitle title={title} />
 
-        <ShillerPeNoticeCard
-          notice={shillerPeNotice}
-          dismissed={shillerPeDismissed}
-          onDismiss={handleDismissShillerPeNotice}
+        <FinanceAlertsNoticeCard
+          alerts={financeAlerts}
+          dismissed={financeAlertsDismissed}
+          onDismiss={handleDismissFinanceAlerts}
           onNavigate={() => onNavigate("fengbro-finance")}
         />
 
@@ -439,10 +443,10 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         </div>
       )}
 
-      <ShillerPeNoticeCard
-        notice={shillerPeNotice}
-        dismissed={shillerPeDismissed}
-        onDismiss={handleDismissShillerPeNotice}
+      <FinanceAlertsNoticeCard
+        alerts={financeAlerts}
+        dismissed={financeAlertsDismissed}
+        onDismiss={handleDismissFinanceAlerts}
         onNavigate={() => onNavigate("fengbro-finance")}
       />
 
@@ -639,19 +643,25 @@ function IntroItem({ icon: Icon, label, value, color }: { icon: any, label: stri
   );
 }
 
-// 食品統計卡片
-function ShillerPeNoticeCard({
-  notice,
+function formatFinanceAlertValue(value: number | null, currency?: string) {
+  const formatted = value == null
+    ? "--"
+    : new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(value);
+  return currency ? `${formatted} ${currency}` : formatted;
+}
+
+function FinanceAlertsNoticeCard({
+  alerts,
   dismissed,
   onDismiss,
   onNavigate,
 }: {
-  notice: ShillerPeNotice | null;
+  alerts: FinanceAlertNotice[];
   dismissed: boolean;
   onDismiss: () => void;
   onNavigate: () => void;
 }) {
-  if (!notice?.isRecordHigh || dismissed) return null;
+  if (alerts.length === 0 || dismissed) return null;
 
   return (
     <DataCard className="p-4 bg-rose-50 dark:bg-rose-900/20 border-l-4 border-rose-500">
@@ -661,12 +671,18 @@ function ShillerPeNoticeCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-rose-900 dark:text-rose-100">
-            Shiller PE Ratio 創新高提醒
+            鋒兄金融突破提醒
           </p>
-          <p className="mt-1 text-xs leading-5 text-rose-800 dark:text-rose-200">
-            目前 {notice.current?.toFixed(2) ?? "--"}，已突破歷史高點 {notice.recordHigh.toFixed(2)}
-            （{notice.recordHighDate}）。請留意美股估值風險。
-          </p>
+          <div className="mt-2 grid gap-1 text-xs leading-5 text-rose-800 dark:text-rose-200 sm:grid-cols-2">
+            {alerts.slice(0, 6).map((alert) => (
+              <a key={alert.id} href={alert.sourceUrl} target="_blank" rel="noreferrer" className="line-clamp-1 hover:underline">
+                {alert.name}：{formatFinanceAlertValue(alert.current, alert.currency)} / 門檻 {formatFinanceAlertValue(alert.threshold, alert.currency)}
+              </a>
+            ))}
+          </div>
+          {alerts.length > 6 ? (
+            <p className="mt-1 text-xs text-rose-700 dark:text-rose-200">另有 {alerts.length - 6} 項突破門檻，請至鋒兄金融查看。</p>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
@@ -675,14 +691,6 @@ function ShillerPeNoticeCard({
           >
             查看金融
           </button>
-          <a
-            href={notice.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="px-3 py-2 rounded-lg border border-rose-200 bg-white text-sm font-medium text-rose-700 hover:bg-rose-50"
-          >
-            來源
-          </a>
           <button onClick={onDismiss} className="p-2 text-rose-400 hover:text-rose-600 transition-colors" title="今天不再提示">
             <X size={16} />
           </button>

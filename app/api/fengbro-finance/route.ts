@@ -7,8 +7,9 @@ type FinanceInstrument = {
   name: string;
   symbol: string;
   sourceUrl: string;
-  group: "tw" | "asia" | "commodities" | "rates" | "us" | "crypto" | "valuation";
+  group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
   provider?: "cnbc" | "yahoo" | "multpl";
+  alertThreshold?: number;
 };
 
 const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
@@ -16,22 +17,24 @@ const SHILLER_PE_RECORD_HIGH = 44.19;
 const SHILLER_PE_RECORD_DATE = "Dec 1999";
 
 const INSTRUMENTS: FinanceInstrument[] = [
-  { id: "taiex", name: "加權指數", symbol: "^TWII", sourceUrl: "https://tw.stock.yahoo.com/s/tse.php", group: "tw", provider: "yahoo" },
-  { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw", provider: "yahoo" },
-  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia" },
-  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia" },
-  { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", sourceUrl: "https://finance.yahoo.com/quote/005930.KS", group: "asia", provider: "yahoo" },
-  { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "asia", provider: "yahoo" },
-  { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "commodities" },
-  { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "rates" },
-  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "commodities" },
-  { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us" },
-  { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", sourceUrl: "https://www.cnbc.com/quotes/.SPX", group: "us" },
-  { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us" },
+  { id: "taiex", name: "加權指數", symbol: "^TWII", sourceUrl: "https://tw.stock.yahoo.com/s/tse.php", group: "tw", provider: "yahoo", alertThreshold: 126820 },
+  { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw", provider: "yahoo", alertThreshold: 3333 },
+  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000 },
+  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia", alertThreshold: 12682 },
+  { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", sourceUrl: "https://finance.yahoo.com/quote/005930.KS", group: "korea", provider: "yahoo", alertThreshold: 1110000 },
+  { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
+  { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", sourceUrl: "https://finance.yahoo.com/quote/USDTWD=X", group: "fx", provider: "yahoo", alertThreshold: 37 },
+  { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", sourceUrl: "https://finance.yahoo.com/quote/USDJPY=X", group: "fx", provider: "yahoo", alertThreshold: 222 },
+  { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "commodities", alertThreshold: 222 },
+  { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "rates", alertThreshold: 6.66 },
+  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "commodities", alertThreshold: 6666 },
+  { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666 },
+  { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", sourceUrl: "https://www.cnbc.com/quotes/.SPX", group: "us", alertThreshold: 11111 },
+  { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333 },
   { id: "vix", name: "CBOE Volatility Index", symbol: ".VIX", sourceUrl: "https://www.cnbc.com/quotes/.VIX", group: "us" },
-  { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "valuation", provider: "multpl" },
-  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "crypto" },
-  { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", sourceUrl: "https://www.cnbc.com/quotes/ETH.CM=", group: "crypto" },
+  { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "valuation", provider: "multpl", alertThreshold: 45 },
+  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "crypto", alertThreshold: 111111 },
+  { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", sourceUrl: "https://www.cnbc.com/quotes/ETH.CM=", group: "crypto", alertThreshold: 2222 },
 ];
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
@@ -80,6 +83,10 @@ function getRecordTag(price: number | null, high52: number | null, low52: number
   if (price != null && high52 != null && (price >= high52 || nearlyEqual(price, high52))) return "new-high";
   if (price != null && low52 != null && (price <= low52 || nearlyEqual(price, low52))) return "new-low";
   return null;
+}
+
+function isThresholdAlert(price: number | null, threshold?: number) {
+  return typeof price === "number" && typeof threshold === "number" && price > threshold;
 }
 
 function extractFirstNumber(pattern: RegExp, text: string) {
@@ -284,13 +291,37 @@ export async function GET() {
       recordTag: null,
       error: item.reason instanceof Error ? item.reason.message : "Failed to load quote",
     };
+  }).map((quote) => {
+    const thresholdAlert = isThresholdAlert(quote.price, quote.alertThreshold);
+    return {
+      ...quote,
+      isThresholdAlert: thresholdAlert,
+      alertMessage: thresholdAlert
+        ? `${quote.name} 目前 ${quote.price}${quote.currency ? ` ${quote.currency}` : ""}，已突破 ${quote.alertThreshold}`
+        : "",
+    };
   });
   const shillerQuote = quotes.find((quote) => quote.id === "shiller-pe");
+  const financeAlerts = quotes
+    .filter((quote) => quote.isThresholdAlert)
+    .map((quote) => ({
+      id: quote.id,
+      name: quote.name,
+      displayName: quote.displayName,
+      symbol: quote.symbol,
+      sourceUrl: quote.sourceUrl,
+      current: quote.price,
+      threshold: quote.alertThreshold,
+      currency: quote.currency,
+      lastUpdated: quote.lastUpdated,
+      message: quote.alertMessage,
+    }));
 
   return NextResponse.json({
     fetchedAt: new Date().toISOString(),
     source: "CNBC / Yahoo Finance / Multpl",
     quotes,
+    financeAlerts,
     shillerPe: {
       id: "shiller-pe",
       name: "Shiller PE Ratio",
@@ -300,8 +331,7 @@ export async function GET() {
       recordHighDate: SHILLER_PE_RECORD_DATE,
       updatedAt: shillerQuote?.lastUpdated ?? "",
       isRecordHigh:
-        typeof shillerQuote?.price === "number" &&
-        shillerQuote.price > SHILLER_PE_RECORD_HIGH,
+        shillerQuote?.isThresholdAlert === true,
       error: shillerQuote && "error" in shillerQuote ? shillerQuote.error : undefined,
     },
   });

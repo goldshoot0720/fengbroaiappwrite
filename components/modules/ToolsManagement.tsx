@@ -123,7 +123,7 @@ type FengbroFinanceQuote = {
   displayName: string;
   symbol: string;
   sourceUrl: string;
-  group: "tw" | "asia" | "commodities" | "rates" | "us" | "crypto" | "valuation";
+  group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
   provider?: "cnbc" | "yahoo" | "multpl";
   price: number | null;
   change: number | null;
@@ -269,6 +269,8 @@ function getFinanceGroupLabel(group: FengbroFinanceQuote["group"]) {
   const labels: Record<FengbroFinanceQuote["group"], string> = {
     tw: "台股",
     asia: "\u4e9e\u6d32\u6307\u6578",
+    korea: "韓股",
+    fx: "匯率",
     commodities: "\u5546\u54c1",
     rates: "\u5229\u7387",
     us: "\u7f8e\u80a1\u6307\u6578",
@@ -896,7 +898,7 @@ function FengbroFinanceSection({
   onRefresh: () => void;
 }) {
   const groupedQuotes = useMemo(() => {
-    const order: FengbroFinanceQuote["group"][] = ["tw", "us", "valuation", "asia", "commodities", "rates", "crypto"];
+    const order: FengbroFinanceQuote["group"][] = ["tw", "us", "valuation", "asia", "korea", "fx", "commodities", "rates", "crypto"];
     return order
       .map((group) => ({ group, quotes: (result?.quotes || []).filter((quote) => quote.group === group) }))
       .filter((item) => item.quotes.length > 0);
