@@ -124,6 +124,7 @@ type FengbroFinanceQuote = {
   symbol: string;
   sourceUrl: string;
   group: "tw" | "asia" | "commodities" | "rates" | "us" | "crypto" | "valuation";
+  provider?: "cnbc" | "yahoo" | "multpl";
   price: number | null;
   change: number | null;
   changePercent: number | null;
@@ -1011,7 +1012,7 @@ function FengbroFinanceSection({
                             <p className="mt-1 text-xs text-muted-foreground">{quote.symbol}</p>
                           </div>
                           <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100">
-                            {quote.id === "shiller-pe" ? "Multpl" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
+                            {quote.provider === "yahoo" ? "Yahoo" : quote.provider === "multpl" || quote.id === "shiller-pe" ? "Multpl" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
                           </a>
                         </div>
 
