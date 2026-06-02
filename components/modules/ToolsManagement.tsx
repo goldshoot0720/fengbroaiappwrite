@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
+import { AlertTriangle, BarChart3, ChevronDown, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
@@ -136,6 +136,9 @@ type FengbroFinanceQuote = {
   lastUpdated: string;
   recordTag: FinanceRecordTag;
   recordNote?: string;
+  isThresholdAlert?: boolean;
+  alertMessage?: string;
+  alertThreshold?: number;
   error?: string;
 };
 
@@ -173,6 +176,8 @@ const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
 const RECENT_KEY = "fengbro.tools.priceHistory.recent";
 const SOURCE_KEY = "fengbro.tools.priceHistory.source";
 const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
+const LANDTOP_APPLE_QUERY_KEY = "fengbro.tools.landtop.appleQuery";
+const LANDTOP_SAMSUNG_QUERY_KEY = "fengbro.tools.landtop.samsungQuery";
 const TUBE_CHANNELS_KEY = "fengbro.tools.tube.channels";
 
 function getSavedTubeChannels() {
@@ -195,9 +200,19 @@ function hasCustomTubeAlias(alias: string) {
   return Boolean(normalizedAlias && normalizedAlias !== "未命名頻道");
 }
 
+function getSamsungDefaultLandtopQuery(date = new Date()) {
+  const samsungYear = date.getMonth() < 2 ? date.getFullYear() - 1 : date.getFullYear();
+  return `Samsung ${samsungYear.toString().slice(-2)}`;
+}
+
+function getAppleDefaultLandtopQuery(date = new Date()) {
+  const releaseYear = date.getMonth() >= 8 ? date.getFullYear() : date.getFullYear() - 1;
+  const modelNumber = releaseYear - 2008;
+  return `iPhone ${modelNumber}`;
+}
+
 function getDefaultLandtopQuery() {
-  const yearSuffix = new Date().getFullYear().toString().slice(-2);
-  return `Samsung ${yearSuffix}`;
+  return getSamsungDefaultLandtopQuery();
 }
 
 function normalizeSavedLandtopQuery(value: string) {
@@ -1065,6 +1080,114 @@ function FengbroFinanceSection({
   );
 }
 
+function LandtopProductCard({ product }: { product: LandtopProduct }) {
+  const savings =
+    product.bestPrice && product.suggestedPrice
+      ? product.suggestedPrice - product.bestPrice
+      : null;
+
+  return (
+    <div className="rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:border-sky-300 hover:shadow-md">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{product.name}</p>
+          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">{product.brand}</p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {product.sourceUrl && (
+            <a
+              href={product.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
+            >
+              地標網通
+              <ExternalLink size={12} />
+            </a>
+          )}
+          {product.jyesUrl && (
+            <a
+              href={product.jyesUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+            >
+              傑昇通信
+              <ExternalLink size={12} />
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs lg:grid-cols-4">
+        <div className="rounded-xl bg-slate-50 px-3 py-2">
+          <p className="text-muted-foreground">建議售價</p>
+          <p className="mt-1 font-semibold">{formatCurrency(product.suggestedPrice)}</p>
+        </div>
+        <div className="rounded-xl bg-sky-50 px-3 py-2">
+          <p className="text-sky-700/80">地標網通</p>
+          <p className="mt-1 font-semibold text-sky-700">{product.landtopPriceLabel}</p>
+        </div>
+        <div className="rounded-xl bg-violet-50 px-3 py-2">
+          <p className="text-violet-700/80">傑昇通信</p>
+          <p className="mt-1 font-semibold text-violet-700">
+            {product.jyesPriceLabel || (product.jyesPrice ? formatCurrency(product.jyesPrice) : "--")}
+          </p>
+        </div>
+        <div className="rounded-xl bg-emerald-50 px-3 py-2">
+          <p className="text-emerald-700/80">最低價</p>
+          <p className="mt-1 font-semibold text-emerald-700">
+            {product.bestPrice == null
+              ? "--"
+              : `${formatCurrency(product.bestPrice)}${product.bestSourceLabel ? ` (${product.bestSourceLabel})` : ""}`}
+          </p>
+        </div>
+      </div>
+      {savings != null && (
+        <p className="mt-3 text-xs text-emerald-700/80">比建議售價省下 {formatCurrency(savings)}</p>
+      )}
+    </div>
+  );
+}
+
+function LandtopProductSection({
+  title,
+  defaultQuery,
+  products,
+  open,
+  onToggle,
+}: {
+  title: string;
+  defaultQuery: string;
+  products: LandtopProduct[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-3 text-left">
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+          <p className="mt-1 text-xs text-muted-foreground">預設 {defaultQuery}，目前 {products.length} 筆</p>
+        </div>
+        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-muted-foreground">
+          {open ? "收合" : "展開"}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {products.length > 0 ? (
+            products.slice(0, 12).map((product) => <LandtopProductCard key={product.id} product={product} />)
+          ) : (
+            <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-sm text-muted-foreground">
+              目前沒有這個區塊的比價結果。
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ToolsManagement({ initialTab = "price-compare" }: { initialTab?: ToolsTab }) {
   const [activeTab, setActiveTab] = useState<ToolsTab>(initialTab);
   const [targetUrl, setTargetUrl] = useState("");
@@ -1074,10 +1197,14 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
   const [result, setResult] = useState<PriceHistoryResult | null>(null);
   const [recentLinks, setRecentLinks] = useState<RecentLink[]>([]);
   const [landtopQuery, setLandtopQuery] = useState(getDefaultLandtopQuery);
+  const [landtopAppleQuery, setLandtopAppleQuery] = useState(getAppleDefaultLandtopQuery);
+  const [landtopSamsungQuery, setLandtopSamsungQuery] = useState(getSamsungDefaultLandtopQuery);
   const [landtopLoading, setLandtopLoading] = useState(false);
   const [landtopError, setLandtopError] = useState("");
   const [landtopResult, setLandtopResult] = useState<LandtopResult | null>(null);
   const [landtopLoadedOnce, setLandtopLoadedOnce] = useState(false);
+  const [landtopAppleOpen, setLandtopAppleOpen] = useState(true);
+  const [landtopSamsungOpen, setLandtopSamsungOpen] = useState(true);
   const [tubeLoading, setTubeLoading] = useState(false);
   const [tubeError, setTubeError] = useState("");
   const [tubeResult, setTubeResult] = useState<FengbroTubeResult | null>(null);
@@ -1112,6 +1239,10 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     try {
       const savedQuery = window.localStorage.getItem(LANDTOP_QUERY_KEY);
       if (savedQuery) setLandtopQuery(normalizeSavedLandtopQuery(savedQuery));
+      const savedAppleQuery = window.localStorage.getItem(LANDTOP_APPLE_QUERY_KEY);
+      if (savedAppleQuery) setLandtopAppleQuery(normalizeSavedLandtopQuery(savedAppleQuery));
+      const savedSamsungQuery = window.localStorage.getItem(LANDTOP_SAMSUNG_QUERY_KEY);
+      if (savedSamsungQuery) setLandtopSamsungQuery(normalizeSavedLandtopQuery(savedSamsungQuery));
 
     } catch {}
   }, []);
@@ -1132,8 +1263,10 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     if (typeof window === "undefined") return;
     try {
       window.localStorage.setItem(LANDTOP_QUERY_KEY, landtopQuery);
+      window.localStorage.setItem(LANDTOP_APPLE_QUERY_KEY, landtopAppleQuery);
+      window.localStorage.setItem(LANDTOP_SAMSUNG_QUERY_KEY, landtopSamsungQuery);
     } catch {}
-  }, [landtopQuery]);
+  }, [landtopAppleQuery, landtopQuery, landtopSamsungQuery]);
 
   const sortedRecent = useMemo(() => {
     return [...recentLinks].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
@@ -1192,6 +1325,14 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
       }
     },
     [landtopQuery]
+  );
+
+  const runLandtopSearch = useCallback(
+    (query: string, refresh = false) => {
+      setLandtopQuery(query);
+      void loadLandtop(refresh, query);
+    },
+    [loadLandtop]
   );
 
   useEffect(() => {
@@ -1520,7 +1661,7 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
               <div>
                 <h3 className="text-lg font-semibold">手機比價</h3>
                 <p className="text-sm text-muted-foreground">
-                  根據地標網通與傑昇通信比價，可搜尋 iPhone 17、Samsung 26、Samsung A17 等機型。
+                  根據地標網通與傑昇通信比價，可搜尋 {getAppleDefaultLandtopQuery()}、{getSamsungDefaultLandtopQuery()}、Samsung A17 等機型。
                 </p>
               </div>
             </div>
@@ -1534,6 +1675,86 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
             )}
           </div>
 
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setLandtopAppleOpen((open) => !open)}
+                className="flex w-full items-center justify-between text-left"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-foreground">蘋果手機區塊</p>
+                  <p className="mt-1 text-xs text-muted-foreground">預設查詢：{getAppleDefaultLandtopQuery()}</p>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-muted-foreground">
+                  {landtopAppleOpen ? "收合" : "展開"}
+                  <ChevronDown size={14} className={`transition ${landtopAppleOpen ? "rotate-180" : ""}`} />
+                </span>
+              </button>
+              {landtopAppleOpen && (
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={landtopAppleQuery}
+                    onChange={(event) => setLandtopAppleQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") runLandtopSearch(landtopAppleQuery);
+                    }}
+                    placeholder={getAppleDefaultLandtopQuery()}
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery())}
+                    disabled={landtopLoading}
+                  >
+                    搜尋蘋果
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setLandtopSamsungOpen((open) => !open)}
+                className="flex w-full items-center justify-between text-left"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-foreground">三星手機區塊</p>
+                  <p className="mt-1 text-xs text-muted-foreground">預設查詢：{getSamsungDefaultLandtopQuery()}</p>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-muted-foreground">
+                  {landtopSamsungOpen ? "收合" : "展開"}
+                  <ChevronDown size={14} className={`transition ${landtopSamsungOpen ? "rotate-180" : ""}`} />
+                </span>
+              </button>
+              {landtopSamsungOpen && (
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={landtopSamsungQuery}
+                    onChange={(event) => setLandtopSamsungQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") runLandtopSearch(landtopSamsungQuery);
+                    }}
+                    placeholder={getSamsungDefaultLandtopQuery()}
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery())}
+                    disabled={landtopLoading}
+                  >
+                    搜尋三星
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2 rounded-2xl border border-sky-200 bg-sky-50/60 p-4 sm:flex-row">
             <input
               value={landtopQuery}
@@ -1541,7 +1762,7 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
               onKeyDown={(event) => {
                 if (event.key === "Enter") void loadLandtop(false);
               }}
-              placeholder={`例如 ${getDefaultLandtopQuery()}、iPhone 17 512GB、Samsung A17`}
+              placeholder={`例如 ${getSamsungDefaultLandtopQuery()}、${getAppleDefaultLandtopQuery()} 512GB、Samsung A17`}
               className="flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
             />
             <Button onClick={() => loadLandtop(false)} className="gap-2" disabled={landtopLoading}>
@@ -1570,78 +1791,21 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
             <>
               <LandtopPriceChart products={landtopResult.products} />
 
-              <div className="grid gap-3 md:grid-cols-2">
-                {landtopResult.products.slice(0, 12).map((product) => {
-                  const savings =
-                    product.bestPrice && product.suggestedPrice
-                      ? product.suggestedPrice - product.bestPrice
-                      : null;
-
-                  return (
-                    <div
-                      key={product.id}
-                      className="rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:border-sky-300 hover:shadow-md"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{product.name}</p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">{product.brand}</p>
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          {product.sourceUrl && (
-                            <a
-                              href={product.sourceUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
-                            >
-                              地標網通
-                              <ExternalLink size={12} />
-                            </a>
-                          )}
-                          {product.jyesUrl && (
-                            <a
-                              href={product.jyesUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
-                            >
-                              傑昇通信
-                              <ExternalLink size={12} />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
-                        <div className="rounded-xl bg-slate-50 px-3 py-2">
-                          <p className="text-muted-foreground">建議售價</p>
-                          <p className="mt-1 font-semibold">{formatCurrency(product.suggestedPrice)}</p>
-                        </div>
-                        <div className="rounded-xl bg-sky-50 px-3 py-2">
-                          <p className="text-sky-700/80">地標網通</p>
-                          <p className="mt-1 font-semibold text-sky-700">{product.landtopPriceLabel}</p>
-                        </div>
-                        <div className="rounded-xl bg-violet-50 px-3 py-2">
-                          <p className="text-violet-700/80">傑昇通信</p>
-                          <p className="mt-1 font-semibold text-violet-700">
-                            {product.jyesPriceLabel || (product.jyesPrice ? formatCurrency(product.jyesPrice) : "--")}
-                          </p>
-                        </div>
-                        <div className="rounded-xl bg-emerald-50 px-3 py-2">
-                          <p className="text-emerald-700/80">最低價</p>
-                          <p className="mt-1 font-semibold text-emerald-700">
-                            {product.bestPrice == null
-                              ? "--"
-                              : `${formatCurrency(product.bestPrice)}${product.bestSourceLabel ? ` (${product.bestSourceLabel})` : ""}`}
-                          </p>
-                        </div>
-                      </div>
-                      {savings != null && (
-                        <p className="mt-3 text-xs text-emerald-700/80">比建議售價省下 {formatCurrency(savings)}</p>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="space-y-3">
+                <LandtopProductSection
+                  title="蘋果手機區塊"
+                  defaultQuery={getAppleDefaultLandtopQuery()}
+                  products={landtopResult.products.filter((product) => product.brand === "apple")}
+                  open={landtopAppleOpen}
+                  onToggle={() => setLandtopAppleOpen((open) => !open)}
+                />
+                <LandtopProductSection
+                  title="三星手機區塊"
+                  defaultQuery={getSamsungDefaultLandtopQuery()}
+                  products={landtopResult.products.filter((product) => product.brand === "samsung")}
+                  open={landtopSamsungOpen}
+                  onToggle={() => setLandtopSamsungOpen((open) => !open)}
+                />
               </div>
 
               <LandtopHistoryChart
