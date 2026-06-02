@@ -20,6 +20,8 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw", provider: "yahoo" },
   { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia" },
   { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia" },
+  { id: "samsung-electronics", name: "Samsung Electronics", symbol: "005930.KS", sourceUrl: "https://finance.yahoo.com/quote/005930.KS", group: "asia", provider: "yahoo" },
+  { id: "sk-hynix", name: "SK hynix", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "asia", provider: "yahoo" },
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "commodities" },
   { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "rates" },
   { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "commodities" },
