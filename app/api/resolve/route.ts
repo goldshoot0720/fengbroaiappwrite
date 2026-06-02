@@ -21,6 +21,7 @@ type SourceMeta = {
   price: number | null;
   code: string;
   storeKey: string;
+  notice?: string;
 };
 
 class HttpStatusError extends Error {
@@ -124,6 +125,91 @@ async function fetchJson<T>(url: string, payload: unknown, headers?: HeadersInit
   return (await response.json()) as T;
 }
 
+async function fetchGetJson<T>(url: string, headers?: HeadersInit): Promise<T> {
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json,text/plain,*/*",
+      "User-Agent": USER_AGENT,
+      "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+      ...(headers || {}),
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new HttpStatusError(response.status, url, "GET");
+  }
+
+  return (await response.json()) as T;
+}
+
+function pickNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.round(value);
+  if (typeof value === "string") {
+    const numeric = Number(value.replace(/[^\d.]/g, ""));
+    return Number.isFinite(numeric) ? Math.round(numeric) : null;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["P", "M", "price", "Price", "salePrice", "originPrice"]) {
+      const nested = pickNumber(record[key]);
+      if (nested != null) return nested;
+    }
+  }
+  return null;
+}
+
+function pickText(value: unknown): string {
+  return typeof value === "string" ? normalizeSpace(value) : "";
+}
+
+async function resolvePchomeProductMeta(url: string): Promise<SourceMeta | null> {
+  if (getStoreKey(url) !== "pchome") return null;
+  const code = extractProductCode(url);
+  if (!code) return null;
+
+  const fields = "Id,Name,Nick,Price,Url";
+  const endpoints = [
+    `https://ecapi-cdn.pchome.com.tw/ecshop/prodapi/v2/prod/button&id=${encodeURIComponent(code)}&fields=${fields}`,
+    `https://ecapi.pchome.com.tw/ecshop/prodapi/v2/prod/button&id=${encodeURIComponent(code)}&fields=${fields}`,
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const payload = await fetchGetJson<unknown>(endpoint, { Referer: "https://24h.pchome.com.tw/" });
+      const record =
+        Array.isArray(payload)
+          ? payload[0]
+          : payload && typeof payload === "object"
+            ? (payload as Record<string, unknown>)[code] || Object.values(payload as Record<string, unknown>)[0]
+            : null;
+
+      if (!record || typeof record !== "object") continue;
+      const item = record as Record<string, unknown>;
+      const title = pickText(item.Name) || pickText(item.Nick) || inferSourceMetaFromUrl(url).title;
+      const price = pickNumber(item.Price);
+      if (!title && price == null) continue;
+
+      return {
+        title,
+        price,
+        code,
+        storeKey: "pchome",
+        notice: "來源商品頁回傳 429，已改用 PChome 商品 API 取得標題與目前價格，再繼續嘗試 BigGo 比對。",
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+async function resolveMerchantProductMeta(url: string): Promise<SourceMeta | null> {
+  return await resolvePchomeProductMeta(url);
+}
+
 function extractProductMeta(html: string, url: string): SourceMeta {
   const titlePatterns = [
     /<meta\s+property="og:title"\s+content="([^"]+)"/i,
@@ -189,7 +275,9 @@ function buildRateLimitedFallback(url: string, sourceMeta: SourceMeta) {
     history,
     resolvedAt: new Date().toISOString(),
     notice:
-      "BigGo 目前查詢過於頻繁，暫時回傳 429。已先顯示商品頁可取得的名稱與目前價格，請稍後再試一次。",
+      sourceMeta.notice
+        ? `${sourceMeta.notice} BigGo 目前查詢過於頻繁，暫時回傳 429；已先顯示可取得的名稱與目前價格。`
+        : "BigGo 目前查詢過於頻繁，暫時回傳 429。已先顯示商品頁可取得的名稱與目前價格，請稍後再試一次。",
   };
 }
 
@@ -330,19 +418,25 @@ async function resolveFromBigGo(url: string, days: number) {
     sourceMeta = extractProductMeta(sourceHtml, url);
   } catch (error) {
     if (error instanceof HttpStatusError && error.status === 429) {
-      return {
-        url,
-        title: inferSourceMetaFromUrl(url).title,
-        source: "BigGo API",
-        currency: "TWD",
-        currentPrice: null,
-        history: [],
-        resolvedAt: new Date().toISOString(),
-        notice:
-          "來源商品頁目前回傳 429，暫時無法抓取標題與價格，因此這次不送 BigGo 比對。請稍後再試，或改用未被限流的商品連結。",
-      };
+      const merchantMeta = await resolveMerchantProductMeta(url);
+      if (!merchantMeta) {
+        return {
+          url,
+          title: inferSourceMetaFromUrl(url).title,
+          source: "BigGo API",
+          currency: "TWD",
+          currentPrice: null,
+          history: [],
+          resolvedAt: new Date().toISOString(),
+          notice:
+            "來源商品頁目前回傳 429，且可用的商家 API 也無法取得商品資訊，因此這次不送 BigGo 比對。請稍後再試，或改用未被限流的商品連結。",
+        };
+      }
+      sourceMeta = merchantMeta;
     }
-    throw error;
+    else {
+      throw error;
+    }
   }
   const queries = buildSearchQueries(sourceMeta.title, sourceMeta.code, sourceMeta.storeKey);
 
@@ -367,13 +461,27 @@ async function resolveFromBigGo(url: string, days: number) {
     if (candidates.length > 0) break;
   }
 
-  const match = findBestMatch(
-    sourceMeta.title,
-    url,
-    sourceMeta.price,
-    sourceMeta.storeKey,
-    candidates
-  );
+  let match: BigGoCandidate;
+  try {
+    match = findBestMatch(
+      sourceMeta.title,
+      url,
+      sourceMeta.price,
+      sourceMeta.storeKey,
+      candidates
+    );
+  } catch (error) {
+    const fallback = buildRateLimitedFallback(url, sourceMeta);
+    return {
+      ...fallback,
+      notice:
+        sourceMeta.notice
+          ? `${sourceMeta.notice} 目前沒有可可靠配對的 BigGo 候選商品，先顯示商家 API 的目前價格。`
+          : error instanceof Error
+            ? `${error.message}；已先顯示商品頁可取得的名稱與目前價格。`
+            : "目前沒有可可靠配對的 BigGo 候選商品，已先顯示可取得的名稱與目前價格。",
+    };
+  }
 
   let historyResponse: {
     title?: string;
@@ -423,6 +531,7 @@ async function resolveFromBigGo(url: string, days: number) {
     currentPrice,
     history: buildHistoryEntries(sortedHistory),
     resolvedAt: new Date().toISOString(),
+    notice: sourceMeta.notice,
     matchedTitle: match.title,
     matchedUrl: match.purl,
     historyId: match.historyId,
