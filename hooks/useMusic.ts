@@ -25,9 +25,9 @@ export interface MusicData {
 let cachedMusic: MusicData[] | null = null;
 let cacheTimestamp: number = 0;
 
-export function useMusic() {
+export function useMusic(enabled = true) {
   const [music, setMusic] = useState<MusicData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   const getRefreshKey = () => {
@@ -74,11 +74,18 @@ export function useMusic() {
 
   // 初始載入
   useEffect(() => {
+    if (!enabled) {
+      setMusic([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     loadMusic();
-  }, [loadMusic]);
+  }, [enabled, loadMusic]);
 
   // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
   useEffect(() => {
+    if (!enabled) return;
     const checkRefreshKey = () => {
       const storedRefreshKey = getRefreshKey();
       if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
@@ -89,7 +96,7 @@ export function useMusic() {
 
     const interval = setInterval(checkRefreshKey, 500);
     return () => clearInterval(interval);
-  }, [loadMusic]);
+  }, [enabled, loadMusic]);
 
   // 計算統計資料
   const stats = {

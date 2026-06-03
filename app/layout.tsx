@@ -108,7 +108,7 @@ export default function RootLayout({
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', async function() {
                   try {
-                    const swVersion = 'v8';
+                    const swVersion = 'v9';
                     let reloadedForSw = sessionStorage.getItem('fengbro_sw_reloaded') === swVersion;
 
                     navigator.serviceWorker.addEventListener('controllerchange', function() {
@@ -137,9 +137,20 @@ export default function RootLayout({
                       }
                     }
 
+                    function hasAppwriteConfig() {
+                      return Boolean(
+                        localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT') &&
+                        localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID') &&
+                        localStorage.getItem('APPWRITE_DATABASE_ID') &&
+                        localStorage.getItem('APPWRITE_API_KEY')
+                      );
+                    }
+
                     if (reg.active) {
                       sendConfigToSW(reg);
-                      subscribeToPush(reg);
+                      if (hasAppwriteConfig()) {
+                        subscribeToPush(reg);
+                      }
                     } else {
                       reg.addEventListener('updatefound', () => {
                         const newWorker = reg.installing;
@@ -147,14 +158,16 @@ export default function RootLayout({
                           newWorker.addEventListener('statechange', () => {
                             if (newWorker.state === 'activated') {
                               sendConfigToSW(reg);
-                              subscribeToPush(reg);
+                              if (hasAppwriteConfig()) {
+                                subscribeToPush(reg);
+                              }
                             }
                           });
                         }
                       });
                     }
 
-                    if ('periodicSync' in reg) {
+                    if (hasAppwriteConfig() && 'periodicSync' in reg) {
                       try {
                         const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
                         if (status.state === 'granted') {
@@ -165,7 +178,7 @@ export default function RootLayout({
                       } catch (e) {}
                     }
 
-                    if ('sync' in reg) {
+                    if (hasAppwriteConfig() && 'sync' in reg) {
                       try {
                         await reg.sync.register('check-expiry-sync');
                       } catch (e) {}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { STORAGE_UPLOAD_LIMIT_BYTES } from "../_lib/storageQuota";
+import { getAppwriteErrorStatus, isMissingAppwriteConfigError } from "../_lib/appwriteConfig";
 
 const sdk = require('node-appwrite');
 
@@ -584,8 +585,11 @@ export async function GET(request) {
     console.error("GET /api/storage-stats error:", err);
     const errorMessage = err.message || '獲取儲存統計失敗';
     const isBandwidthError = errorMessage.includes('Bandwidth limit') || errorMessage.includes('bandwidth') || errorMessage.includes('exceeded');
+    const isMissingConfig = isMissingAppwriteConfigError(err);
     return NextResponse.json({
-      error: isBandwidthError
+      error: isMissingConfig
+        ? 'Appwrite configuration is missing. Please configure Appwrite in Settings.'
+        : isBandwidthError
         ? 'Bandwidth limit for your organization has exceeded. Please upgrade to a higher plan or update your budget cap.'
         : errorMessage,
       stats: {
@@ -599,6 +603,6 @@ export async function GET(request) {
         documents: { count: 0, size: 0 },
         other: { count: 0, size: 0 }
       }
-    }, { status: 500 });
+    }, { status: getAppwriteErrorStatus(err) });
   }
 }

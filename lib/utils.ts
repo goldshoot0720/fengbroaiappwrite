@@ -62,6 +62,14 @@ export function getAppwriteConfig() {
   };
 }
 
+export function hasRequiredAppwriteConfig(options: { requireBucket?: boolean; requireApiKey?: boolean } = {}) {
+  const config = getAppwriteConfig();
+  if (!config.endpoint || !config.projectId || !config.databaseId) return false;
+  if (options.requireBucket && !config.bucketId) return false;
+  if (options.requireApiKey && !config.apiKey) return false;
+  return true;
+}
+
 // 獲取上傳用的 headers（包含 Appwrite 配置）
 export function getAppwriteHeaders() {
   const config = getAppwriteConfig();

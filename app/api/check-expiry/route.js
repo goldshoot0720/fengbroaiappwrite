@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAppwriteErrorMessage, getAppwriteErrorStatus } from "../_lib/appwriteConfig";
 
 const sdk = require('node-appwrite');
 
@@ -106,6 +107,6 @@ export async function GET(request) {
     });
   } catch (err) {
     console.error("GET /api/check-expiry error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: getAppwriteErrorMessage(err) }, { status: getAppwriteErrorStatus(err) });
   }
 }

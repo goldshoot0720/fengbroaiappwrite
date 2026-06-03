@@ -23,9 +23,9 @@ export interface ImageData {
 let cachedImages: ImageData[] | null = null;
 let cacheTimestamp: number = 0;
 
-export function useImages() {
+export function useImages(enabled = true) {
   const [images, setImages] = useState<ImageData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   const getRefreshKey = () => {
@@ -72,11 +72,18 @@ export function useImages() {
 
   // 初始載入
   useEffect(() => {
+    if (!enabled) {
+      setImages([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     loadImages();
-  }, [loadImages]);
+  }, [enabled, loadImages]);
 
   // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
   useEffect(() => {
+    if (!enabled) return;
     const checkRefreshKey = () => {
       const storedRefreshKey = getRefreshKey();
       if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
@@ -87,7 +94,7 @@ export function useImages() {
 
     const interval = setInterval(checkRefreshKey, 500);
     return () => clearInterval(interval);
-  }, [loadImages]);
+  }, [enabled, loadImages]);
 
   // 計算統計資料
   const stats = {

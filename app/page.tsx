@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   Building2,
@@ -26,7 +26,7 @@ import AboutUs from "@/components/modules/AboutUs";
 import BankManagement from "@/components/modules/BankManagement";
 import CommonAccountManagement from "@/components/modules/CommonAccountManagement";
 import CommonDocumentManagement from "@/components/modules/CommonDocumentManagement";
-import EnhancedDashboard from "@/components/modules/EnhancedDashboard";
+import EnhancedDashboard, { AppwriteSetupEmptyState } from "@/components/modules/EnhancedDashboard";
 import FoodManagement from "@/components/modules/FoodManagement";
 import ImageGallery from "@/components/modules/ImageGallery";
 import MusicManagement from "@/components/modules/MusicManagement";
@@ -37,6 +37,7 @@ import SettingsManagement from "@/components/modules/SettingsManagement";
 import SubscriptionManagement from "@/components/modules/SubscriptionManagement";
 import ToolsManagement from "@/components/modules/ToolsManagement";
 import VideoIntroduction from "@/components/modules/VideoIntroduction";
+import { hasRequiredAppwriteConfig } from "@/lib/utils";
 import { MenuItem } from "@/types";
 
 const MENU_ITEMS: MenuItem[] = [
@@ -69,14 +70,38 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "about", label: "鋒兄關於", icon: <Info size={18} /> },
 ];
 
+const APPWRITE_REQUIRED_MODULES = new Set([
+  "dashboard",
+  "subscription",
+  "food",
+  "notes",
+  "common",
+  "images",
+  "videos",
+  "music",
+  "documents",
+  "podcast",
+  "bank-stats",
+  "routine",
+]);
+
 export default function DashboardPage() {
   const [currentModule, setCurrentModule] = useState("home");
+  const [appwriteSetupMissing, setAppwriteSetupMissing] = useState(() => !hasRequiredAppwriteConfig({ requireApiKey: true }));
 
   const handleModuleChange = useCallback((moduleId: string) => {
     setCurrentModule(moduleId);
   }, []);
 
+  useEffect(() => {
+    setAppwriteSetupMissing(!hasRequiredAppwriteConfig({ requireApiKey: true }));
+  }, [currentModule]);
+
   const currentContent = useMemo(() => {
+    if (appwriteSetupMissing && APPWRITE_REQUIRED_MODULES.has(currentModule)) {
+      return <AppwriteSetupEmptyState onNavigate={() => handleModuleChange("settings")} />;
+    }
+
     switch (currentModule) {
       case "home":
         return (
@@ -132,7 +157,7 @@ export default function DashboardPage() {
       default:
         return <NotFoundModule />;
     }
-  }, [currentModule, handleModuleChange]);
+  }, [appwriteSetupMissing, currentModule, handleModuleChange]);
 
   return (
     <DashboardLayout

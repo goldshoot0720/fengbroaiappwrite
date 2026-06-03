@@ -5,6 +5,7 @@ import { useImages } from "./useImages";
 import { useVideos } from "./useVideos";
 import { useMusic } from "./useMusic";
 import { usePodcast } from "./usePodcast";
+import { hasRequiredAppwriteConfig } from "@/lib/utils";
 
 interface MediaStats {
   totalImages: number; // From database
@@ -27,11 +28,15 @@ interface MediaStats {
 }
 
 export function useMediaStats() {
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [configChecked, setConfigChecked] = useState(false);
+  const mediaEnabled = configChecked && !setupRequired;
+
   // Get counts from database tables
-  const { images, loading: imagesLoading, error: imagesError } = useImages();
-  const { videos, loading: videosLoading, error: videosError } = useVideos();
-  const { music, loading: musicLoading, error: musicError } = useMusic();
-  const { podcast, loading: podcastLoading, error: podcastError } = usePodcast();
+  const { images, loading: imagesLoading, error: imagesError } = useImages(mediaEnabled);
+  const { videos, loading: videosLoading, error: videosError } = useVideos(mediaEnabled);
+  const { music, loading: musicLoading, error: musicError } = useMusic(mediaEnabled);
+  const { podcast, loading: podcastLoading, error: podcastError } = usePodcast(mediaEnabled);
 
   const [stats, setStats] = useState<MediaStats>({
     totalImages: 0,
@@ -53,15 +58,24 @@ export function useMediaStats() {
     usagePercentage: 0,
   });
 
-  const [storageLoading, setStorageLoading] = useState(true);
+  const [storageLoading, setStorageLoading] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
 
-  const loading = imagesLoading || videosLoading || musicLoading || podcastLoading || storageLoading;
+  const loading = !configChecked || (!setupRequired && (imagesLoading || videosLoading || musicLoading || podcastLoading || storageLoading));
   const error = imagesError || videosError || musicError || podcastError || storageError;
 
   useEffect(() => {
     const fetchStorageStats = async () => {
       try {
+        const hasConfig = hasRequiredAppwriteConfig({ requireApiKey: true, requireBucket: true });
+        setSetupRequired(!hasConfig);
+        setConfigChecked(true);
+        if (!hasConfig) {
+          setStorageError(null);
+          setStorageLoading(false);
+          return;
+        }
+
         setStorageLoading(true);
         setStorageError(null);
 
@@ -128,5 +142,5 @@ export function useMediaStats() {
     fetchStorageStats();
   }, [images.length, videos.length, music.length, podcast.length]);
 
-  return { stats, loading, error };
+  return { stats, loading, error, setupRequired };
 }

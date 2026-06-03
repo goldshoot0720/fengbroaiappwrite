@@ -22,9 +22,9 @@ export interface PodcastData {
 let cachedPodcast: PodcastData[] | null = null;
 let cacheTimestamp: number = 0;
 
-export function usePodcast() {
+export function usePodcast(enabled = true) {
   const [podcast, setPodcast] = useState<PodcastData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   const getRefreshKey = () => {
@@ -71,11 +71,18 @@ export function usePodcast() {
 
   // 初始載入
   useEffect(() => {
+    if (!enabled) {
+      setPodcast([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     loadPodcast();
-  }, [loadPodcast]);
+  }, [enabled, loadPodcast]);
 
   // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
   useEffect(() => {
+    if (!enabled) return;
     const checkRefreshKey = () => {
       const storedRefreshKey = getRefreshKey();
       if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
@@ -86,7 +93,7 @@ export function usePodcast() {
 
     const interval = setInterval(checkRefreshKey, 500);
     return () => clearInterval(interval);
-  }, [loadPodcast]);
+  }, [enabled, loadPodcast]);
 
   // 計算統計資料
   const stats = {

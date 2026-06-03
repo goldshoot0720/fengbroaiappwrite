@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v8';
+const CACHE_NAME = 'fengbro-ai-v9';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -91,6 +91,10 @@ self.addEventListener('sync', (event) => {
 async function checkExpiryBackground() {
   try {
     const config = await loadConfig();
+    if (!config.endpoint || !config.projectId || !config.databaseId || !config.apiKey) {
+      return;
+    }
+
     const params = new URLSearchParams();
     if (config.endpoint) params.set('_endpoint', config.endpoint);
     if (config.projectId) params.set('_project', config.projectId);

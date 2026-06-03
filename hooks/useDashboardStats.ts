@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
+import { useAppwriteSetup } from "@/hooks/useAppwriteSetup";
 
 interface Food {
   $id: string;
@@ -65,6 +66,7 @@ interface DashboardStats {
 // 不使用快取，每次都重新載入
 
 export function useDashboardStats() {
+  const { checked: appwriteSetupChecked, hasDatabaseConfig } = useAppwriteSetup();
   const [stats, setStats] = useState<DashboardStats>({
     totalFoods: 0,
     totalSubscriptions: 0,
@@ -90,26 +92,24 @@ export function useDashboardStats() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [setupRequired, setSetupRequired] = useState(false);
 
   useEffect(() => {
+    if (!appwriteSetupChecked) return;
+
     async function fetchStats() {
       // 不使用快取，每次都重新載入
       const cacheParam = `?t=${Date.now()}`;
 
       setError(null);
       
-      // 檢查 Appwrite 配置是否存在
-      if (typeof window !== 'undefined') {
-        const endpoint = localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-        const projectId = localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-        const databaseId = localStorage.getItem('APPWRITE_DATABASE_ID') || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-        
-        if (!endpoint || !projectId || !databaseId) {
-          setError("Appwrite 配置不完整，請至「鋒兄設定」中完成設定");
-          setLoading(false);
-          return;
-        }
+      if (!hasDatabaseConfig) {
+        setSetupRequired(true);
+        setError(null);
+        setLoading(false);
+        return;
       }
+      setSetupRequired(false);
       
       try {
         const errors: string[] = [];
@@ -120,13 +120,9 @@ export function useDashboardStats() {
           { name: 'bank', api: '/api/bank', label: 'Table bank' },
           { name: 'commonaccount', api: '/api/commonaccount', label: 'Table commonaccount' },
           { name: 'food', api: '/api/food', label: 'Table food' },
-          { name: 'image', api: '/api/image', label: 'Table image' },
-          { name: 'music', api: '/api/music', label: 'Table music' },
-          { name: 'podcast', api: '/api/podcast', label: 'Table podcast' },
           { name: 'commondocument', api: '/api/commondocument', label: 'Table commondocument' },
           { name: 'routine', api: '/api/routine', label: 'Table routine' },
           { name: 'subscription', api: '/api/subscription', label: 'Table subscription' },
-          { name: 'video', api: '/api/video', label: 'Table video' },
         ];
 
         // 並行檢查所有表
@@ -372,7 +368,7 @@ export function useDashboardStats() {
     }
 
     fetchStats();
-  }, []);
+  }, [appwriteSetupChecked, hasDatabaseConfig]);
 
-  return { stats, loading, error };
+  return { stats, loading, error, setupRequired };
 }

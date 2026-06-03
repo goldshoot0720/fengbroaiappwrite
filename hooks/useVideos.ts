@@ -23,9 +23,9 @@ export interface VideoData {
 let cachedVideos: VideoData[] | null = null;
 let cacheTimestamp: number = 0;
 
-export function useVideos() {
+export function useVideos(enabled = true) {
   const [videos, setVideos] = useState<VideoData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   const getRefreshKey = () => {
@@ -72,11 +72,18 @@ export function useVideos() {
 
   // 初始載入
   useEffect(() => {
+    if (!enabled) {
+      setVideos([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     loadVideos();
-  }, [loadVideos]);
+  }, [enabled, loadVideos]);
 
   // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
   useEffect(() => {
+    if (!enabled) return;
     const checkRefreshKey = () => {
       const storedRefreshKey = getRefreshKey();
       if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
@@ -87,7 +94,7 @@ export function useVideos() {
 
     const interval = setInterval(checkRefreshKey, 500);
     return () => clearInterval(interval);
-  }, [loadVideos]);
+  }, [enabled, loadVideos]);
 
   // 計算統計資料
   const stats = {

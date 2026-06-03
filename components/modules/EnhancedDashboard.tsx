@@ -69,8 +69,8 @@ const FENG_BRO_ASCII_MOBILE = String.raw`
 `;
 
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
-  const { stats, loading, error: dashboardError } = useDashboardStats();
-  const { stats: mediaStats, loading: mediaLoading, error: mediaError } = useMediaStats();
+  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats();
+  const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats();
   const notificationSentRef = useRef(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const [permissionDismissed, setPermissionDismissed] = useState(false);
@@ -343,6 +343,15 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     const timeout = scheduleNextDailyCheck();
     return () => window.clearTimeout(timeout);
   }, [onlyTitle, loading, dashboardError, stats, financeAlerts.length]);
+
+  if (dashboardSetupRequired || mediaSetupRequired) {
+    return (
+      <div className="space-y-6 lg:space-y-8">
+        <PageTitle title={title} />
+        <AppwriteSetupEmptyState onNavigate={() => onNavigate("settings")} />
+      </div>
+    );
+  }
 
   if (onlyTitle) {
     return (
@@ -625,6 +634,30 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       {/* 提醒和建議 */}
       {needsAttention && <AlertSection stats={stats} />}
     </div>
+  );
+}
+
+export function AppwriteSetupEmptyState({ onNavigate }: { onNavigate: () => void }) {
+  return (
+    <DataCard className="overflow-hidden border-sky-200 bg-sky-50/70 p-0">
+      <div className="flex flex-col gap-5 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
+            <Server size={22} />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700/80">Setup Required</p>
+            <h2 className="mt-2 text-2xl font-semibold text-foreground">尚未設定 Appwrite</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              首頁已暫停自動載入音樂、影片、圖片、播客、Storage 統計與到期檢查，避免未設定時連續產生 500。完成 endpoint、project、database、API key 與 bucket 設定後，儀表板會恢復同步。
+            </p>
+          </div>
+        </div>
+        <Button onClick={onNavigate} className="shrink-0 gap-2 bg-sky-600 hover:bg-sky-700">
+          前往鋒兄設定
+        </Button>
+      </div>
+    </DataCard>
   );
 }
 

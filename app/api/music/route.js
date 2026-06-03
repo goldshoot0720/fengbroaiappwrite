@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listAllDocuments } from "../_lib/listAllDocuments";
+import { getAppwriteErrorMessage, getAppwriteErrorStatus } from "../_lib/appwriteConfig";
 
 const sdk = require('node-appwrite');
 
@@ -61,7 +62,7 @@ export async function GET(request) {
     return NextResponse.json(documents);
   } catch (err) {
     console.error("GET /api/music error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: getAppwriteErrorMessage(err) }, { status: getAppwriteErrorStatus(err) });
   }
 }
 
@@ -112,6 +113,6 @@ export async function POST(request) {
     return NextResponse.json(document);
   } catch (err) {
     console.error("POST /api/music error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: getAppwriteErrorMessage(err) }, { status: getAppwriteErrorStatus(err) });
   }
 }
