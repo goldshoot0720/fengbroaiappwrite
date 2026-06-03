@@ -6,6 +6,7 @@ import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
 import { clearAllCaches, getAppwriteConfig } from "@/lib/utils";
+import { notifyAppwriteConfigChanged } from "@/hooks/useAppwriteSetup";
 import { formatFileSize } from "@/lib/formatters";
 import packageJson from "@/package.json";
 
@@ -173,6 +174,7 @@ export default function SettingsManagement() {
     
     // 清除所有快取
     clearAllCaches();
+    notifyAppwriteConfigChanged();
     
     setConfigSaved(true);
     
@@ -359,6 +361,7 @@ export default function SettingsManagement() {
     
     // 清除所有快取
     clearAllCaches();
+    notifyAppwriteConfigChanged();
     
     alert('✅ 已重置為預設值！\n現在將使用 .env 檔案的 Appwrite 配置。\n\n頁面將自動重新載入。');
     

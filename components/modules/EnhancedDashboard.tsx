@@ -344,7 +344,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     return () => window.clearTimeout(timeout);
   }, [onlyTitle, loading, dashboardError, stats, financeAlerts.length]);
 
-  if (dashboardSetupRequired || mediaSetupRequired) {
+  if (dashboardSetupRequired) {
     return (
       <div className="space-y-6 lg:space-y-8">
         <PageTitle title={title} />
@@ -576,7 +576,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       </div>
 
       {/* 多媒體儲存統計 */}
-      <MediaStorageStats stats={mediaStats} onNavigate={onNavigate} />
+      <MediaStorageStats stats={mediaStats} setupRequired={mediaSetupRequired} onNavigate={onNavigate} />
       
       {/* 訂閱到期提醒 */}
       {stats.subscriptionsExpiring3Days > 0 && (
@@ -897,7 +897,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
 }
 
 // 多媒體儲存統計
-function MediaStorageStats({ stats, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalPodcasts: number; storageImagesCount: number; storageVideosCount: number; storageMusicCount: number; imagesSize: number; videosSize: number; musicSize: number; documentsSize: number; otherSize: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number }; onNavigate: (id: string) => void }) {
+function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalPodcasts: number; storageImagesCount: number; storageVideosCount: number; storageMusicCount: number; imagesSize: number; videosSize: number; musicSize: number; documentsSize: number; otherSize: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number }; setupRequired: boolean; onNavigate: (id: string) => void }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [includeDbRecords, setIncludeDbRecords] = useState(false);
   
@@ -933,8 +933,24 @@ function MediaStorageStats({ stats, onNavigate }: { stats: { totalImages: number
 
       {isExpanded && (
         <>
+          {setupRequired ? (
+            <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold">尚未完成 Storage 設定</p>
+                  <p className="mt-1 text-sky-800/80 dark:text-sky-200/80">
+                    多媒體統計已暫停載入，請補上 Bucket ID 與 API Key 後再同步。
+                  </p>
+                </div>
+                <Button onClick={() => onNavigate("settings")} className="shrink-0 bg-sky-600 hover:bg-sky-700">
+                  前往設定
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           {/* 選項勾選 */}
-          <div className="mb-4 flex items-center gap-2">
+          {!setupRequired && <div className="mb-4 flex items-center gap-2">
             <input
               type="checkbox"
               id="includeDbRecords"
@@ -945,10 +961,10 @@ function MediaStorageStats({ stats, onNavigate }: { stats: { totalImages: number
             <label htmlFor="includeDbRecords" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
               包含所有圖片、影片、音樂、文件、播客（鋒兄圖片、鋒兄影片、鋒兄音樂、鋒兄文件、鋒兄播客）
             </label>
-          </div>
+          </div>}
 
           {/* 儲存總覽 */}
-          <div className="mb-4">
+          {!setupRequired && <div className="mb-4">
             <div className="flex justify-between text-sm mb-2">
               <span className="text-gray-600 dark:text-gray-400">累積容量</span>
               <span className={`font-semibold ${usageColor}`}>
@@ -966,10 +982,10 @@ function MediaStorageStats({ stats, onNavigate }: { stats: { totalImages: number
                 File Storage 已超過 1.8GB，上傳已停用。請手動刪除 Appwrite Storage 檔案，直到容量低於 1.8GB 以下。
               </p>
             ) : null}
-          </div>
+          </div>}
 
           {/* 分類統計 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {!setupRequired && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <MediaStatCard 
           icon={Image} 
           title="鋒兄圖片" 
@@ -1005,7 +1021,7 @@ function MediaStorageStats({ stats, onNavigate }: { stats: { totalImages: number
           size="-" 
           color="orange"
         />
-      </div>
+      </div>}
         </>
       )}
     </DataCard>
