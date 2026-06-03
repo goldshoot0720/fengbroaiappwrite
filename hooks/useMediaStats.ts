@@ -5,7 +5,7 @@ import { useImages } from "./useImages";
 import { useVideos } from "./useVideos";
 import { useMusic } from "./useMusic";
 import { usePodcast } from "./usePodcast";
-import { hasRequiredAppwriteConfig } from "@/lib/utils";
+import { useAppwriteSetup } from "@/hooks/useAppwriteSetup";
 
 interface MediaStats {
   totalImages: number; // From database
@@ -28,9 +28,9 @@ interface MediaStats {
 }
 
 export function useMediaStats() {
-  const [setupRequired, setSetupRequired] = useState(false);
-  const [configChecked, setConfigChecked] = useState(false);
-  const mediaEnabled = configChecked && !setupRequired;
+  const { checked: configChecked, hasStorageConfig } = useAppwriteSetup();
+  const setupRequired = configChecked && !hasStorageConfig;
+  const mediaEnabled = configChecked && hasStorageConfig;
 
   // Get counts from database tables
   const { images, loading: imagesLoading, error: imagesError } = useImages(mediaEnabled);
@@ -67,10 +67,8 @@ export function useMediaStats() {
   useEffect(() => {
     const fetchStorageStats = async () => {
       try {
-        const hasConfig = hasRequiredAppwriteConfig({ requireApiKey: true, requireBucket: true });
-        setSetupRequired(!hasConfig);
-        setConfigChecked(true);
-        if (!hasConfig) {
+        if (!configChecked) return;
+        if (!hasStorageConfig) {
           setStorageError(null);
           setStorageLoading(false);
           return;
@@ -140,7 +138,7 @@ export function useMediaStats() {
     };
 
     fetchStorageStats();
-  }, [images.length, videos.length, music.length, podcast.length]);
+  }, [configChecked, hasStorageConfig, images.length, videos.length, music.length, podcast.length]);
 
   return { stats, loading, error, setupRequired };
 }
