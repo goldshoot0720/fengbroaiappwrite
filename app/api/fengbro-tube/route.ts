@@ -54,7 +54,7 @@ function normalizeDigits(value: string) {
 function extractDownfallIndex(title: string) {
   const normalizedTitle = normalizeDigits(title);
   const numberPattern = "([0-9]+(?:\\.[0-9]+)?)";
-  const formatIndex = (value: string) => Number(value).toFixed(2);
+  const formatIndex = (value: string) => Number(value).toFixed(2).padStart(5, "0");
   const labelMatch = /倒台指[數数]/.exec(normalizedTitle);
   if (labelMatch) {
     const afterLabelText = normalizedTitle.slice(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 80);
