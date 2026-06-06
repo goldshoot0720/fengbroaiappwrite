@@ -54,9 +54,22 @@ function normalizeDigits(value: string) {
 function extractDownfallIndex(title: string) {
   const normalizedTitle = normalizeDigits(title);
   const numberPattern = "([0-9]+(?:\\.[0-9]+)?)";
-  const afterLabel = normalizedTitle.match(new RegExp(`倒台指[數数][^0-9]{0,24}${numberPattern}`));
+  const formatIndex = (value: string) => Number(value).toFixed(2);
+  const labelMatch = /倒台指[數数]/.exec(normalizedTitle);
+  if (labelMatch) {
+    const afterLabelText = normalizedTitle.slice(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 80);
+    const movementValue = afterLabelText.match(new RegExp(`(?:飆至|飙至|升至|漲至|涨至|達到|达到|達|达|至|突破|破)\\s*${numberPattern}`));
+    if (movementValue?.[1]) return formatIndex(movementValue[1]);
+
+    const afterLabelNumbers = [...afterLabelText.matchAll(new RegExp(numberPattern, "g"))];
+    const firstNonDateNumber = afterLabelNumbers.find((match) => {
+      const nextText = afterLabelText.slice((match.index || 0) + match[0].length).trimStart();
+      return !/^[月日號号]/.test(nextText);
+    });
+    if (firstNonDateNumber?.[1]) return formatIndex(firstNonDateNumber[1]);
+  }
   const beforeLabel = normalizedTitle.match(new RegExp(`${numberPattern}\\s*(?:分|%|％)?\\s*倒台指[數数]`));
-  return afterLabel?.[1] || beforeLabel?.[1] || "";
+  return beforeLabel?.[1] ? formatIndex(beforeLabel[1]) : "";
 }
 
 function isHenrenChannel(sourceUrl: string, title: string) {
