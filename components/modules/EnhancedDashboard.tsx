@@ -911,6 +911,7 @@ function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { tota
 
   const usageColor = stats.usagePercentage > 80 ? 'text-red-600 dark:text-red-400' : stats.usagePercentage > 50 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400';
   const progressColor = stats.usagePercentage > 80 ? 'bg-red-500' : stats.usagePercentage > 50 ? 'bg-orange-500' : 'bg-green-500';
+  const isOverStorageLimit = !setupRequired && stats.storageLimit > 0 && stats.totalSize >= stats.storageLimit;
 
   return (
     <DataCard className="p-4 sm:p-6">
@@ -930,6 +931,15 @@ function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { tota
           <ChevronDown className="text-gray-500 dark:text-gray-400" size={20} />
         )}
       </div>
+
+      {isOverStorageLimit ? (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+          <p className="font-semibold">File Storage 已超過 1.8GB，上傳已停用</p>
+          <p className="mt-1">
+            目前使用 {formatBytes(stats.totalSize)} / {formatBytes(stats.storageLimit)}。請手動刪除 Appwrite Storage 檔案，直到容量低於 1.8GB 以下。
+          </p>
+        </div>
+      ) : null}
 
       {isExpanded && (
         <>
@@ -977,7 +987,7 @@ function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { tota
                 style={{ width: `${Math.min(stats.usagePercentage, 100)}%` }}
               />
             </div>
-            {stats.totalSize >= stats.storageLimit ? (
+            {isOverStorageLimit ? (
               <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                 File Storage 已超過 1.8GB，上傳已停用。請手動刪除 Appwrite Storage 檔案，直到容量低於 1.8GB 以下。
               </p>
