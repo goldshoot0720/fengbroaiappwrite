@@ -63,6 +63,20 @@ function getResendSlotFields(slot: number) {
   };
 }
 
+function createEmptyResendConfig() {
+  const config: Record<string, string> = {
+    fromEmail: RESEND_DEFAULT_FROM
+  };
+
+  for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
+    const fields = getResendSlotFields(slot);
+    config[fields.apiKey] = '';
+    config[fields.toEmail] = '';
+  }
+
+  return config;
+}
+
 export default function SettingsManagement() {
   const { theme, setTheme } = useTheme();
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
@@ -82,22 +96,8 @@ export default function SettingsManagement() {
   const [pushConfig, setPushConfig] = useState({
     publicKey: ''
   });
-  const [resendConfig, setResendConfig] = useState<Record<string, string>>({
-    apiKey: '',
-    toEmail: '',
-    apiKey2: '',
-    toEmail2: '',
-    apiKey3: '',
-    toEmail3: '',
-    apiKey4: '',
-    toEmail4: '',
-    apiKey5: '',
-    toEmail5: '',
-    apiKey6: '',
-    toEmail6: '',
-    fromEmail: RESEND_DEFAULT_FROM
-  });
-  const [resendVisibleSlotCount, setResendVisibleSlotCount] = useState(3);
+  const [resendConfig, setResendConfig] = useState<Record<string, string>>(createEmptyResendConfig);
+  const [resendVisibleSlotCount, setResendVisibleSlotCount] = useState(RESEND_SLOT_COUNT);
   const [resendTestLoading, setResendTestLoading] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkIsUpdate, setBulkIsUpdate] = useState(false);
