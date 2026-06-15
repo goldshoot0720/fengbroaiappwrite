@@ -44,6 +44,7 @@ interface CreateProgress {
 }
 
 const RESEND_SLOT_COUNT = 21;
+const RESEND_VISIBLE_SLOT_OPTIONS = [3, 6, 9, 12, 15, 18, 21];
 const RESEND_DEFAULT_FROM = 'FengBro <onboarding@resend.dev>';
 
 function getResendSuffix(slot: number) {
@@ -96,6 +97,7 @@ export default function SettingsManagement() {
     toEmail6: '',
     fromEmail: RESEND_DEFAULT_FROM
   });
+  const [resendVisibleSlotCount, setResendVisibleSlotCount] = useState(3);
   const [resendTestLoading, setResendTestLoading] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkIsUpdate, setBulkIsUpdate] = useState(false);
@@ -1243,17 +1245,36 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
 
         {/* Resend Email 通知設定 */}
         <DataCard className="p-6 md:col-span-2">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-rose-100 dark:bg-rose-900/30">
-              <Mail size={20} className="text-rose-600 dark:text-rose-400" />
+          <div className="flex flex-col gap-4 mb-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-rose-100 dark:bg-rose-900/30">
+                <Mail size={20} className="text-rose-600 dark:text-rose-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">Resend Email 通知</h3>
+                <p className="text-xs text-gray-400">訂閱到期前一天、食品到期前一周各提醒一次</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-lg">Resend Email 通知</h3>
-              <p className="text-xs text-gray-400">訂閱到期前一天、食品到期前一周各提醒一次</p>
+            <div className="flex items-center gap-2 rounded-2xl border border-rose-100 bg-rose-50/60 px-3 py-2 dark:border-rose-900/50 dark:bg-rose-950/30">
+              <label htmlFor="resend-slot-count" className="text-sm text-rose-700 dark:text-rose-300">
+                顯示組數
+              </label>
+              <select
+                id="resend-slot-count"
+                value={resendVisibleSlotCount}
+                onChange={(event) => setResendVisibleSlotCount(Number(event.target.value))}
+                className="rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-sm font-semibold text-rose-700 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-rose-800 dark:bg-gray-950 dark:text-rose-200 dark:focus:ring-rose-900"
+              >
+                {RESEND_VISIBLE_SLOT_OPTIONS.map((count) => (
+                  <option key={count} value={count}>
+                    {count} 組
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="space-y-4">
-            {Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
+            {Array.from({ length: resendVisibleSlotCount }, (_, index) => {
               const slot = index + 1;
               const fields = getResendSlotFields(slot);
               return (
