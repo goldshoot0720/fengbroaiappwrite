@@ -1308,7 +1308,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             </div>
             <div className="p-3 bg-rose-50 dark:bg-rose-950 rounded-lg border border-rose-200 dark:border-rose-800">
               <p className="text-xs text-rose-700 dark:text-rose-300">
-                Vercel Cron 每天 05:16（台灣時間）檢查一次；部署環境至少需設定一組 RESEND_API_KEY / RESEND_TO_EMAIL，最多可設定到 RESEND_API_KEY6 / RESEND_TO_EMAIL6 寄給更多收件人。
+                {`Vercel Cron 每天 05:16（台灣時間）檢查一次；部署環境至少需設定一組 RESEND_API_KEY / RESEND_TO_EMAIL，最多可設定到 RESEND_API_KEY${RESEND_SLOT_COUNT} / RESEND_TO_EMAIL${RESEND_SLOT_COUNT} 寄給更多收件人。`}
               </p>
             </div>
           </div>
