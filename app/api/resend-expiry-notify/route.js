@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 const TAIPEI_TIME_ZONE = "Asia/Taipei";
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const RESEND_SLOT_COUNT = 21;
 
 function getTaipeiDateKey(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -81,7 +82,7 @@ function getResendConfig(searchParams, body = {}) {
     process.env.RESEND_FROM_EMAIL ||
     "FengBro <onboarding@resend.dev>";
 
-  return Array.from({ length: 6 }, (_, index) => {
+  return Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
     const slot = index + 1;
     const suffix = slot === 1 ? "" : String(slot);
     return {
@@ -188,7 +189,7 @@ async function handleResendExpiryNotify(request) {
   try {
     const { searchParams } = new URL(request.url);
     const body = await readBody(request);
-    const hasManualResendKey = Array.from({ length: 6 }, (_, index) => {
+    const hasManualResendKey = Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
       const suffix = index === 0 ? "" : String(index + 1);
       return body[`resendApiKey${suffix}`];
     }).some(Boolean);
