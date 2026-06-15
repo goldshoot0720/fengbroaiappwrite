@@ -202,12 +202,22 @@ async function handleResendExpiryNotify(request) {
     const resendConfigs = getResendConfig(searchParams, body);
 
     if (resendConfigs.length === 0) {
-      return NextResponse.json({ success: true, skipped: true, reason: "RESEND_API_KEY / RESEND_TO_EMAIL is not configured" });
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: "RESEND_API_KEY / RESEND_TO_EMAIL is not configured",
+        maxResendSlots: RESEND_SLOT_COUNT,
+        configuredResendSlots: 0,
+      });
     }
 
     const invalidConfig = resendConfigs.find((config) => !config.apiKey || !config.to);
     if (invalidConfig) {
-      return NextResponse.json({ error: `${invalidConfig.keyName} requires both API key and recipient email` }, { status: 400 });
+      return NextResponse.json({
+        error: `${invalidConfig.keyName} requires both API key and recipient email`,
+        maxResendSlots: RESEND_SLOT_COUNT,
+        configuredResendSlots: resendConfigs.length,
+      }, { status: 400 });
     }
 
     const { databases, databaseId } = createAppwrite(searchParams, body);
@@ -215,7 +225,15 @@ async function handleResendExpiryNotify(request) {
     const { subscriptions, foods } = await collectExpiryItems(databases, databaseId);
 
     if (subscriptions.length === 0 && foods.length === 0) {
-      return NextResponse.json({ success: true, sent: 0, subscriptions: 0, foods: 0, checkedAt: new Date().toISOString() });
+      return NextResponse.json({
+        success: true,
+        sent: 0,
+        subscriptions: 0,
+        foods: 0,
+        maxResendSlots: RESEND_SLOT_COUNT,
+        configuredResendSlots: resendConfigs.length,
+        checkedAt: new Date().toISOString(),
+      });
     }
 
     const email = buildEmail({ subscriptions, foods, todayKey });
@@ -233,6 +251,8 @@ async function handleResendExpiryNotify(request) {
       resendIds: resendResults.map((result) => result?.id).filter(Boolean),
       subscriptions: subscriptions.length,
       foods: foods.length,
+      maxResendSlots: RESEND_SLOT_COUNT,
+      configuredResendSlots: resendConfigs.length,
       checkedAt: new Date().toISOString(),
     });
   } catch (error) {
