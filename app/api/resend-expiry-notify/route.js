@@ -81,26 +81,16 @@ function getResendConfig(searchParams, body = {}) {
     process.env.RESEND_FROM_EMAIL ||
     "FengBro <onboarding@resend.dev>";
 
-  return [
-    {
-      keyName: "RESEND_API_KEY",
-      apiKey: body.resendApiKey || searchParams.get("_resendKey") || process.env.RESEND_API_KEY || "",
-      to: body.resendTo || searchParams.get("_resendTo") || process.env.RESEND_TO_EMAIL || "",
+  return Array.from({ length: 6 }, (_, index) => {
+    const slot = index + 1;
+    const suffix = slot === 1 ? "" : String(slot);
+    return {
+      keyName: `RESEND_API_KEY${suffix}`,
+      apiKey: body[`resendApiKey${suffix}`] || searchParams.get(`_resendKey${suffix}`) || process.env[`RESEND_API_KEY${suffix}`] || "",
+      to: body[`resendTo${suffix}`] || searchParams.get(`_resendTo${suffix}`) || process.env[`RESEND_TO_EMAIL${suffix}`] || "",
       from,
-    },
-    {
-      keyName: "RESEND_API_KEY2",
-      apiKey: body.resendApiKey2 || searchParams.get("_resendKey2") || process.env.RESEND_API_KEY2 || "",
-      to: body.resendTo2 || searchParams.get("_resendTo2") || process.env.RESEND_TO_EMAIL2 || "",
-      from,
-    },
-    {
-      keyName: "RESEND_API_KEY3",
-      apiKey: body.resendApiKey3 || searchParams.get("_resendKey3") || process.env.RESEND_API_KEY3 || "",
-      to: body.resendTo3 || searchParams.get("_resendTo3") || process.env.RESEND_TO_EMAIL3 || "",
-      from,
-    },
-  ].filter((config) => config.apiKey || config.to);
+    };
+  }).filter((config) => config.apiKey || config.to);
 }
 
 function formatDate(dateStr) {
@@ -198,7 +188,11 @@ async function handleResendExpiryNotify(request) {
   try {
     const { searchParams } = new URL(request.url);
     const body = await readBody(request);
-    const hasManualCredentials = request.method === "POST" && body.resendApiKey && body.appwriteApiKey;
+    const hasManualResendKey = Array.from({ length: 6 }, (_, index) => {
+      const suffix = index === 0 ? "" : String(index + 1);
+      return body[`resendApiKey${suffix}`];
+    }).some(Boolean);
+    const hasManualCredentials = request.method === "POST" && hasManualResendKey && body.appwriteApiKey;
 
     if (!hasManualCredentials && !verifyAuth(request)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -51,7 +51,7 @@ function getDefaultMusicName(fileName: string): string {
   return fileName.replace(/\.[^/.]+$/, '');
 }
 
-const DEFAULT_MUSIC_LANGUAGES = ['中文', '英語', '日語', '韓語', '粵語'];
+const DEFAULT_MUSIC_LANGUAGES = ['中文', '英語', '日語', '韓語', '粵語', '8-bit', 'instrumental', '其他'];
 
 export default function MusicManagement() {
   const { music, loading, error, stats, loadMusic } = useMusic();

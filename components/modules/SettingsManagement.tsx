@@ -43,6 +43,25 @@ interface CreateProgress {
   collectionId?: string;
 }
 
+const RESEND_SLOT_COUNT = 6;
+const RESEND_DEFAULT_FROM = 'FengBro <onboarding@resend.dev>';
+
+function getResendSuffix(slot: number) {
+  return slot === 1 ? '' : String(slot);
+}
+
+function getResendSlotFields(slot: number) {
+  const suffix = getResendSuffix(slot);
+  return {
+    apiKey: `apiKey${suffix}`,
+    toEmail: `toEmail${suffix}`,
+    envApiKey: `RESEND_API_KEY${suffix}`,
+    envToEmail: `RESEND_TO_EMAIL${suffix}`,
+    bodyApiKey: `resendApiKey${suffix}`,
+    bodyToEmail: `resendTo${suffix}`,
+  };
+}
+
 export default function SettingsManagement() {
   const { theme, setTheme } = useTheme();
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
@@ -62,14 +81,20 @@ export default function SettingsManagement() {
   const [pushConfig, setPushConfig] = useState({
     publicKey: ''
   });
-  const [resendConfig, setResendConfig] = useState({
+  const [resendConfig, setResendConfig] = useState<Record<string, string>>({
     apiKey: '',
     toEmail: '',
     apiKey2: '',
     toEmail2: '',
     apiKey3: '',
     toEmail3: '',
-    fromEmail: 'FengBro <onboarding@resend.dev>'
+    apiKey4: '',
+    toEmail4: '',
+    apiKey5: '',
+    toEmail5: '',
+    apiKey6: '',
+    toEmail6: '',
+    fromEmail: RESEND_DEFAULT_FROM
   });
   const [resendTestLoading, setResendTestLoading] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
@@ -125,15 +150,15 @@ export default function SettingsManagement() {
     setPushConfig({
       publicKey: localStorage.getItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY') || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
     });
-    setResendConfig({
-      apiKey: localStorage.getItem('RESEND_API_KEY') || '',
-      toEmail: localStorage.getItem('RESEND_TO_EMAIL') || '',
-      apiKey2: localStorage.getItem('RESEND_API_KEY2') || '',
-      toEmail2: localStorage.getItem('RESEND_TO_EMAIL2') || '',
-      apiKey3: localStorage.getItem('RESEND_API_KEY3') || '',
-      toEmail3: localStorage.getItem('RESEND_TO_EMAIL3') || '',
-      fromEmail: localStorage.getItem('RESEND_FROM_EMAIL') || 'FengBro <onboarding@resend.dev>'
-    });
+    const savedResendConfig: Record<string, string> = {
+      fromEmail: localStorage.getItem('RESEND_FROM_EMAIL') || RESEND_DEFAULT_FROM
+    };
+    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
+      const fields = getResendSlotFields(slot);
+      savedResendConfig[fields.apiKey] = localStorage.getItem(fields.envApiKey) || '';
+      savedResendConfig[fields.toEmail] = localStorage.getItem(fields.envToEmail) || '';
+    }
+    setResendConfig(savedResendConfig);
   }, []);
 
   const getPushPublicKey = () => {
@@ -201,45 +226,36 @@ export default function SettingsManagement() {
 
   const handleSaveResendConfig = () => {
     if (typeof window === 'undefined') return;
-    const apiKey = resendConfig.apiKey.trim();
-    const toEmail = resendConfig.toEmail.trim();
-    const apiKey2 = resendConfig.apiKey2.trim();
-    const toEmail2 = resendConfig.toEmail2.trim();
-    const apiKey3 = resendConfig.apiKey3.trim();
-    const toEmail3 = resendConfig.toEmail3.trim();
-    const fromEmail = resendConfig.fromEmail.trim() || 'FengBro <onboarding@resend.dev>';
-
-    if (apiKey) localStorage.setItem('RESEND_API_KEY', apiKey);
-    else localStorage.removeItem('RESEND_API_KEY');
-
-    if (toEmail) localStorage.setItem('RESEND_TO_EMAIL', toEmail);
-    else localStorage.removeItem('RESEND_TO_EMAIL');
-
-    if (apiKey2) localStorage.setItem('RESEND_API_KEY2', apiKey2);
-    else localStorage.removeItem('RESEND_API_KEY2');
-
-    if (toEmail2) localStorage.setItem('RESEND_TO_EMAIL2', toEmail2);
-    else localStorage.removeItem('RESEND_TO_EMAIL2');
-
-    if (apiKey3) localStorage.setItem('RESEND_API_KEY3', apiKey3);
-    else localStorage.removeItem('RESEND_API_KEY3');
-
-    if (toEmail3) localStorage.setItem('RESEND_TO_EMAIL3', toEmail3);
-    else localStorage.removeItem('RESEND_TO_EMAIL3');
+    const nextConfig: Record<string, string> = {};
+    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
+      const fields = getResendSlotFields(slot);
+      const apiKey = (resendConfig[fields.apiKey] || '').trim();
+      const toEmail = (resendConfig[fields.toEmail] || '').trim();
+      nextConfig[fields.apiKey] = apiKey;
+      nextConfig[fields.toEmail] = toEmail;
+      if (apiKey) localStorage.setItem(fields.envApiKey, apiKey);
+      else localStorage.removeItem(fields.envApiKey);
+      if (toEmail) localStorage.setItem(fields.envToEmail, toEmail);
+      else localStorage.removeItem(fields.envToEmail);
+    }
+    const fromEmail = resendConfig.fromEmail.trim() || RESEND_DEFAULT_FROM;
 
     localStorage.setItem('RESEND_FROM_EMAIL', fromEmail);
-    setResendConfig({ apiKey, toEmail, apiKey2, toEmail2, apiKey3, toEmail3, fromEmail });
-    alert('✅ Resend Email 通知設定已儲存。部署環境請同步設定 RESEND_API_KEY / RESEND_TO_EMAIL，可選 RESEND_API_KEY2 / RESEND_TO_EMAIL2、RESEND_API_KEY3 / RESEND_TO_EMAIL3。');
+    setResendConfig({ ...nextConfig, fromEmail });
+    alert('✅ Resend Email 通知設定已儲存。部署環境請同步設定 RESEND_API_KEY / RESEND_TO_EMAIL，最多可使用 RESEND_API_KEY6 / RESEND_TO_EMAIL6。');
   };
 
   const handleTestResendNotification = async () => {
-    const apiKey = resendConfig.apiKey.trim();
-    const toEmail = resendConfig.toEmail.trim();
-    const apiKey2 = resendConfig.apiKey2.trim();
-    const toEmail2 = resendConfig.toEmail2.trim();
-    const apiKey3 = resendConfig.apiKey3.trim();
-    const toEmail3 = resendConfig.toEmail3.trim();
-    if ((!apiKey || !toEmail) && (!apiKey2 || !toEmail2) && (!apiKey3 || !toEmail3)) {
+    const resendPayload: Record<string, string> = {};
+    const hasCompleteResendSlot = Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
+      const fields = getResendSlotFields(index + 1);
+      const apiKey = (resendConfig[fields.apiKey] || '').trim();
+      const toEmail = (resendConfig[fields.toEmail] || '').trim();
+      resendPayload[fields.bodyApiKey] = apiKey;
+      resendPayload[fields.bodyToEmail] = toEmail;
+      return Boolean(apiKey && toEmail);
+    }).some(Boolean);
+    if (!hasCompleteResendSlot) {
       alert('請至少填寫一組 RESEND API Key 與通知收件 Email');
       return;
     }
@@ -250,13 +266,8 @@ export default function SettingsManagement() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          resendApiKey: apiKey,
-          resendTo: toEmail,
-          resendApiKey2: apiKey2,
-          resendTo2: toEmail2,
-          resendApiKey3: apiKey3,
-          resendTo3: toEmail3,
-          resendFrom: resendConfig.fromEmail.trim() || 'FengBro <onboarding@resend.dev>',
+          ...resendPayload,
+          resendFrom: resendConfig.fromEmail.trim() || RESEND_DEFAULT_FROM,
           endpoint: appwriteConfig.endpoint,
           projectId: appwriteConfig.projectId,
           databaseId: appwriteConfig.databaseId,
@@ -350,12 +361,11 @@ export default function SettingsManagement() {
     localStorage.removeItem('APPWRITE_BUCKET_ID');
     localStorage.removeItem('APPWRITE_API_KEY');
     localStorage.removeItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY');
-    localStorage.removeItem('RESEND_API_KEY');
-    localStorage.removeItem('RESEND_TO_EMAIL');
-    localStorage.removeItem('RESEND_API_KEY2');
-    localStorage.removeItem('RESEND_TO_EMAIL2');
-    localStorage.removeItem('RESEND_API_KEY3');
-    localStorage.removeItem('RESEND_TO_EMAIL3');
+    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
+      const fields = getResendSlotFields(slot);
+      localStorage.removeItem(fields.envApiKey);
+      localStorage.removeItem(fields.envToEmail);
+    }
     localStorage.removeItem('RESEND_FROM_EMAIL');
     localStorage.removeItem('appwrite_custom_config_saved');
     
@@ -379,12 +389,10 @@ APPWRITE_DATABASE_ID=${appwriteConfig.databaseId}
 APPWRITE_BUCKET_ID=${appwriteConfig.bucketId}
 APPWRITE_API_KEY=${appwriteConfig.apiKey}
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}
-RESEND_API_KEY=${resendConfig.apiKey}
-RESEND_TO_EMAIL=${resendConfig.toEmail}
-RESEND_API_KEY2=${resendConfig.apiKey2}
-RESEND_TO_EMAIL2=${resendConfig.toEmail2}
-RESEND_API_KEY3=${resendConfig.apiKey3}
-RESEND_TO_EMAIL3=${resendConfig.toEmail3}
+${Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
+  const fields = getResendSlotFields(index + 1);
+  return `${fields.envApiKey}=${resendConfig[fields.apiKey] || ''}\n${fields.envToEmail}=${resendConfig[fields.toEmail] || ''}`;
+}).join('\n')}
 RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
     
     navigator.clipboard.writeText(envTemplate).then(() => {
@@ -1245,72 +1253,34 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             </div>
           </div>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400 block">RESEND_API_KEY</label>
-                <Input
-                  type="password"
-                  value={resendConfig.apiKey}
-                  onChange={(e) => setResendConfig({ ...resendConfig, apiKey: e.target.value })}
-                  placeholder="re_..."
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400 block">通知收件 Email</label>
-                <Input
-                  type="email"
-                  value={resendConfig.toEmail}
-                  onChange={(e) => setResendConfig({ ...resendConfig, toEmail: e.target.value })}
-                  placeholder="you@example.com"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400 block">RESEND_API_KEY2</label>
-                <Input
-                  type="password"
-                  value={resendConfig.apiKey2}
-                  onChange={(e) => setResendConfig({ ...resendConfig, apiKey2: e.target.value })}
-                  placeholder="re_..."
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400 block">通知收件 Email 2</label>
-                <Input
-                  type="email"
-                  value={resendConfig.toEmail2}
-                  onChange={(e) => setResendConfig({ ...resendConfig, toEmail2: e.target.value })}
-                  placeholder="you2@example.com"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400 block">RESEND_API_KEY3</label>
-                <Input
-                  type="password"
-                  value={resendConfig.apiKey3}
-                  onChange={(e) => setResendConfig({ ...resendConfig, apiKey3: e.target.value })}
-                  placeholder="re_..."
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400 block">通知收件 Email 3</label>
-                <Input
-                  type="email"
-                  value={resendConfig.toEmail3}
-                  onChange={(e) => setResendConfig({ ...resendConfig, toEmail3: e.target.value })}
-                  placeholder="you3@example.com"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
+            {Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
+              const slot = index + 1;
+              const fields = getResendSlotFields(slot);
+              return (
+                <div key={slot} className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm text-gray-600 dark:text-gray-400 block">{fields.envApiKey}</label>
+                    <Input
+                      type="password"
+                      value={resendConfig[fields.apiKey] || ''}
+                      onChange={(e) => setResendConfig({ ...resendConfig, [fields.apiKey]: e.target.value })}
+                      placeholder="re_..."
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm text-gray-600 dark:text-gray-400 block">通知收件 Email {slot === 1 ? '' : slot}</label>
+                    <Input
+                      type="email"
+                      value={resendConfig[fields.toEmail] || ''}
+                      onChange={(e) => setResendConfig({ ...resendConfig, [fields.toEmail]: e.target.value })}
+                      placeholder={slot === 1 ? "you@example.com" : `you${slot}@example.com`}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              );
+            })}
             <div className="space-y-2">
               <label className="text-sm text-gray-600 dark:text-gray-400 block">寄件人</label>
               <Input
@@ -1338,7 +1308,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             </div>
             <div className="p-3 bg-rose-50 dark:bg-rose-950 rounded-lg border border-rose-200 dark:border-rose-800">
               <p className="text-xs text-rose-700 dark:text-rose-300">
-                Vercel Cron 每天 05:16（台灣時間）檢查一次；部署環境至少需設定一組 RESEND_API_KEY / RESEND_TO_EMAIL，也可設定 RESEND_API_KEY2 / RESEND_TO_EMAIL2、RESEND_API_KEY3 / RESEND_TO_EMAIL3 寄給更多收件人。
+                Vercel Cron 每天 05:16（台灣時間）檢查一次；部署環境至少需設定一組 RESEND_API_KEY / RESEND_TO_EMAIL，最多可設定到 RESEND_API_KEY6 / RESEND_TO_EMAIL6 寄給更多收件人。
               </p>
             </div>
           </div>

@@ -1994,7 +1994,7 @@ export default function VideoIntroduction() {
                         </tr>
                       </thead>
                       <tbody>
-                        {importPreview.data.slice(0, 10).map((item, i) => (
+                        {importPreview.data.slice(0, 12).map((item, i) => (
                           <tr key={i} className="border-b border-gray-200 dark:border-gray-700">
                             <td className="px-3 py-2 font-medium">{item.name}</td>
                             <td className="px-3 py-2">{item.category || '-'}</td>
@@ -2003,8 +2003,8 @@ export default function VideoIntroduction() {
                         ))}
                       </tbody>
                     </table>
-                    {importPreview.data.length > 10 && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">...還有 {importPreview.data.length - 10} 筆</p>
+                    {importPreview.data.length > 12 && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">...還有 {importPreview.data.length - 12} 筆</p>
                     )}
                   </div>
                 </>
@@ -2138,7 +2138,7 @@ function VideoPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { vid
       }
     }
 
-    return result.slice(0, 10);
+    return result.slice(0, 12);
   }, [allVideosWithFile, currentVideo.$id, playedIds]);
 
   const toggleFullscreen = () => setIsFullscreen(!isFullscreen);
@@ -2891,7 +2891,7 @@ function InlineCreateVideoCard({
       </label>
       {selectedFiles.length > 1 && (
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          將建立 {selectedFiles.length} 筆影片資料，分類、備註與參考會共用；封面會自動使用各自第 1 秒截圖。
+          將建立 {selectedFiles.length} 筆影片資料；分類、備註與參考會共用，封面會自動使用各自第 1 秒截圖。
         </p>
       )}
       <VideoUploadProgressList items={uploadProgressItems} />
@@ -4141,7 +4141,7 @@ function VideoFormModal({ video, existingVideos, onClose, onSuccess }: { video: 
               </div>
               {selectedFiles.length > 1 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  將建立 {selectedFiles.length} 筆影片資料，分類、備註與參考會共用；封面會自動使用各自第 1 秒截圖。
+                  將建立 {selectedFiles.length} 筆影片資料；分類、備註與參考會共用，封面會自動使用各自第 1 秒截圖。
                 </p>
               )}
               <VideoUploadProgressList items={uploadProgressItems} />
