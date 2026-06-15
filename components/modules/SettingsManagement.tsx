@@ -43,7 +43,7 @@ interface CreateProgress {
   collectionId?: string;
 }
 
-const RESEND_SLOT_COUNT = 6;
+const RESEND_SLOT_COUNT = 21;
 const RESEND_DEFAULT_FROM = 'FengBro <onboarding@resend.dev>';
 
 function getResendSuffix(slot: number) {
