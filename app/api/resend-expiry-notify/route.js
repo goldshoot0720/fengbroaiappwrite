@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 const TAIPEI_TIME_ZONE = "Asia/Taipei";
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
-const RESEND_SLOT_COUNT = 21;
+const RESEND_SLOT_COUNT = 6;
 
 function getTaipeiDateKey(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
