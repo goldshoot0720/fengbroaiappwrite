@@ -28,6 +28,8 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
   mrshenofficial: "公子沈 Terence Shen",
   jiangtaigong: "加州姜太公NEWS",
   gc趙氏讀書生活: "Gavinchiu趙氏讀書生活",
+  tankman2020: "二爷故事",
+  leonard2834: "Leonard",
 };
 
 const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
@@ -55,6 +57,8 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@mrshenofficial/videos",
   "https://www.youtube.com/@jiangtaigong/videos",
   "https://www.youtube.com/@GC%E8%B6%99%E6%B0%8F%E8%AE%80%E6%9B%B8%E7%94%9F%E6%B4%BB",
+  "https://www.youtube.com/@Tankman2020/videos",
+  "https://www.youtube.com/@leonard2834/videos",
 ];
 
 export function normalizeFengbroTubeSource(input: string) {

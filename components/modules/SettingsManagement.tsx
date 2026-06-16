@@ -44,6 +44,7 @@ interface CreateProgress {
 }
 
 const RESEND_SLOT_COUNT = 21;
+const RESEND_DEFAULT_VISIBLE_SLOT_COUNT = 3;
 const RESEND_VISIBLE_SLOT_OPTIONS = [3, 6, 9, 12, 15, 18, 21];
 const RESEND_DEFAULT_FROM = 'FengBro <onboarding@resend.dev>';
 
@@ -97,7 +98,7 @@ export default function SettingsManagement() {
     publicKey: ''
   });
   const [resendConfig, setResendConfig] = useState<Record<string, string>>(createEmptyResendConfig);
-  const [resendVisibleSlotCount, setResendVisibleSlotCount] = useState(RESEND_SLOT_COUNT);
+  const [resendVisibleSlotCount, setResendVisibleSlotCount] = useState(RESEND_DEFAULT_VISIBLE_SLOT_COUNT);
   const [resendTestLoading, setResendTestLoading] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkIsUpdate, setBulkIsUpdate] = useState(false);
@@ -124,6 +125,15 @@ export default function SettingsManagement() {
     deleted?: number;
     failed?: number;
   } | null>(null);
+
+  const configuredResendSlotCount = useMemo(() => {
+    return Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
+      const fields = getResendSlotFields(index + 1);
+      const apiKey = (resendConfig[fields.apiKey] || '').trim();
+      const toEmail = (resendConfig[fields.toEmail] || '').trim();
+      return apiKey && toEmail;
+    }).filter(Boolean).length;
+  }, [resendConfig]);
 
   // 計算待處理表格數量
   const missingTablesCount = useMemo(() =>
@@ -1271,6 +1281,9 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                   </option>
                 ))}
               </select>
+              <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-rose-500 shadow-sm dark:bg-gray-950 dark:text-rose-300">
+                已設定 {configuredResendSlotCount}/{RESEND_SLOT_COUNT}
+              </span>
             </div>
           </div>
           <div className="space-y-4">
