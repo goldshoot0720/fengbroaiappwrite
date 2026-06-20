@@ -79,6 +79,21 @@ export default function RootLayout({
                 });
               }
 
+              function isSameApplicationServerKey(subscription, vapidPublicKey) {
+                if (!subscription || !subscription.options || !subscription.options.applicationServerKey) return true;
+                try {
+                  var expected = urlBase64ToUint8Array(vapidPublicKey);
+                  var current = new Uint8Array(subscription.options.applicationServerKey);
+                  if (expected.length !== current.length) return false;
+                  for (var i = 0; i < expected.length; i++) {
+                    if (expected[i] !== current[i]) return false;
+                  }
+                  return true;
+                } catch (_) {
+                  return true;
+                }
+              }
+
               async function subscribeToPush(registration) {
                 if (!('pushManager' in registration)) return;
                 if (!('Notification' in window)) return;
@@ -87,6 +102,10 @@ export default function RootLayout({
                 if (!runtimeVapidPublicKey) return;
                 try {
                   var sub = await registration.pushManager.getSubscription();
+                  if (sub && !isSameApplicationServerKey(sub, runtimeVapidPublicKey)) {
+                    await sub.unsubscribe();
+                    sub = null;
+                  }
                   if (!sub) {
                     sub = await registration.pushManager.subscribe({
                       userVisibleOnly: true,
@@ -108,7 +127,7 @@ export default function RootLayout({
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', async function() {
                   try {
-                    const swVersion = 'v9';
+                    const swVersion = 'v10';
                     let reloadedForSw = sessionStorage.getItem('fengbro_sw_reloaded') === swVersion;
 
                     navigator.serviceWorker.addEventListener('controllerchange', function() {

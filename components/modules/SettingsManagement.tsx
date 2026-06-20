@@ -185,6 +185,14 @@ export default function SettingsManagement() {
     return Uint8Array.from(rawData, (char) => char.charCodeAt(0));
   };
 
+  const isSameApplicationServerKey = (subscription: PushSubscription, vapidPublicKey: string) => {
+    const currentKey = subscription.options?.applicationServerKey;
+    if (!currentKey) return true;
+    const expectedKey = urlBase64ToUint8Array(vapidPublicKey);
+    const currentBytes = new Uint8Array(currentKey);
+    return expectedKey.length === currentBytes.length && expectedKey.every((byte, index) => byte === currentBytes[index]);
+  };
+
   const handleSaveConfig = () => {
     if (typeof window === 'undefined') return;
     
@@ -400,6 +408,8 @@ NEXT_PUBLIC_APPWRITE_PROJECT_ID=${appwriteConfig.projectId}
 APPWRITE_DATABASE_ID=${appwriteConfig.databaseId}
 APPWRITE_BUCKET_ID=${appwriteConfig.bucketId}
 APPWRITE_API_KEY=${appwriteConfig.apiKey}
+VAPID_PUBLIC_KEY=${pushConfig.publicKey}
+VAPID_PRIVATE_KEY=
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pushConfig.publicKey}
 ${Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
   const fields = getResendSlotFields(index + 1);
@@ -484,6 +494,10 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
       }
 
       let sub = await reg.pushManager.getSubscription();
+      if (sub && !isSameApplicationServerKey(sub, vapidKey)) {
+        await sub.unsubscribe();
+        sub = null;
+      }
       if (!sub) {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
