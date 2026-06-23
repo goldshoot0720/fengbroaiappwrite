@@ -35,7 +35,7 @@ export default function DashboardLayout({
   menuItems,
 }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [expandedItems, setExpandedItems] = useState<string[]>(["tools"]);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
