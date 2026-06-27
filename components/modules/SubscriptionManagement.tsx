@@ -548,6 +548,11 @@ export default function SubscriptionManagement() {
     [subscriptions]
   );
 
+  const renewingSubscriptions = useMemo(
+    () => subscriptions.filter((sub) => sub.continue !== false),
+    [subscriptions]
+  );
+
   const duplicateGroups = useMemo(() => {
     const groups = new Map<string, Subscription[]>();
 
@@ -1749,6 +1754,7 @@ export default function SubscriptionManagement() {
         ]}
         summaries={[
           { label: "訂閱總數", value: stats.total, tone: "blue" },
+          { label: "續訂數量", value: renewingSubscriptions.length, detail: "目前標記為續訂中", tone: "blue" },
           { label: "本月月費", value: formatCurrency(stats.totalMonthlyFee), tone: "green" },
           { label: "下月月費", value: formatCurrency(stats.nextMonthFee), tone: "neutral" },
           { label: "不續訂", value: stoppedSubscriptions.length, detail: "需留意是否還要保留資料", tone: stoppedSubscriptions.length > 0 ? "amber" : "neutral" },
