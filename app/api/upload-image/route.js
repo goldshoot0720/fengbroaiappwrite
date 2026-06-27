@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertStorageQuotaAvailable } from "../_lib/storageQuota";
 
 const sdk = require('node-appwrite');
+const { InputFile } = require('node-appwrite/file');
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -66,7 +67,7 @@ export async function POST(request) {
 
     const storage = new sdk.Storage(client);
     await assertStorageQuotaAvailable(storage, bucketId, file.size);
-    const fileObject = sdk.InputFile.fromBuffer(buffer, file.name);
+    const fileObject = InputFile.fromBuffer(buffer, file.name);
     const uploadedFile = await storage.createFile(
       bucketId,
       sdk.ID.unique(),

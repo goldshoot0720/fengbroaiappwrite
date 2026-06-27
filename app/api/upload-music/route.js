@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertStorageQuotaAvailable } from "../_lib/storageQuota";
 
 const sdk = require('node-appwrite');
+const { InputFile } = require('node-appwrite/file');
 
 export const dynamic = 'force-dynamic';
 
@@ -103,7 +104,7 @@ export async function POST(request) {
 
     // 上傳到 Appwrite Storage
     // In node-appwrite v21, create File object with buffer
-    const fileObject = sdk.InputFile.fromBuffer(buffer, file.name);
+    const fileObject = InputFile.fromBuffer(buffer, file.name);
     const uploadedFile = await storage.createFile(
       bucketId,
       sdk.ID.unique(),
