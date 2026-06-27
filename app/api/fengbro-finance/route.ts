@@ -10,6 +10,8 @@ type FinanceInstrument = {
   group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
   provider?: "cnbc" | "yahoo" | "multpl";
   alertThreshold?: number;
+  localLabel?: string;
+  youtubeUrl?: string;
 };
 
 const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
@@ -19,8 +21,8 @@ const SHILLER_PE_RECORD_DATE = "Dec 1999";
 const INSTRUMENTS: FinanceInstrument[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", sourceUrl: "https://tw.stock.yahoo.com/s/tse.php", group: "tw", provider: "yahoo", alertThreshold: 126820 },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw", provider: "yahoo", alertThreshold: 3333 },
-  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000 },
-  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia", alertThreshold: 12682 },
+  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000, localLabel: "日経平均株価", youtubeUrl: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1" },
+  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia", alertThreshold: 12682, localLabel: "코스피", youtubeUrl: "https://www.youtube.com/results?search_query=%EC%BD%94%EC%8A%A4%ED%94%BC" },
   { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", sourceUrl: "https://finance.yahoo.com/quote/005930.KS", group: "korea", provider: "yahoo", alertThreshold: 1110000 },
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
   { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", sourceUrl: "https://finance.yahoo.com/quote/USDTWD=X", group: "fx", provider: "yahoo", alertThreshold: 37 },
@@ -28,10 +30,15 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "commodities", alertThreshold: 222 },
   { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "rates", alertThreshold: 6.66 },
   { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "commodities", alertThreshold: 6666 },
-  { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666 },
+  { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666, localLabel: "Roaring '20s" },
   { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", sourceUrl: "https://www.cnbc.com/quotes/.SPX", group: "us", alertThreshold: 11111 },
-  { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333 },
-  { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us" },
+  { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333, localLabel: "科技泡沫" },
+  { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫" },
+  { id: "berkshire-a", name: "Berkshire Hathaway Inc Class A", symbol: "BRK.A", sourceUrl: "https://www.cnbc.com/quotes/BRK.A", group: "us", localLabel: "巴菲特" },
+  { id: "berkshire-b", name: "Berkshire Hathaway Inc Class B", symbol: "BRK.B", sourceUrl: "https://www.cnbc.com/quotes/BRK.B", group: "us", localLabel: "巴菲特" },
+  { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us", localLabel: "AI泡沫" },
+  { id: "spacex", name: "SpaceX", symbol: "SPCX", sourceUrl: "https://www.cnbc.com/quotes/SPCX", group: "us", localLabel: "人類泡沫" },
+  { id: "apple", name: "蘋果", symbol: "AAPL", sourceUrl: "https://www.cnbc.com/quotes/AAPL", group: "us", localLabel: "手機泡沫" },
   { id: "vix", name: "CBOE Volatility Index", symbol: ".VIX", sourceUrl: "https://www.cnbc.com/quotes/.VIX", group: "us" },
   { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "valuation", provider: "multpl", alertThreshold: 45 },
   { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "crypto", alertThreshold: 111111 },

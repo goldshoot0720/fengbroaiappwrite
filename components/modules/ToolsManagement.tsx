@@ -123,6 +123,8 @@ type FengbroFinanceQuote = {
   displayName: string;
   symbol: string;
   sourceUrl: string;
+  localLabel?: string;
+  youtubeUrl?: string;
   group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
   provider?: "cnbc" | "yahoo" | "multpl";
   price: number | null;
@@ -1033,6 +1035,11 @@ function FengbroFinanceSection({
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <h5 className="font-semibold text-foreground">{quote.name}</h5>
+                              {quote.localLabel && (
+                                <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                                  {quote.localLabel}
+                                </span>
+                              )}
                               {recordLabel && (
                                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-sky-50 text-sky-700 border border-sky-200"}`}>
                                   {recordLabel}
@@ -1046,9 +1053,16 @@ function FengbroFinanceSection({
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">{quote.symbol}</p>
                           </div>
-                          <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100">
-                            {quote.provider === "yahoo" ? "Yahoo" : quote.provider === "multpl" || quote.id === "shiller-pe" ? "Multpl" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
-                          </a>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                            {quote.youtubeUrl && (
+                              <a href={quote.youtubeUrl} target="_blank" rel="noreferrer" className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100">
+                                YouTube <Play className="inline h-3 w-3" />
+                              </a>
+                            )}
+                            <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100">
+                              {quote.provider === "yahoo" ? "Yahoo" : quote.provider === "multpl" || quote.id === "shiller-pe" ? "Multpl" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
+                            </a>
+                          </div>
                         </div>
 
                         {quote.error ? (
