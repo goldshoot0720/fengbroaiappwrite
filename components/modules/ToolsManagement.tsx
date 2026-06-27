@@ -138,6 +138,8 @@ type FengbroFinanceQuote = {
   lastUpdated: string;
   recordTag: FinanceRecordTag;
   recordNote?: string;
+  history?: PriceHistoryEntry[];
+  historyError?: string;
   isThresholdAlert?: boolean;
   alertMessage?: string;
   alertThreshold?: number;
@@ -314,6 +316,96 @@ function getFinanceRecordLabel(tag: FinanceRecordTag) {
   if (tag === "new-high") return "\u5275\u65b0\u9ad8";
   if (tag === "new-low") return "\u5275\u65b0\u4f4e";
   return "";
+}
+
+function FinanceFiveYearChart({ quote }: { quote: FengbroFinanceQuote }) {
+  const chart = useMemo(() => {
+    const priced = (quote.history || []).filter(
+      (entry): entry is PriceHistoryEntry & { price: number } => typeof entry.price === "number"
+    );
+    if (priced.length < 2) return null;
+
+    const width = 420;
+    const height = 120;
+    const padding = { top: 14, right: 10, bottom: 18, left: 10 };
+    const innerWidth = width - padding.left - padding.right;
+    const innerHeight = height - padding.top - padding.bottom;
+    const prices = priced.map((entry) => entry.price);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const domain = Math.max(maxPrice - minPrice, Math.max(1, maxPrice * 0.02));
+    const domainMin = minPrice - domain * 0.1;
+    const domainMax = maxPrice + domain * 0.1;
+    const adjustedDomain = Math.max(domainMax - domainMin, 1);
+    const points = priced.map((entry, index) => {
+      const x = padding.left + (index / (priced.length - 1)) * innerWidth;
+      const y = padding.top + ((domainMax - entry.price) / adjustedDomain) * innerHeight;
+      return { ...entry, x, y };
+    });
+    const linePath = buildChartPath(points);
+    const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${(height - padding.bottom).toFixed(2)} L ${points[0].x.toFixed(2)} ${(height - padding.bottom).toFixed(2)} Z`;
+    const earliest = priced[0];
+    const latest = priced[priced.length - 1];
+    const changePercent = earliest.price ? ((latest.price - earliest.price) / earliest.price) * 100 : null;
+
+    return {
+      width,
+      height,
+      areaPath,
+      linePath,
+      minPrice,
+      maxPrice,
+      earliest,
+      latest,
+      changePercent,
+      isUp: latest.price >= earliest.price,
+      gradientId: `financeFiveYearArea-${quote.id}`,
+    };
+  }, [quote.history, quote.id]);
+
+  if (!chart) {
+    return (
+      <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-4 text-center text-xs text-muted-foreground">
+        最近五年走勢暫無資料{quote.historyError ? `：${quote.historyError}` : ""}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,0.98))]">
+      <div className="flex items-center justify-between gap-3 px-3 pt-3 text-xs">
+        <div>
+          <p className="font-semibold text-slate-700">最近五年走勢</p>
+          <p className="mt-0.5 text-muted-foreground">
+            {chart.earliest.date.slice(0, 7)} - {chart.latest.date.slice(0, 7)}
+          </p>
+        </div>
+        <div className={`text-right font-semibold ${chart.isUp ? "text-emerald-700" : "text-red-600"}`}>
+          <p>{chart.changePercent != null ? `${chart.changePercent >= 0 ? "+" : ""}${formatFinanceNumber(chart.changePercent, 2)}%` : "--"}</p>
+          <p className="text-[11px] font-medium text-muted-foreground">
+            {formatFinanceNumber(chart.minPrice, 2)} / {formatFinanceNumber(chart.maxPrice, 2)}
+          </p>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-28 w-full">
+        <defs>
+          <linearGradient id={chart.gradientId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={chart.isUp ? "rgba(16,185,129,0.30)" : "rgba(239,68,68,0.28)"} />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+          </linearGradient>
+        </defs>
+        <path d={chart.areaPath} fill={`url(#${chart.gradientId})`} />
+        <path
+          d={chart.linePath}
+          fill="none"
+          stroke={chart.isUp ? "rgb(5,150,105)" : "rgb(220,38,38)"}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="3"
+        />
+      </svg>
+    </div>
+  );
 }
 
 function buildChartPath(points: Array<{ x: number; y: number }>) {
@@ -1092,6 +1184,7 @@ function FengbroFinanceSection({
                                 <p className="mt-1 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
                               </div>
                             </div>
+                            <FinanceFiveYearChart quote={quote} />
                             {quote.recordNote ? (
                               <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
                                 {quote.recordNote}

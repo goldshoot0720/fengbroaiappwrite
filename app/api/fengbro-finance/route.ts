@@ -14,9 +14,30 @@ type FinanceInstrument = {
   youtubeUrl?: string;
 };
 
+type FinanceHistoryPoint = {
+  date: string;
+  price: number;
+};
+
 const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
 const SHILLER_PE_RECORD_HIGH = 44.19;
 const SHILLER_PE_RECORD_DATE = "Dec 1999";
+const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
+  "nikkei-225": "^N225",
+  kospi: "^KS11",
+  brent: "BZ=F",
+  us30y: "^TYX",
+  gold: "GC=F",
+  dow: "^DJI",
+  sp500: "^GSPC",
+  nasdaq: "^IXIC",
+  "phlx-semiconductor": "^SOX",
+  vix: "^VIX",
+  bitcoin: "BTC-USD",
+  ether: "ETH-USD",
+  "berkshire-a": "BRK-A",
+  "berkshire-b": "BRK-B",
+};
 
 const INSTRUMENTS: FinanceInstrument[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", sourceUrl: "https://tw.stock.yahoo.com/s/tse.php", group: "tw", provider: "yahoo", alertThreshold: 126820 },
@@ -131,6 +152,53 @@ function parseShillerPeText(text: string) {
 function toNumberList(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value.map(asNumber).filter((item): item is number => item != null);
+}
+
+function getYahooHistorySymbol(instrument: FinanceInstrument) {
+  if (YAHOO_HISTORY_SYMBOLS[instrument.id]) return YAHOO_HISTORY_SYMBOLS[instrument.id];
+  if (instrument.provider === "yahoo") return instrument.symbol;
+  if (/^[A-Z0-9.-]+$/.test(instrument.symbol)) return instrument.symbol;
+  return "";
+}
+
+async function fetchYahooHistory(instrument: FinanceInstrument): Promise<FinanceHistoryPoint[]> {
+  const symbol = getYahooHistorySymbol(instrument);
+  if (!symbol) return [];
+
+  const params = new URLSearchParams({
+    range: "5y",
+    interval: "1mo",
+    lang: "zh-TW",
+    region: "TW",
+  });
+
+  const response = await fetch(`${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(symbol)}?${params.toString()}`, {
+    headers: {
+      accept: "application/json,text/plain,*/*",
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) throw new Error(`Yahoo Finance history ${response.status}`);
+  const payload = await response.json();
+  const chart = payload?.chart?.result?.[0];
+  const timestamps = chart?.timestamp;
+  const closes = chart?.indicators?.quote?.[0]?.close;
+  if (!Array.isArray(timestamps) || !Array.isArray(closes)) return [];
+
+  return timestamps
+    .map((timestamp: unknown, index: number) => {
+      const time = asNumber(timestamp);
+      const price = asNumber(closes[index]);
+      if (time == null || price == null) return null;
+      return {
+        date: new Date(time * 1000).toISOString().slice(0, 10),
+        price,
+      };
+    })
+    .filter((point): point is FinanceHistoryPoint => point != null);
 }
 
 async function fetchInstrument(instrument: FinanceInstrument) {
@@ -274,9 +342,27 @@ async function fetchMultplInstrument(instrument: FinanceInstrument) {
 }
 
 async function fetchFinanceInstrument(instrument: FinanceInstrument) {
-  if (instrument.provider === "yahoo") return fetchYahooInstrument(instrument);
-  if (instrument.provider === "multpl") return fetchMultplInstrument(instrument);
-  return fetchInstrument(instrument);
+  const quote =
+    instrument.provider === "yahoo"
+      ? await fetchYahooInstrument(instrument)
+      : instrument.provider === "multpl"
+        ? await fetchMultplInstrument(instrument)
+        : await fetchInstrument(instrument);
+
+  if (instrument.provider === "multpl") {
+    return { ...quote, history: [] };
+  }
+
+  try {
+    const history = await fetchYahooHistory(instrument);
+    return { ...quote, history };
+  } catch (error) {
+    return {
+      ...quote,
+      history: [],
+      historyError: error instanceof Error ? error.message : "Failed to load 5y history",
+    };
+  }
 }
 
 export async function GET() {
@@ -297,6 +383,7 @@ export async function GET() {
       dayLow: null,
       lastUpdated: "",
       recordTag: null,
+      history: [],
       error: item.reason instanceof Error ? item.reason.message : "Failed to load quote",
     };
   }).map((quote) => {
