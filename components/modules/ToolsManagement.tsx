@@ -138,8 +138,8 @@ type FengbroFinanceQuote = {
   lastUpdated: string;
   recordTag: FinanceRecordTag;
   recordNote?: string;
-  history?: PriceHistoryEntry[];
-  historyError?: string;
+  historyRanges?: Record<string, PriceHistoryEntry[]>;
+  historyErrors?: Record<string, string>;
   isThresholdAlert?: boolean;
   alertMessage?: string;
   alertThreshold?: number;
@@ -318,9 +318,25 @@ function getFinanceRecordLabel(tag: FinanceRecordTag) {
   return "";
 }
 
-function FinanceFiveYearChart({ quote }: { quote: FengbroFinanceQuote }) {
+const FINANCE_HISTORY_RANGE_ITEMS = [
+  { key: "1y", label: "最近一年走勢" },
+  { key: "5y", label: "最近五年走勢" },
+  { key: "10y", label: "最近十年走勢" },
+  { key: "20y", label: "最近二十年走勢" },
+  { key: "30y", label: "最近三十年走勢" },
+];
+
+function FinanceHistoryChart({
+  quote,
+  rangeKey,
+  label,
+}: {
+  quote: FengbroFinanceQuote;
+  rangeKey: string;
+  label: string;
+}) {
   const chart = useMemo(() => {
-    const priced = (quote.history || []).filter(
+    const priced = (quote.historyRanges?.[rangeKey] || []).filter(
       (entry): entry is PriceHistoryEntry & { price: number } => typeof entry.price === "number"
     );
     if (priced.length < 2) return null;
@@ -359,23 +375,23 @@ function FinanceFiveYearChart({ quote }: { quote: FengbroFinanceQuote }) {
       latest,
       changePercent,
       isUp: latest.price >= earliest.price,
-      gradientId: `financeFiveYearArea-${quote.id}`,
+      gradientId: `financeHistoryArea-${quote.id}-${rangeKey}`,
     };
-  }, [quote.history, quote.id]);
+  }, [quote.historyRanges, quote.id, rangeKey]);
 
   if (!chart) {
     return (
-      <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-4 text-center text-xs text-muted-foreground">
-        最近五年走勢暫無資料{quote.historyError ? `：${quote.historyError}` : ""}
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-4 text-center text-xs text-muted-foreground">
+        {label}暫無資料{quote.historyErrors?.[rangeKey] ? `：${quote.historyErrors[rangeKey]}` : ""}
       </div>
     );
   }
 
   return (
-    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,0.98))]">
+    <div className="overflow-hidden rounded-2xl border border-slate-100 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,0.98))]">
       <div className="flex items-center justify-between gap-3 px-3 pt-3 text-xs">
         <div>
-          <p className="font-semibold text-slate-700">最近五年走勢</p>
+          <p className="font-semibold text-slate-700">{label}</p>
           <p className="mt-0.5 text-muted-foreground">
             {chart.earliest.date.slice(0, 7)} - {chart.latest.date.slice(0, 7)}
           </p>
@@ -404,6 +420,30 @@ function FinanceFiveYearChart({ quote }: { quote: FengbroFinanceQuote }) {
           strokeWidth="3"
         />
       </svg>
+    </div>
+  );
+}
+
+function FinanceHistoryPanels({ quote }: { quote: FengbroFinanceQuote }) {
+  return (
+    <div className="mt-4 space-y-2">
+      {FINANCE_HISTORY_RANGE_ITEMS.map((item, index) => (
+        <details
+          key={item.key}
+          className="group rounded-2xl border border-slate-100 bg-white/80 shadow-sm open:border-emerald-200 open:bg-emerald-50/30"
+          open={index === 0}
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-semibold text-slate-700">
+            <span>{item.label}</span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 group-open:bg-emerald-100 group-open:text-emerald-700">
+              可折疊
+            </span>
+          </summary>
+          <div className="px-3 pb-3">
+            <FinanceHistoryChart quote={quote} rangeKey={item.key} label={item.label} />
+          </div>
+        </details>
+      ))}
     </div>
   );
 }
@@ -1184,7 +1224,7 @@ function FengbroFinanceSection({
                                 <p className="mt-1 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
                               </div>
                             </div>
-                            <FinanceFiveYearChart quote={quote} />
+                            <FinanceHistoryPanels quote={quote} />
                             {quote.recordNote ? (
                               <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
                                 {quote.recordNote}

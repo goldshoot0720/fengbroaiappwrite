@@ -19,9 +19,22 @@ type FinanceHistoryPoint = {
   price: number;
 };
 
+type FinanceHistoryRange = {
+  key: "1y" | "5y" | "10y" | "20y" | "30y";
+  range: string;
+  interval: string;
+};
+
 const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
 const SHILLER_PE_RECORD_HIGH = 44.19;
 const SHILLER_PE_RECORD_DATE = "Dec 1999";
+const FINANCE_HISTORY_RANGES: FinanceHistoryRange[] = [
+  { key: "1y", range: "1y", interval: "1wk" },
+  { key: "5y", range: "5y", interval: "1mo" },
+  { key: "10y", range: "10y", interval: "1mo" },
+  { key: "20y", range: "20y", interval: "3mo" },
+  { key: "30y", range: "30y", interval: "3mo" },
+];
 const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   "nikkei-225": "^N225",
   kospi: "^KS11",
@@ -161,13 +174,13 @@ function getYahooHistorySymbol(instrument: FinanceInstrument) {
   return "";
 }
 
-async function fetchYahooHistory(instrument: FinanceInstrument): Promise<FinanceHistoryPoint[]> {
+async function fetchYahooHistory(instrument: FinanceInstrument, historyRange: FinanceHistoryRange): Promise<FinanceHistoryPoint[]> {
   const symbol = getYahooHistorySymbol(instrument);
   if (!symbol) return [];
 
   const params = new URLSearchParams({
-    range: "5y",
-    interval: "1mo",
+    range: historyRange.range,
+    interval: historyRange.interval,
     lang: "zh-TW",
     region: "TW",
   });
@@ -199,6 +212,26 @@ async function fetchYahooHistory(instrument: FinanceInstrument): Promise<Finance
       };
     })
     .filter((point): point is FinanceHistoryPoint => point != null);
+}
+
+async function fetchYahooHistoryRanges(instrument: FinanceInstrument) {
+  const settled = await Promise.allSettled(
+    FINANCE_HISTORY_RANGES.map((historyRange) => fetchYahooHistory(instrument, historyRange))
+  );
+  const historyRanges: Record<string, FinanceHistoryPoint[]> = {};
+  const historyErrors: Record<string, string> = {};
+
+  settled.forEach((item, index) => {
+    const key = FINANCE_HISTORY_RANGES[index].key;
+    if (item.status === "fulfilled") {
+      historyRanges[key] = item.value;
+      return;
+    }
+    historyRanges[key] = [];
+    historyErrors[key] = item.reason instanceof Error ? item.reason.message : "Failed to load history";
+  });
+
+  return { historyRanges, historyErrors };
 }
 
 async function fetchInstrument(instrument: FinanceInstrument) {
@@ -350,17 +383,19 @@ async function fetchFinanceInstrument(instrument: FinanceInstrument) {
         : await fetchInstrument(instrument);
 
   if (instrument.provider === "multpl") {
-    return { ...quote, history: [] };
+    return { ...quote, historyRanges: {}, historyErrors: {} };
   }
 
   try {
-    const history = await fetchYahooHistory(instrument);
-    return { ...quote, history };
+    const { historyRanges, historyErrors } = await fetchYahooHistoryRanges(instrument);
+    return { ...quote, historyRanges, historyErrors };
   } catch (error) {
     return {
       ...quote,
-      history: [],
-      historyError: error instanceof Error ? error.message : "Failed to load 5y history",
+      historyRanges: {},
+      historyErrors: {
+        all: error instanceof Error ? error.message : "Failed to load history",
+      },
     };
   }
 }
@@ -383,7 +418,8 @@ export async function GET() {
       dayLow: null,
       lastUpdated: "",
       recordTag: null,
-      history: [],
+      historyRanges: {},
+      historyErrors: {},
       error: item.reason instanceof Error ? item.reason.message : "Failed to load quote",
     };
   }).map((quote) => {
