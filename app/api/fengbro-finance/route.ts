@@ -77,7 +77,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "berkshire-b", name: "Berkshire Hathaway Inc Class B", symbol: "BRK.B", sourceUrl: "https://www.cnbc.com/quotes/BRK.B", group: "us", localLabel: "巴菲特" },
   { id: "intel", name: "Intel Corp", symbol: "INTC", sourceUrl: "https://www.cnbc.com/quotes/INTC", group: "us", localLabel: "NASDAQ: INTC" },
   { id: "amd", name: "Advanced Micro Devices Inc", symbol: "AMD", sourceUrl: "https://www.cnbc.com/quotes/AMD", group: "us", localLabel: "NASDAQ: AMD" },
-  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", sourceUrl: "https://www.cnbc.com/quotes/NVDA", group: "us", localLabel: "破產清算" },
+  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", sourceUrl: "https://www.cnbc.com/quotes/NVDA", group: "us", localLabel: "破產保護" },
   { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us", localLabel: "AI泡沫" },
   { id: "spacex", name: "SpaceX", symbol: "SPCX", sourceUrl: "https://www.cnbc.com/quotes/SPCX", group: "us", localLabel: "人類泡沫" },
   { id: "apple", name: "蘋果", symbol: "AAPL", sourceUrl: "https://www.cnbc.com/quotes/AAPL", group: "us", localLabel: "手機泡沫" },
