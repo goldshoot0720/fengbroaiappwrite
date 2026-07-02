@@ -125,6 +125,7 @@ type FengbroFinanceQuote = {
   sourceUrl: string;
   localLabel?: string;
   youtubeUrl?: string;
+  bilibiliUrl?: string;
   imageUrl?: string;
   group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
   provider?: "cnbc" | "yahoo" | "multpl";
@@ -1196,6 +1197,11 @@ function FengbroFinanceSection({
                             {quote.youtubeUrl && (
                               <a href={quote.youtubeUrl} target="_blank" rel="noreferrer" className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100">
                                 YouTube <Play className="inline h-3 w-3" />
+                              </a>
+                            )}
+                            {quote.bilibiliUrl && (
+                              <a href={quote.bilibiliUrl} target="_blank" rel="noreferrer" className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-xs text-sky-700 hover:bg-sky-100">
+                                Bilibili <Play className="inline h-3 w-3" />
                               </a>
                             )}
                             <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100">
