@@ -62,7 +62,7 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
 const INSTRUMENTS: FinanceInstrument[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", sourceUrl: "https://tw.stock.yahoo.com/s/tse.php", group: "tw", provider: "yahoo", alertThreshold: 126820 },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw", provider: "yahoo", alertThreshold: 3333 },
-  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000, localLabel: "日経平均株価", imageUrl: "/finance/nikkei-225-index.png", youtubeUrl: "https://www.youtube.com/watch?v=X2QrYp3MvWQ", youtubeLabel: "日経平均株価 大暴落", youtubeLinks: [{ label: "日経平均株価 インフレ", url: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1%20%E3%82%A4%E3%83%B3%E3%83%95%E3%83%AC" }, { label: "日経平均株価 朝倉慶", url: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1%20%E6%9C%9D%E5%80%89%E6%85%B6" }] },
+  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000, localLabel: "日経平均株価", imageUrl: "/finance/nikkei-225-index.png", youtubeUrl: "https://www.youtube.com/watch?v=X2QrYp3MvWQ", youtubeLabel: "日経平均株価 大暴落", youtubeLinks: [{ label: "日経平均株価 インフレ", url: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1%20%E3%82%A4%E3%83%B3%E3%83%95%E3%83%AC" }, { label: "朝倉慶 文藝春秋", url: "https://www.youtube.com/@Bungeishunju/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 ASK1", url: "https://www.youtube.com/@info_ask1/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 楽待", url: "https://www.youtube.com/@rakumachi/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 外為どっとコム", url: "https://www.youtube.com/@gaitame_com/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }] },
   { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", sourceUrl: "https://finance.yahoo.com/quote/285A.T", group: "asia", provider: "yahoo", localLabel: "TYO: 285A" },
   { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia", alertThreshold: 12682, localLabel: "코스피", periodLabel: "2026~2027", youtubeUrl: "https://www.youtube.com/results?search_query=%EC%BD%94%EC%8A%A4%ED%94%BC", bilibiliUrl: "https://search.bilibili.com/all?keyword=%E9%9F%93%E5%9C%8B%E8%82%A1%E5%B8%82&from_source=web_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399", imageUrl: "/finance/kospi-index.png" },
   { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", sourceUrl: "https://finance.yahoo.com/quote/005930.KS", group: "korea", provider: "yahoo", alertThreshold: 1110000 },
@@ -314,16 +314,24 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
 
   const meta = (chart.meta || {}) as Record<string, unknown>;
   const quote = (chart.indicators?.quote?.[0] || {}) as Record<string, unknown>;
-  const closes = toNumberList(quote.close);
-  const highs = toNumberList(quote.high);
-  const lows = toNumberList(quote.low);
+  const closes = toNumberList(quote.close).filter((value) => value > 0);
+  const highs = toNumberList(quote.high).filter((value) => value > 0);
+  const lows = toNumberList(quote.low).filter((value) => value > 0);
   const price = pickNumber(meta, ["regularMarketPrice"]) ?? closes.at(-1) ?? null;
-  const previousClose = closes.length > 1 ? closes[closes.length - 2] : null;
-  const high52 = highs.length ? Math.max(...highs) : null;
-  const low52 = lows.length ? Math.min(...lows) : null;
-  const change = price != null && previousClose != null ? price - previousClose : null;
-  const changePercent = change != null && previousClose ? (change / previousClose) * 100 : null;
+  const previousClose =
+    pickNumber(meta, ["regularMarketPreviousClose", "previousClose"]) ??
+    (closes.length > 1 ? closes[closes.length - 2] : null);
+  const high52 = pickNumber(meta, ["fiftyTwoWeekHigh"]) ?? (highs.length ? Math.max(...highs) : null);
+  const low52 = pickNumber(meta, ["fiftyTwoWeekLow"]) ?? (lows.length ? Math.min(...lows) : null);
+  const change =
+    pickNumber(meta, ["regularMarketChange"]) ??
+    (price != null && previousClose != null ? price - previousClose : null);
+  const changePercent =
+    pickNumber(meta, ["regularMarketChangePercent"]) ??
+    (change != null && previousClose ? (change / previousClose) * 100 : null);
   const marketTime = pickNumber(meta, ["regularMarketTime"]);
+  const dayHigh = pickNumber(meta, ["regularMarketDayHigh"]) ?? highs.at(-1) ?? null;
+  const dayLow = pickNumber(meta, ["regularMarketDayLow"]) ?? lows.at(-1) ?? null;
 
   return {
     ...instrument,
@@ -334,8 +342,8 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     currency: pickText(meta, ["currency"]) || "TWD",
     high52,
     low52,
-    dayHigh: highs.at(-1) ?? null,
-    dayLow: lows.at(-1) ?? null,
+    dayHigh,
+    dayLow,
     lastUpdated: marketTime ? new Date(marketTime * 1000).toISOString() : "",
     recordTag: getRecordTag(price, high52, low52),
   };
