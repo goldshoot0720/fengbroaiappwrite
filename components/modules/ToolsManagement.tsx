@@ -125,6 +125,7 @@ type FengbroFinanceQuote = {
   sourceUrl: string;
   localLabel?: string;
   youtubeUrl?: string;
+  imageUrl?: string;
   group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
   provider?: "cnbc" | "yahoo" | "multpl";
   price: number | null;
@@ -1202,6 +1203,15 @@ function FengbroFinanceSection({
                             </a>
                           </div>
                         </div>
+
+                        {quote.imageUrl ? (
+                          <img
+                            src={quote.imageUrl}
+                            alt={`${quote.name} image`}
+                            className="mt-4 aspect-[16/9] w-full rounded-2xl border border-emerald-100 object-cover shadow-sm"
+                            loading="lazy"
+                          />
+                        ) : null}
 
                         {quote.error ? (
                           <p className="mt-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{quote.error}</p>

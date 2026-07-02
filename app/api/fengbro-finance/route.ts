@@ -13,6 +13,7 @@ type FinanceInstrument = {
   localLabel?: string;
   youtubeUrl?: string;
   periodLabel?: string;
+  imageUrl?: string;
 };
 
 type FinanceHistoryPoint = {
@@ -52,13 +53,14 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   "berkshire-a": "BRK-A",
   "berkshire-b": "BRK-B",
   intel: "INTC",
+  nvidia: "NVDA",
 };
 
 const INSTRUMENTS: FinanceInstrument[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", sourceUrl: "https://tw.stock.yahoo.com/s/tse.php", group: "tw", provider: "yahoo", alertThreshold: 126820 },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw", provider: "yahoo", alertThreshold: 3333 },
-  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000, localLabel: "日経平均株価", youtubeUrl: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1" },
-  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia", alertThreshold: 12682, localLabel: "코스피", periodLabel: "2026~2027", youtubeUrl: "https://www.youtube.com/results?search_query=%EC%BD%94%EC%8A%A4%ED%94%BC" },
+  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000, localLabel: "日経平均株価", imageUrl: "/finance/nikkei-225-index.png", youtubeUrl: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1" },
+  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia", alertThreshold: 12682, localLabel: "코스피", periodLabel: "2026~2027", youtubeUrl: "https://www.youtube.com/results?search_query=%EC%BD%94%EC%8A%A4%ED%94%BC", imageUrl: "/finance/kospi-index.png" },
   { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", sourceUrl: "https://finance.yahoo.com/quote/005930.KS", group: "korea", provider: "yahoo", alertThreshold: 1110000 },
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
   { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", sourceUrl: "https://finance.yahoo.com/quote/USDTWD=X", group: "fx", provider: "yahoo", alertThreshold: 37 },
@@ -74,7 +76,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "berkshire-b", name: "Berkshire Hathaway Inc Class B", symbol: "BRK.B", sourceUrl: "https://www.cnbc.com/quotes/BRK.B", group: "us", localLabel: "巴菲特" },
   { id: "intel", name: "Intel Corp", symbol: "INTC", sourceUrl: "https://www.cnbc.com/quotes/INTC", group: "us", localLabel: "NASDAQ: INTC" },
   { id: "amd", name: "Advanced Micro Devices Inc", symbol: "AMD", sourceUrl: "https://www.cnbc.com/quotes/AMD", group: "us", localLabel: "NASDAQ: AMD" },
-  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", sourceUrl: "https://www.cnbc.com/quotes/NVDA", group: "us", localLabel: "硬體泡沫" },
+  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", sourceUrl: "https://www.cnbc.com/quotes/NVDA", group: "us", localLabel: "破產清算" },
   { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us", localLabel: "AI泡沫" },
   { id: "spacex", name: "SpaceX", symbol: "SPCX", sourceUrl: "https://www.cnbc.com/quotes/SPCX", group: "us", localLabel: "人類泡沫" },
   { id: "apple", name: "蘋果", symbol: "AAPL", sourceUrl: "https://www.cnbc.com/quotes/AAPL", group: "us", localLabel: "手機泡沫" },
