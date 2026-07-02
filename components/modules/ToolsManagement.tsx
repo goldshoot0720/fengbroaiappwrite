@@ -125,6 +125,8 @@ type FengbroFinanceQuote = {
   sourceUrl: string;
   localLabel?: string;
   youtubeUrl?: string;
+  youtubeLabel?: string;
+  youtubeLinks?: Array<{ label: string; url: string }>;
   bilibiliUrl?: string;
   imageUrl?: string;
   group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
@@ -1196,9 +1198,14 @@ function FengbroFinanceSection({
                           <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                             {quote.youtubeUrl && (
                               <a href={quote.youtubeUrl} target="_blank" rel="noreferrer" className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100">
-                                YouTube <Play className="inline h-3 w-3" />
+                                {quote.youtubeLabel || "YouTube"} <Play className="inline h-3 w-3" />
                               </a>
                             )}
+                            {quote.youtubeLinks?.map((link) => (
+                              <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100">
+                                {link.label} <Play className="inline h-3 w-3" />
+                              </a>
+                            ))}
                             {quote.bilibiliUrl && (
                               <a href={quote.bilibiliUrl} target="_blank" rel="noreferrer" className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-xs text-sky-700 hover:bg-sky-100">
                                 Bilibili <Play className="inline h-3 w-3" />
