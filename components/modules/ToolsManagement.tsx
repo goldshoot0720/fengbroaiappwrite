@@ -138,6 +138,7 @@ type FengbroFinanceQuote = {
   lastUpdated: string;
   recordTag: FinanceRecordTag;
   recordNote?: string;
+  periodLabel?: string;
   historyRanges?: Record<string, PriceHistoryEntry[]>;
   historyErrors?: Record<string, string>;
   isThresholdAlert?: boolean;
@@ -1170,6 +1171,11 @@ function FengbroFinanceSection({
                               {quote.localLabel && (
                                 <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
                                   {quote.localLabel}
+                                </span>
+                              )}
+                              {quote.periodLabel && (
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                  {quote.periodLabel}
                                 </span>
                               )}
                               {recordLabel && (
