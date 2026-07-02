@@ -50,6 +50,7 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   ether: "ETH-USD",
   "berkshire-a": "BRK-A",
   "berkshire-b": "BRK-B",
+  intel: "INTC",
 };
 
 const INSTRUMENTS: FinanceInstrument[] = [
@@ -70,6 +71,8 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫" },
   { id: "berkshire-a", name: "Berkshire Hathaway Inc Class A", symbol: "BRK.A", sourceUrl: "https://www.cnbc.com/quotes/BRK.A", group: "us", localLabel: "巴菲特" },
   { id: "berkshire-b", name: "Berkshire Hathaway Inc Class B", symbol: "BRK.B", sourceUrl: "https://www.cnbc.com/quotes/BRK.B", group: "us", localLabel: "巴菲特" },
+  { id: "intel", name: "Intel Corp", symbol: "INTC", sourceUrl: "https://www.cnbc.com/quotes/INTC", group: "us", localLabel: "NASDAQ: INTC" },
+  { id: "amd", name: "Advanced Micro Devices Inc", symbol: "AMD", sourceUrl: "https://www.cnbc.com/quotes/AMD", group: "us", localLabel: "NASDAQ: AMD" },
   { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us", localLabel: "AI泡沫" },
   { id: "spacex", name: "SpaceX", symbol: "SPCX", sourceUrl: "https://www.cnbc.com/quotes/SPCX", group: "us", localLabel: "人類泡沫" },
   { id: "apple", name: "蘋果", symbol: "AAPL", sourceUrl: "https://www.cnbc.com/quotes/AAPL", group: "us", localLabel: "手機泡沫" },
