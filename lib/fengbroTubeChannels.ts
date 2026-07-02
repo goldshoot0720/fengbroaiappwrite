@@ -55,6 +55,8 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@GC%E8%B6%99%E6%B0%8F%E8%AE%80%E6%9B%B8%E7%94%9F%E6%B4%BB",
   "https://www.youtube.com/@Tankman2020/videos",
   "https://www.youtube.com/@leonard2834/videos",
+  { alias: "YouTube精选智慧", sourceUrl: "https://space.bilibili.com/3546890092153166/upload/video" },
+  { alias: "幽默老日", sourceUrl: "https://space.bilibili.com/3546848910379375/upload/video" },
 ];
 
 export function normalizeFengbroTubeSource(input: string) {
@@ -68,7 +70,10 @@ export function normalizeFengbroTubeSource(input: string) {
   if (/^https?:\/\//i.test(trimmedInput)) {
     try {
       const url = new URL(trimmedInput);
-      if (!/youtube\.com$/i.test(url.hostname) && !/\.youtube\.com$/i.test(url.hostname)) return "";
+      const isYouTube = /youtube\.com$/i.test(url.hostname) || /\.youtube\.com$/i.test(url.hostname);
+      const isBilibili = /bilibili\.com$/i.test(url.hostname) || /\.bilibili\.com$/i.test(url.hostname);
+      if (!isYouTube && !isBilibili) return "";
+      if (isBilibili) return url.toString().replace(/\/$/, "");
       return url.toString().replace(/\/$/, "").replace(/\/videos$/i, "/videos");
     } catch {
       return "";
@@ -80,7 +85,11 @@ export function normalizeFengbroTubeSource(input: string) {
 
 export function getFengbroTubeHandle(sourceUrl: string) {
   try {
-    const path = decodeURIComponent(new URL(sourceUrl).pathname);
+    const url = new URL(sourceUrl);
+    const path = decodeURIComponent(url.pathname);
+    if (/bilibili\.com$/i.test(url.hostname) || /\.bilibili\.com$/i.test(url.hostname)) {
+      return path.match(/^\/(\d+)/)?.[1] || "";
+    }
     return path.match(/^\/@([^/]+)/)?.[1].toLowerCase() || "";
   } catch {
     return "";

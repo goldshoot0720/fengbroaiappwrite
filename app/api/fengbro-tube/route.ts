@@ -14,6 +14,13 @@ const YOUTUBE_HEADERS = {
   accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 };
 
+const BILIBILI_HEADERS = {
+  "user-agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+  accept: "application/json,text/plain,*/*",
+  referer: "https://space.bilibili.com/",
+};
+
 function decodeHtml(value: string) {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -39,6 +46,23 @@ function fallbackNameFromUrl(sourceUrl: string) {
     return path.replace(/^\/@?/, "").replace(/\/videos\/?$/i, "") || sourceUrl;
   } catch {
     return sourceUrl;
+  }
+}
+
+function isBilibiliSource(sourceUrl: string) {
+  try {
+    const hostname = new URL(sourceUrl).hostname;
+    return /bilibili\.com$/i.test(hostname) || /\.bilibili\.com$/i.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
+function getBilibiliMid(sourceUrl: string) {
+  try {
+    return new URL(sourceUrl).pathname.match(/^\/(\d+)/)?.[1] || "";
+  } catch {
+    return "";
   }
 }
 
@@ -127,6 +151,8 @@ function parseFeed(xml: string) {
 }
 
 async function fetchChannel(channel: FengbroTubeChannelConfig) {
+  if (isBilibiliSource(channel.sourceUrl)) return fetchBilibiliChannel(channel);
+
   const { sourceUrl } = channel;
   const { channelId, title } = await resolveChannelId(sourceUrl);
   const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
@@ -157,6 +183,58 @@ async function fetchChannel(channel: FengbroTubeChannelConfig) {
           publishedAt: downfallIndexVideo.video.publishedAt,
         }
       : null,
+  };
+}
+
+async function fetchBilibiliChannel(channel: FengbroTubeChannelConfig) {
+  const { sourceUrl } = channel;
+  const mid = getBilibiliMid(sourceUrl);
+  if (!mid) throw new Error("Missing Bilibili space id");
+
+  const apiUrl = new URL("https://api.bilibili.com/x/space/arc/search");
+  apiUrl.searchParams.set("mid", mid);
+  apiUrl.searchParams.set("ps", "10");
+  apiUrl.searchParams.set("tid", "0");
+  apiUrl.searchParams.set("pn", "1");
+  apiUrl.searchParams.set("keyword", "");
+  apiUrl.searchParams.set("order", "pubdate");
+  apiUrl.searchParams.set("jsonp", "jsonp");
+
+  const response = await fetch(apiUrl.toString(), {
+    headers: BILIBILI_HEADERS,
+    next: { revalidate: 60 * 30 },
+  });
+  if (!response.ok) throw new Error(`Bilibili ${response.status}`);
+
+  const payload = await response.json();
+  if (payload?.code !== 0) throw new Error(payload?.message || "Bilibili read failed");
+  const list = Array.isArray(payload?.data?.list?.vlist) ? payload.data.list.vlist : [];
+
+  const videos = list.slice(0, 10).map((item: Record<string, unknown>) => {
+    const bvid = typeof item.bvid === "string" ? item.bvid : "";
+    const aid = typeof item.aid === "number" || typeof item.aid === "string" ? String(item.aid) : "";
+    const publishedAt =
+      typeof item.created === "number" && item.created > 0
+        ? new Date(item.created * 1000).toISOString()
+        : "";
+    const thumbnail = typeof item.pic === "string" ? item.pic.replace(/^\/\//, "https://") : "";
+
+    return {
+      videoId: bvid || aid,
+      title: typeof item.title === "string" ? decodeHtml(item.title) : "",
+      url: bvid ? `https://www.bilibili.com/video/${bvid}` : sourceUrl,
+      publishedAt,
+      updatedAt: publishedAt,
+      thumbnail,
+    };
+  });
+
+  return {
+    sourceUrl,
+    channelId: mid,
+    title: getChannelTitle(channel, fallbackNameFromUrl(sourceUrl)),
+    videos,
+    downfallIndexUpdate: null,
   };
 }
 
