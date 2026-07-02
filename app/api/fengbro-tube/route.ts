@@ -248,6 +248,15 @@ function getLatestChannelTime(channel: { videos: Array<{ publishedAt: string; up
   );
 }
 
+type FengbroTubeVideoEntry = {
+  videoId: string;
+  title: string;
+  url: string;
+  publishedAt: string;
+  updatedAt: string;
+  thumbnail: string;
+};
+
 async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
   const uniqueChannels = normalizeFengbroTubeChannels(channelsConfig);
   const settled = await Promise.allSettled(uniqueChannels.map(fetchChannel));
@@ -268,11 +277,11 @@ async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
   const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
   const recentVideos = channels.flatMap((channel) =>
     channel.videos
-      .filter((video) => {
+      .filter((video: FengbroTubeVideoEntry) => {
         const time = new Date(video.publishedAt || video.updatedAt).getTime();
         return Number.isFinite(time) && now - time <= threeDaysMs;
       })
-      .map((video) => ({
+      .map((video: FengbroTubeVideoEntry) => ({
         ...video,
         channelTitle: channel.title,
         channelId: channel.channelId,
