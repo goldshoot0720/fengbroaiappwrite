@@ -57,6 +57,7 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@leonard2834/videos",
   { alias: "YouTube精选智慧", sourceUrl: "https://space.bilibili.com/3546890092153166/upload/video" },
   { alias: "幽默老日", sourceUrl: "https://space.bilibili.com/3546848910379375/upload/video" },
+  { alias: "彼咔丘", sourceUrl: "https://space.bilibili.com/3546759812877247/upload/video" },
 ];
 
 export function normalizeFengbroTubeSource(input: string) {
