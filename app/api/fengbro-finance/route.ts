@@ -19,6 +19,15 @@ type FinanceInstrument = {
   imageUrl?: string;
 };
 
+type FinanceInstrumentGroup = FinanceInstrument["group"];
+
+type CustomFinanceInstrumentInput = {
+  name?: unknown;
+  symbol?: unknown;
+  provider?: unknown;
+  group?: unknown;
+};
+
 type FinanceHistoryPoint = {
   date: string;
   price: number;
@@ -92,6 +101,62 @@ const INSTRUMENTS: FinanceInstrument[] = [
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
 const YAHOO_CHART_ENDPOINT = "https://query1.finance.yahoo.com/v8/finance/chart";
+const CUSTOM_FINANCE_GROUPS: FinanceInstrumentGroup[] = ["tw", "asia", "korea", "fx", "commodities", "rates", "us", "crypto"];
+
+function slugifyInstrumentId(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
+function normalizeCustomFinanceInstrument(input: CustomFinanceInstrumentInput, index: number): FinanceInstrument | null {
+  const symbol = typeof input.symbol === "string" ? input.symbol.trim().toUpperCase() : "";
+  if (!symbol || symbol.length > 32) return null;
+
+  const provider = input.provider === "yahoo" ? "yahoo" : "cnbc";
+  const group = CUSTOM_FINANCE_GROUPS.includes(input.group as FinanceInstrumentGroup)
+    ? (input.group as FinanceInstrumentGroup)
+    : "us";
+  const name =
+    typeof input.name === "string" && input.name.trim()
+      ? input.name.trim().slice(0, 80)
+      : symbol;
+  const idBase = slugifyInstrumentId(`${provider}-${symbol}`) || `custom-${index + 1}`;
+  const encodedSymbol = encodeURIComponent(symbol);
+
+  return {
+    id: `custom-${idBase}`,
+    name,
+    symbol,
+    sourceUrl:
+      provider === "yahoo"
+        ? `https://finance.yahoo.com/quote/${encodedSymbol}`
+        : `https://www.cnbc.com/quotes/${encodedSymbol}`,
+    group,
+    provider,
+    localLabel: `${provider.toUpperCase()}: ${symbol}`,
+  };
+}
+
+function getCustomFinanceInstruments(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const raw = searchParams.get("custom");
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .slice(0, 30)
+      .map((item, index) => normalizeCustomFinanceInstrument(item as CustomFinanceInstrumentInput, index))
+      .filter((item): item is FinanceInstrument => item != null);
+  } catch {
+    return [];
+  }
+}
 
 function asNumber(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -419,11 +484,12 @@ async function fetchFinanceInstrument(instrument: FinanceInstrument) {
   }
 }
 
-export async function GET() {
-  const settled = await Promise.allSettled(INSTRUMENTS.map(fetchFinanceInstrument));
+export async function GET(request: Request) {
+  const instruments = [...INSTRUMENTS, ...getCustomFinanceInstruments(request)];
+  const settled = await Promise.allSettled(instruments.map(fetchFinanceInstrument));
   const quotes = settled.map((item, index) => {
     if (item.status === "fulfilled") return item.value;
-    const instrument = INSTRUMENTS[index];
+    const instrument = instruments[index];
     return {
       ...instrument,
       displayName: instrument.name,

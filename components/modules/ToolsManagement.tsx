@@ -170,6 +170,13 @@ type FengbroFinanceResult = {
   shillerPe?: ShillerPeRatio;
 };
 
+type CustomFinanceInstrument = {
+  name: string;
+  symbol: string;
+  provider: "cnbc" | "yahoo";
+  group: FengbroFinanceQuote["group"];
+};
+
 const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "price-compare", label: "鋒兄比價" },
   { id: "landtop", label: "手機比價" },
@@ -188,6 +195,7 @@ const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
 const LANDTOP_APPLE_QUERY_KEY = "fengbro.tools.landtop.appleQuery";
 const LANDTOP_SAMSUNG_QUERY_KEY = "fengbro.tools.landtop.samsungQuery";
 const TUBE_CHANNELS_KEY = "fengbro.tools.tube.channels";
+const FINANCE_CUSTOM_INSTRUMENTS_KEY = "fengbro.tools.finance.customInstruments";
 
 function getSavedTubeChannels() {
   if (typeof window === "undefined") return DEFAULT_FENGBRO_TUBE_CHANNELS;
@@ -201,6 +209,38 @@ function getSavedTubeChannels() {
     return channels.length > 0 ? channels : DEFAULT_FENGBRO_TUBE_CHANNELS;
   } catch {
     return DEFAULT_FENGBRO_TUBE_CHANNELS;
+  }
+}
+
+const FINANCE_CUSTOM_GROUPS: FengbroFinanceQuote["group"][] = ["tw", "asia", "korea", "fx", "commodities", "rates", "us", "crypto"];
+
+function normalizeCustomFinanceInstrument(input: Partial<CustomFinanceInstrument>): CustomFinanceInstrument | null {
+  const symbol = typeof input.symbol === "string" ? input.symbol.trim().toUpperCase() : "";
+  if (!symbol) return null;
+
+  const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : symbol;
+  const provider = input.provider === "yahoo" ? "yahoo" : "cnbc";
+  const group = FINANCE_CUSTOM_GROUPS.includes(input.group as FengbroFinanceQuote["group"])
+    ? (input.group as FengbroFinanceQuote["group"])
+    : "us";
+
+  return { name, symbol, provider, group };
+}
+
+function getSavedCustomFinanceInstruments() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const savedInstruments = window.localStorage.getItem(FINANCE_CUSTOM_INSTRUMENTS_KEY);
+    if (!savedInstruments) return [];
+    const parsedInstruments = JSON.parse(savedInstruments) as unknown;
+    if (!Array.isArray(parsedInstruments)) return [];
+    return parsedInstruments
+      .map((instrument) => normalizeCustomFinanceInstrument(instrument as Partial<CustomFinanceInstrument>))
+      .filter((instrument): instrument is CustomFinanceInstrument => instrument != null)
+      .slice(0, 30);
+  } catch {
+    return [];
   }
 }
 
@@ -1057,11 +1097,21 @@ function FengbroFinanceSection({
   result,
   loading,
   error,
+  customInstruments,
+  customDraft,
+  onCustomDraftChange,
+  onSaveCustomInstrument,
+  onDeleteCustomInstrument,
   onRefresh,
 }: {
   result: FengbroFinanceResult | null;
   loading: boolean;
   error: string;
+  customInstruments: CustomFinanceInstrument[];
+  customDraft: CustomFinanceInstrument;
+  onCustomDraftChange: (draft: CustomFinanceInstrument) => void;
+  onSaveCustomInstrument: () => void;
+  onDeleteCustomInstrument: (instrument: CustomFinanceInstrument) => void;
   onRefresh: () => void;
 }) {
   const groupedQuotes = useMemo(() => {
@@ -1098,6 +1148,80 @@ function FengbroFinanceSection({
               {loading ? "更新中" : "重新整理"}
             </Button>
           </div>
+        </div>
+
+        <div className="border-b border-emerald-100 bg-white/80 p-4 sm:p-6">
+          <div className="grid gap-3 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_auto] lg:items-end">
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium text-foreground">名稱</span>
+              <input
+                value={customDraft.name}
+                onChange={(event) => onCustomDraftChange({ ...customDraft, name: event.target.value })}
+                placeholder="Intel Corp"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium text-foreground">代號</span>
+              <input
+                value={customDraft.symbol}
+                onChange={(event) => onCustomDraftChange({ ...customDraft, symbol: event.target.value })}
+                placeholder="INTC / ^TWII / .IXIC"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm uppercase outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium text-foreground">來源</span>
+              <select
+                value={customDraft.provider}
+                onChange={(event) => onCustomDraftChange({ ...customDraft, provider: event.target.value as CustomFinanceInstrument["provider"] })}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              >
+                <option value="cnbc">CNBC</option>
+                <option value="yahoo">Yahoo</option>
+              </select>
+            </label>
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium text-foreground">分類</span>
+              <select
+                value={customDraft.group}
+                onChange={(event) => onCustomDraftChange({ ...customDraft, group: event.target.value as FengbroFinanceQuote["group"] })}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              >
+                {FINANCE_CUSTOM_GROUPS.map((group) => (
+                  <option key={group} value={group}>
+                    {getFinanceGroupLabel(group)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
+              <Plus size={16} />
+              新增
+            </Button>
+          </div>
+
+          {customInstruments.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {customInstruments.map((instrument) => (
+                <span
+                  key={`${instrument.provider}-${instrument.symbol}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs text-emerald-800"
+                >
+                  <span className="font-semibold">{instrument.name}</span>
+                  <span>{instrument.provider.toUpperCase()}: {instrument.symbol}</span>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteCustomInstrument(instrument)}
+                    className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
+                    aria-label={`刪除 ${instrument.name}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {error && <div className="m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
@@ -1168,8 +1292,8 @@ function FengbroFinanceSection({
                     const isUp = (quote.change || 0) >= 0;
                     return (
                       <div key={quote.id} className="rounded-[24px] border border-border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
+                        <div className="flex flex-col gap-3">
+                          <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <h5 className="font-semibold text-foreground">{quote.name}</h5>
                               {quote.localLabel && (
@@ -1195,7 +1319,7 @@ function FengbroFinanceSection({
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">{quote.symbol}</p>
                           </div>
-                          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                          <div className="flex w-full flex-wrap justify-start gap-1.5">
                             {quote.youtubeUrl && (
                               <a href={quote.youtubeUrl} target="_blank" rel="noreferrer" className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100">
                                 {quote.youtubeLabel || "YouTube"} <Play className="inline h-3 w-3" />
@@ -1417,6 +1541,13 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
   const [financeError, setFinanceError] = useState("");
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
   const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
+  const [customFinanceInstruments, setCustomFinanceInstruments] = useState<CustomFinanceInstrument[]>(getSavedCustomFinanceInstruments);
+  const [customFinanceDraft, setCustomFinanceDraft] = useState<CustomFinanceInstrument>({
+    name: "",
+    symbol: "",
+    provider: "cnbc",
+    group: "us",
+  });
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -1450,6 +1581,13 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     if (typeof window === "undefined") return;
     window.localStorage.setItem(TUBE_CHANNELS_KEY, JSON.stringify(tubeChannelConfigs));
   }, [tubeChannelConfigs]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(FINANCE_CUSTOM_INSTRUMENTS_KEY, JSON.stringify(customFinanceInstruments));
+    } catch {}
+  }, [customFinanceInstruments]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1638,7 +1776,11 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     setFinanceLoading(true);
     setFinanceError("");
     try {
-      const response = await fetch("/api/fengbro-finance");
+      const params = new URLSearchParams();
+      if (customFinanceInstruments.length > 0) {
+        params.set("custom", JSON.stringify(customFinanceInstruments));
+      }
+      const response = await fetch(`/api/fengbro-finance${params.size ? `?${params.toString()}` : ""}`);
       const data = (await response.json()) as FengbroFinanceResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
       setFinanceResult(data);
@@ -1647,6 +1789,41 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     } finally {
       setFinanceLoading(false);
     }
+  }, [customFinanceInstruments]);
+
+  const handleSaveCustomFinanceInstrument = useCallback(() => {
+    const normalizedInstrument = normalizeCustomFinanceInstrument(customFinanceDraft);
+    if (!normalizedInstrument) {
+      setFinanceError("請輸入指數或股票代號");
+      return;
+    }
+
+    setFinanceError("");
+    setCustomFinanceInstruments((currentInstruments) => {
+      const nextInstruments = currentInstruments.filter(
+        (instrument) =>
+          !(
+            instrument.provider === normalizedInstrument.provider &&
+            instrument.symbol.toUpperCase() === normalizedInstrument.symbol.toUpperCase()
+          )
+      );
+      return [...nextInstruments, normalizedInstrument].slice(-30);
+    });
+    setCustomFinanceDraft({ name: "", symbol: "", provider: customFinanceDraft.provider, group: customFinanceDraft.group });
+    setFinanceLoadedOnce(false);
+  }, [customFinanceDraft]);
+
+  const handleDeleteCustomFinanceInstrument = useCallback((targetInstrument: CustomFinanceInstrument) => {
+    setCustomFinanceInstruments((currentInstruments) =>
+      currentInstruments.filter(
+        (instrument) =>
+          !(
+            instrument.provider === targetInstrument.provider &&
+            instrument.symbol.toUpperCase() === targetInstrument.symbol.toUpperCase()
+          )
+      )
+    );
+    setFinanceLoadedOnce(false);
   }, []);
 
   useEffect(() => {
@@ -2039,6 +2216,11 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
           result={financeResult}
           loading={financeLoading}
           error={financeError}
+          customInstruments={customFinanceInstruments}
+          customDraft={customFinanceDraft}
+          onCustomDraftChange={setCustomFinanceDraft}
+          onSaveCustomInstrument={handleSaveCustomFinanceInstrument}
+          onDeleteCustomInstrument={handleDeleteCustomFinanceInstrument}
           onRefresh={() => void loadFinance()}
         />
       )}
