@@ -1025,16 +1025,16 @@ function FengbroTubeSection({
                   頂端
                 </a>
               </div>
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-7">
                 {result.channels.map((channel, index) => (
                   <a
                     key={channel.sourceUrl}
                     href={`#${getTubeChannelAnchor(index)}`}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                    className="inline-flex min-w-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
                     title={channel.title}
                   >
-                    <Play size={12} />
-                    <span className="max-w-[11rem] truncate">{channel.title}</span>
+                    <Play size={12} className="shrink-0" />
+                    <span className="min-w-0 truncate">{channel.title}</span>
                   </a>
                 ))}
               </div>
@@ -1070,7 +1070,7 @@ function FengbroTubeSection({
                 const downfallIndexUpdate = getChannelDownfallIndexUpdate(channel);
 
                 return (
-                <div id={getTubeChannelAnchor(index)} key={channel.sourceUrl} className="scroll-mt-28 rounded-[28px] border border-border bg-white p-4 shadow-sm">
+                <div id={getTubeChannelAnchor(index)} key={channel.sourceUrl} className="min-w-0 max-w-full scroll-mt-28 overflow-hidden rounded-[28px] border border-border bg-white p-4 shadow-sm">
                   <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1091,30 +1091,41 @@ function FengbroTubeSection({
                         開啟頻道 <ExternalLink className="inline h-3 w-3" />
                       </a>
                     </div>
-                    {channel.error ? (
-                      <span className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-600">{channel.error}</span>
-                    ) : (
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-muted-foreground">
-                        {channel.videos.length} 部影片
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      {channel.error ? (
+                        <span className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-600">{channel.error}</span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-muted-foreground">
+                          {channel.videos.length} 部影片
+                        </span>
+                      )}
+                      <a
+                        href={`#${FENGBRO_TUBE_TOP_ID}`}
+                        className="inline-flex items-center gap-1 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:border-red-200 hover:bg-red-100"
+                      >
+                        <ArrowUp size={12} />
+                        頂端
+                      </a>
+                    </div>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <div className="grid min-w-0 justify-center gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),320px))]">
                     {channel.videos.map((video) => (
                       <a
                         key={video.videoId}
                         href={video.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="group overflow-hidden rounded-2xl border border-border bg-slate-50 transition hover:border-red-300 hover:bg-white hover:shadow-md"
+                        className="group min-w-0 overflow-hidden rounded-2xl border border-border bg-slate-50 transition hover:border-red-300 hover:bg-white hover:shadow-md"
                       >
-                        {video.thumbnail ? (
-                          <img src={video.thumbnail} alt={video.title} className="aspect-video w-full object-cover transition group-hover:scale-[1.03]" />
-                        ) : (
-                          <div className="flex aspect-video items-center justify-center bg-red-50 text-red-500">
-                            <Play size={24} />
-                          </div>
-                        )}
+                        <div className="aspect-video w-full overflow-hidden bg-red-50">
+                          {video.thumbnail ? (
+                            <img src={video.thumbnail} alt={video.title} className="h-full w-full object-cover transition group-hover:scale-[1.03]" loading="lazy" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-red-500">
+                              <Play size={24} />
+                            </div>
+                          )}
+                        </div>
                         <div className="space-y-1 p-3">
                           <div className="line-clamp-2 text-sm font-medium leading-5 text-foreground">{video.title}</div>
                           <div className="text-xs text-muted-foreground">{formatPublishedDate(video.publishedAt)}</div>
