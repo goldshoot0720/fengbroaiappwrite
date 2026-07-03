@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, ChevronDown, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
@@ -334,6 +334,12 @@ function getChannelDownfallIndexUpdate(channel: FengbroTubeChannel) {
     : null;
 }
 
+const FENGBRO_TUBE_TOP_ID = "fengbro-tube-top";
+
+function getTubeChannelAnchor(index: number) {
+  return `fengbro-tube-channel-${index}`;
+}
+
 
 function formatFinanceNumber(value: number | null, maximumFractionDigits = 2) {
   if (value == null) return "--";
@@ -361,6 +367,12 @@ function getFinanceRecordLabel(tag: FinanceRecordTag) {
   if (tag === "new-high") return "\u5275\u65b0\u9ad8";
   if (tag === "new-low") return "\u5275\u65b0\u4f4e";
   return "";
+}
+
+const FENGBRO_FINANCE_TOP_ID = "fengbro-finance-top";
+
+function getFinanceGroupAnchor(group: FengbroFinanceQuote["group"]) {
+  return `fengbro-finance-${group}`;
 }
 
 const FINANCE_HISTORY_RANGE_ITEMS = [
@@ -881,7 +893,7 @@ function FengbroTubeSection({
       : getFengbroTubeFallbackTitle(channel.sourceUrl, resolvedChannelTitleBySource.get(channel.sourceUrl) || "");
 
   return (
-    <div className="space-y-5">
+    <div id={FENGBRO_TUBE_TOP_ID} className="space-y-5 scroll-mt-6">
       <DataCard className="overflow-hidden p-0">
         <div className="flex flex-col gap-4 border-b border-red-100 bg-[linear-gradient(135deg,rgba(254,242,242,0.98),rgba(255,255,255,0.96))] p-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex items-center gap-3">
@@ -999,6 +1011,35 @@ function FengbroTubeSection({
 
         {!error && result && (
           <div className="space-y-6 p-4 sm:p-6">
+            <div className="sticky top-3 z-20 rounded-[24px] border border-red-100 bg-white/95 p-3 shadow-sm backdrop-blur">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-semibold text-foreground">頻道導航</h4>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{result.channels.length} 個頻道</p>
+                </div>
+                <a
+                  href={`#${FENGBRO_TUBE_TOP_ID}`}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:border-red-200 hover:bg-red-100"
+                >
+                  <ArrowUp size={13} />
+                  頂端
+                </a>
+              </div>
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {result.channels.map((channel, index) => (
+                  <a
+                    key={channel.sourceUrl}
+                    href={`#${getTubeChannelAnchor(index)}`}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                    title={channel.title}
+                  >
+                    <Play size={12} />
+                    <span className="max-w-[11rem] truncate">{channel.title}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+
             {result.recentVideos.length > 0 && (
               <div className="rounded-[28px] border border-amber-200 bg-amber-50/70 p-4">
                 <div className="mb-3 flex items-center gap-2 text-amber-800">
@@ -1025,11 +1066,11 @@ function FengbroTubeSection({
             )}
 
             <div className="grid gap-5">
-              {result.channels.map((channel) => {
+              {result.channels.map((channel, index) => {
                 const downfallIndexUpdate = getChannelDownfallIndexUpdate(channel);
 
                 return (
-                <div key={channel.sourceUrl} className="rounded-[28px] border border-border bg-white p-4 shadow-sm">
+                <div id={getTubeChannelAnchor(index)} key={channel.sourceUrl} className="scroll-mt-28 rounded-[28px] border border-border bg-white p-4 shadow-sm">
                   <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1124,7 +1165,10 @@ function FengbroFinanceSection({
   return (
     <div className="space-y-5">
       <DataCard className="overflow-hidden p-0">
-        <div className="flex flex-col gap-4 border-b border-emerald-100 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.96))] p-6 lg:flex-row lg:items-end lg:justify-between">
+        <div
+          id={FENGBRO_FINANCE_TOP_ID}
+          className="flex flex-col gap-4 border-b border-emerald-100 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.96))] p-6 lg:flex-row lg:items-end lg:justify-between"
+        >
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
               <BarChart3 size={22} />
@@ -1232,6 +1276,22 @@ function FengbroFinanceSection({
 
         {!error && result && (
           <div className="space-y-6 p-4 sm:p-6">
+            {groupedQuotes.length > 0 && (
+              <div className="rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-3 shadow-sm">
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {groupedQuotes.map(({ group, quotes }) => (
+                    <a
+                      key={group}
+                      href={`#${getFinanceGroupAnchor(group)}`}
+                      className="shrink-0 rounded-full border border-emerald-100 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                    >
+                      {getFinanceGroupLabel(group)}
+                      <span className="ml-1 text-emerald-500">{quotes.length}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
             {result.shillerPe && (
               <div
                 className={`rounded-[24px] border p-4 shadow-sm ${
@@ -1281,10 +1341,18 @@ function FengbroFinanceSection({
               </div>
             )}
             {groupedQuotes.map(({ group, quotes }) => (
-              <div key={group} className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
+              <div key={group} id={getFinanceGroupAnchor(group)} className="scroll-mt-28 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <h4 className="text-sm font-semibold text-emerald-800">{getFinanceGroupLabel(group)}</h4>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700">{quotes.length} 項</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700">{quotes.length} 項</span>
+                    <a
+                      href={`#${FENGBRO_FINANCE_TOP_ID}`}
+                      className="rounded-full border border-emerald-100 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-50"
+                    >
+                      回到最頂端
+                    </a>
+                  </div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {quotes.map((quote) => {

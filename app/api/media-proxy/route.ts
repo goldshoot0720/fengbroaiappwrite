@@ -34,6 +34,12 @@ export async function GET(request: NextRequest) {
     // Forward some common browser headers to be more transparent
     const userAgent = request.headers.get('user-agent');
     if (userAgent) fetchHeaders['user-agent'] = userAgent;
+    if (/(\.|^)hdslb\.com$/i.test(new URL(url).hostname) || /(\.|^)biliimg\.com$/i.test(new URL(url).hostname)) {
+      fetchHeaders['referer'] = 'https://www.bilibili.com/';
+      fetchHeaders['user-agent'] =
+        userAgent ||
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36';
+    }
 
     const response = await fetch(url, {
       headers: fetchHeaders,
@@ -100,6 +106,12 @@ export async function HEAD(request: NextRequest) {
     // Forward some common browser headers to be more transparent
     const userAgent = request.headers.get('user-agent');
     if (userAgent) fetchHeaders['user-agent'] = userAgent;
+    if (/(\.|^)hdslb\.com$/i.test(new URL(url).hostname) || /(\.|^)biliimg\.com$/i.test(new URL(url).hostname)) {
+      fetchHeaders['referer'] = 'https://www.bilibili.com/';
+      fetchHeaders['user-agent'] =
+        userAgent ||
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36';
+    }
 
     const response = await fetch(url, {
       method: 'HEAD',
