@@ -1345,7 +1345,7 @@ function FengbroFinanceSection({
                           <img
                             src={quote.imageUrl}
                             alt={`${quote.name} image`}
-                            className="mt-4 aspect-[16/9] w-full rounded-2xl border border-emerald-100 object-cover shadow-sm"
+                            className="mt-4 aspect-[16/9] w-full rounded-2xl border border-emerald-100 bg-slate-950/5 object-contain shadow-sm"
                             loading="lazy"
                           />
                         ) : null}
