@@ -5,6 +5,11 @@ const sdk = require('node-appwrite');
 export const dynamic = 'force-dynamic';
 
 const COLLECTION_NAME = 'pushSubscriptions';
+const REQUIRED_ATTRIBUTES = [
+  { key: 'endpoint', size: 2048 },
+  { key: 'p256dh', size: 512 },
+  { key: 'auth', size: 128 },
+];
 
 function createAppwrite() {
   const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
@@ -27,7 +32,10 @@ function createAppwrite() {
 async function getOrCreateCollection(databases, databaseId) {
   const allCollections = await databases.listCollections(databaseId);
   const col = allCollections.collections.find(c => c.name === COLLECTION_NAME);
-  if (col) return col.$id;
+  if (col) {
+    await ensureAttributes(databases, databaseId, col.$id);
+    return col.$id;
+  }
 
   // 建立集合
   const newCol = await databases.createCollection(
@@ -38,20 +46,37 @@ async function getOrCreateCollection(databases, databaseId) {
 
   // 建立屬性
   await databases.createStringAttribute(databaseId, newCol.$id, 'endpoint', 2048, true);
-  await databases.createStringAttribute(databaseId, newCol.$id, 'p256dh', 512, true);
-  await databases.createStringAttribute(databaseId, newCol.$id, 'auth', 128, true);
+  await ensureAttributes(databases, databaseId, newCol.$id);
 
   // 等待屬性就緒（Appwrite 非同步處理）
-  for (let i = 0; i < 10; i++) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  return newCol.$id;
+}
+
+async function ensureAttributes(databases, databaseId, collectionId) {
+  const attrs = await databases.listAttributes(databaseId, collectionId);
+  const existing = new Set(attrs.attributes.map((attr) => attr.key));
+
+  for (const attr of REQUIRED_ATTRIBUTES) {
+    if (existing.has(attr.key)) continue;
     try {
-      const attrs = await databases.listAttributes(databaseId, newCol.$id);
-      const ready = attrs.attributes.filter(a => a.status === 'available');
-      if (ready.length >= 3) break;
-    } catch (_) {}
+      await databases.createStringAttribute(databaseId, collectionId, attr.key, attr.size, true);
+    } catch (err) {
+      if (err?.code !== 409) throw err;
+    }
   }
 
-  return newCol.$id;
+  for (let i = 0; i < 15; i++) {
+    const latest = await databases.listAttributes(databaseId, collectionId);
+    const readyKeys = new Set(
+      latest.attributes
+        .filter((attr) => attr.status === 'available' || !attr.status)
+        .map((attr) => attr.key)
+    );
+    if (REQUIRED_ATTRIBUTES.every((attr) => readyKeys.has(attr.key))) return;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+
+  throw new Error("Push subscription attributes are not ready yet. Please try again in a moment.");
 }
 
 // POST /api/push-subscribe — 新增訂閱
@@ -111,6 +136,7 @@ export async function DELETE(request) {
     if (!col) {
       return NextResponse.json({ success: true, action: 'not_found' });
     }
+    await ensureAttributes(databases, databaseId, col.$id);
 
     const existing = await databases.listDocuments(databaseId, col.$id, [
       sdk.Query.equal('endpoint', endpoint),

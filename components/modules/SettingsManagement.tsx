@@ -193,6 +193,36 @@ export default function SettingsManagement() {
     return expectedKey.length === currentBytes.length && expectedKey.every((byte, index) => byte === currentBytes[index]);
   };
 
+  const fetchPushSubscription = async (init: RequestInit) => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+
+    try {
+      const response = await fetch('/api/push-subscribe', {
+        ...init,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let message = `HTTP ${response.status}`;
+        try {
+          const data = await response.json();
+          if (data?.error) message = data.error;
+        } catch {}
+        throw new Error(message);
+      }
+
+      return response;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new Error('Push subscribe request timed out. Please try again.');
+      }
+      throw err;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  };
+
   const handleSaveConfig = () => {
     if (typeof window === 'undefined') return;
     
@@ -505,7 +535,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
         });
       }
       if (sub) {
-        await fetch('/api/push-subscribe', {
+        await fetchPushSubscription({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sub.toJSON()),
@@ -526,7 +556,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await fetch('/api/push-subscribe', {
+        await fetchPushSubscription({
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ endpoint: sub.endpoint }),

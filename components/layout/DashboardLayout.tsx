@@ -119,14 +119,14 @@ export default function DashboardLayout({
           />
         )}
 
-        <div className="relative flex min-h-screen flex-1 flex-col">
+        <div className="relative flex min-h-screen min-w-0 flex-1 flex-col">
           <MobileHeader
             activeLabel={activeItem?.label ?? "控制台"}
             isSidebarOpen={isSidebarOpen}
             onToggle={toggleSidebar}
           />
 
-          <main className="flex-1 px-2 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-4 md:pb-8 md:pt-5 xl:px-4 xl:pb-10 xl:pt-6">
+          <main className="min-w-0 flex-1 px-2 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-4 md:pb-8 md:pt-5 xl:px-4 xl:pb-10 xl:pt-6">
             <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 md:gap-5 xl:gap-6">
               {currentModule === "home" ? <SleepWarningBanner /> : null}
               <TopBar
@@ -214,7 +214,7 @@ function DesktopSidebar({
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <aside className="hidden w-[236px] shrink-0 border-r border-[var(--line-soft)] px-2 py-5 xl:flex">
+    <aside className="hidden w-[236px] shrink-0 border-r border-[var(--line-soft)] px-2 py-5 lg:flex">
       <div className="surface-panel flex w-full flex-col rounded-[30px] p-3">
         <BrandBlock />
 
@@ -274,7 +274,7 @@ function TabletSidebar({
   const tabletItems = useMemo(() => flattenLeafMenuItems(menuItems), [menuItems]);
 
   return (
-    <aside className="hidden w-[104px] shrink-0 border-r border-[var(--line-soft)] px-3 py-5 md:flex xl:hidden">
+    <aside className="hidden w-[104px] shrink-0 border-r border-[var(--line-soft)] px-3 py-5 md:flex lg:hidden">
       <div className="surface-panel flex w-full flex-col items-center rounded-[28px] px-2 py-4">
         <BrandBlock compact />
         <div className="mt-5 flex w-full justify-center">
@@ -518,7 +518,7 @@ function TopBar({
   }, []);
 
   return (
-    <div className="hidden flex-col gap-3 rounded-[24px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-4 py-4 backdrop-blur-xl md:flex xl:flex-row xl:items-center xl:justify-between xl:gap-4 xl:rounded-[30px] xl:px-6">
+    <div className="hidden flex-col gap-3 rounded-[24px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-4 py-4 backdrop-blur-xl md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-4 xl:rounded-[30px] xl:px-6">
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
           Active Surface

@@ -253,6 +253,7 @@ export default function NotesManagement() {
   const [noteFilterMode, setNoteFilterMode] = useState<NoteFilterMode>("all");
   const [noteViewMode, setNoteViewMode] = useState<NoteViewMode>("card");
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [currentTime] = useState(() => Date.now());
 
   // ZIP/CSV 匯入/匯出功能
   const [importPreview, setImportPreview] = useState<{ data: ArticleFormData[], zipFile?: JSZip | null, errors: string[] } | null>(null);
@@ -377,7 +378,7 @@ export default function NotesManagement() {
 
     if (noteFilterMode === "recent") {
       result = result.filter((article) => {
-        const diff = Date.now() - new Date(article.$updatedAt || article.newDate).getTime();
+        const diff = currentTime - new Date(article.$updatedAt || article.newDate).getTime();
         return diff <= 7 * 24 * 60 * 60 * 1000;
       });
     } else if (noteFilterMode === "pinned") {
@@ -396,11 +397,11 @@ export default function NotesManagement() {
     }
 
     return result;
-  }, [articles, searchQuery, categoryFilter, noteFilterMode, pinnedIds]);
+  }, [articles, searchQuery, categoryFilter, noteFilterMode, pinnedIds, currentTime]);
 
   const dashboardStats = useMemo(() => {
     const recent = articles.filter((article) => {
-      const diff = Date.now() - new Date(article.$updatedAt || article.newDate).getTime();
+      const diff = currentTime - new Date(article.$updatedAt || article.newDate).getTime();
       return diff <= 7 * 24 * 60 * 60 * 1000;
     });
     const withFiles = articles.filter((article) => article.file1 || article.file2 || article.file3);
@@ -411,7 +412,7 @@ export default function NotesManagement() {
       withFiles,
       uncategorized,
     };
-  }, [articles, pinnedIds]);
+  }, [articles, pinnedIds, currentTime]);
 
   const aiWorkbench = useMemo(() => {
     const topRecent = [...articles]
