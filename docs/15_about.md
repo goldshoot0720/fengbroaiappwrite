@@ -1,0 +1,118 @@
+# 鋒兄關於
+
+## 定位
+
+「鋒兄關於」不再只是靜態介紹頁，而是專案的文件中心與現況入口。
+
+它的用途是：
+
+- 顯示最近更新了什麼
+- 說明目前系統架構
+- 整理 15 個功能模組的角色
+- 指向重要技術文件與程式碼入口
+- 提供交接時最短的閱讀路徑
+
+## 五個分頁
+
+| # | 分頁 | 目的 |
+|---|---|---|
+| 1 | 更新內容 | 快速看最近改版、重點變更與目前方向 |
+| 2 | 系統架構 | 了解前端、API、Appwrite 與共用 UI 骨架 |
+| 3 | 功能模組 | 看 15 個模組各自負責什麼 |
+| 4 | 技術文件 | 找 docs 與重點實作檔案 |
+| 5 | 完整文件 | 看接手順序、維護流程與閱讀路線 |
+
+## 目前重點更新
+
+### 2026-03-12
+
+- 「鋒兄關於」改成文件中心版面
+- 七個模組完成第一輪友善 AI CRUD 工作台骨架收斂
+- 訂閱模組依真實 `subscription` schema 收斂
+- 訂閱模組新增 CSV 匯入匯出、ID 搜尋、collection id 顯示、日期 `+30 / -30` 快捷鍵
+
+## 系統架構摘要
+
+### 前端
+
+- Next.js App Router
+- React 19
+- TypeScript
+- `components/modules/` 負責各模組頁
+- `components/ui/friendly-ai-crud-shell.tsx` 作為共用工作台骨架
+
+### API 與資料層
+
+- Next.js API routes 處理 CRUD、初始化與媒體操作
+- Appwrite Database 儲存 collection 資料
+- Appwrite Storage 儲存媒體檔案
+- `鋒兄設定` 負責 table 初始化、collection 狀態與維運資訊
+
+### 架構原則
+
+- 人先做決策，AI 先做整理
+- UI 先統一骨架，再逐模組深化
+- 前端欄位必須以真實 schema 為準
+- 文件必須和實作同步更新
+
+## 功能模組一覽
+
+| # | 模組 | 說明 |
+|---|---|---|
+| 1 | 鋒兄首頁 | 系統入口與模組導覽 |
+| 2 | 鋒兄儀表 | 跨模組統計與摘要 |
+| 3 | 鋒兄訂閱 | 訂閱、扣款日、CSV 與提醒整理 |
+| 4 | 鋒兄食品 | 庫存、到期管理與批次清理 |
+| 5 | 鋒兄筆記 | 快速筆記、模板與 AI 摘要 |
+| 6 | 鋒兄常用 | 常用入口、置頂與最近使用 |
+| 7 | 鋒兄圖片 | 圖片整理與工作台摘要 |
+| 8 | 鋒兄影片 | 影片播放與媒體管理 |
+| 9 | 鋒兄音樂 | 音樂、歌詞與播放控制 |
+| 10 | 鋒兄文件 | 文件預覽、分類與匯入匯出 |
+| 11 | 鋒兄播客 | 節目、集數與摘要管理 |
+| 12 | 鋒兄銀行 | 帳戶資料、餘額與異常提醒 |
+| 13 | 鋒兄例行 | 例行任務與週期追蹤 |
+| 14 | 鋒兄設定 | Appwrite 設定、初始化與系統維運 |
+| 15 | 鋒兄關於 | 文件中心與改版入口 |
+
+## 技術文件入口
+
+### docs
+
+- `docs/INDEX.md`
+- `docs/USER_GUIDE.md`
+- `docs/SYSTEM_ARCHITECTURE.md`
+- `docs/03_subscription.md`
+- `docs/14_settings.md`
+
+### 重要實作檔案
+
+- `components/modules/AboutUs.tsx`
+- `components/ui/friendly-ai-crud-shell.tsx`
+- `components/modules/SubscriptionManagement.tsx`
+- `components/modules/SettingsManagement.tsx`
+- `hooks/useSubscriptions.ts`
+
+## 完整文件閱讀順序
+
+### 接手專案時
+
+1. 先讀 `docs/INDEX.md`
+2. 再讀 `docs/15_about.md`
+3. 看 `docs/SYSTEM_ARCHITECTURE.md`
+4. 進 `鋒兄設定` 確認 Appwrite 與 table 狀態
+5. 最後看對應模組文件與實際程式碼
+
+### 維護時
+
+1. 先確認真實 schema
+2. 再改 UI 與 API
+3. 跑 lint / type check
+4. 同步更新 `鋒兄關於` 與對應 docs
+
+## 文件資訊
+
+- 元件路徑：`components/modules/AboutUs.tsx`
+- 文件位置：`docs/15_about.md`
+- 最後更新：2026-03-12
+- 文件版本：v2.0.0

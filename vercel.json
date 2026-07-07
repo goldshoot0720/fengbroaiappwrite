@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/push-send",
+      "schedule": "6 21 * * *"
+    },
+    {
+      "path": "/api/resend-expiry-notify",
+      "schedule": "16 21 * * *"
+    },
+    {
+      "path": "/api/landtop",
+      "schedule": "0 1 * * 1"
+    }
+  ]
+}

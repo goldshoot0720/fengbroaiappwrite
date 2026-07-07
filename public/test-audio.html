@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Audio Files</title>
+</head>
+<body>
+    <h1>Test Audio Files</h1>
+    
+    <h2>塗哥水電王子爆紅</h2>
+    <audio controls>
+        <source src="/musics/塗哥水電王子爆紅.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    
+    <h2>最瞎結婚理由</h2>
+    <audio controls>
+        <source src="/musics/最瞎結婚理由.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    
+    <h2>鋒兄進化Show🔥</h2>
+    <audio controls>
+        <source src="/musics/鋒兄進化Show🔥.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    
+    <script>
+        // Test if files exist
+        const audioFiles = [
+            '/musics/塗哥水電王子爆紅.mp3',
+            '/musics/塗哥水電王子爆紅(英語).mp3',
+            '/musics/塗哥水電王子爆紅(日語).mp3',
+            '/musics/塗哥水電王子爆紅(粵語).mp3',
+            '/musics/最瞎結婚理由.mp3',
+            '/musics/最瞎結婚理由 (英語).mp3',
+            '/musics/最瞎結婚理由 (日語).mp3',
+            '/musics/最瞎結婚理由 (粵語).mp3',
+            '/musics/鋒兄進化Show🔥.mp3',
+            '/musics/鋒兄進化Show🔥(英語).mp3',
+            '/musics/鋒兄進化Show🔥(日語).mp3',
+            '/musics/鋒兄進化Show🔥(粵語).mp3'
+        ];
+        
+        audioFiles.forEach(file => {
+            fetch(file, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        console.log(`✅ ${file} - Available`);
+                    } else {
+                        console.log(`❌ ${file} - Not found (${response.status})`);
+                    }
+                })
+                .catch(error => {
+                    console.log(`❌ ${file} - Error: ${error.message}`);
+                });
+        });
+    </script>
+</body>
+</html>
