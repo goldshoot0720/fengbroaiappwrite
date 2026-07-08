@@ -99,8 +99,19 @@ function formatDate(dateStr) {
   return String(dateStr).slice(0, 10);
 }
 
+function formatRenewal(value) {
+  if (value === false) return "不續訂";
+  return "續訂中";
+}
+
 function buildEmail({ subscriptions, foods, todayKey }) {
-  const subscriptionLines = subscriptions.map((item) => `- ${item.name}：${formatDate(item.nextdate)} 到期`);
+  const subscriptionLines = subscriptions.map((item) => {
+    const parts = [`- ${item.name}：${formatDate(item.nextdate)} 到期`];
+    if (item.account) parts.push(`  帳號：${item.account}`);
+    parts.push(`  續訂：${formatRenewal(item.continue)}`);
+    if (item.note) parts.push(`  備註：${item.note}`);
+    return parts.join("\n");
+  });
   const foodLines = foods.map((item) => `- ${item.name}：${formatDate(item.todate)} 到期`);
   const title = `鋒兄到期提醒 ${todayKey}`;
   const text = [
@@ -119,7 +130,31 @@ function buildEmail({ subscriptions, foods, todayKey }) {
       <p style="margin:0 0 16px;color:#64748b">檢查日期：${todayKey}</p>
       ${subscriptions.length ? `
         <h3 style="margin:20px 0 8px">訂閱：到期前一天</h3>
-        <ul>${subscriptions.map((item) => `<li><strong>${item.name}</strong>：${formatDate(item.nextdate)} 到期</li>`).join("")}</ul>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">
+          <thead>
+            <tr style="background:#f1f5f9;text-align:left">
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">服務名稱</th>
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">帳號</th>
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">到期日</th>
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">是否續訂</th>
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">備註</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${subscriptions.map((item) => {
+              const renewalStyle = item.continue === false
+                ? "color:#dc2626;font-weight:600"
+                : "color:#16a34a";
+              return `<tr style="border-bottom:1px solid #e2e8f0">
+                <td style="padding:8px 12px;font-weight:600">${item.name}</td>
+                <td style="padding:8px 12px;color:#64748b">${item.account || "-"}</td>
+                <td style="padding:8px 12px">${formatDate(item.nextdate)}</td>
+                <td style="padding:8px 12px;${renewalStyle}">${formatRenewal(item.continue)}</td>
+                <td style="padding:8px 12px;color:#64748b;max-width:200px">${item.note || "-"}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
       ` : ""}
       ${foods.length ? `
         <h3 style="margin:20px 0 8px">食品：到期前一周</h3>
@@ -143,7 +178,16 @@ async function collectExpiryItems(databases, databaseId) {
     ]);
     for (const doc of subs.documents) {
       if (daysUntil(doc.nextdate) === 1) {
-        subscriptions.push({ id: doc.$id, name: doc.name || "未命名訂閱", nextdate: doc.nextdate });
+        subscriptions.push({
+          id: doc.$id,
+          name: doc.name || "未命名訂閱",
+          nextdate: doc.nextdate,
+          account: doc.account || "",
+          continue: doc.continue,
+          note: doc.note || "",
+          price: doc.price,
+          currency: doc.currency || "TWD",
+        });
       }
     }
   }

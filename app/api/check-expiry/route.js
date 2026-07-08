@@ -67,6 +67,9 @@ export async function GET(request) {
               nextdate: doc.nextdate,
               price: doc.price,
               currency: doc.currency || 'TWD',
+              account: doc.account || '',
+              continue: doc.continue,
+              note: doc.note || '',
             });
           }
         }
