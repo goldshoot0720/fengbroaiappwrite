@@ -406,8 +406,8 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const previousClose =
     pickNumber(meta, ["regularMarketPreviousClose", "previousClose"]) ??
     (closes.length > 1 ? closes[closes.length - 2] : null);
-  const high52 = pickNumber(meta, ["fiftyTwoWeekHigh"]) ?? (highs.length ? Math.max(...highs) : null);
-  const low52 = pickNumber(meta, ["fiftyTwoWeekLow"]) ?? (lows.length ? Math.min(...lows) : null);
+  const high52 = closes.length ? Math.max(...closes) : pickNumber(meta, ["fiftyTwoWeekHigh"]) ?? null;
+  const low52 = closes.length ? Math.min(...closes) : pickNumber(meta, ["fiftyTwoWeekLow"]) ?? null;
   const change =
     pickNumber(meta, ["regularMarketChange"]) ??
     (price != null && previousClose != null ? price - previousClose : null);
