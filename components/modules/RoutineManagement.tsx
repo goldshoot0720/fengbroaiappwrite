@@ -1077,13 +1077,13 @@ export default function RoutineManagement() {
                                         <button
                                           type="button"
                                           onClick={() => handleOpenLink(routine.link)}
-                                          className="max-w-[220px] truncate text-left text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                          className="max-w-[220px] whitespace-normal break-words text-left text-blue-600 underline underline-offset-2 hover:text-blue-700"
                                           title={normalizeRoutineLink(routine.link)}
                                         >
                                           {routine.name}
                                         </button>
                                       ) : (
-                                        <div className="max-w-[220px] truncate">{routine.name}</div>
+                                        <div className="max-w-[220px] whitespace-normal break-words">{routine.name}</div>
                                       )}
                                       <div className="text-xs font-normal text-gray-500">
                                         相距天數: {calculateDaysDiff(routine.lastdate1, routine.lastdate2)}
