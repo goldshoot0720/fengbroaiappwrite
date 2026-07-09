@@ -946,6 +946,7 @@ function FengbroTubeSection({
   onResetChannels: () => void;
   onRefresh: () => void;
 }) {
+  const [channelNavOpen, setChannelNavOpen] = useState(false);
   const channelCount = result?.sourceCount ?? channelConfigs.length;
   const resolvedChannelTitleBySource = useMemo(() => {
     return new Map((result?.channels || []).map((channel) => [channel.sourceUrl, channel.title]));
@@ -1074,33 +1075,47 @@ function FengbroTubeSection({
 
         {!error && result && (
           <div className="space-y-6 p-4 sm:p-6">
-            <div className="sticky top-3 z-20 rounded-[24px] border border-red-100 bg-white/95 p-3 shadow-sm backdrop-blur">
-              <div className="flex items-center justify-between gap-3">
+            <div className="sticky top-3 z-20 rounded-[24px] border border-red-100 bg-white/95 shadow-sm backdrop-blur">
+              <button
+                type="button"
+                onClick={() => setChannelNavOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between gap-3 p-3 text-left"
+                aria-expanded={channelNavOpen}
+              >
                 <div className="min-w-0">
                   <h4 className="text-sm font-semibold text-foreground">頻道導航</h4>
                   <p className="mt-0.5 text-xs text-muted-foreground">{result.channels.length} 個頻道</p>
                 </div>
-                <a
-                  href={`#${FENGBRO_TUBE_TOP_ID}`}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:border-red-200 hover:bg-red-100"
-                >
-                  <ArrowUp size={13} />
-                  頂端
-                </a>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-7">
-                {result.channels.map((channel, index) => (
-                  <a
-                    key={channel.sourceUrl}
-                    href={`#${getTubeChannelAnchor(index)}`}
-                    className="inline-flex min-w-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                    title={channel.title}
-                  >
-                    <Play size={12} className="shrink-0" />
-                    <span className="min-w-0 truncate">{channel.title}</span>
-                  </a>
-                ))}
-              </div>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors ${channelNavOpen ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>
+                  {channelNavOpen ? "收合 ▲" : "展開 ▼"}
+                </span>
+              </button>
+              {channelNavOpen && (
+                <div className="border-t border-red-50 px-3 pb-3">
+                  <div className="flex items-center justify-between gap-3 py-2">
+                    <a
+                      href={`#${FENGBRO_TUBE_TOP_ID}`}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:border-red-200 hover:bg-red-100"
+                    >
+                      <ArrowUp size={13} />
+                      頂端
+                    </a>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-7">
+                    {result.channels.map((channel, index) => (
+                      <a
+                        key={channel.sourceUrl}
+                        href={`#${getTubeChannelAnchor(index)}`}
+                        className="inline-flex min-w-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                        title={channel.title}
+                      >
+                        <Play size={12} className="shrink-0" />
+                        <span className="min-w-0 truncate">{channel.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {result.recentVideos.length > 0 && (
