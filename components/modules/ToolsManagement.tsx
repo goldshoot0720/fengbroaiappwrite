@@ -1239,6 +1239,7 @@ function FengbroFinanceSection({
   onDeleteCustomInstrument: (instrument: CustomFinanceInstrument) => void;
   onRefresh: () => void;
 }) {
+  const [watchlistOpen, setWatchlistOpen] = useState(false);
   const groupedQuotes = useMemo(() => {
     const order: FengbroFinanceQuote["group"][] = ["tw", "us", "valuation", "asia", "korea", "fx", "commodities", "rates", "crypto"];
     return order
@@ -1293,64 +1294,71 @@ function FengbroFinanceSection({
         </div>
 
         <div className="border-b border-emerald-100 bg-white/80 p-4 sm:p-6">
-          <details className="group mb-5 rounded-2xl border border-emerald-100 bg-emerald-50/70">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
+          <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50/70">
+            <button
+              type="button"
+              onClick={() => setWatchlistOpen((prev) => !prev)}
+              className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left"
+              aria-expanded={watchlistOpen}
+            >
               <div>
                 <p className="text-sm font-semibold text-emerald-950">預設追蹤清單</p>
                 <p className="mt-1 text-xs text-emerald-800/80">
                   已啟用 {selectedDefaultInstruments.length} / {defaultInstruments.length} 個預設標的，可刪除、加回或重設。
                 </p>
               </div>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] text-emerald-700 group-open:bg-white group-open:text-emerald-800">
-                可折疊
+              <span className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${watchlistOpen ? "bg-white text-emerald-800" : "bg-emerald-100 text-emerald-700"}`}>
+                {watchlistOpen ? "收合 ▲" : "展開 ▼"}
               </span>
-            </summary>
-            <div className="border-t border-emerald-100 p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <select
-                    value=""
-                    onChange={(event) => {
-                      if (event.target.value) onAddDefaultInstrument(event.target.value);
-                    }}
-                    disabled={deletedDefaultInstruments.length === 0}
-                    className="h-10 min-w-[220px] rounded-xl border border-emerald-100 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <option value="">{deletedDefaultInstruments.length ? "加回預設標的" : "預設標的已全數啟用"}</option>
-                    {deletedDefaultInstruments.map((instrument) => (
-                      <option key={instrument.id} value={instrument.id}>
-                        {instrument.name} ({instrument.symbol})
-                      </option>
-                    ))}
-                  </select>
-                  <Button type="button" variant="outline" onClick={onResetDefaultInstruments} className="h-10 gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
-                    <RotateCcw size={16} />
-                    重設預設
-                  </Button>
+            </button>
+            {watchlistOpen && (
+              <div className="border-t border-emerald-100 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <select
+                      value=""
+                      onChange={(event) => {
+                        if (event.target.value) onAddDefaultInstrument(event.target.value);
+                      }}
+                      disabled={deletedDefaultInstruments.length === 0}
+                      className="h-10 min-w-[220px] rounded-xl border border-emerald-100 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <option value="">{deletedDefaultInstruments.length ? "加回預設標的" : "預設標的已全數啟用"}</option>
+                      {deletedDefaultInstruments.map((instrument) => (
+                        <option key={instrument.id} value={instrument.id}>
+                          {instrument.name} ({instrument.symbol})
+                        </option>
+                      ))}
+                    </select>
+                    <Button type="button" variant="outline" onClick={onResetDefaultInstruments} className="h-10 gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                      <RotateCcw size={16} />
+                      重設預設
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {selectedDefaultInstruments.map((instrument) => (
+                    <span
+                      key={instrument.id}
+                      className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-white px-3 py-1 text-xs text-emerald-900 shadow-sm"
+                    >
+                      <span className="font-semibold">{instrument.name}</span>
+                      <span className="text-emerald-700">{instrument.symbol}</span>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteDefaultInstrument(instrument.id)}
+                        className="rounded-full p-0.5 text-emerald-700 hover:bg-emerald-50 hover:text-red-600"
+                        aria-label={`刪除 ${instrument.name}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </span>
+                  ))}
                 </div>
               </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {selectedDefaultInstruments.map((instrument) => (
-                  <span
-                    key={instrument.id}
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-white px-3 py-1 text-xs text-emerald-900 shadow-sm"
-                  >
-                    <span className="font-semibold">{instrument.name}</span>
-                    <span className="text-emerald-700">{instrument.symbol}</span>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteDefaultInstrument(instrument.id)}
-                      className="rounded-full p-0.5 text-emerald-700 hover:bg-emerald-50 hover:text-red-600"
-                      aria-label={`刪除 ${instrument.name}`}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </details>
+            )}
+          </div>
 
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_auto] lg:items-end">
             <label className="space-y-1.5 text-sm">
