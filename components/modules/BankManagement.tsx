@@ -1527,7 +1527,7 @@ export default function BankManagement() {
           <div className="flex items-center gap-2">
             <Wallet size={18} className="text-amber-600 dark:text-amber-400" />
             <span className="font-semibold text-gray-900 dark:text-gray-100">電子票證區塊</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">（非台灣銀行帳戶）</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">（非台灣的銀行帳戶）</span>
           </div>
           <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
             {formatCurrency(electronicTicketAssetTotal)}
