@@ -227,6 +227,7 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "kospi", name: "KOSPI Index", symbol: ".KS11", provider: "cnbc", group: "asia" },
   { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", provider: "yahoo", group: "korea" },
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", provider: "yahoo", group: "korea" },
+  { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "HXSCL", provider: "yahoo", group: "korea" },
   { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", provider: "yahoo", group: "fx" },
   { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", provider: "yahoo", group: "fx" },
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", provider: "cnbc", group: "commodities" },
