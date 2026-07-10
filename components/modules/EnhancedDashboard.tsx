@@ -15,6 +15,7 @@ import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatCurrency, formatDaysRemaining } from "@/lib/formatters";
 import { FoodDetail, SubscriptionDetail } from "@/types";
 import PlumberTycoon from "@/components/modules/PlumberTycoon";
+import CatShowcase from "@/components/modules/CatShowcase";
 
 type FengbroTubeRecentVideo = {
   videoId: string;
@@ -439,6 +440,11 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         {/* 水電大亨事業版圖 */}
         <div className="mt-8">
           <PlumberTycoon />
+        </div>
+        
+        {/* 鋒兄的貓咪家族 */}
+        <div className="mt-8">
+          <CatShowcase />
         </div>
       </div>
     );
