@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
 import { DataCard, DataCardList, DataCardItem } from "@/components/ui/data-card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useBanks } from "@/hooks/useBanks";
@@ -1298,14 +1299,27 @@ export default function BankManagement() {
         </FormCard>
       )}
 
-      {/* ── 銀行區塊 ── */}
+      <Tabs defaultValue="bank" className="w-full space-y-4">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+          <TabsTrigger value="bank" className="flex items-center gap-2">
+            <Building2 size={16} />
+            <span>銀行帳戶</span>
+          </TabsTrigger>
+          <TabsTrigger value="ticket" className="flex items-center gap-2">
+            <Wallet size={16} />
+            <span>電子票證</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="bank" className="m-0 border-none p-0 outline-none">
+          {/* ── 銀行區塊 ── */}
       <DataCard>
         {/* 銀行區塊標題 */}
         <div className="flex items-center justify-between px-1 pb-3 border-b border-gray-200 dark:border-gray-700 mb-4">
           <div className="flex items-center gap-2">
             <Building2 size={18} className="text-blue-600 dark:text-blue-400" />
             <span className="font-semibold text-gray-900 dark:text-gray-100">銀行區塊</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">（台灣銀行 / 中華郵政）</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">（台灣的銀行 / 中華郵政）</span>
           </div>
           <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
             {formatCurrency(taiwanBankAssetTotal)}
@@ -1518,9 +1532,11 @@ export default function BankManagement() {
             </DataCardList>
           );
         })()}
-      </DataCard>
+          </DataCard>
+        </TabsContent>
 
-      {/* ── 電子票證區塊 ── */}
+        <TabsContent value="ticket" className="m-0 border-none p-0 outline-none">
+          {/* ── 電子票證區塊 ── */}
       <DataCard>
         {/* 電子票證區塊標題 */}
         <div className="flex items-center justify-between px-1 pb-3 border-b border-gray-200 dark:border-gray-700 mb-4">
@@ -1740,6 +1756,8 @@ export default function BankManagement() {
           );
         })()}
       </DataCard>
+        </TabsContent>
+      </Tabs>
 
       {/* 批次刪除確認 Modal */}
       {bulkDeleteOpen && (
