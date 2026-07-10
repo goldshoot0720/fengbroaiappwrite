@@ -164,15 +164,15 @@ export default function PlumberTycoon() {
       {/* 人物照片區 */}
       <div className="flex justify-center mb-8">
         <div className="relative">
-          <div className="w-48 h-48 rounded-full overflow-hidden border-4 border-blue-500 shadow-2xl">
+          <div className="w-64 h-64 rounded-3xl overflow-hidden border-4 border-gradient-to-r from-blue-500 to-purple-600 shadow-2xl bg-white">
             <img
-              src="/api/placeholder/400/400"
+              src="/plumber-tycoon.jpg"
               alt="水電大亨"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-center"
             />
           </div>
-          <div className="absolute -bottom-2 -right-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full p-3 shadow-lg">
-            <Building2 className="w-6 h-6 text-white" />
+          <div className="absolute -bottom-3 -right-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full p-4 shadow-2xl">
+            <Building2 className="w-8 h-8 text-white" />
           </div>
         </div>
       </div>
