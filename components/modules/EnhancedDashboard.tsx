@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatCurrency, formatDaysRemaining } from "@/lib/formatters";
 import { FoodDetail, SubscriptionDetail } from "@/types";
+import PlumberTycoon from "@/components/modules/PlumberTycoon";
 
 type FengbroTubeRecentVideo = {
   videoId: string;
@@ -433,6 +434,11 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
               </p>
             </div>
           </DataCard>
+        </div>
+        
+        {/* 水電大亨事業版圖 */}
+        <div className="mt-8">
+          <PlumberTycoon />
         </div>
       </div>
     );

@@ -1298,224 +1298,447 @@ export default function BankManagement() {
         </FormCard>
       )}
 
+      {/* ── 銀行區塊 ── */}
       <DataCard>
+        {/* 銀行區塊標題 */}
+        <div className="flex items-center justify-between px-1 pb-3 border-b border-gray-200 dark:border-gray-700 mb-4">
+          <div className="flex items-center gap-2">
+            <Building2 size={18} className="text-blue-600 dark:text-blue-400" />
+            <span className="font-semibold text-gray-900 dark:text-gray-100">銀行區塊</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">（台灣銀行 / 中華郵政）</span>
+          </div>
+          <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+            {formatCurrency(taiwanBankAssetTotal)}
+            <span className="text-xs font-normal text-gray-400 ml-1">共 {taiwanBankAccounts.length} 筆</span>
+          </span>
+        </div>
+
         {banks.length === 0 ? (
           <EmptyState icon={<Building2 className="w-12 h-12" />} title="暫無銀行資料" description="點擊上方按鈕新增您的第一筆銀行(或電子票證)" />
-        ) : filteredBanks.length === 0 ? (
-          <EmptyState icon={<Search className="w-12 h-12" />} title="無搜尋結果" description={`找不到「${searchQuery}」相關的銀行`} />
-        ) : (
-          <DataCardList>
-            {filteredBanks.map((bank) => (
-              <DataCardItem key={bank.$id}>
-                {inlineEditingId === bank.$id ? (
-                  // 行內編輯模式
-                  <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
-                    <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
-                    <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200">
-                      欄位順序：銀行名稱、資產餘額、網站連結、地址、跨行提款優惠次數、跨行轉帳優惠次數、活動連結、卡片資訊、帳號。
-                      數字欄位依序代表「資產餘額」、「跨行提款優惠次數」、「跨行轉帳優惠次數」。
+        ) : (() => {
+          const filteredTaiwanBanks = filteredBanks.filter(isTaiwanBankAccount);
+          return filteredTaiwanBanks.length === 0 ? (
+            <EmptyState icon={<Search className="w-12 h-12" />} title="無銀行搜尋結果" description={searchQuery ? `找不到「${searchQuery}」相關的銀行` : "目前沒有台灣銀行帳戶"} />
+          ) : (
+            <DataCardList>
+              {filteredTaiwanBanks.map((bank) => (
+                <DataCardItem key={bank.$id}>
+                  {inlineEditingId === bank.$id ? (
+                    // 行內編輯模式
+                    <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
+                      <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
+                      <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200">
+                        欄位順序：銀行名稱、資產餘額、網站連結、地址、跨行提款優惠次數、跨行轉帳優惠次數、活動連結、卡片資訊、帳號。
+                        數字欄位依序代表「資產餘額」、「跨行提款優惠次數」、「跨行轉帳優惠次數」。
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        <Input
+                          placeholder="銀行名稱"
+                          value={inlineEditForm.name}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                          title={FIELD_HINTS.name}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="資產餘額"
+                          type="number"
+                          value={inlineEditForm.deposit}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, deposit: Number(e.target.value) })}
+                          title={FIELD_HINTS.deposit}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="網站連結"
+                          value={inlineEditForm.site}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, site: e.target.value })}
+                          title={FIELD_HINTS.site}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="地址"
+                          value={inlineEditForm.address}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, address: e.target.value })}
+                          title={FIELD_HINTS.address}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="跨行提款優惠次數"
+                          type="number"
+                          value={inlineEditForm.withdrawals}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, withdrawals: Number(e.target.value) })}
+                          title={FIELD_HINTS.withdrawals}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="跨行轉帳優惠次數"
+                          type="number"
+                          value={inlineEditForm.transfer}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, transfer: Number(e.target.value) })}
+                          title={FIELD_HINTS.transfer}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="活動連結"
+                          value={inlineEditForm.activity}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, activity: e.target.value })}
+                          title={FIELD_HINTS.activity}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="卡片"
+                          value={inlineEditForm.card}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, card: e.target.value })}
+                          title={FIELD_HINTS.card}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="帳號"
+                          value={inlineEditForm.account}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
+                          title={FIELD_HINTS.account}
+                          className="h-9 rounded-lg text-sm md:col-span-2 xl:col-span-3"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => handleInlineSave(bank.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                          儲存
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="flex-1 rounded-lg">
+                          取消
+                        </Button>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                      <Input
-                        placeholder="銀行名稱"
-                        value={inlineEditForm.name}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
-                        title={FIELD_HINTS.name}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                      <Input
-                        placeholder="資產餘額"
-                        type="number"
-                        value={inlineEditForm.deposit}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, deposit: Number(e.target.value) })}
-                        title={FIELD_HINTS.deposit}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                      <Input
-                        placeholder="網站連結"
-                        value={inlineEditForm.site}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, site: e.target.value })}
-                        title={FIELD_HINTS.site}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                      <Input
-                        placeholder="地址"
-                        value={inlineEditForm.address}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, address: e.target.value })}
-                        title={FIELD_HINTS.address}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                      <Input
-                        placeholder="跨行提款優惠次數"
-                        type="number"
-                        value={inlineEditForm.withdrawals}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, withdrawals: Number(e.target.value) })}
-                        title={FIELD_HINTS.withdrawals}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                      <Input
-                        placeholder="跨行轉帳優惠次數"
-                        type="number"
-                        value={inlineEditForm.transfer}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, transfer: Number(e.target.value) })}
-                        title={FIELD_HINTS.transfer}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                      <Input
-                        placeholder="活動連結"
-                        value={inlineEditForm.activity}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, activity: e.target.value })}
-                        title={FIELD_HINTS.activity}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                      <Input
-                        placeholder="卡片"
-                        value={inlineEditForm.card}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, card: e.target.value })}
-                        title={FIELD_HINTS.card}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                      <Input
-                        placeholder="帳號"
-                        value={inlineEditForm.account}
-                        onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
-                        title={FIELD_HINTS.account}
-                        className="h-9 rounded-lg text-sm md:col-span-2 xl:col-span-3"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleInlineSave(bank.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
-                        儲存
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="flex-1 rounded-lg">
-                        取消
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  // 正常顯示模式
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        {selectionMode && (
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(bank.$id)}
-                            onChange={() => handleToggleSelect(bank.$id)}
-                            className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
-                          />
-                        )}
-                        {bank.site && <FaviconImage siteUrl={bank.site} siteName={bank.name} size={24} />}
-                        <div>
-                          {bank.site ? (
-                            <a
-                              href={bank.site}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-lg font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                            >
-                              {bank.name}
-                              <LinkIcon size={14} />
-                            </a>
-                          ) : (
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{bank.name}</h3>
+                  ) : (
+                    // 正常顯示模式
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          {selectionMode && (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(bank.$id)}
+                              onChange={() => handleToggleSelect(bank.$id)}
+                              className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
+                            />
                           )}
-                          <span
-                            className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                              isTaiwanBankAccount(bank)
-                                ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
-                                : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
-                            }`}
+                          {bank.site && <FaviconImage siteUrl={bank.site} siteName={bank.name} size={24} />}
+                          <div>
+                            {bank.site ? (
+                              <a
+                                href={bank.site}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-lg font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                              >
+                                {bank.name}
+                                <LinkIcon size={14} />
+                              </a>
+                            ) : (
+                              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{bank.name}</h3>
+                            )}
+                            <span className="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
+                              台灣銀行
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            {Number(bank.deposit) > 0 && (
+                              <>
+                                <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                                  {formatCurrency(bank.deposit)}
+                                </div>
+                                <span className="text-xs text-gray-400">資產餘額</span>
+                              </>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleInlineEdit(bank)}
+                            className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
+                            title="編輯"
                           >
-                            {isTaiwanBankAccount(bank) ? "台灣銀行" : "電子票證"}
-                          </span>
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(bank.$id, bank.name)}
+                            className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                            title="刪除"
+                          >
+                            <Trash2 size={18} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          {Number(bank.deposit) > 0 && (
-                            <>
-                              <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                                {formatCurrency(bank.deposit)}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4">
+                        {bank.address && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <MapPin size={16} className="text-gray-400" />
+                            <span className="truncate">{bank.address}</span>
+                          </div>
+                        )}
+                        {bank.card && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <CreditCard size={16} className="text-gray-400" />
+                            <span>{bank.card}</span>
+                          </div>
+                        )}
+                        {bank.account && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <User size={16} className="text-gray-400" />
+                            <span>{bank.account}</span>
+                          </div>
+                        )}
+                        {(Number(bank.withdrawals) > 0 || Number(bank.transfer) > 0) && (
+                          <div className="flex items-center gap-4 text-xs">
+                            {Number(bank.withdrawals) > 0 && (
+                              <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded">
+                                <ArrowDownLeft size={12} />
+                                <span>跨行提款優惠次數: {bank.withdrawals}</span>
                               </div>
-                              <span className="text-xs text-gray-400">資產餘額</span>
-                            </>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => handleInlineEdit(bank)}
-                          className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
-                          title="編輯"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(bank.$id, bank.name)}
-                          className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                          title="刪除"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                            )}
+                            {Number(bank.transfer) > 0 && (
+                              <div className="flex items-center gap-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-2 py-1 rounded">
+                                <ArrowUpRight size={12} />
+                                <span>跨行轉帳優惠次數: {bank.transfer}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {bank.activity && (
+                          <a href={bank.activity} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-purple-500 hover:underline">
+                            <Activity size={16} />
+                            <span>最新活動優惠</span>
+                          </a>
+                        )}
                       </div>
                     </div>
+                  )}
+                </DataCardItem>
+              ))}
+            </DataCardList>
+          );
+        })()}
+      </DataCard>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4">
-                      {/* 地址 */}
-                      {bank.address && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                          <MapPin size={16} className="text-gray-400" />
-                          <span className="truncate">{bank.address}</span>
-                        </div>
-                      )}
+      {/* ── 電子票證區塊 ── */}
+      <DataCard>
+        {/* 電子票證區塊標題 */}
+        <div className="flex items-center justify-between px-1 pb-3 border-b border-gray-200 dark:border-gray-700 mb-4">
+          <div className="flex items-center gap-2">
+            <Wallet size={18} className="text-amber-600 dark:text-amber-400" />
+            <span className="font-semibold text-gray-900 dark:text-gray-100">電子票證區塊</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">（非台灣銀行帳戶）</span>
+          </div>
+          <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+            {formatCurrency(electronicTicketAssetTotal)}
+            <span className="text-xs font-normal text-gray-400 ml-1">共 {electronicTickets.length} 筆</span>
+          </span>
+        </div>
 
-                      {/* 卡片 */}
-                      {bank.card && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                          <CreditCard size={16} className="text-gray-400" />
-                          <span>{bank.card}</span>
-                        </div>
-                      )}
-
-                      {/* 帳號 */}
-                      {bank.account && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                          <User size={16} className="text-gray-400" />
-                          <span>{bank.account}</span>
-                        </div>
-                      )}
-
-                      {/* 額度資訊 - 只顯示大於 0 的值 */}
-                      {(Number(bank.withdrawals) > 0 || Number(bank.transfer) > 0) && (
-                        <div className="flex items-center gap-4 text-xs">
-                          {Number(bank.withdrawals) > 0 && (
-                            <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded">
-                              <ArrowDownLeft size={12} />
-                              <span>跨行提款優惠次數: {bank.withdrawals}</span>
-                            </div>
-                          )}
-                          {Number(bank.transfer) > 0 && (
-                            <div className="flex items-center gap-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-2 py-1 rounded">
-                              <ArrowUpRight size={12} />
-                              <span>跨行轉帳優惠次數: {bank.transfer}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* 活動連結 */}
-                      {bank.activity && (
-                        <a href={bank.activity} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-purple-500 hover:underline">
-                          <Activity size={16} />
-                          <span>最新活動優惠</span>
-                        </a>
-                      )}
+        {banks.length === 0 ? (
+          <EmptyState icon={<Wallet className="w-12 h-12" />} title="暫無電子票證資料" description="點擊上方按鈕新增電子票證" />
+        ) : (() => {
+          const filteredElectronicTickets = filteredBanks.filter((bank) => !isTaiwanBankAccount(bank));
+          return filteredElectronicTickets.length === 0 ? (
+            <EmptyState icon={<Search className="w-12 h-12" />} title="無電子票證搜尋結果" description={searchQuery ? `找不到「${searchQuery}」相關的電子票證` : "目前沒有電子票證"} />
+          ) : (
+            <DataCardList>
+              {filteredElectronicTickets.map((bank) => (
+                <DataCardItem key={bank.$id}>
+                  {inlineEditingId === bank.$id ? (
+                    // 行內編輯模式
+                    <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
+                      <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
+                      <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200">
+                        欄位順序：名稱、資產餘額、網站連結、地址、跨行提款優惠次數、跨行轉帳優惠次數、活動連結、卡片資訊、帳號。
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        <Input
+                          placeholder="名稱"
+                          value={inlineEditForm.name}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
+                          title={FIELD_HINTS.name}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="資產餘額"
+                          type="number"
+                          value={inlineEditForm.deposit}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, deposit: Number(e.target.value) })}
+                          title={FIELD_HINTS.deposit}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="網站連結"
+                          value={inlineEditForm.site}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, site: e.target.value })}
+                          title={FIELD_HINTS.site}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="地址"
+                          value={inlineEditForm.address}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, address: e.target.value })}
+                          title={FIELD_HINTS.address}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="跨行提款優惠次數"
+                          type="number"
+                          value={inlineEditForm.withdrawals}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, withdrawals: Number(e.target.value) })}
+                          title={FIELD_HINTS.withdrawals}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="跨行轉帳優惠次數"
+                          type="number"
+                          value={inlineEditForm.transfer}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, transfer: Number(e.target.value) })}
+                          title={FIELD_HINTS.transfer}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="活動連結"
+                          value={inlineEditForm.activity}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, activity: e.target.value })}
+                          title={FIELD_HINTS.activity}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="卡片"
+                          value={inlineEditForm.card}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, card: e.target.value })}
+                          title={FIELD_HINTS.card}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Input
+                          placeholder="帳號"
+                          value={inlineEditForm.account}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, account: e.target.value })}
+                          title={FIELD_HINTS.account}
+                          className="h-9 rounded-lg text-sm md:col-span-2 xl:col-span-3"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => handleInlineSave(bank.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                          儲存
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="flex-1 rounded-lg">
+                          取消
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </DataCardItem>
-            ))}
-          </DataCardList>
-        )}
+                  ) : (
+                    // 正常顯示模式
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          {selectionMode && (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(bank.$id)}
+                              onChange={() => handleToggleSelect(bank.$id)}
+                              className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer shrink-0"
+                            />
+                          )}
+                          {bank.site && <FaviconImage siteUrl={bank.site} siteName={bank.name} size={24} />}
+                          <div>
+                            {bank.site ? (
+                              <a
+                                href={bank.site}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-lg font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                              >
+                                {bank.name}
+                                <LinkIcon size={14} />
+                              </a>
+                            ) : (
+                              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{bank.name}</h3>
+                            )}
+                            <span className="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                              電子票證
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            {Number(bank.deposit) > 0 && (
+                              <>
+                                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                                  {formatCurrency(bank.deposit)}
+                                </div>
+                                <span className="text-xs text-gray-400">資產餘額</span>
+                              </>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleInlineEdit(bank)}
+                            className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
+                            title="編輯"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(bank.$id, bank.name)}
+                            className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                            title="刪除"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4">
+                        {bank.address && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <MapPin size={16} className="text-gray-400" />
+                            <span className="truncate">{bank.address}</span>
+                          </div>
+                        )}
+                        {bank.card && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <CreditCard size={16} className="text-gray-400" />
+                            <span>{bank.card}</span>
+                          </div>
+                        )}
+                        {bank.account && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <User size={16} className="text-gray-400" />
+                            <span>{bank.account}</span>
+                          </div>
+                        )}
+                        {(Number(bank.withdrawals) > 0 || Number(bank.transfer) > 0) && (
+                          <div className="flex items-center gap-4 text-xs">
+                            {Number(bank.withdrawals) > 0 && (
+                              <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded">
+                                <ArrowDownLeft size={12} />
+                                <span>跨行提款優惠次數: {bank.withdrawals}</span>
+                              </div>
+                            )}
+                            {Number(bank.transfer) > 0 && (
+                              <div className="flex items-center gap-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-2 py-1 rounded">
+                                <ArrowUpRight size={12} />
+                                <span>跨行轉帳優惠次數: {bank.transfer}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {bank.activity && (
+                          <a href={bank.activity} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-purple-500 hover:underline">
+                            <Activity size={16} />
+                            <span>最新活動優惠</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </DataCardItem>
+              ))}
+            </DataCardList>
+          );
+        })()}
       </DataCard>
 
       {/* 批次刪除確認 Modal */}
@@ -1575,3 +1798,4 @@ export default function BankManagement() {
     </div>
   );
 }
+

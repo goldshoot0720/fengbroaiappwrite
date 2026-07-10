@@ -1472,6 +1472,158 @@ function FengbroFinanceSection({
                 </div>
               </div>
             )}
+            {/* ── 精選焦點區塊 ─────────────────────────────────────── */}
+            {(() => {
+              const featuredIds = ["kospi", "phlx-semiconductor", "tsmc"];
+              const featuredQuotes = featuredIds
+                .map((id) => (result?.quotes || []).find((q) => q.id === id))
+                .filter((q): q is NonNullable<typeof q> => !!q);
+              if (featuredQuotes.length === 0) return null;
+              const featuredLabels: Record<string, { title: string; subtitle: string; accentClass: string; bgClass: string; borderClass: string }> = {
+                kospi: {
+                  title: "KOSPI Index",
+                  subtitle: "韓國綜合指數 코스피",
+                  accentClass: "text-sky-700",
+                  bgClass: "bg-[linear-gradient(135deg,rgba(224,242,254,0.95),rgba(255,255,255,0.98))]",
+                  borderClass: "border-sky-200",
+                },
+                "phlx-semiconductor": {
+                  title: "費城半導體指數",
+                  subtitle: "Philadelphia Semiconductor · SOX",
+                  accentClass: "text-violet-700",
+                  bgClass: "bg-[linear-gradient(135deg,rgba(237,233,254,0.95),rgba(255,255,255,0.98))]",
+                  borderClass: "border-violet-200",
+                },
+                tsmc: {
+                  title: "台積電",
+                  subtitle: "Taiwan Semiconductor · 2330.TW",
+                  accentClass: "text-emerald-700",
+                  bgClass: "bg-[linear-gradient(135deg,rgba(209,250,229,0.95),rgba(255,255,255,0.98))]",
+                  borderClass: "border-emerald-200",
+                },
+              };
+              return (
+                <div>
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">精選焦點</p>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {featuredQuotes.map((quote, idx) => {
+                      const cfg = featuredLabels[quote.id] ?? {
+                        title: quote.name,
+                        subtitle: quote.symbol,
+                        accentClass: "text-emerald-700",
+                        bgClass: "bg-white",
+                        borderClass: "border-slate-200",
+                      };
+                      const isUp = (quote.change || 0) >= 0;
+                      const recordLabel = getFinanceRecordLabel(quote.recordTag);
+                      return (
+                        <div
+                          key={quote.id}
+                          className={`relative overflow-hidden rounded-[28px] border ${cfg.borderClass} ${cfg.bgClass} p-5 shadow-sm transition hover:shadow-md`}
+                        >
+                          {/* 區塊序號 */}
+                          <span className={`absolute right-4 top-4 text-[11px] font-semibold uppercase tracking-widest opacity-40 ${cfg.accentClass}`}>
+                            BLOCK {idx + 1}
+                          </span>
+
+                          {/* 標題 */}
+                          <div className="mb-4 pr-16">
+                            <p className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${cfg.accentClass} opacity-80`}>
+                              {cfg.subtitle}
+                            </p>
+                            <h4 className="mt-1 text-lg font-semibold text-foreground leading-tight">{cfg.title}</h4>
+                            {(quote.localLabel || recordLabel) && (
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                {quote.localLabel && (
+                                  <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
+                                    {quote.localLabel}
+                                  </span>
+                                )}
+                                {recordLabel && (
+                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-sky-50 text-sky-700 border-sky-200"}`}>
+                                    {recordLabel}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 價格 & 漲跌 */}
+                          {quote.error ? (
+                            <p className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{quote.error}</p>
+                          ) : (
+                            <>
+                              <div className="flex items-end justify-between gap-2">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">最新價</p>
+                                  <p className="mt-0.5 text-3xl font-bold text-foreground tabular-nums">
+                                    {formatFinanceNumber(quote.price, 2)}
+                                    {quote.currency && (
+                                      <span className="ml-1 text-sm font-medium text-muted-foreground">{quote.currency}</span>
+                                    )}
+                                  </p>
+                                </div>
+                                <div className={`text-right text-sm font-semibold tabular-nums ${isUp ? "text-emerald-700" : "text-red-600"}`}>
+                                  <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.change, 2)}</p>
+                                  <p className="text-base">{isUp ? "+" : ""}{formatFinanceNumber(quote.changePercent, 2)}%</p>
+                                </div>
+                              </div>
+
+                              {/* 52W High / Low */}
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                <div className="rounded-xl bg-white/70 px-3 py-2 border border-slate-100">
+                                  <p className="text-muted-foreground">52W High</p>
+                                  <p className="mt-0.5 font-semibold">{formatFinanceNumber(quote.high52, 2)}</p>
+                                </div>
+                                <div className="rounded-xl bg-white/70 px-3 py-2 border border-slate-100">
+                                  <p className="text-muted-foreground">52W Low</p>
+                                  <p className="mt-0.5 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
+                                </div>
+                              </div>
+
+                              {/* 走勢圖（最近一年） */}
+                              <div className="mt-3">
+                                <FinanceHistoryChart quote={quote} rangeKey="1y" label="最近一年走勢" />
+                              </div>
+
+                              {/* 外部連結 */}
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                {quote.youtubeUrl && (
+                                  <a href={quote.youtubeUrl} target="_blank" rel="noreferrer" className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100">
+                                    {quote.youtubeLabel || "YouTube"} <Play className="inline h-3 w-3" />
+                                  </a>
+                                )}
+                                {quote.youtubeLinks?.map((link) => (
+                                  <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-700 hover:bg-red-100">
+                                    {link.label} <Play className="inline h-3 w-3" />
+                                  </a>
+                                ))}
+                                {quote.bilibiliUrl && (
+                                  <a href={quote.bilibiliUrl} target="_blank" rel="noreferrer" className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-xs text-sky-700 hover:bg-sky-100">
+                                    Bilibili <Play className="inline h-3 w-3" />
+                                  </a>
+                                )}
+                                <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50">
+                                  {quote.provider === "yahoo" ? "Yahoo" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
+                                </a>
+                              </div>
+
+                              {quote.alertMessage && (
+                                <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                  {quote.alertMessage}
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+            {/* ── END 精選焦點區塊 ─────────────────────────────────── */}
+
             {result.shillerPe && (
               <div
                 className={`rounded-[24px] border p-4 shadow-sm ${
