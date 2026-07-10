@@ -166,7 +166,7 @@ export default function PlumberTycoon() {
         <div className="relative">
           <div className="w-64 h-64 rounded-3xl overflow-hidden border-4 border-gradient-to-r from-blue-500 to-purple-600 shadow-2xl bg-white">
             <img
-              src="/plumber-tycoon.jpg"
+              src="/plumber-tycoon.png"
               alt="水電大亨"
               className="w-full h-full object-cover object-center"
             />
