@@ -12,21 +12,27 @@
 
 ### ⚠️ 需要新增的圖片
 
-#### 1. 水電大亨照片
-- **`plumber-tycoon.jpg`** - 水電大亨本人照片
-  - 位置: `public/plumber-tycoon.jpg`
+#### 1. 執行長照片
+- **`ceo-profile.jpg`** - 人工智慧水電行執行長照片
+  - 位置: `public/ceo-profile.jpg`
+  - 用途: CEOProfile 元件 (執行長簡介區塊)
+  - 建議尺寸: 至少 400x400px
+  - 來源: 你剛才提供的照片 (戴眼鏡、穿深藍色 "Relax" T恤的男士)
+
+#### 2. 水電大亨照片
+- **`plumber-tycoon.png`** - 水電大亨本人照片 ✅
+  - 位置: `public/plumber-tycoon.png`
   - 用途: PlumberTycoon 元件 (水電大亨事業版圖區塊)
   - 建議尺寸: 至少 400x400px
-  - 來源: 你剛才提供的照片 (穿灰色 "THIS ENLIST FAOT" T恤的男生)
 
-#### 2. 貓咪照片
-- **`cats2.25fimage1.jpg`** - 喵布布 (三花貓)
-  - 位置: `public/cats2.25fimage1.jpg`
+#### 3. 貓咪照片
+- **`cats2.25fimage1.png`** - 喵布布 (三花貓) ✅
+  - 位置: `public/cats2.25fimage1.png`
   - 用途: CatShowcase 元件 (鋒兄的貓咪家族區塊)
   - 描述: 三花貓,白色、橘色、黑色毛色,舉起小手
   
-- **`cats2.25fimage2.jpg`** - 喵白白 (白貓)
-  - 位置: `public/cats2.25fimage2.jpg`
+- **`cats2.25fimage2.png`** - 喵白白 (白貓) ✅
+  - 位置: `public/cats2.25fimage2.png`
   - 用途: CatShowcase 元件 (鋒兄的貓咪家族區塊)
   - 描述: 白貓,頭上有黑色斑紋,穿著貓咪裝
 
@@ -47,9 +53,10 @@ public/
 ├── apple-touch-icon.png           ✅
 ├── apple-touch-icon.jpg           ✅
 ├── fengbro-profile.png            ✅
-├── plumber-tycoon.jpg             ⚠️ 需要新增
-├── cats2.25fimage1.jpg            ⚠️ 需要新增
-├── cats2.25fimage2.jpg            ⚠️ 需要新增
+├── ceo-profile.jpg                ⚠️ 需要新增
+├── plumber-tycoon.png             ✅
+├── cats2.25fimage1.png            ✅
+├── cats2.25fimage2.png            ✅
 ├── finance/
 │   ├── nikkei-225-index.png       ✅
 │   ├── kospi-index.png            ✅
@@ -68,18 +75,19 @@ public/
 
 ## 🎯 立即行動項目
 
-1. **保存水電大亨照片**:
-   - 將你剛才提供的照片保存為 `public/plumber-tycoon.jpg`
+1. **保存執行長照片**:
+   - 將你剛才提供的照片保存為 `public/ceo-profile.jpg`
    - 確保檔案大小合理 (建議 < 500KB)
-
-2. **確認貓咪照片**:
-   - 檢查 `public/cats2.25fimage1.jpg` 是否存在
-   - 檢查 `public/cats2.25fimage2.jpg` 是否存在
-   - 如果檔名不同,請重新命名
 
 ---
 
 ## 🖼️ 圖片使用說明
+
+### 執行長照片用途
+- **元件**: `components/modules/CEOProfile.tsx`
+- **顯示位置**: 鋒兄首頁 > 人工智慧水電行執行長區塊
+- **顯示樣式**: 圓角矩形 (288x288px),帶有藍色漸層邊框
+- **持股資訊**: 顯示 37% 以上持股比例
 
 ### 水電大亨照片用途
 - **元件**: `components/modules/PlumberTycoon.tsx`
@@ -95,9 +103,10 @@ public/
 
 ## ✅ 檢查清單
 
-- [ ] `public/plumber-tycoon.jpg` 已新增
-- [ ] `public/cats2.25fimage1.jpg` 已確認
-- [ ] `public/cats2.25fimage2.jpg` 已確認
+- [ ] `public/ceo-profile.jpg` 已新增
+- [x] `public/plumber-tycoon.png` 已確認
+- [x] `public/cats2.25fimage1.png` 已確認
+- [x] `public/cats2.25fimage2.png` 已確認
 - [ ] 所有圖片檔案大小合理 (< 1MB)
 - [ ] 圖片解析度適當 (至少 400x400px)
 

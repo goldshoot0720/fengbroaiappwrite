@@ -74,8 +74,8 @@ export default function FinancePage() {
   };
 
   // 判斷漲跌
-  const isPositive = (value: number | null) => value !== null && value > 0;
-  const isNegative = (value: number | null) => value !== null && value < 0;
+  const isPositive = (value: number | null | undefined) => value != null && value > 0;
+  const isNegative = (value: number | null | undefined) => value != null && value < 0;
 
   if (loading) {
     return (
