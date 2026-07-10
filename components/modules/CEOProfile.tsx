@@ -27,7 +27,7 @@ export default function CEOProfile() {
               <div className="relative">
                 <div className="w-72 h-72 rounded-3xl overflow-hidden border-4 border-indigo-500 shadow-2xl bg-white">
                   <Image
-                    src="/ceo-profile.jpg"
+                    src="/ceo-profile.png"
                     alt="人工智慧水電行執行長"
                     width={400}
                     height={400}
