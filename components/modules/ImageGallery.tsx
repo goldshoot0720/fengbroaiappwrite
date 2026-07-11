@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp, AlertTriangle, LayoutGrid, Rows3 } from "lucide-react";
+import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp, AlertTriangle, LayoutGrid, Rows3, ChevronLeft, ChevronRight } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
@@ -1626,8 +1626,9 @@ export default function ImageGallery() {
         </>
       )}
 
+      {/* 圖片預覽模態框 */}
       {selectedImage && (
-        <ImagePreviewPortal image={selectedImage} onClose={() => setSelectedImage(null)} />
+        <ImagePreviewPortal image={selectedImage} images={filteredImages} onClose={() => setSelectedImage(null)} />
       )}
 
       {showForm && (
@@ -2242,24 +2243,38 @@ function ImageListRow({ image, onSelect, onEdit, onRefresh, selectionMode, isSel
 }
 
 // 圖片預覽模態框
-function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () => void }) {
+function ImagePreviewModal({ image, onClose, onPrev, onNext, currentIndex, totalImages }: { image: ImageData; onClose: () => void; onPrev?: () => void; onNext?: () => void; currentIndex?: number; totalImages?: number }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-2 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-2 sm:p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="relative w-full h-full max-w-7xl max-h-screen flex flex-col">
         {/* 頂部控制欄 */}
-        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10">
-          <button onClick={onClose} className="rounded-lg bg-black/80 p-2.5 text-white transition-colors hover:bg-black/95">
+        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-20 flex items-center gap-4">
+          {totalImages !== undefined && totalImages > 1 && (
+            <div className="rounded-lg bg-black/50 px-3 py-1.5 text-sm text-white/80 font-medium tracking-wide">
+              {currentIndex !== undefined ? currentIndex + 1 : 1} / {totalImages}
+            </div>
+          )}
+          <button onClick={onClose} className="rounded-lg bg-black/80 p-2.5 text-white transition-colors hover:bg-black/95 hover:scale-105 active:scale-95">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 圖片 - 置中顯示 */}
-        <div className="flex-1 flex items-center justify-center p-12 sm:p-16">
+        <div className="flex-1 flex items-center justify-center p-8 sm:p-16 relative">
+          {onPrev && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onPrev(); }}
+              className="absolute left-0 sm:left-4 z-20 p-2 sm:p-3 rounded-full bg-black/40 text-white hover:bg-black/80 transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
+            >
+              <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+            </button>
+          )}
+
           {image.file ? (
             <img
               src={getProxiedMediaUrl(image.file)}
               alt={image.name}
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-opacity duration-300"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
@@ -2268,22 +2283,31 @@ function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () =
               <p>沒有圖片 URL</p>
             </div>
           )}
+
+          {onNext && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onNext(); }}
+              className="absolute right-0 sm:right-4 z-20 p-2 sm:p-3 rounded-full bg-black/40 text-white hover:bg-black/80 transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
+            >
+              <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+            </button>
+          )}
         </div>
 
         {/* 底部資訊欄 */}
-        <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4">
-          <div className="rounded-xl bg-black/82 p-3 text-white sm:p-4">
+        <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 z-20 pointer-events-none">
+          <div className="rounded-xl bg-black/82 p-3 text-white sm:p-4 pointer-events-auto shadow-lg backdrop-blur-md border border-white/10">
             <h3 className="font-medium mb-2">{image.name}</h3>
-            {image.note && <p className="text-sm opacity-90 mb-2">{image.note}</p>}
+            {image.note && <p className="text-sm text-white/80 mb-2">{image.note}</p>}
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" />
+              <span className="flex items-center gap-1 text-white/90">
+                <Calendar className="w-4 h-4 text-white/70" />
                 {formatLocalDate(image.$createdAt)}
               </span>
-              {image.category && <span>分類: {image.category}</span>}
-              <span>檔案大小: {formatFileSize(image.size)}</span>
-              {image.ref && <span>參考: {image.ref}</span>}
-              <span className="ml-auto text-xs opacity-75">點擊空白處關閉</span>
+              {image.category && <span className="bg-white/10 px-2 py-0.5 rounded text-white/90">分類: {image.category}</span>}
+              <span className="text-white/80">大小: {formatFileSize(image.size)}</span>
+              {image.ref && <span className="text-white/80">參考: {image.ref}</span>}
+              <span className="ml-auto text-xs text-white/40 hidden sm:inline-block">點擊空白關閉 / 左右鍵切換</span>
             </div>
           </div>
         </div>
@@ -2292,9 +2316,18 @@ function ImagePreviewModal({ image, onClose }: { image: ImageData; onClose: () =
   );
 }
 
-// 圖片表單模態框
-function ImagePreviewPortal({ image, onClose }: { image: ImageData; onClose: () => void }) {
+// 圖片預覽 Portal
+function ImagePreviewPortal({ image, images = [], onClose }: { image: ImageData; images?: ImageData[]; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
+  const [currentId, setCurrentId] = useState(image.$id);
+  
+  useEffect(() => {
+    setCurrentId(image.$id);
+  }, [image.$id]);
+
+  const currentIndex = images.findIndex(img => img.$id === currentId);
+  const actualIndex = currentIndex >= 0 ? currentIndex : 0;
+  const currentImage = images.length > 0 && currentIndex >= 0 ? images[currentIndex] : image;
 
   useEffect(() => {
     setMounted(true);
@@ -2303,6 +2336,20 @@ function ImagePreviewPortal({ image, onClose }: { image: ImageData; onClose: () 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
+      } else if (event.key === "ArrowLeft" && images.length > 1) {
+        setCurrentId(prevId => {
+          const idx = images.findIndex(img => img.$id === prevId);
+          if (idx < 0) return prevId;
+          const newIdx = idx > 0 ? idx - 1 : images.length - 1;
+          return images[newIdx].$id;
+        });
+      } else if (event.key === "ArrowRight" && images.length > 1) {
+        setCurrentId(prevId => {
+          const idx = images.findIndex(img => img.$id === prevId);
+          if (idx < 0) return prevId;
+          const newIdx = idx < images.length - 1 ? idx + 1 : 0;
+          return images[newIdx].$id;
+        });
       }
     };
 
@@ -2313,12 +2360,25 @@ function ImagePreviewPortal({ image, onClose }: { image: ImageData; onClose: () 
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, images]);
 
   if (!mounted) return null;
 
   return createPortal(
-    <ImagePreviewModal image={image} onClose={onClose} />,
+    <ImagePreviewModal 
+      image={currentImage} 
+      onClose={onClose}
+      onPrev={images.length > 1 ? () => {
+        const idx = images.findIndex(img => img.$id === currentId);
+        if (idx >= 0) setCurrentId(images[idx > 0 ? idx - 1 : images.length - 1].$id);
+      } : undefined}
+      onNext={images.length > 1 ? () => {
+        const idx = images.findIndex(img => img.$id === currentId);
+        if (idx >= 0) setCurrentId(images[idx < images.length - 1 ? idx + 1 : 0].$id);
+      } : undefined}
+      currentIndex={images.length > 1 ? actualIndex : undefined}
+      totalImages={images.length > 1 ? images.length : undefined}
+    />,
     document.body
   );
 }
