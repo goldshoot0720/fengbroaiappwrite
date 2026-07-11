@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize, AlertTriangle, RefreshCw } from "lucide-react";
+import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import SimpleVideoPlayer from "@/components/ui/simple-video-player";
 import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
@@ -261,7 +261,7 @@ export default function VideoIntroduction() {
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "withFile" | "missingCover" | "multipart" | "duplicates">("all");
   const [sortMode, setSortMode] = useState<"createdDesc" | "fileSizeDesc">("createdDesc");
-  const [viewMode, setViewMode] = useState<'youtube' | 'bilibili'>('youtube');
+  const [viewMode, setViewMode] = useState<'youtube' | 'bilibili' | 'netflix'>('netflix');
   const [viewModeHydrated, setViewModeHydrated] = useState(false);
   const [importPreview, setImportPreview] = useState<{ data: VideoFormData[]; errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
@@ -1669,6 +1669,17 @@ export default function VideoIntroduction() {
             </Select>
             <div className="flex w-full items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1 sm:w-auto">
               <button
+                onClick={() => setViewMode("netflix")}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === "netflix"
+                  ? "bg-[#E50914] text-white shadow-sm"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  }`}
+                title="Netflix 風格"
+              >
+                <Monitor className="w-4 h-4" />
+                <span className="hidden sm:inline">Netflix</span>
+              </button>
+              <button
                 onClick={() => setViewMode("youtube")}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === "youtube"
                   ? "bg-red-500 text-white shadow-sm"
@@ -1738,6 +1749,86 @@ export default function VideoIntroduction() {
           title="無搜尋結果"
           description={`找不到「${searchQuery}」相關的影片`}
         />
+      ) : viewMode === 'netflix' ? (
+        <div className="space-y-10 pb-10 bg-[#141414] text-white -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 mt-4 pt-6 min-h-[50vh] rounded-xl overflow-hidden">
+          {filteredVideos[0] && (
+            <div className="relative w-full aspect-[21/9] bg-black -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 mb-10 overflow-hidden group cursor-pointer rounded-b-xl shadow-2xl" onClick={() => playVideo(filteredVideos[0])}>
+              <img src={getProxiedMediaUrl(filteredVideos[0].cover) || '/placeholder-video.jpg'} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-700" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#141414]/95 via-[#141414]/50 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-transparent to-transparent" />
+              
+              <div className="absolute bottom-[15%] left-[4%] max-w-2xl z-10">
+                 <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white mb-3 sm:mb-4 drop-shadow-xl">{filteredVideos[0].name}</h1>
+                 <p className="text-gray-300 text-sm md:text-base line-clamp-2 sm:line-clamp-3 mb-6 drop-shadow-md">{filteredVideos[0].note || '鋒兄影片最新熱門推薦，點擊觀看詳細內容。'}</p>
+                 <div className="flex items-center gap-3 sm:gap-4">
+                    <button className="flex items-center justify-center gap-2 px-6 sm:px-8 py-2 sm:py-3 bg-white text-black rounded font-bold hover:bg-white/80 transition shadow-lg text-sm sm:text-base">
+                       <Play size={20} fill="currentColor" /> 播放
+                    </button>
+                    <button 
+                       className="flex items-center justify-center gap-2 px-6 sm:px-8 py-2 sm:py-3 bg-gray-600/70 text-white rounded font-bold hover:bg-gray-600/90 transition shadow-lg text-sm sm:text-base backdrop-blur-sm"
+                       onClick={(e) => { e.stopPropagation(); handleAddToQueue(filteredVideos[0]); }}
+                    >
+                       {isInQueue(filteredVideos[0].$id) ? <CheckCircle size={20} /> : <Plus size={20} />} 佇列
+                    </button>
+                 </div>
+              </div>
+            </div>
+          )}
+
+          {Array.from(new Set(filteredVideos.map(v => v.category || '未分類'))).map(category => (
+            <div key={category} className="space-y-3 relative z-10 mb-8">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-100 px-2 drop-shadow-md">{category}</h3>
+              <div className="flex overflow-x-auto gap-4 pb-6 px-2 no-scrollbar scroll-smooth snap-x">
+                {isInlineCreating && category === '未分類' && (
+                  <div className="flex-none w-[280px] sm:w-[320px]">
+                    <InlineCreateVideoCard
+                      existingVideos={videos}
+                      compact={true}
+                      onCancel={() => setIsInlineCreating(false)}
+                      onSuccess={() => { setIsInlineCreating(false); loadVideos(true); }}
+                    />
+                  </div>
+                )}
+                {filteredVideos.filter(v => (v.category || '未分類') === category).map(video => (
+                  <div 
+                    key={video.$id}
+                    className="group relative flex-none w-[280px] sm:w-[320px] aspect-video bg-gray-800 rounded-md overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:z-20 hover:shadow-2xl shadow-lg snap-start border border-white/5"
+                    onClick={() => playVideo(video)}
+                  >
+                    <img src={getProxiedMediaUrl(video.cover) || '/placeholder-video.jpg'} alt={video.name} className="w-full h-full object-cover transition-opacity duration-300 group-hover:opacity-50" />
+                    <div className="absolute inset-0 flex flex-col justify-end p-4 bg-gradient-to-t from-[#141414] via-[#141414]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <h4 className="text-white font-bold text-sm sm:text-base line-clamp-1 mb-1">{video.name}</h4>
+                      <p className="text-gray-300 text-xs line-clamp-1 mb-3">{video.note || '無詳細描述'}</p>
+                      <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-2">
+                           <button className="bg-white text-black p-1.5 sm:p-2 rounded-full hover:bg-gray-200 transition"><Play size={16} fill="currentColor" /></button>
+                           <button className="border-2 border-white/50 text-white p-1.5 sm:p-2 rounded-full hover:bg-white/20 hover:border-white transition"
+                              onClick={(e) => { e.stopPropagation(); handleAddToQueue(video); }}
+                           >
+                              {isInQueue(video.$id) ? <CheckCircle size={16} /> : <Plus size={16} />}
+                           </button>
+                         </div>
+                         <div className="flex items-center gap-2">
+                            <button className="border border-white/30 text-white p-1.5 rounded-full hover:bg-white/20 transition"
+                               onClick={(e) => { e.stopPropagation(); handleEdit(video); }}
+                               title="編輯"
+                            ><Edit size={14} /></button>
+                            <button className="border border-white/30 text-red-400 p-1.5 rounded-full hover:bg-white/20 transition"
+                               onClick={(e) => { e.stopPropagation(); handleDelete(video); }}
+                               title="刪除"
+                            ><Trash2 size={14} /></button>
+                         </div>
+                      </div>
+                    </div>
+                    {cacheStatus[video.$id] === 'cached' && (
+                      <div className="absolute top-2 right-2 bg-emerald-500/90 text-white rounded-full p-1 sm:p-1.5 shadow-md"><CheckCircle size={12} /></div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className={viewMode === 'bilibili'
           ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 lg:gap-4"
@@ -2260,7 +2351,37 @@ function VideoPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { vid
           {/* 左側：主播放區 + 影片資訊 */}
           <div className="flex-1 lg:max-w-[calc(100%-426px)] space-y-3">
             {/* 播放器容器 */}
-            <div className="bg-black rounded-xl overflow-hidden aspect-video [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-xl">
+            <div className="bg-black rounded-xl overflow-hidden aspect-video relative group [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-xl">
+              {allVideosWithFile.length > 1 && (
+                <>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+                      const nextVid = allVideosWithFile[(currentIndex + 1) % allVideosWithFile.length];
+                      setPlayedIds(prev => new Set([...prev, nextVid.$id]));
+                      setCurrentVideo(nextVid);
+                    }}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+                    title="下一部影片"
+                  >
+                    <ChevronLeft className="w-8 h-8" />
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+                      const prevVid = allVideosWithFile[(currentIndex - 1 + allVideosWithFile.length) % allVideosWithFile.length];
+                      setPlayedIds(prev => new Set([...prev, prevVid.$id]));
+                      setCurrentVideo(prevVid);
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+                    title="上一部影片"
+                  >
+                    <ChevronRight className="w-8 h-8" />
+                  </button>
+                </>
+              )}
               {loadingSource ? (
                 <div className="w-full h-full flex items-center justify-center text-white">影片載入中...</div>
               ) : sourceError ? (
@@ -3494,7 +3615,37 @@ function BilibiliPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { 
           {/* 左側：播放器 + 影片資訊 (70%) */}
           <div className="flex-1 lg:max-w-[calc(100%-340px)] space-y-3">
             {/* 播放器 */}
-            <div className="bg-black rounded-lg shadow-lg aspect-video ring-1 ring-black/10 dark:ring-white/5 [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-lg">
+            <div className="bg-black rounded-lg shadow-lg aspect-video relative group ring-1 ring-black/10 dark:ring-white/5 [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-lg">
+              {allVideosWithFile.length > 1 && (
+                <>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+                      const nextVid = allVideosWithFile[(currentIndex + 1) % allVideosWithFile.length];
+                      setPlayedIds(prev => new Set([...prev, nextVid.$id]));
+                      setCurrentVideo(nextVid);
+                    }}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+                    title="下一部影片"
+                  >
+                    <ChevronLeft className="w-8 h-8" />
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+                      const prevVid = allVideosWithFile[(currentIndex - 1 + allVideosWithFile.length) % allVideosWithFile.length];
+                      setPlayedIds(prev => new Set([...prev, prevVid.$id]));
+                      setCurrentVideo(prevVid);
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+                    title="上一部影片"
+                  >
+                    <ChevronRight className="w-8 h-8" />
+                  </button>
+                </>
+              )}
               {loadingSource ? (
                 <div className="w-full h-full flex items-center justify-center text-white">影片載入中...</div>
               ) : sourceError ? (

@@ -136,6 +136,13 @@ export default function ImageGallery() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+
+      if (next.size > 0 && !selectionMode) {
+        setTimeout(() => setSelectionMode(true), 0);
+      } else if (next.size === 0 && selectionMode) {
+        setTimeout(() => setSelectionMode(false), 0);
+      }
+
       return next;
     });
   };

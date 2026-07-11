@@ -653,17 +653,20 @@ export default function CommonDocumentManagement() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      
+      if (next.size > 0 && !selectionMode) {
+        setTimeout(() => setSelectionMode(true), 0);
+      } else if (next.size === 0 && selectionMode) {
+        setTimeout(() => setSelectionMode(false), 0);
+      }
+      
       return next;
     });
   };
 
   const handleSelectAll = () => {
-    if (!selectionMode) {
-      setSelectionMode(true);
-      setSelectedIds(new Set(filteredDocuments.map(d => d.$id).filter(Boolean)));
-    } else if (filteredDocuments.length > 0 && filteredDocuments.every(d => selectedIds.has(d.$id))) {
+    if (filteredDocuments.length > 0 && filteredDocuments.every(d => selectedIds.has(d.$id))) {
       setSelectedIds(new Set());
-      setSelectionMode(false);
     } else {
       setSelectedIds(new Set(filteredDocuments.map(d => d.$id).filter(Boolean)));
     }
@@ -990,9 +993,20 @@ export default function CommonDocumentManagement() {
                   </span>
                 </Button>
               )}
-              <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
-                {selectionMode && filteredDocuments.length > 0 && filteredDocuments.every((document) => selectedIds.has(document.$id)) ? "取消全選" : "全選"}
-              </Button>
+              {selectionMode ? (
+                <>
+                  <Button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} variant="outline" className="rounded-xl h-10 px-4">
+                    取消選取
+                  </Button>
+                  <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
+                    {filteredDocuments.length > 0 && filteredDocuments.every((document) => selectedIds.has(document.$id)) ? "取消全選" : "全選"}
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => setSelectionMode(true)} variant="outline" className="rounded-xl h-10 px-4">
+                  開啟選取
+                </Button>
+              )}
             {selectedIds.size > 0 && (
               <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
                 <Trash2 size={18} />
@@ -1649,16 +1663,14 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
     <div className={`bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 group border ${isSelected ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-200 dark:border-gray-700'} p-4`}>
       {/* 封面圖片區域 */}
       <div className="relative mb-4 -mx-4 -mt-4 h-32 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden">
-        {selectionMode && (
-          <div className="absolute top-2 left-2 z-10 bg-white/80 dark:bg-gray-800/80 p-1 rounded-md backdrop-blur-sm shadow-sm">
-            <input 
-              type="checkbox" 
-              checked={isSelected || false} 
-              onChange={onToggleSelect} 
-              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-            />
-          </div>
-        )}
+        <div className={`absolute top-2 left-2 z-10 bg-white/80 dark:bg-gray-800/80 p-1 rounded-md backdrop-blur-sm shadow-sm transition-opacity ${selectionMode || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          <input 
+            type="checkbox" 
+            checked={isSelected || false} 
+            onChange={onToggleSelect} 
+            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+          />
+        </div>
         {hasCover ? (
           <>
             <img
@@ -1870,7 +1882,7 @@ function DocumentTable({
         <table className="min-w-[980px] w-full">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-              {selectionMode && <th className="px-4 py-3 w-10"></th>}
+              <th className="px-4 py-3 w-10"></th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-16">封面</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">文件名稱</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">分類</th>
@@ -2151,16 +2163,14 @@ function DocumentTableRow({
 
   return (
     <tr className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
-      {selectionMode && (
-        <td className="px-4 py-3">
-          <input 
-            type="checkbox" 
-            checked={isSelected || false} 
-            onChange={onToggleSelect} 
-            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-          />
-        </td>
-      )}
+      <td className="px-4 py-3 w-10">
+        <input 
+          type="checkbox" 
+          checked={isSelected || false} 
+          onChange={onToggleSelect} 
+          className={`w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-opacity ${selectionMode || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+        />
+      </td>
       {/* 封面欄位 */}
       <td className="px-4 py-3">
         <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 group">
