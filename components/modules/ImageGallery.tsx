@@ -219,12 +219,8 @@ export default function ImageGallery() {
   );
 
   const handleSelectAll = () => {
-    if (!selectionMode) {
-      setSelectionMode(true);
-      setSelectedIds(new Set(filteredImages.map(img => img.$id).filter(Boolean)));
-    } else if (filteredImages.length > 0 && filteredImages.every(img => selectedIds.has(img.$id))) {
+    if (filteredImages.length > 0 && filteredImages.every(img => selectedIds.has(img.$id))) {
       setSelectedIds(new Set());
-      setSelectionMode(false);
     } else {
       setSelectedIds(new Set(filteredImages.map(img => img.$id).filter(Boolean)));
     }
@@ -1360,9 +1356,20 @@ export default function ImageGallery() {
                 </span>
               </Button>
             )}
-            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
-              {selectionMode && filteredImages.length > 0 && filteredImages.every((image) => selectedIds.has(image.$id)) ? "取消全選" : "全選"}
-            </Button>
+            {selectionMode ? (
+              <>
+                <Button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} variant="outline" className="rounded-xl h-10 px-4">
+                  取消選取
+                </Button>
+                <Button onClick={handleSelectAll} variant="outline" className="rounded-xl h-10 px-4">
+                  {filteredImages.length > 0 && filteredImages.every((image) => selectedIds.has(image.$id)) ? "取消全選" : "全選"}
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setSelectionMode(true)} variant="outline" className="rounded-xl h-10 px-4">
+                開啟選取
+              </Button>
+            )}
             <Select value={sortMode} onValueChange={(value) => setSortMode(value as ImageSortMode)}>
               <SelectTrigger className="h-10 w-[170px] rounded-xl bg-white/80 text-sm dark:bg-slate-900/70">
                 <SelectValue placeholder="排序" />

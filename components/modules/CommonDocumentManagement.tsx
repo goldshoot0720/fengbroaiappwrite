@@ -123,7 +123,7 @@ function canPreviewFile(filename: string, filetype?: string): boolean {
   const ext = getFileExtension(filename, filetype);
   return [
     // Documents
-    'pdf', 'txt', 'md', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx',
+    'pdf', 'txt', 'md', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx', 'csv',
     // Office (new & old formats)
     'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
     // Archives
@@ -138,7 +138,7 @@ function canPreviewFile(filename: string, filetype?: string): boolean {
 // Check if file can be edited
 function canEditFile(filename: string, filetype?: string): boolean {
   const ext = getFileExtension(filename, filetype);
-  return ['txt', 'md', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx'].includes(ext);
+  return ['txt', 'md', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx', 'csv'].includes(ext);
 }
 
 // Get syntax highlighting language
@@ -1087,6 +1087,9 @@ export default function CommonDocumentManagement() {
                 onInlineCancel={cancelInlineEdit}
                 onCoverUpload={handleCoverUpload}
                 uploadingCoverId={uploadingCoverId}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(doc.$id)}
+                onToggleSelect={() => handleToggleSelect(doc.$id)}
               />
             ))}
           </div>
@@ -1107,6 +1110,9 @@ export default function CommonDocumentManagement() {
                 onInlineCancel={cancelInlineEdit}
                 onCoverUpload={handleCoverUpload}
                 uploadingCoverId={uploadingCoverId}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(doc.$id)}
+                onToggleSelect={() => handleToggleSelect(doc.$id)}
               />
             ))}
           </div>
@@ -1125,6 +1131,9 @@ export default function CommonDocumentManagement() {
               onInlineCancel={cancelInlineEdit}
               onCoverUpload={handleCoverUpload}
               uploadingCoverId={uploadingCoverId}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
             />
           </div>
         </>
@@ -1413,9 +1422,12 @@ interface DocumentCardProps {
   // Cover upload props
   onCoverUpload: (docId: string, file: File) => void;
   uploadingCoverId: string | null;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
-function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onCoverUpload, uploadingCoverId }: DocumentCardProps) {
+function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onCoverUpload, uploadingCoverId, selectionMode, isSelected, onToggleSelect }: DocumentCardProps) {
   const fileInfo = getFileTypeInfo(document.name || document.file || '', document.filetype);
   const canPreview = document.file && canPreviewFile(document.name || document.file || '', document.filetype);
   const canEditContent = document.file && canEditFile(document.name || document.file || '', document.filetype);
@@ -1634,9 +1646,19 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
   const isUploadingCover = uploadingCoverId === document.$id;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 group border border-gray-200 dark:border-gray-700 p-4">
+    <div className={`bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 group border ${isSelected ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-200 dark:border-gray-700'} p-4`}>
       {/* 封面圖片區域 */}
       <div className="relative mb-4 -mx-4 -mt-4 h-32 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden">
+        {selectionMode && (
+          <div className="absolute top-2 left-2 z-10 bg-white/80 dark:bg-gray-800/80 p-1 rounded-md backdrop-blur-sm shadow-sm">
+            <input 
+              type="checkbox" 
+              checked={isSelected || false} 
+              onChange={onToggleSelect} 
+              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+          </div>
+        )}
         {hasCover ? (
           <>
             <img
@@ -1817,6 +1839,9 @@ interface DocumentTableProps {
   onInlineCancel: () => void;
   onCoverUpload: (docId: string, file: File) => void;
   uploadingCoverId: string | null;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 function DocumentTable({
@@ -1832,7 +1857,10 @@ function DocumentTable({
   onInlineSave,
   onInlineCancel,
   onCoverUpload,
-  uploadingCoverId
+  uploadingCoverId,
+  selectionMode,
+  selectedIds = new Set(),
+  onToggleSelect
 }: DocumentTableProps) {
   const coverInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -1842,6 +1870,7 @@ function DocumentTable({
         <table className="min-w-[980px] w-full">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+              {selectionMode && <th className="px-4 py-3 w-10"></th>}
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-16">封面</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">文件名稱</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">分類</th>
@@ -1868,6 +1897,9 @@ function DocumentTable({
                 onCoverUpload={onCoverUpload}
                 isUploadingCover={uploadingCoverId === doc.$id}
                 coverInputRefs={coverInputRefs}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(doc.$id)}
+                onToggleSelect={() => onToggleSelect && onToggleSelect(doc.$id)}
               />
             ))}
           </tbody>
@@ -1893,6 +1925,9 @@ interface DocumentTableRowProps {
   onCoverUpload: (docId: string, file: File) => void;
   isUploadingCover: boolean;
   coverInputRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 function DocumentTableRow({
@@ -1909,7 +1944,10 @@ function DocumentTableRow({
   onInlineCancel,
   onCoverUpload,
   isUploadingCover,
-  coverInputRefs
+  coverInputRefs,
+  selectionMode,
+  isSelected,
+  onToggleSelect
 }: DocumentTableRowProps) {
   const fileInfo = getFileTypeInfo(document.name || document.file || '', document.filetype);
   const canPreview = document.file && canPreviewFile(document.name || document.file || '', document.filetype);
@@ -2046,7 +2084,6 @@ function DocumentTableRow({
                     const file = e.target.files?.[0];
                     if (file) {
                       onCoverUpload(document.$id, file);
-                      // 上傳成功後會更新 document.cover，這裡先顯示預覽
                       const previewUrl = URL.createObjectURL(file);
                       setInlineEditForm({ ...inlineEditForm, cover: previewUrl });
                     }
@@ -2113,7 +2150,17 @@ function DocumentTableRow({
   }
 
   return (
-    <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+    <tr className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+      {selectionMode && (
+        <td className="px-4 py-3">
+          <input 
+            type="checkbox" 
+            checked={isSelected || false} 
+            onChange={onToggleSelect} 
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+          />
+        </td>
+      )}
       {/* 封面欄位 */}
       <td className="px-4 py-3">
         <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 group">
@@ -2872,7 +2919,8 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
 
     // Office documents (old and new formats)
     if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
-      const microsoftViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(document.file)}`;
+      const optimizedFileUrl = document.file.includes('?') ? `${document.file}&ext=.${ext}` : `${document.file}?ext=.${ext}`;
+      const microsoftViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(optimizedFileUrl)}`;
       const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(document.file)}&embedded=true`;
       const viewerUrl = officeViewerType === 'microsoft' ? microsoftViewerUrl : googleViewerUrl;
 
@@ -2996,6 +3044,57 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
                 {txtContent}
               </ReactMarkdown>
             </article>
+          </div>
+        );
+      }
+
+      // Show CSV preview for .csv files
+      if (ext === 'csv') {
+        const rows = txtContent.split('\n').filter(line => line.trim());
+        const parseRow = (row: string) => {
+          const cells = [];
+          let inQuotes = false;
+          let currentCell = '';
+          for (let i = 0; i < row.length; i++) {
+            const char = row[i];
+            if (char === '"') {
+              if (inQuotes && row[i+1] === '"') {
+                currentCell += '"';
+                i++;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              cells.push(currentCell);
+              currentCell = '';
+            } else {
+              currentCell += char;
+            }
+          }
+          cells.push(currentCell);
+          return cells;
+        };
+        const parsedRows = rows.map(parseRow);
+        return (
+          <div className="h-full overflow-auto bg-white dark:bg-gray-900">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+              <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 shadow-sm z-10">
+                <tr>
+                  {parsedRows[0]?.map((header, i) => (
+                    <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                {parsedRows.slice(1).map((row, i) => (
+                  <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    {row.map((cell, j) => (
+                      <td key={j} className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         );
       }
