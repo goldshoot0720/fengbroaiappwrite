@@ -1489,7 +1489,8 @@ function FengbroFinanceSection({
               const featuredIds = ["gold", "kospi", "nikkei-225", "phlx-semiconductor", "tsmc", "bitcoin"];
               const featuredQuotes = featuredIds
                 .map((id) => (result?.quotes || []).find((q) => q.id === id))
-                .filter((q): q is NonNullable<typeof q> => !!q);
+                .filter((q): q is NonNullable<typeof q> => !!q)
+                .sort((a, b) => (b.price || 0) - (a.price || 0));
               if (featuredQuotes.length === 0) return null;
               const featuredLabels: Record<string, { title: string; subtitle: string; accentClass: string; bgClass: string; borderClass: string }> = {
                 gold: {
