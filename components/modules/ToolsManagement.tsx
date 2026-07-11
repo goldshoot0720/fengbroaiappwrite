@@ -1256,17 +1256,27 @@ function FengbroFinanceSection({
   onRefresh: () => void;
 }) {
   const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const groupedQuotes = useMemo(() => {
     const order: FengbroFinanceQuote["group"][] = ["tw", "us", "valuation", "asia", "korea", "fx", "commodities", "rates", "crypto"];
+    const query = searchQuery.trim().toLowerCase();
     return order
       .map((group) => ({
         group,
         quotes: (result?.quotes || [])
           .filter((quote) => quote.group === group)
+          .filter((quote) => {
+            if (!query) return true;
+            return (
+              quote.name.toLowerCase().includes(query) ||
+              quote.symbol.toLowerCase().includes(query) ||
+              (quote.localLabel && quote.localLabel.toLowerCase().includes(query))
+            );
+          })
           .sort((left, right) => getFinanceQuoteSortValue(right) - getFinanceQuoteSortValue(left)),
       }))
       .filter((item) => item.quotes.length > 0);
-  }, [result]);
+  }, [result, searchQuery]);
   const selectedDefaultIdSet = useMemo(() => new Set(selectedDefaultInstrumentIds), [selectedDefaultInstrumentIds]);
   const selectedDefaultInstruments = useMemo(
     () => defaultInstruments.filter((instrument) => selectedDefaultIdSet.has(instrument.id)),
@@ -1671,6 +1681,27 @@ function FengbroFinanceSection({
                     </a>
                   </div>
                 </div>
+              </div>
+            )}
+            {/* ── 搜尋列 ─────────────────────────────────────── */}
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <Search className="h-4 w-4 text-emerald-600/60" />
+              </div>
+              <input
+                type="text"
+                placeholder="搜尋金融標的名稱或代號..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="block w-full rounded-[20px] border border-emerald-100 bg-white/60 py-3.5 pl-11 pr-4 text-sm text-emerald-950 placeholder-emerald-600/50 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-50"
+              />
+            </div>
+            {groupedQuotes.length === 0 && searchQuery && (
+              <div className="rounded-[24px] border border-emerald-100 bg-white/60 p-8 text-center shadow-sm">
+                <p className="text-sm font-medium text-emerald-800">找不到符合「{searchQuery}」的標的</p>
+                <Button variant="link" onClick={() => setSearchQuery("")} className="mt-2 text-emerald-600">
+                  清除搜尋
+                </Button>
               </div>
             )}
             {groupedQuotes.map(({ group, quotes }) => (
