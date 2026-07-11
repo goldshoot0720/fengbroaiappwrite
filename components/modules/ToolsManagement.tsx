@@ -1485,7 +1485,7 @@ function FengbroFinanceSection({
             )}
             {/* ── 精選焦點區塊 ─────────────────────────────────────── */}
             {(() => {
-              const featuredIds = ["kospi", "phlx-semiconductor", "tsmc"];
+              const featuredIds = ["kospi", "nikkei-225", "phlx-semiconductor", "tsmc"];
               const featuredQuotes = featuredIds
                 .map((id) => (result?.quotes || []).find((q) => q.id === id))
                 .filter((q): q is NonNullable<typeof q> => !!q);
@@ -1497,6 +1497,13 @@ function FengbroFinanceSection({
                   accentClass: "text-sky-700",
                   bgClass: "bg-[linear-gradient(135deg,rgba(224,242,254,0.95),rgba(255,255,255,0.98))]",
                   borderClass: "border-sky-200",
+                },
+                "nikkei-225": {
+                  title: "Nikkei 225 Index",
+                  subtitle: "日經平均指數 日経平均株価",
+                  accentClass: "text-rose-700",
+                  bgClass: "bg-[linear-gradient(135deg,rgba(255,228,230,0.95),rgba(255,255,255,0.98))]",
+                  borderClass: "border-rose-200",
                 },
                 "phlx-semiconductor": {
                   title: "費城半導體指數",
@@ -1516,7 +1523,7 @@ function FengbroFinanceSection({
               return (
                 <div>
                   <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">精選焦點</p>
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {featuredQuotes.map((quote, idx) => {
                       const cfg = featuredLabels[quote.id] ?? {
                         title: quote.name,
