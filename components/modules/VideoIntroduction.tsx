@@ -1820,7 +1820,7 @@ export default function VideoIntroduction() {
                          </div>
                       </div>
                     </div>
-                    {cacheStatus[video.$id] === 'cached' && (
+                    {cacheStatus[video.$id]?.cached && (
                       <div className="absolute top-2 right-2 bg-emerald-500/90 text-white rounded-full p-1 sm:p-1.5 shadow-md"><CheckCircle size={12} /></div>
                     )}
                   </div>
