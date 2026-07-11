@@ -19,6 +19,12 @@
   - 建議尺寸: 至少 400x400px
   - 來源: 你剛才提供的照片 (戴眼鏡、穿深藍色 "Relax" T恤的男士)
 
+#### 1.5. 費城半導體貓咪分析師
+- **`sox-cats.jpg`** - 喵白白與喵布布費半分析圖片
+  - 位置: `public/finance/sox-cats.jpg`
+  - 用途: ToolsManagement 元件 (精選焦點 費城半導體區塊)
+  - 來源: 你剛才提供的照片 (雙貓看好 SOX 上看一萬五千點)
+
 #### 2. 水電大亨照片
 - **`plumber-tycoon.png`** - 水電大亨本人照片 ✅
   - 位置: `public/plumber-tycoon.png`

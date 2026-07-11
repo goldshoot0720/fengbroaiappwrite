@@ -208,6 +208,7 @@ const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrum
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "tw" },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "tw" },
+  { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "us" },
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
   { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", provider: "cnbc", group: "us" },
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", provider: "cnbc", group: "us" },
@@ -1571,6 +1572,14 @@ function FengbroFinanceSection({
                             <p className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{quote.error}</p>
                           ) : (
                             <>
+                              {quote.imageUrl && (
+                                <img
+                                  src={quote.imageUrl}
+                                  alt={`${quote.name} image`}
+                                  className="mb-4 aspect-[4/3] w-full rounded-xl border border-slate-200 bg-slate-950/5 object-cover shadow-sm"
+                                  loading="lazy"
+                                />
+                              )}
                               <div className="flex items-end justify-between gap-2">
                                 <div>
                                   <p className="text-xs text-muted-foreground">最新價</p>
@@ -1630,6 +1639,15 @@ function FengbroFinanceSection({
                                 <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
                                   {quote.alertMessage}
                                 </p>
+                              )}
+                              
+                              {quote.imageUrl && (
+                                <img
+                                  src={quote.imageUrl}
+                                  alt={`${quote.name} image`}
+                                  className={`mt-4 w-full rounded-xl border ${cfg.borderClass} shadow-sm object-cover`}
+                                  loading="lazy"
+                                />
                               )}
                             </>
                           )}
