@@ -2258,38 +2258,39 @@ function ImagePreviewModal({ image, onClose, onPrev, onNext, currentIndex, total
           </button>
         </div>
 
-        {/* 圖片 - 置中顯示 */}
-        <div className="flex-1 min-h-0 w-full flex items-center justify-center relative">
-          {onPrev && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); onPrev(); }}
-              className="absolute left-0 sm:left-2 z-20 p-2 sm:p-3 rounded-full bg-black/40 text-white hover:bg-black/80 transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
-            >
-              <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
-            </button>
-          )}
+        {/* 左右切換按鈕 - 放最外層確保絕對在最上方且不會被大圖片遮蓋 */}
+        {onPrev && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onPrev(); }}
+            className="absolute left-0 sm:-left-6 top-1/2 -translate-y-1/2 z-[60] p-2 sm:p-3 rounded-full bg-black/60 text-white hover:bg-black/90 shadow-2xl border border-white/20 backdrop-blur-md transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
+          >
+            <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+          </button>
+        )}
+        
+        {onNext && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onNext(); }}
+            className="absolute right-0 sm:-right-6 top-1/2 -translate-y-1/2 z-[60] p-2 sm:p-3 rounded-full bg-black/60 text-white hover:bg-black/90 shadow-2xl border border-white/20 backdrop-blur-md transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
+          >
+            <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+          </button>
+        )}
 
+        {/* 圖片 - 置中顯示 */}
+        <div className="flex-1 min-h-0 w-full flex items-center justify-center relative px-8 sm:px-12 pointer-events-none">
           {image.file ? (
             <img
               src={getProxiedMediaUrl(image.file)}
               alt={image.name}
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-opacity duration-300"
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-opacity duration-300 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <div className="text-white text-center">
+            <div className="text-white text-center pointer-events-auto">
               <ImageIcon className="mx-auto mb-4 w-24 h-24" />
               <p>沒有圖片 URL</p>
             </div>
-          )}
-
-          {onNext && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); onNext(); }}
-              className="absolute right-0 sm:right-2 z-20 p-2 sm:p-3 rounded-full bg-black/40 text-white hover:bg-black/80 transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
-            >
-              <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
-            </button>
           )}
         </div>
 
