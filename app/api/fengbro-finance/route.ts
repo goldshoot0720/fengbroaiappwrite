@@ -81,7 +81,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", sourceUrl: "https://finance.yahoo.com/quote/USDJPY=X", group: "fx", provider: "yahoo", alertThreshold: 222, bilibiliUrl: "https://search.bilibili.com/all?keyword=%E6%97%A5%E5%85%83%E8%B4%AC%E5%80%BC&from_source=websuggest_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399" },
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "commodities", alertThreshold: 222 },
   { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "rates", alertThreshold: 6.66 },
-  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "commodities", alertThreshold: 6666 },
+  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "commodities", alertThreshold: 6666, imageUrl: "/finance/gold-featured.jpg" },
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666, localLabel: "Roaring '20s", youtubeUrl: "https://www.youtube.com/watch?v=32u5T6lO8qk", youtubeLabel: "Most People Will Lose Everything", imageUrl: "/finance/dow-jones-doac.png" },
   { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", sourceUrl: "https://www.cnbc.com/quotes/.SPX", group: "us", alertThreshold: 11111 },
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333, localLabel: "科技泡沫" },
@@ -96,7 +96,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "apple", name: "蘋果", symbol: "AAPL", sourceUrl: "https://www.cnbc.com/quotes/AAPL", group: "us", localLabel: "手機泡沫" },
   { id: "vix", name: "CBOE Volatility Index", symbol: ".VIX", sourceUrl: "https://www.cnbc.com/quotes/.VIX", group: "us" },
   { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "valuation", provider: "multpl", alertThreshold: 45 },
-  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "crypto", alertThreshold: 111111 },
+  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "crypto", alertThreshold: 111111, imageUrl: "/finance/bitcoin-cats.jpg" },
   { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", sourceUrl: "https://www.cnbc.com/quotes/ETH.CM=", group: "crypto", alertThreshold: 2222 },
 ];
 

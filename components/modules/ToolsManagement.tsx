@@ -1486,12 +1486,19 @@ function FengbroFinanceSection({
             )}
             {/* ── 精選焦點區塊 ─────────────────────────────────────── */}
             {(() => {
-              const featuredIds = ["kospi", "nikkei-225", "phlx-semiconductor", "tsmc"];
+              const featuredIds = ["gold", "kospi", "nikkei-225", "phlx-semiconductor", "tsmc", "bitcoin"];
               const featuredQuotes = featuredIds
                 .map((id) => (result?.quotes || []).find((q) => q.id === id))
                 .filter((q): q is NonNullable<typeof q> => !!q);
               if (featuredQuotes.length === 0) return null;
               const featuredLabels: Record<string, { title: string; subtitle: string; accentClass: string; bgClass: string; borderClass: string }> = {
+                gold: {
+                  title: "Gold COMEX",
+                  subtitle: "黃金期貨 @GC.1",
+                  accentClass: "text-amber-600",
+                  bgClass: "bg-[linear-gradient(135deg,rgba(254,243,199,0.8),rgba(255,255,255,0.98))]",
+                  borderClass: "border-amber-200",
+                },
                 kospi: {
                   title: "KOSPI Index",
                   subtitle: "韓國綜合指數 코스피",
@@ -1520,11 +1527,18 @@ function FengbroFinanceSection({
                   bgClass: "bg-[linear-gradient(135deg,rgba(209,250,229,0.95),rgba(255,255,255,0.98))]",
                   borderClass: "border-emerald-200",
                 },
+                bitcoin: {
+                  title: "Bitcoin",
+                  subtitle: "比特幣 BTC",
+                  accentClass: "text-amber-700",
+                  bgClass: "bg-[linear-gradient(135deg,rgba(254,243,199,0.95),rgba(255,255,255,0.98))]",
+                  borderClass: "border-amber-200",
+                },
               };
               return (
                 <div>
                   <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">精選焦點</p>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6">
                     {featuredQuotes.map((quote, idx) => {
                       const cfg = featuredLabels[quote.id] ?? {
                         title: quote.name,
