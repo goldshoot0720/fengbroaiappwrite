@@ -1654,15 +1654,7 @@ function FengbroFinanceSection({
                                   {quote.alertMessage}
                                 </p>
                               )}
-                              
-                              {quote.imageUrl && (
-                                <img
-                                  src={quote.imageUrl}
-                                  alt={`${quote.name} image`}
-                                  className={`mt-4 w-full rounded-xl border ${cfg.borderClass} shadow-sm object-cover`}
-                                  loading="lazy"
-                                />
-                              )}
+
                             </>
                           )}
                         </div>
