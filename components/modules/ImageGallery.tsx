@@ -2242,13 +2242,12 @@ function ImageListRow({ image, onSelect, onEdit, onRefresh, selectionMode, isSel
   );
 }
 
-// 圖片預覽模態框
 function ImagePreviewModal({ image, onClose, onPrev, onNext, currentIndex, totalImages }: { image: ImageData; onClose: () => void; onPrev?: () => void; onNext?: () => void; currentIndex?: number; totalImages?: number }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-2 sm:p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative w-full h-full max-w-7xl max-h-screen flex flex-col">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center bg-black/90 p-2 sm:p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative w-full max-w-7xl flex-1 flex flex-col min-h-0">
         {/* 頂部控制欄 */}
-        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-20 flex items-center gap-4">
+        <div className="flex justify-end items-center gap-4 z-20 shrink-0 pb-2 sm:pb-4 pointer-events-auto">
           {totalImages !== undefined && totalImages > 1 && (
             <div className="rounded-lg bg-black/50 px-3 py-1.5 text-sm text-white/80 font-medium tracking-wide">
               {currentIndex !== undefined ? currentIndex + 1 : 1} / {totalImages}
@@ -2260,11 +2259,11 @@ function ImagePreviewModal({ image, onClose, onPrev, onNext, currentIndex, total
         </div>
 
         {/* 圖片 - 置中顯示 */}
-        <div className="flex-1 flex items-center justify-center p-8 sm:p-16 relative">
+        <div className="flex-1 min-h-0 w-full flex items-center justify-center relative">
           {onPrev && (
             <button 
               onClick={(e) => { e.stopPropagation(); onPrev(); }}
-              className="absolute left-0 sm:left-4 z-20 p-2 sm:p-3 rounded-full bg-black/40 text-white hover:bg-black/80 transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
+              className="absolute left-0 sm:left-2 z-20 p-2 sm:p-3 rounded-full bg-black/40 text-white hover:bg-black/80 transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
             >
               <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
             </button>
@@ -2287,7 +2286,7 @@ function ImagePreviewModal({ image, onClose, onPrev, onNext, currentIndex, total
           {onNext && (
             <button 
               onClick={(e) => { e.stopPropagation(); onNext(); }}
-              className="absolute right-0 sm:right-4 z-20 p-2 sm:p-3 rounded-full bg-black/40 text-white hover:bg-black/80 transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
+              className="absolute right-0 sm:right-2 z-20 p-2 sm:p-3 rounded-full bg-black/40 text-white hover:bg-black/80 transition-all hover:scale-110 active:scale-90 focus:outline-none focus:ring-2 focus:ring-white/50"
             >
               <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
             </button>
@@ -2295,11 +2294,11 @@ function ImagePreviewModal({ image, onClose, onPrev, onNext, currentIndex, total
         </div>
 
         {/* 底部資訊欄 */}
-        <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 z-20 pointer-events-none">
-          <div className="rounded-xl bg-black/82 p-3 text-white sm:p-4 pointer-events-auto shadow-lg backdrop-blur-md border border-white/10">
-            <h3 className="font-medium mb-2">{image.name}</h3>
+        <div className="z-20 shrink-0 pt-2 sm:pt-4 pointer-events-auto">
+          <div className="rounded-xl bg-black/80 p-3 text-white sm:p-4 shadow-lg backdrop-blur-md border border-white/10 w-full">
+            <h3 className="font-medium mb-1 sm:mb-2">{image.name}</h3>
             {image.note && <p className="text-sm text-white/80 mb-2">{image.note}</p>}
-            <div className="flex flex-wrap items-center gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm">
               <span className="flex items-center gap-1 text-white/90">
                 <Calendar className="w-4 h-4 text-white/70" />
                 {formatLocalDate(image.$createdAt)}
@@ -2307,7 +2306,7 @@ function ImagePreviewModal({ image, onClose, onPrev, onNext, currentIndex, total
               {image.category && <span className="bg-white/10 px-2 py-0.5 rounded text-white/90">分類: {image.category}</span>}
               <span className="text-white/80">大小: {formatFileSize(image.size)}</span>
               {image.ref && <span className="text-white/80">參考: {image.ref}</span>}
-              <span className="ml-auto text-xs text-white/40 hidden sm:inline-block">點擊空白關閉 / 左右鍵切換</span>
+              <span className="ml-auto text-white/40 hidden sm:inline-block">點擊空白關閉 / 左右鍵切換</span>
             </div>
           </div>
         </div>
