@@ -25,6 +25,7 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
   mrshenofficial: "公子沈 Terence Shen",
   gc趙氏讀書生活: "Gavinchiu趙氏讀書生活",
   tankman2020: "二爷故事",
+  leonard2834: "Leonard",
 };
 
 const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
@@ -45,9 +46,11 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@%E4%BF%AE%E4%BB%99%E8%80%85%E5%B0%8F%E7%83%A8/videos",
   "https://www.youtube.com/@cheapaoe/videos",
   "https://www.youtube.com/@StorytellerHK/videos",
+  "https://www.youtube.com/@%E8%AA%AA%E4%BB%94%E7%9B%B4%E6%92%AD%E7%B2%BE%E8%8F%AF/videos",
   "https://www.youtube.com/@mrshenofficial/videos",
   "https://www.youtube.com/@GC%E8%B6%99%E6%B0%8F%E8%AE%80%E6%9B%B8%E7%94%9F%E6%B4%BB",
   "https://www.youtube.com/@Tankman2020/videos",
+  "https://www.youtube.com/@leonard2834/videos",
 
 ];
 
