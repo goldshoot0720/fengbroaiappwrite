@@ -193,6 +193,16 @@ const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "fengbro-finance", label: "\u92d2\u5144\u91d1\u878d" },
 ];
 
+function getPlatformInfo(url?: string, title?: string, source?: string) {
+  const combined = `${url} ${title} ${source}`.toLowerCase();
+  if (combined.includes("pchome")) return { name: "PChome 24h", colorClass: "bg-red-50 text-red-700 border-red-200" };
+  if (combined.includes("momo")) return { name: "Momo購物網", colorClass: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" };
+  if (combined.includes("shopee") || combined.includes("蝦皮")) return { name: "蝦皮購物", colorClass: "bg-orange-50 text-orange-700 border-orange-200" };
+  if (combined.includes("books") || combined.includes("博客來")) return { name: "博客來", colorClass: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+  if (combined.includes("yahoo")) return { name: "Yahoo購物中心", colorClass: "bg-purple-50 text-purple-700 border-purple-200" };
+  return { name: source || "其他平台", colorClass: "bg-slate-50 text-slate-700 border-slate-200" };
+}
+
 const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
   { id: "biggo-api", label: "BigGo API", hint: "查詢 BigGo 歷史價格資料" },
   { id: "local", label: "本地佔位", hint: "保留本地測試流程，不連外查價" },
@@ -607,6 +617,8 @@ function PriceTrendChart({
   history: PriceHistoryEntry[];
   currency?: string;
 }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   const chart = useMemo(() => {
     const priced = history.filter(
       (entry): entry is PriceHistoryEntry & { price: number } => typeof entry.price === "number"
@@ -662,6 +674,25 @@ function PriceTrendChart({
   const delta = chart.latest.price - chart.earliest.price;
   const deltaTone = delta > 0 ? "text-rose-600" : delta < 0 ? "text-emerald-600" : "text-amber-700";
 
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!chart || chart.points.length === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const scaleX = chart.width / rect.width;
+    const svgX = x * scaleX;
+    
+    let closestIndex = 0;
+    let minDiff = Infinity;
+    chart.points.forEach((point, index) => {
+      const diff = Math.abs(point.x - svgX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = index;
+      }
+    });
+    setHoveredIndex(closestIndex);
+  };
+
   return (
     <div className="overflow-hidden rounded-[28px] border border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
       <div className="flex flex-col gap-4 border-b border-amber-100 px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
@@ -695,7 +726,12 @@ function PriceTrendChart({
 
       <div className="px-3 pb-4 pt-3 sm:px-5">
         <div className="relative overflow-hidden rounded-[24px] border border-amber-100/80 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.14),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,251,235,0.92))] p-3 sm:p-4">
-          <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-[260px] w-full">
+          <svg 
+            viewBox={`0 0 ${chart.width} ${chart.height}`} 
+            className="h-[260px] w-full cursor-crosshair"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={() => setHoveredIndex(null)}
+          >
             <defs>
               <linearGradient id="priceTrendArea" x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor="rgba(245,158,11,0.34)" />
@@ -711,18 +747,51 @@ function PriceTrendChart({
               strokeLinejoin="round"
               strokeWidth="4"
             />
-            {chart.points.map((point, index) => (
-              <circle
-                key={`${point.date}-${index}`}
-                cx={point.x}
-                cy={point.y}
-                fill="white"
-                r={index === chart.points.length - 1 ? 6 : 4.5}
-                stroke="rgba(217, 119, 6, 0.96)"
-                strokeWidth="3"
+            {hoveredIndex !== null && (
+              <line
+                x1={chart.points[hoveredIndex].x}
+                x2={chart.points[hoveredIndex].x}
+                y1={0}
+                y2={chart.height}
+                stroke="rgba(217, 119, 6, 0.4)"
+                strokeWidth="2"
+                strokeDasharray="4 4"
               />
-            ))}
+            )}
+            {chart.points.map((point, index) => {
+              const isHovered = index === hoveredIndex;
+              const isLast = index === chart.points.length - 1;
+              return (
+                <circle
+                  key={`${point.date}-${index}`}
+                  cx={point.x}
+                  cy={point.y}
+                  fill={isHovered ? "rgba(217, 119, 6, 1)" : "white"}
+                  r={isHovered ? 8 : (isLast ? 6 : 4.5)}
+                  stroke="rgba(217, 119, 6, 0.96)"
+                  strokeWidth={isHovered ? "4" : "3"}
+                  className="transition-all duration-200"
+                />
+              );
+            })}
           </svg>
+          
+          {hoveredIndex !== null && (
+            <div 
+              className="absolute pointer-events-none rounded-xl border border-amber-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm transition-all duration-75 z-10"
+              style={{
+                left: `max(16px, min(calc(100% - 120px), calc(${(chart.points[hoveredIndex].x / chart.width) * 100}% - 60px)))`,
+                top: `max(16px, min(calc(100% - 80px), calc(${(chart.points[hoveredIndex].y / chart.height) * 100}% - 70px)))`
+              }}
+            >
+              <p className="text-xs font-semibold text-amber-700/80">
+                {new Date(chart.points[hoveredIndex].date).toLocaleDateString()}
+              </p>
+              <p className="mt-1 text-lg font-bold text-amber-900">
+                {formatPriceWithCurrency(chart.points[hoveredIndex].price, chart.currency)}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1959,10 +2028,10 @@ function LandtopProductCard({ product }: { product: LandtopProduct }) {
       : null;
 
   return (
-    <div className="rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:border-sky-300 hover:shadow-md">
+    <div className="group rounded-2xl border border-border bg-white/80 p-4 shadow-sm backdrop-blur-md transition-all duration-300 hover:scale-[1.02] hover:border-sky-400 hover:shadow-md hover:shadow-sky-100 dark:border-slate-800 dark:bg-[#1f2022]/80 dark:hover:shadow-sky-900/20">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">{product.name}</p>
+          <p className="text-sm font-semibold text-foreground transition-colors group-hover:text-sky-700 dark:group-hover:text-sky-400">{product.name}</p>
           <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">{product.brand}</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -1971,7 +2040,8 @@ function LandtopProductCard({ product }: { product: LandtopProduct }) {
               href={product.sourceUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
+              className="inline-flex items-center gap-1 rounded-full border border-sky-200/60 bg-sky-50/60 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-400 dark:hover:bg-sky-500/20"
+              title="查看地標網通"
             >
               地標網通
               <ExternalLink size={12} />
@@ -1982,7 +2052,8 @@ function LandtopProductCard({ product }: { product: LandtopProduct }) {
               href={product.jyesUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+              className="inline-flex items-center gap-1 rounded-full border border-violet-200/60 bg-violet-50/60 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-400 dark:hover:bg-violet-500/20"
+              title="查看傑昇通信"
             >
               傑昇通信
               <ExternalLink size={12} />
@@ -1990,24 +2061,26 @@ function LandtopProductCard({ product }: { product: LandtopProduct }) {
           )}
         </div>
       </div>
+
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs lg:grid-cols-4">
-        <div className="rounded-xl bg-slate-50 px-3 py-2">
+        <div className="rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 transition-colors group-hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50 dark:group-hover:bg-slate-800">
           <p className="text-muted-foreground">建議售價</p>
           <p className="mt-1 font-semibold">{formatCurrency(product.suggestedPrice)}</p>
         </div>
-        <div className="rounded-xl bg-sky-50 px-3 py-2">
-          <p className="text-sky-700/80">地標網通</p>
-          <p className="mt-1 font-semibold text-sky-700">{product.landtopPriceLabel}</p>
+        <div className="rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2 transition-colors group-hover:bg-sky-50 dark:border-sky-900/50 dark:bg-sky-900/20 dark:group-hover:bg-sky-900/40">
+          <p className="text-sky-700/80 dark:text-sky-400/80">地標網通</p>
+          <p className="mt-1 font-semibold text-sky-700 dark:text-sky-400">{product.landtopPriceLabel}</p>
         </div>
-        <div className="rounded-xl bg-violet-50 px-3 py-2">
-          <p className="text-violet-700/80">傑昇通信</p>
-          <p className="mt-1 font-semibold text-violet-700">
+        <div className="rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2 transition-colors group-hover:bg-violet-50 dark:border-violet-900/50 dark:bg-violet-900/20 dark:group-hover:bg-violet-900/40">
+          <p className="text-violet-700/80 dark:text-violet-400/80">傑昇通信</p>
+          <p className="mt-1 font-semibold text-violet-700 dark:text-violet-400">
             {product.jyesPriceLabel || (product.jyesPrice ? formatCurrency(product.jyesPrice) : "--")}
           </p>
         </div>
-        <div className="rounded-xl bg-emerald-50 px-3 py-2">
-          <p className="text-emerald-700/80">最低價</p>
-          <p className="mt-1 font-semibold text-emerald-700">
+        <div className="relative overflow-hidden rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 transition-colors group-hover:bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:group-hover:bg-emerald-900/40">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-100/30 to-transparent opacity-0 transition-opacity group-hover:opacity-100 dark:from-emerald-500/10" />
+          <p className="relative z-10 text-emerald-700/80 dark:text-emerald-400/80">最低價</p>
+          <p className="relative z-10 mt-1 font-semibold text-emerald-700 dark:text-emerald-400">
             {product.bestPrice == null
               ? "--"
               : `${formatCurrency(product.bestPrice)}${product.bestSourceLabel ? ` (${product.bestSourceLabel})` : ""}`}
@@ -2015,7 +2088,10 @@ function LandtopProductCard({ product }: { product: LandtopProduct }) {
         </div>
       </div>
       {savings != null && (
-        <p className="mt-3 text-xs text-emerald-700/80">比建議售價省下 {formatCurrency(savings)}</p>
+        <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2 dark:border-emerald-800/50 dark:from-emerald-900/30 dark:to-teal-900/30">
+          <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300">比建議售價省下</p>
+          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(savings)}</p>
+        </div>
       )}
     </div>
   );
@@ -2035,25 +2111,32 @@ function LandtopProductSection({
   onToggle: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-3 text-left">
+    <div className="rounded-3xl border border-slate-200/80 bg-white/40 p-1 shadow-sm backdrop-blur-xl dark:border-slate-800 dark:bg-[#121212]/40">
+      <button 
+        type="button" 
+        onClick={onToggle} 
+        className="group flex w-full items-center justify-between gap-3 rounded-2xl px-5 py-4 text-left transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+      >
         <div>
-          <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+          <h4 className="text-sm font-bold text-foreground transition-colors group-hover:text-sky-600 dark:group-hover:text-sky-400">{title}</h4>
           <p className="mt-1 text-xs text-muted-foreground">預設 {defaultQuery}，目前 {products.length} 筆</p>
         </div>
-        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors group-hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:group-hover:border-slate-600">
           {open ? "收合" : "展開"}
+          <ChevronDown size={14} className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
         </span>
       </button>
       {open && (
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {products.length > 0 ? (
-            products.slice(0, 12).map((product) => <LandtopProductCard key={product.id} product={product} />)
-          ) : (
-            <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-sm text-muted-foreground">
-              目前沒有這個區塊的比價結果。
-            </p>
-          )}
+        <div className="px-2 pb-2 pt-1">
+          <div className="grid gap-3 md:grid-cols-2">
+            {products.length > 0 ? (
+              products.slice(0, 12).map((product) => <LandtopProductCard key={product.id} product={product} />)
+            ) : (
+              <p className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-white/50 px-3 py-8 text-center text-sm text-muted-foreground backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/30">
+                目前沒有這個區塊的比價結果。
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -2177,10 +2260,26 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     const historyPrices = pricedHistory.map((entry) => entry.price);
     const fallbackCurrent = pricedHistory.at(-1)?.price ?? null;
 
+    const currentPrice = result.currentPrice ?? fallbackCurrent;
+    const highestPrice = historyPrices.length ? Math.max(...historyPrices, currentPrice ?? 0) : currentPrice ?? null;
+    const lowestPrice = historyPrices.length ? Math.min(...historyPrices, currentPrice ?? Infinity) : currentPrice ?? null;
+
+    let dropPercent = null;
+    let isAllTimeLow = false;
+
+    if (currentPrice !== null && highestPrice !== null && highestPrice > 0) {
+      dropPercent = ((highestPrice - currentPrice) / highestPrice) * 100;
+    }
+    if (currentPrice !== null && lowestPrice !== null && historyPrices.length > 0) {
+      isAllTimeLow = currentPrice <= lowestPrice;
+    }
+
     return {
-      currentPrice: result.currentPrice ?? fallbackCurrent,
-      highestPrice: historyPrices.length ? Math.max(...historyPrices) : result.currentPrice ?? null,
-      lowestPrice: historyPrices.length ? Math.min(...historyPrices) : result.currentPrice ?? null,
+      currentPrice,
+      highestPrice,
+      lowestPrice,
+      dropPercent,
+      isAllTimeLow,
     };
   }, [result]);
 
@@ -2561,34 +2660,56 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
 
             {!loading && result && (
               <div className="space-y-3">
-                <div className="rounded-2xl border border-border bg-white p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">{result.title || "未命名商品"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        來源：{result.source || "未指定"}
-                        {result.resolvedAt ? `，更新：${result.resolvedAt}` : ""}
-                      </p>
+                {(() => {
+                  const platform = getPlatformInfo(result.url, result.title, result.source);
+                  return (
+                    <div className="rounded-2xl border border-border bg-white p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold">{result.title || "未命名商品"}</p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider border ${platform.colorClass}`}>
+                              {platform.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {result.resolvedAt ? `最後更新：${result.resolvedAt}` : ""}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right text-sm sm:text-right">
+                          <p className="text-xs text-muted-foreground">現在價格</p>
+                          <p className="text-lg font-semibold text-amber-700">
+                            {formatPriceWithCurrency(result.currentPrice, result.currency)}
+                          </p>
+                        </div>
+                      </div>
+                      {result.notice && (
+                        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                          {result.notice}
+                        </p>
+                      )}
                     </div>
-                    <div className="text-right text-sm">
-                      <p className="text-xs text-muted-foreground">現在價格</p>
-                      <p className="text-lg font-semibold text-amber-700">
-                        {formatPriceWithCurrency(result.currentPrice, result.currency)}
-                      </p>
-                    </div>
-                  </div>
-                  {result.notice && (
-                    <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                      {result.notice}
-                    </p>
-                  )}
-                </div>
+                  );
+                })()}
 
                 {priceSummary && (
                   <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3">
-                      <p className="text-xs text-amber-700/80">現在價格</p>
-                      <p className="mt-1 text-lg font-semibold text-amber-700">
+                    <div className={`rounded-2xl border px-4 py-3 ${
+                      priceSummary.isAllTimeLow
+                        ? "border-emerald-300 bg-emerald-50 shadow-sm animate-pulse"
+                        : "border-amber-200 bg-amber-50/60"
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <p className={`text-xs ${priceSummary.isAllTimeLow ? "text-emerald-700 font-bold" : "text-amber-700/80"}`}>
+                          {priceSummary.isAllTimeLow ? "🎉 歷史新低" : "現在價格"}
+                        </p>
+                        {priceSummary.dropPercent !== null && priceSummary.dropPercent > 0 && (
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                            降幅 {priceSummary.dropPercent.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                      <p className={`mt-1 text-lg font-semibold ${priceSummary.isAllTimeLow ? "text-emerald-700" : "text-amber-700"}`}>
                         {formatPriceWithCurrency(priceSummary.currentPrice, result.currency)}
                       </p>
                     </div>
@@ -2613,124 +2734,147 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
           </DataCard>
         </>
       ) : activeTab === "landtop" ? (
-        <DataCard className="space-y-5 p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
-                <Smartphone size={20} />
+        <DataCard className="relative overflow-hidden border-0 bg-gradient-to-br from-sky-50 to-indigo-50 p-6 shadow-sm ring-1 ring-inset ring-sky-100/50 backdrop-blur-3xl dark:from-sky-950/40 dark:to-indigo-950/40 dark:ring-sky-900/20">
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-sky-400/10 blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-indigo-400/10 blur-3xl" />
+          
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/20">
+                <Smartphone size={24} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">手機比價</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">手機比價</h3>
+                <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
                   根據地標網通與傑昇通信比價，可搜尋 {getAppleDefaultLandtopQuery()}、{getSamsungDefaultLandtopQuery()}、Samsung A17 等機型。
                 </p>
               </div>
             </div>
             {landtopResult && (
-              <p className="text-xs text-muted-foreground">
-                更新：{new Date(landtopResult.fetchedAt).toLocaleString("zh-TW")}，結果 {landtopResult.total} 筆
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/50 bg-white/60 px-4 py-1.5 text-xs font-medium text-slate-600 backdrop-blur-md dark:border-sky-800/50 dark:bg-slate-900/60 dark:text-slate-300">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500"></span>
+                </span>
+                更新：{new Date(landtopResult.fetchedAt).toLocaleString("zh-TW")}，共 {landtopResult.total} 筆
                 {typeof landtopResult.snapshotStored === "number"
-                  ? `，本次寫入 ${landtopResult.snapshotStored} 筆歷史快照`
+                  ? ` (寫入 ${landtopResult.snapshotStored} 筆)`
                   : ""}
-              </p>
+              </div>
             )}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 shadow-sm">
+          <div className="relative mt-8 grid gap-4 lg:grid-cols-2">
+            {/* Apple Search Block */}
+            <div className="group/section rounded-3xl border border-white/60 bg-white/40 p-1.5 shadow-sm ring-1 ring-black/5 backdrop-blur-xl transition-all hover:bg-white/60 dark:border-slate-800/60 dark:bg-slate-900/40 dark:ring-white/5 dark:hover:bg-slate-900/60">
               <button
                 type="button"
                 onClick={() => setLandtopAppleOpen((open) => !open)}
-                className="flex w-full items-center justify-between gap-3 text-left"
+                className="group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition-colors hover:bg-white/50 dark:hover:bg-slate-800/50"
               >
-                <div>
-                  <p className="text-sm font-semibold text-foreground">蘋果手機區塊</p>
-                  <p className="mt-1 text-xs text-muted-foreground">預設查詢：{getAppleDefaultLandtopQuery()}，每年九月切換新基準。</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <Search size={14} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 transition-colors group-hover:text-sky-600 dark:text-slate-100 dark:group-hover:text-sky-400">蘋果手機搜尋</p>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">預設：{getAppleDefaultLandtopQuery()}</p>
+                  </div>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm transition-colors group-hover:text-sky-600 dark:bg-slate-800">
                   {landtopAppleOpen ? "收合" : "展開"}
-                  <ChevronDown size={14} className={`transition ${landtopAppleOpen ? "rotate-180" : ""}`} />
+                  <ChevronDown size={14} className={`transition-transform duration-300 ${landtopAppleOpen ? "rotate-180" : ""}`} />
                 </span>
               </button>
               {landtopAppleOpen && (
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    value={landtopAppleQuery}
-                    onChange={(event) => setLandtopAppleQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), false);
-                    }}
-                    placeholder={`例如 ${getAppleDefaultLandtopQuery()}、iPhone 17 512GB`}
-                    className="min-w-0 flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), false)}
-                    disabled={landtopLoading}
-                    className="gap-2"
-                  >
-                    <Search size={16} />
-                    {landtopLoading ? "搜尋中" : "搜尋蘋果"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), true)}
-                    disabled={landtopLoading}
-                    className="gap-2"
-                  >
-                    <RefreshCw size={16} />
-                    重新抓取
-                  </Button>
+                <div className="px-3 pb-3 pt-1">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={landtopAppleQuery}
+                      onChange={(event) => setLandtopAppleQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), false);
+                      }}
+                      placeholder={`例如 ${getAppleDefaultLandtopQuery()}、iPhone 17 512GB`}
+                      className="min-w-0 flex-1 rounded-xl border border-sky-100 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), false)}
+                      disabled={landtopLoading}
+                      className="gap-2 rounded-xl bg-slate-900 px-5 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-500"
+                    >
+                      <Search size={16} />
+                      {landtopLoading ? "搜尋中" : "搜尋蘋果"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => runLandtopSearch(landtopAppleQuery.trim() || getAppleDefaultLandtopQuery(), true)}
+                      disabled={landtopLoading}
+                      className="gap-2 rounded-xl border-slate-200 px-5 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                    >
+                      <RefreshCw size={16} className={landtopLoading ? "animate-spin" : ""} />
+                      重新抓取
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 shadow-sm">
+            {/* Samsung Search Block */}
+            <div className="group/section rounded-3xl border border-white/60 bg-white/40 p-1.5 shadow-sm ring-1 ring-black/5 backdrop-blur-xl transition-all hover:bg-white/60 dark:border-slate-800/60 dark:bg-slate-900/40 dark:ring-white/5 dark:hover:bg-slate-900/60">
               <button
                 type="button"
                 onClick={() => setLandtopSamsungOpen((open) => !open)}
-                className="flex w-full items-center justify-between gap-3 text-left"
+                className="group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition-colors hover:bg-white/50 dark:hover:bg-slate-800/50"
               >
-                <div>
-                  <p className="text-sm font-semibold text-foreground">三星手機區塊</p>
-                  <p className="mt-1 text-xs text-muted-foreground">預設查詢：{getSamsungDefaultLandtopQuery()}，三月前用去年末兩碼。</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <Search size={14} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 transition-colors group-hover:text-sky-600 dark:text-slate-100 dark:group-hover:text-sky-400">三星手機搜尋</p>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">預設：{getSamsungDefaultLandtopQuery()}</p>
+                  </div>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm transition-colors group-hover:text-sky-600 dark:bg-slate-800">
                   {landtopSamsungOpen ? "收合" : "展開"}
-                  <ChevronDown size={14} className={`transition ${landtopSamsungOpen ? "rotate-180" : ""}`} />
+                  <ChevronDown size={14} className={`transition-transform duration-300 ${landtopSamsungOpen ? "rotate-180" : ""}`} />
                 </span>
               </button>
               {landtopSamsungOpen && (
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    value={landtopSamsungQuery}
-                    onChange={(event) => setLandtopSamsungQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), false);
-                    }}
-                    placeholder={`例如 ${getSamsungDefaultLandtopQuery()}、Samsung A17`}
-                    className="min-w-0 flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-sky-400"
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), false)}
-                    disabled={landtopLoading}
-                    className="gap-2"
-                  >
-                    <Search size={16} />
-                    {landtopLoading ? "搜尋中" : "搜尋三星"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), true)}
-                    disabled={landtopLoading}
-                    className="gap-2"
-                  >
-                    <RefreshCw size={16} />
-                    重新抓取
-                  </Button>
+                <div className="px-3 pb-3 pt-1">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={landtopSamsungQuery}
+                      onChange={(event) => setLandtopSamsungQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), false);
+                      }}
+                      placeholder={`例如 ${getSamsungDefaultLandtopQuery()}、Samsung A17`}
+                      className="min-w-0 flex-1 rounded-xl border border-sky-100 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), false)}
+                      disabled={landtopLoading}
+                      className="gap-2 rounded-xl bg-slate-900 px-5 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-500"
+                    >
+                      <Search size={16} />
+                      {landtopLoading ? "搜尋中" : "搜尋三星"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => runLandtopSearch(landtopSamsungQuery.trim() || getSamsungDefaultLandtopQuery(), true)}
+                      disabled={landtopLoading}
+                      className="gap-2 rounded-xl border-slate-200 px-5 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                    >
+                      <RefreshCw size={16} className={landtopLoading ? "animate-spin" : ""} />
+                      重新抓取
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
