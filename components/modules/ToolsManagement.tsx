@@ -1326,7 +1326,7 @@ function FengbroTubeSection({
               if (!downfallIndexUpdate && historyEntries.length > 0) {
                  const lastEntry = historyEntries[historyEntries.length - 1];
                  downfallIndexUpdate = {
-                    value: lastEntry.price.toFixed(2),
+                    value: (lastEntry.price || 0).toFixed(2),
                     title: "倒台指數歷史紀錄",
                     url: "https://www.youtube.com/@henren778",
                     publishedAt: lastEntry.date
