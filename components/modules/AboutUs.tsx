@@ -260,9 +260,9 @@ function SystemArchitecture() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <DataCard className="p-5">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">前端層</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">前端層 (Frontend Layer)</h3>
           <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
-            <li>• Next.js App Router + React 19 + TypeScript</li>
+            <li>• Next.js App Router + React 19 + TypeScript 5.9</li>
             <li>• `components/modules/` 內維護 15 個主模組頁</li>
             <li>• `components/ui/` 逐步抽出共用工作台元件</li>
             <li>• 目前已導入 `friendly-ai-crud-shell.tsx` 作為第一層共用骨架</li>
@@ -270,13 +270,32 @@ function SystemArchitecture() {
         </DataCard>
 
         <DataCard className="p-5">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">資料與 API 層</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">後端與 API 層 (Backend Layer)</h3>
           <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <li>• Next.js API routes 負責 CRUD、檔案操作與 table 初始化</li>
-            <li>• Appwrite Database 儲存結構化資料</li>
-            <li>• Appwrite Storage 管理圖片、影片、音樂、文件、播客等媒體</li>
-            <li>• schema 目前採模組獨立 collection，設定頁可初始化與檢查狀態</li>
+            <li>• 支援 30+ 個 RESTful API 端點與 11 種主要資源</li>
+            <li>• 整合 Appwrite Backend Services (Database, Storage, Auth)</li>
             <li>• 手機比價額外接入 BigGo、地標網通、傑昇通信與每週歷史快照</li>
+          </ul>
+        </DataCard>
+
+        <DataCard className="p-5">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">儲存層 (Storage Layer)</h3>
+          <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <li>• Appwrite Database 儲存結構化資料 (採用模組獨立 collection)</li>
+            <li>• Appwrite Storage 管理圖片、影片、音樂、文件、播客等媒體</li>
+            <li>• 支援多對多關聯與細粒度權限控制</li>
+            <li>• 設定頁可動態初始化與檢查 Schema 狀態</li>
+          </ul>
+        </DataCard>
+
+        <DataCard className="p-5">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">部署與維運層 (Deployment Layer)</h3>
+          <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <li>• Vercel Platform 自動化 CI/CD 部署</li>
+            <li>• 支援 Docker 容器化生產環境部署</li>
+            <li>• 快取機制 (客戶端 + 服務端) 確保首屏載入 &lt; 3 秒</li>
+            <li>• 模組化設計確保無限擴充與高並發支援</li>
           </ul>
         </DataCard>
       </div>
