@@ -157,7 +157,7 @@ function parseFeed(xml: string) {
       updatedAt,
       thumbnail,
     };
-  });
+  }).filter((entry) => !entry.url.includes("/shorts/"));
 
   return { feedTitle, entries };
 }
