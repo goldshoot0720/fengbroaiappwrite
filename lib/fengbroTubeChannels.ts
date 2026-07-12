@@ -52,8 +52,7 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@GC%E8%B6%99%E6%B0%8F%E8%AE%80%E6%9B%B8%E7%94%9F%E6%B4%BB",
   "https://www.youtube.com/@Tankman2020/videos",
   "https://www.youtube.com/@leonard2834/videos",
-  { alias: "YouTube精选智慧", sourceUrl: "https://space.bilibili.com/3546890092153166/upload/video" },
-  { alias: "彼咔丘", sourceUrl: "https://space.bilibili.com/3546759812877247/upload/video" },
+
 ];
 
 export function normalizeFengbroTubeSource(input: string) {
