@@ -1146,7 +1146,7 @@ function FengbroTubeSection({
             )}
 
             <div className="grid gap-5">
-              {result.channels.map((channel, index) => {
+              {result.channels.filter(c => !c.sourceUrl.includes("henren778")).map((channel, index) => {
                 const downfallIndexUpdate = getChannelDownfallIndexUpdate(channel);
 
                 return (
@@ -1217,6 +1217,32 @@ function FengbroTubeSection({
                 );
               })}
             </div>
+
+            {/* 倒台指數獨立區塊 */}
+            {(() => {
+              const henrenChannel = result.channels.find(c => c.sourceUrl.includes("henren778"));
+              const downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
+              if (!downfallIndexUpdate) return null;
+              
+              return (
+                <div className="mt-8 flex justify-center">
+                  <a
+                    href={downfallIndexUpdate.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex flex-col items-center gap-1 rounded-3xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-white px-8 py-4 shadow-sm transition hover:scale-105 hover:border-amber-400 hover:shadow-md"
+                    title={downfallIndexUpdate.title}
+                  >
+                    <span className="text-sm font-bold text-amber-700 tracking-wider">📊 倒台指數</span>
+                    <span className="text-4xl font-black text-amber-600 tracking-tighter">{downfallIndexUpdate.value}</span>
+                    <span className="text-xs text-amber-600/70 font-medium mt-1">
+                      {formatPublishedDate(downfallIndexUpdate.publishedAt)} 更新
+                    </span>
+                  </a>
+                </div>
+              );
+            })()}
+
           </div>
         )}
       </DataCard>
@@ -2160,7 +2186,12 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
       const response = await fetch("/api/fengbro-tube", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ channels: tubeChannelConfigs }),
+        body: JSON.stringify({ 
+          channels: [
+            ...tubeChannelConfigs,
+            { sourceUrl: "https://www.youtube.com/@henren778", alias: "一个狠人" }
+          ] 
+        }),
       });
       const data = (await response.json()) as FengbroTubeResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "鋒兄Tube 讀取失敗");
