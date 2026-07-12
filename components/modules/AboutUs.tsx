@@ -125,15 +125,15 @@ const RELEASE_ITEMS = [
 ];
 
 const CODEBASE_STATS = {
-  snapshotDate: "2026-04-09",
-  totalFiles: 177,
-  totalLines: 60491,
+  snapshotDate: "2026-07-12",
+  totalFiles: 208,
+  totalLines: 70741,
   breakdown: [
-    { label: "TSX", files: 58, lines: 34769 },
-    { label: "TypeScript", files: 36, lines: 5974 },
-    { label: "JavaScript", files: 41, lines: 5433 },
-    { label: "JSON", files: 8, lines: 10695 },
-    { label: "Markdown", files: 30, lines: 3011 },
+    { label: "TSX", files: 66, lines: 43714 },
+    { label: "TypeScript", files: 47, lines: 7957 },
+    { label: "JavaScript", files: 51, lines: 4954 },
+    { label: "JSON", files: 7, lines: 10714 },
+    { label: "Markdown", files: 33, lines: 2793 },
     { label: "CSS", files: 1, lines: 286 },
     { label: "HTML", files: 3, lines: 323 },
   ],
