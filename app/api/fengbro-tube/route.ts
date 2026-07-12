@@ -83,8 +83,34 @@ function getChannelTitle(channel: FengbroTubeChannelConfig, title: string) {
   return !channel.alias || channel.alias === defaultAlias ? title : channel.alias;
 }
 
+function normalizeDigits(value: string) {
+  return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
+}
 
+function extractDownfallIndex(title: string) {
+  const normalizedTitle = normalizeDigits(title);
+  const numberPattern = "([0-9]+(?:\\.[0-9]+)?)";
+  const formatIndex = (value: string) => Number(value).toFixed(2).padStart(5, "0");
+  const labelMatch = /倒台指[數数]/.exec(normalizedTitle);
+  if (labelMatch) {
+    const afterLabelText = normalizedTitle.slice(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 80);
+    const movementValue = afterLabelText.match(new RegExp(`(?:飆至|飙至|升至|漲至|涨至|達到|达到|達|达|至|突破|破)\\s*${numberPattern}`));
+    if (movementValue?.[1]) return formatIndex(movementValue[1]);
 
+    const afterLabelNumbers = [...afterLabelText.matchAll(new RegExp(numberPattern, "g"))];
+    const firstNonDateNumber = afterLabelNumbers.find((match) => {
+      const nextText = afterLabelText.slice((match.index || 0) + match[0].length).trimStart();
+      return !/^[月日號号]/.test(nextText);
+    });
+    if (firstNonDateNumber?.[1]) return formatIndex(firstNonDateNumber[1]);
+  }
+  const beforeLabel = normalizedTitle.match(new RegExp(`${numberPattern}\\s*(?:分|%|％)?\\s*倒台指[數数]`));
+  return beforeLabel?.[1] ? formatIndex(beforeLabel[1]) : "";
+}
+
+function isHenrenChannel(sourceUrl: string, title: string) {
+  return /henren778/i.test(sourceUrl) || /一[個个]狠人/.test(title);
+}
 
 async function resolveChannelId(sourceUrl: string) {
   const channelUrl = normalizeChannelUrl(sourceUrl);
@@ -149,13 +175,35 @@ async function fetchChannel(channel: FengbroTubeChannelConfig) {
   const xml = await response.text();
   const { feedTitle, entries } = parseFeed(xml);
 
-  const videos = entries.slice(0, 10);
+  let videos = entries.slice(0, 10);
+  let downfallIndexVideo = null;
+  
+  if (isHenrenChannel(sourceUrl, feedTitle || title)) {
+    const downfallItems = videos
+      .map((video) => ({ video, value: extractDownfallIndex(video.title) }))
+      .filter((item) => item.value);
+      
+    if (downfallItems.length > 0) {
+      downfallIndexVideo = downfallItems[0];
+      videos = downfallItems.map(item => item.video);
+    } else {
+      videos = [];
+    }
+  }
 
   return {
     sourceUrl,
     channelId,
     title: getChannelTitle(channel, feedTitle || title),
     videos,
+    downfallIndexUpdate: downfallIndexVideo
+      ? {
+          value: downfallIndexVideo.value,
+          title: downfallIndexVideo.video.title,
+          url: downfallIndexVideo.video.url,
+          publishedAt: downfallIndexVideo.video.publishedAt,
+        }
+      : null,
   };
 }
 
@@ -207,6 +255,7 @@ async function fetchBilibiliChannel(channel: FengbroTubeChannelConfig) {
     channelId: mid,
     title: getChannelTitle(channel, fallbackNameFromUrl(sourceUrl)),
     videos,
+    downfallIndexUpdate: null,
   };
 }
 
@@ -259,6 +308,7 @@ async function fetchBilibiliSearchChannel(channel: FengbroTubeChannelConfig, fal
     channelId: getBilibiliMid(channel.sourceUrl) || keyword,
     title: alias,
     videos,
+    downfallIndexUpdate: null,
   };
 }
 
@@ -283,11 +333,18 @@ type FengbroTubeVideoEntry = {
 
 async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
   const uniqueChannels = normalizeFengbroTubeChannels(channelsConfig);
+  const henrenConfig = { alias: "一个狠人", sourceUrl: "https://www.youtube.com/@henren778/videos" };
+  const hasHenren = uniqueChannels.some(c => isHenrenChannel(c.sourceUrl, c.alias));
   
-  const settled = await Promise.allSettled(uniqueChannels.map(fetchChannel));
-  const channels = settled.map((item, index) => {
+  const allChannels = [...uniqueChannels];
+  if (!hasHenren) {
+    allChannels.push(henrenConfig);
+  }
+
+  const settled = await Promise.allSettled(allChannels.map(fetchChannel));
+  const allFetchedChannels = settled.map((item, index) => {
     if (item.status === "fulfilled") return item.value;
-    const channel = uniqueChannels[index];
+    const channel = allChannels[index];
     const sourceUrl = channel.sourceUrl;
     return {
       sourceUrl,
@@ -297,6 +354,9 @@ async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
       error: item.reason instanceof Error ? item.reason.message : "讀取失敗",
     };
   });
+
+  const downfallChannel = allFetchedChannels.find(c => isHenrenChannel(c.sourceUrl, c.title)) || null;
+  const channels = allFetchedChannels.filter(c => uniqueChannels.some(req => req.sourceUrl === c.sourceUrl));
 
   channels.sort((left, right) => getLatestChannelTime(right) - getLatestChannelTime(left));
 
@@ -320,6 +380,7 @@ async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
     sourceCount: uniqueChannels.length,
     defaultSourceCount: DEFAULT_FENGBRO_TUBE_CHANNELS.length,
     channels,
+    downfallChannel,
     recentVideos: recentVideos.sort(
       (left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime()
     ),

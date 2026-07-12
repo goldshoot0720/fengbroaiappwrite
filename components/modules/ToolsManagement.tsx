@@ -112,6 +112,7 @@ type FengbroTubeResult = {
   sourceCount?: number;
   defaultSourceCount?: number;
   channels: FengbroTubeChannel[];
+  downfallChannel?: FengbroTubeChannel | null;
   recentVideos: Array<FengbroTubeVideo & { channelTitle: string; channelId: string }>;
 };
 
@@ -353,6 +354,68 @@ function normalizeTubeDigits(value: string) {
   return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
 }
 
+function extractTubeDownfallIndex(title: string) {
+  const normalizedTitle = normalizeTubeDigits(title);
+  const numberPattern = "([0-9]+(?:\\.[0-9]+)?)";
+  const formatIndex = (value: string) => Number(value).toFixed(2).padStart(5, "0");
+  const labelMatch = /倒台指[數数]/.exec(normalizedTitle);
+  if (labelMatch) {
+    const afterLabelText = normalizedTitle.slice(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 80);
+    const movementValue = afterLabelText.match(new RegExp(`(?:飆至|飙至|升至|漲至|涨至|達到|达到|達|达|至|突破|破)\\s*${numberPattern}`));
+    if (movementValue?.[1]) return formatIndex(movementValue[1]);
+
+    const afterLabelNumbers = [...afterLabelText.matchAll(new RegExp(numberPattern, "g"))];
+    const firstNonDateNumber = afterLabelNumbers.find((match) => {
+      const nextText = afterLabelText.slice((match.index || 0) + match[0].length).trimStart();
+      return !/^[月日號号]/.test(nextText);
+    });
+    if (firstNonDateNumber?.[1]) return formatIndex(firstNonDateNumber[1]);
+  }
+  const beforeLabel = normalizedTitle.match(new RegExp(`${numberPattern}\\s*(?:分|%|％)?\\s*倒台指[數数]`));
+  return beforeLabel?.[1] ? formatIndex(beforeLabel[1]) : "";
+}
+
+function getChannelDownfallIndexUpdate(channel: FengbroTubeChannel) {
+  if (channel.downfallIndexUpdate) return channel.downfallIndexUpdate;
+  const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
+  if (!isHenrenChannel) return null;
+
+  const matched = channel.videos
+    .map((video) => ({ video, value: extractTubeDownfallIndex(video.title) }))
+    .find((item) => item.value);
+
+  return matched
+    ? {
+        value: matched.value,
+        title: matched.video.title,
+        url: matched.video.url,
+        publishedAt: matched.video.publishedAt,
+      }
+    : null;
+}
+
+const HARDCODED_DOWNFALL_INDEX_HISTORY: PriceHistoryEntry[] = [
+  { date: "2023-10-01T00:00:00Z", price: 67.44 },
+  { date: "2023-11-01T00:00:00Z", price: 68.28 },
+  { date: "2024-06-01T00:00:00Z", price: 70.58 },
+];
+
+function getAllChannelDownfallIndexUpdates(channel: FengbroTubeChannel | undefined): PriceHistoryEntry[] {
+  if (!channel) return HARDCODED_DOWNFALL_INDEX_HISTORY;
+  const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
+  if (!isHenrenChannel) return HARDCODED_DOWNFALL_INDEX_HISTORY;
+
+  const dynamicPoints = channel.videos
+    .map((video) => ({ video, value: extractTubeDownfallIndex(video.title) }))
+    .filter((item) => item.value)
+    .map(item => ({ date: item.video.publishedAt, price: Number(item.value) }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const lastHardcodedDate = new Date(HARDCODED_DOWNFALL_INDEX_HISTORY[HARDCODED_DOWNFALL_INDEX_HISTORY.length - 1].date).getTime();
+  const newDynamicPoints = dynamicPoints.filter(p => new Date(p.date).getTime() > lastHardcodedDate);
+
+  return [...HARDCODED_DOWNFALL_INDEX_HISTORY, ...newDynamicPoints];
+}
 
 const FENGBRO_TUBE_TOP_ID = "fengbro-tube-top";
 
@@ -913,7 +976,7 @@ function FengbroTubeSection({
   const [channelNavOpen, setChannelNavOpen] = channelNavOpenState;
   
   const visibleChannels = useMemo(() => {
-    return result?.channels || [];
+    return result?.channels.filter(c => !c.sourceUrl.includes("henren778")) || [];
   }, [result]);
   
   const channelCount = result ? visibleChannels.length : channelConfigs.length;
@@ -1114,12 +1177,25 @@ function FengbroTubeSection({
 
             <div className="grid gap-5">
               {visibleChannels.map((channel, index) => {
+                const downfallIndexUpdate = getChannelDownfallIndexUpdate(channel);
+
                 return (
                 <div id={getTubeChannelAnchor(index)} key={channel.sourceUrl} className="min-w-0 max-w-full scroll-mt-28 overflow-hidden rounded-[28px] border border-border bg-white p-4 shadow-sm">
                   <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-lg font-semibold text-foreground">{channel.title}</h4>
+                        {downfallIndexUpdate && (
+                          <a
+                            href={downfallIndexUpdate.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100"
+                            title={downfallIndexUpdate.title}
+                          >
+                            更新：倒台指數 {downfallIndexUpdate.value}
+                          </a>
+                        )}
                       </div>
                       <a href={channel.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-red-600 hover:text-red-700">
                         開啟頻道 <ExternalLink className="inline h-3 w-3" />
@@ -1172,6 +1248,59 @@ function FengbroTubeSection({
               })}
             </div>
 
+            {/* 倒台指數獨立區塊 */}
+            {(() => {
+              const henrenChannel = result.downfallChannel || result.channels.find(c => c.sourceUrl.includes("henren778"));
+              const downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
+              if (!downfallIndexUpdate) return null;
+              
+              const historyEntries = getAllChannelDownfallIndexUpdates(henrenChannel);
+              const pseudoQuote: FengbroFinanceQuote = {
+                id: "downfall-index",
+                name: "倒台指數",
+                displayName: "倒台指數",
+                symbol: "DFI",
+                sourceUrl: "https://www.youtube.com/@henren778",
+                group: "us",
+                price: null,
+                change: null,
+                changePercent: null,
+                currency: "",
+                high52: null,
+                low52: null,
+                dayHigh: null,
+                dayLow: null,
+                lastUpdated: new Date().toISOString(),
+                recordTag: null,
+                historyRanges: {
+                  "1y": historyEntries
+                }
+              };
+
+              return (
+                <div className="mt-8 flex flex-col items-center gap-4">
+                  <a
+                    href={downfallIndexUpdate.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex flex-col items-center gap-1 rounded-3xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-white px-8 py-4 shadow-sm transition hover:scale-105 hover:border-amber-400 hover:shadow-md"
+                    title={downfallIndexUpdate.title}
+                  >
+                    <span className="text-sm font-bold text-amber-700 tracking-wider">📊 倒台指數</span>
+                    <span className="text-4xl font-black text-amber-600 tracking-tighter">{downfallIndexUpdate.value}</span>
+                    <span className="text-xs text-amber-600/70 font-medium mt-1">
+                      {formatPublishedDate(downfallIndexUpdate.publishedAt)} 更新
+                    </span>
+                  </a>
+                  
+                  {historyEntries.length > 1 && (
+                    <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+                      <FinanceHistoryChart quote={pseudoQuote} rangeKey="1y" label="倒台指數走勢圖" />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
           </div>
         )}
@@ -2116,7 +2245,12 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
       const response = await fetch("/api/fengbro-tube", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ channels: tubeChannelConfigs }),
+        body: JSON.stringify({ 
+          channels: [
+            ...tubeChannelConfigs,
+            { sourceUrl: "https://www.youtube.com/@henren778", alias: "一个狠人" }
+          ] 
+        }),
       });
       const data = (await response.json()) as FengbroTubeResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "鋒兄Tube 讀取失敗");
