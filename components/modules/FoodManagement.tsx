@@ -1027,14 +1027,16 @@ export default function FoodManagement() {
     const file = e.target.files?.[0]; if (!file) return;
     if (!file.name.endsWith('.csv')) { alert('請選擇 CSV 檔案'); return; }
     const reader = new FileReader();
+    const target = e.target;
     reader.onload = (event) => {
       const text = event.target?.result as string;
       const format = detectCSVFormat(text);
       if (format === 'appwrite') { setImportPreview(parseCSV(text)); }
       else if (format === 'supabase') { setImportFormat('supabase'); setPendingCSVText(text); }
       else { alert('無法辨識 CSV 格式：表頭不符合 Appwrite 或 Supabase 格式'); }
+      setTimeout(() => { target.value = ''; }, 0);
     };
-    reader.readAsText(file, 'UTF-8'); e.target.value = '';
+    reader.readAsText(file, 'UTF-8');
   };
 
   const confirmSupabaseFoodImport = () => {
@@ -1935,7 +1937,7 @@ export default function FoodManagement() {
                 <div className="space-y-3">
                   <h4 className="font-semibold text-gray-700 dark:text-gray-300">將匯入 {importPreview.data.length} 筆資料:</h4>
                   <div className="space-y-2">
-                    {importPreview.data.map((item, i) => {
+                    {importPreview.data.slice(0, 50).map((item, i) => {
                       const existing = foods.find(f => f.name === item.name);
                       return (
                         <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -1945,6 +1947,11 @@ export default function FoodManagement() {
                         </div>
                       );
                     })}
+                    {importPreview.data.length > 50 && (
+                      <div className="p-3 text-center text-sm text-gray-500">
+                        ...以及其他 {importPreview.data.length - 50} 筆資料
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
