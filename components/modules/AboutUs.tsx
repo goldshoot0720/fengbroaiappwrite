@@ -5,6 +5,7 @@ import { BarChart3, Book, ChevronRight, FileText, Info, Menu, Package } from "lu
 import { DataCard } from "@/components/ui/data-card";
 import { PageTitle } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
+import codebaseStats from "@/config/codebase-stats.json";
 
 const NAV_SECTIONS = [
   { id: "updates", title: "更新內容", icon: Info },
@@ -124,21 +125,6 @@ const RELEASE_ITEMS = [
   },
 ];
 
-const CODEBASE_STATS = {
-  snapshotDate: "2026-07-12",
-  totalFiles: 208,
-  totalLines: 70741,
-  breakdown: [
-    { label: "TSX", files: 66, lines: 43714 },
-    { label: "TypeScript", files: 47, lines: 7957 },
-    { label: "JavaScript", files: 51, lines: 4954 },
-    { label: "JSON", files: 7, lines: 10714 },
-    { label: "Markdown", files: 33, lines: 2793 },
-    { label: "CSS", files: 1, lines: 286 },
-    { label: "HTML", files: 3, lines: 323 },
-  ],
-};
-
 export default function AboutUs() {
   const [activeSection, setActiveSection] = useState<string>("updates");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -210,7 +196,7 @@ function AboutBanner() {
         <div className="grid grid-cols-2 gap-3">
           <MetricCard label="模組數" value="15" detail="入口、生活、知識、媒體、財務、維運" />
           <MetricCard label="文件頁" value="18+" detail="模組文件、使用手冊、架構文件" />
-          <MetricCard label="程式碼行數" value={CODEBASE_STATS.totalLines.toLocaleString()} detail={`共 ${CODEBASE_STATS.totalFiles} 檔，已排除 node_modules / .next`} />
+          <MetricCard label="程式碼行數" value={codebaseStats.totalLines.toLocaleString()} detail={`共 ${codebaseStats.totalFiles} 檔，已排除 node_modules / .next`} />
           <MetricCard label="技術骨架" value="AI CRUD" detail="統一摘要卡、搜尋、批次操作與 AI 建議" />
         </div>
       </div>
@@ -292,18 +278,18 @@ function SystemArchitecture() {
           <div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">程式碼行數統計</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              統計時間：{CODEBASE_STATS.snapshotDate}。已排除 `node_modules`、`.next`、`.git`、`dist`、`build`、`coverage`、`out`。
+              統計時間：{codebaseStats.snapshotDate}。已排除 `node_modules`、`.next`、`.git`、`dist`、`build`、`coverage`、`out`。
             </p>
           </div>
           <div className="rounded-2xl bg-slate-900 px-4 py-3 text-white dark:bg-slate-100 dark:text-slate-900">
             <div className="text-xs uppercase tracking-[0.2em] opacity-70">Total</div>
-            <div className="mt-1 text-2xl font-bold">{CODEBASE_STATS.totalLines.toLocaleString()} lines</div>
-            <div className="text-xs opacity-70">{CODEBASE_STATS.totalFiles} files</div>
+            <div className="mt-1 text-2xl font-bold">{codebaseStats.totalLines.toLocaleString()} lines</div>
+            <div className="text-xs opacity-70">{codebaseStats.totalFiles} files</div>
           </div>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-          {CODEBASE_STATS.breakdown.map((item) => (
+          {codebaseStats.breakdown.map((item) => (
             <div key={item.label} className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/40">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{item.label}</div>
               <div className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">{item.lines.toLocaleString()}</div>

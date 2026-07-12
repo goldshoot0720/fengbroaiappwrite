@@ -1,0 +1,37 @@
+{
+  "snapshotDate": "2026-07-12",
+  "totalFiles": 205,
+  "totalLines": 68973,
+  "breakdown": [
+    {
+      "label": "TSX",
+      "files": 66,
+      "lines": 47466
+    },
+    {
+      "label": "TypeScript",
+      "files": 48,
+      "lines": 9311
+    },
+    {
+      "label": "JavaScript",
+      "files": 51,
+      "lines": 7463
+    },
+    {
+      "label": "Markdown",
+      "files": 33,
+      "lines": 4210
+    },
+    {
+      "label": "CSS",
+      "files": 1,
+      "lines": 326
+    },
+    {
+      "label": "JSON",
+      "files": 6,
+      "lines": 197
+    }
+  ]
+}
