@@ -393,6 +393,29 @@ function getChannelDownfallIndexUpdate(channel: FengbroTubeChannel) {
     : null;
 }
 
+const HARDCODED_DOWNFALL_INDEX_HISTORY: PriceHistoryEntry[] = [
+  { date: "2023-10-01T00:00:00Z", price: 67.44 },
+  { date: "2023-11-01T00:00:00Z", price: 68.28 },
+  { date: "2024-06-01T00:00:00Z", price: 70.58 },
+];
+
+function getAllChannelDownfallIndexUpdates(channel: FengbroTubeChannel | undefined): PriceHistoryEntry[] {
+  if (!channel) return HARDCODED_DOWNFALL_INDEX_HISTORY;
+  const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
+  if (!isHenrenChannel) return HARDCODED_DOWNFALL_INDEX_HISTORY;
+
+  const dynamicPoints = channel.videos
+    .map((video) => ({ video, value: extractTubeDownfallIndex(video.title) }))
+    .filter((item) => item.value)
+    .map(item => ({ date: item.video.publishedAt, price: Number(item.value) }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const lastHardcodedDate = new Date(HARDCODED_DOWNFALL_INDEX_HISTORY[HARDCODED_DOWNFALL_INDEX_HISTORY.length - 1].date).getTime();
+  const newDynamicPoints = dynamicPoints.filter(p => new Date(p.date).getTime() > lastHardcodedDate);
+
+  return [...HARDCODED_DOWNFALL_INDEX_HISTORY, ...newDynamicPoints];
+}
+
 const FENGBRO_TUBE_TOP_ID = "fengbro-tube-top";
 
 function getTubeChannelAnchor(index: number) {
@@ -1224,8 +1247,20 @@ function FengbroTubeSection({
               const downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
               if (!downfallIndexUpdate) return null;
               
+              const historyEntries = getAllChannelDownfallIndexUpdates(henrenChannel);
+              const pseudoQuote: FengbroFinanceQuote = {
+                id: "downfall-index",
+                name: "倒台指數",
+                symbol: "DFI",
+                sourceUrl: "https://www.youtube.com/@henren778",
+                group: "us",
+                historyRanges: {
+                  "1y": historyEntries
+                }
+              };
+
               return (
-                <div className="mt-8 flex justify-center">
+                <div className="mt-8 flex flex-col items-center gap-4">
                   <a
                     href={downfallIndexUpdate.url}
                     target="_blank"
@@ -1239,6 +1274,12 @@ function FengbroTubeSection({
                       {formatPublishedDate(downfallIndexUpdate.publishedAt)} 更新
                     </span>
                   </a>
+                  
+                  {historyEntries.length > 1 && (
+                    <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+                      <FinanceHistoryChart quote={pseudoQuote} rangeKey="1y" label="倒台指數走勢圖" />
+                    </div>
+                  )}
                 </div>
               );
             })()}
