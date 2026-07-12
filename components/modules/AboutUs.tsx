@@ -70,6 +70,14 @@ const DOC_GROUPS = [
 
 const RELEASE_ITEMS = [
   {
+    date: "2026-07-12",
+    title: "鋒兄Tube 優化與統計自動化",
+    bullets: [
+      "鋒兄Tube 移除了過時頻道並精簡倒台指數邏輯，在沒有近期影片時也能正確回退顯示歷史最後紀錄。",
+      "鋒兄關於的程式碼行數改由 Vercel 部署前自動掃描專案計算 (prebuild)，無須再手動更新數據。",
+    ],
+  },
+  {
     date: "2026-04-23",
     title: "手機比價升級為雙來源比價工具",
     bullets: [
