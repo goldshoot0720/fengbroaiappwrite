@@ -15,7 +15,6 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
   夸克说: "夸克说",
   喵喵看一看: "小喵看一看「怪事先生」",
   sunchannelhk: "Sun Channel",
-  jilixiaoshimei: "吉利小师妹",
   informant510: "线人频道Informant",
   "ma-siku": "马司库",
   monsterise: "怪獸崛起 MONSTERISE",
@@ -32,7 +31,6 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
 
 const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@SJdiao/videos",
-  "https://www.youtube.com/@henren778",
   "https://www.youtube.com/@libertas1984/videos",
   "https://www.youtube.com/@sunlao/videos",
   "https://www.youtube.com/@Torontobigface/videos",
@@ -42,7 +40,6 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@%E5%A4%B8%E5%85%8B%E8%AF%B4",
   "https://www.youtube.com/@%E5%96%B5%E5%96%B5%E7%9C%8B%E4%B8%80%E7%9C%8B/videos",
   "https://www.youtube.com/@SunChannelHK/videos",
-  "https://www.youtube.com/@jilixiaoshimei/videos",
   "https://www.youtube.com/@informant510/videos",
   "https://www.youtube.com/@ma-siku/videos",
   "https://www.youtube.com/@monsterise/videos",
@@ -57,7 +54,6 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@leonard2834/videos",
   { alias: "YouTube精选智慧", sourceUrl: "https://space.bilibili.com/3546890092153166/upload/video" },
   { alias: "牢A精选版", sourceUrl: "https://space.bilibili.com/3546848910379375/upload/video" },
-  { alias: "幽默老日", sourceUrl: "https://space.bilibili.com/335395960/upload/video" },
   { alias: "彼咔丘", sourceUrl: "https://space.bilibili.com/3546759812877247/upload/video" },
 ];
 
