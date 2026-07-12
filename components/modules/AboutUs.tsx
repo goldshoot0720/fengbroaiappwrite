@@ -71,6 +71,14 @@ const DOC_GROUPS = [
 const RELEASE_ITEMS = [
   {
     date: "2026-07-12",
+    title: "手機比價介面現代化升級與頻道優化",
+    bullets: [
+      "手機比價介面全面導入琉璃質感 (Glassmorphism)，加入環境光暈、懸停動畫與質感徽章設計。",
+      "鋒兄Tube 頻道清單更新，新增 Leonard 頻道。",
+    ],
+  },
+  {
+    date: "2026-07-12",
     title: "鋒兄Tube 優化與統計自動化",
     bullets: [
       "鋒兄Tube 移除了過時頻道並精簡倒台指數邏輯，在沒有近期影片時也能正確回退顯示歷史最後紀錄。",
@@ -519,6 +527,44 @@ function UserGuide() {
           <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="font-semibold text-gray-900 dark:text-gray-100">模組與操作</div>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">`INDEX.md` → 模組文件 → `USER_GUIDE.md` → 實際模組頁程式碼</p>
+          </div>
+        </div>
+      </DataCard>
+
+      <DataCard className="p-5">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">完整文件清單 (docs 目錄)</h3>
+        <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+          <div className="grid grid-cols-[1fr_2fr] gap-4 bg-gray-50 p-3 text-sm font-semibold text-gray-900 dark:bg-gray-900/50 dark:text-gray-100 md:grid-cols-[1.5fr_3fr]">
+            <div>檔案名稱</div>
+            <div>內容說明</div>
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            {[
+              { file: "00_company_introduction.md", desc: "專案緣起與背景說明" },
+              { file: "01_home.md", desc: "系統概覽與首頁模組" },
+              { file: "02_dashboard.md", desc: "數據統計與儀表板" },
+              { file: "03_subscription.md", desc: "訂閱服務與定期支出管理" },
+              { file: "04_food.md", desc: "食品庫存、分類與過期管理" },
+              { file: "05_notes.md", desc: "多功能筆記系統，支援附件預覽" },
+              { file: "06_common_accounts.md", desc: "常用帳號、網站與連結管理" },
+              { file: "07_images.md", desc: "圖片上傳、瀏覽與藝廊管理" },
+              { file: "08_videos.md", desc: "影片串流播放與快取管理" },
+              { file: "09_music.md", desc: "音樂播放、歌詞顯示與專輯管理" },
+              { file: "10_documents.md", desc: "綜合文件管理 (PDF/Office/ZIP)" },
+              { file: "11_podcast.md", desc: "播客播放與快取管理" },
+              { file: "12_bank.md", desc: "銀行帳戶、餘額與財務記錄" },
+              { file: "13_routine.md", desc: "例行公事與週期性任務管理" },
+              { file: "14_settings.md", desc: "系統配置與資料庫管理" },
+              { file: "15_about.md", desc: "更新內容、系統架構與文件中心" },
+              { file: "INDEX.md", desc: "文件索引與資料表對照清單" },
+              { file: "SYSTEM_ARCHITECTURE.md", desc: "系統架構與技術堆疊說明" },
+              { file: "USER_GUIDE.md", desc: "完整使用者指南與開發維護手冊" },
+            ].map((doc) => (
+              <div key={doc.file} className="grid grid-cols-[1fr_2fr] gap-4 p-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/40 md:grid-cols-[1.5fr_3fr]">
+                <code className="text-emerald-600 dark:text-emerald-400">{doc.file}</code>
+                <span className="text-gray-600 dark:text-gray-400">{doc.desc}</span>
+              </div>
+            ))}
           </div>
         </div>
       </DataCard>
