@@ -175,7 +175,13 @@ async function fetchChannel(channel: FengbroTubeChannelConfig) {
   const xml = await response.text();
   const { feedTitle, entries } = parseFeed(xml);
 
-  let videos = entries.slice(0, 10);
+  let videos = entries.slice(0, 15);
+  
+  if (sourceUrl.toLowerCase().includes("leonard2834")) {
+    videos = videos.filter(video => !/Leonard精[選选]片段/i.test(video.title));
+  }
+  
+  videos = videos.slice(0, 10);
   let downfallIndexVideo = null;
   
   if (isHenrenChannel(sourceUrl, feedTitle || title)) {
