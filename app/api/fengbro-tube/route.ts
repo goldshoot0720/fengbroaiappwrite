@@ -120,8 +120,8 @@ async function resolveChannelId(sourceUrl: string) {
   });
   const html = await response.text();
   const channelId =
-    pick(html, /"channelId"\s*:\s*"([^"]+)"/) ||
     pick(html, /"externalId"\s*:\s*"([^"]+)"/) ||
+    pick(html, /"channelId"\s*:\s*"([^"]+)"/) ||
     pick(html, /youtube\.com\/channel\/(UC[\w-]+)/);
 
   if (!channelId) {
