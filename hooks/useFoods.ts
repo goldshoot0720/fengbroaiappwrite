@@ -175,9 +175,12 @@ export function useFoods() {
   }, [loadFoods]);
 
   // 事件驅動快取失效（同頁 CustomEvent / 跨分頁 storage）
-  useRefreshKeyListener("foods_refresh_key", () => {
+  // 用穩定 callback，避免 useFoods 每次 render 都重綁 listener
+  const handleFoodsRefresh = useCallback(() => {
     loadFoods(true);
-  });
+  }, [loadFoods]);
+
+  useRefreshKeyListener("foods_refresh_key", handleFoodsRefresh);
 
   const stats = useMemo(() => {
     const list = Array.isArray(foods) ? foods : [];

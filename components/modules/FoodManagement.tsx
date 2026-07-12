@@ -868,6 +868,20 @@ export default function FoodManagement() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
+  // 匯入進度改用 ref 節流，避免每筆 setState 重渲整頁造成「匯入中」畫面閃爍
+  const importProgressRef = useRef({ current: 0, total: 0 });
+  const importDebugRef = useRef<string[]>([]);
+  const importUiFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (importUiFlushTimerRef.current) {
+        clearTimeout(importUiFlushTimerRef.current);
+        importUiFlushTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
@@ -1051,36 +1065,89 @@ export default function FoodManagement() {
     setPendingCSVText('');
   };
 
+  const flushImportUi = (force = false) => {
+    const pushState = () => {
+      setImportProgress({ ...importProgressRef.current });
+      setImportDebugMessages([...importDebugRef.current]);
+      importUiFlushTimerRef.current = null;
+    };
+
+    if (force) {
+      if (importUiFlushTimerRef.current) {
+        clearTimeout(importUiFlushTimerRef.current);
+        importUiFlushTimerRef.current = null;
+      }
+      pushState();
+      return;
+    }
+
+    // 約每 200ms 刷新一次 UI，避免大 CSV 每筆都重渲
+    if (importUiFlushTimerRef.current) return;
+    importUiFlushTimerRef.current = setTimeout(pushState, 200);
+  };
+
+  const appendImportDebug = (message: string, forceFlush = false) => {
+    importDebugRef.current = [...importDebugRef.current.slice(-79), message];
+    flushImportUi(forceFlush);
+  };
+
   const executeImport = async () => {
     if (!importPreview || importPreview.data.length === 0) return;
 
+    const total = importPreview.data.length;
+    importProgressRef.current = { current: 0, total };
+    importDebugRef.current = [`Import started: ${total} rows`];
     setImporting(true);
-    setImportProgress({ current: 0, total: importPreview.data.length });
-    setImportDebugMessages([`Import started: ${importPreview.data.length} rows`]);
+    setImportProgress({ current: 0, total });
+    setImportDebugMessages([`Import started: ${total} rows`]);
+
+    // 快照現有資料，匯入過程不走 createFood/updateFood，
+    // 避免每筆都 bumpRefreshKey → loadFoods(true) → FullPageLoading 造成畫面閃爍
+    const existingByName = new Map(foods.map((f) => [f.name, f]));
 
     let successCount = 0, failCount = 0;
     for (let i = 0; i < importPreview.data.length; i++) {
       const formData = importPreview.data[i];
-      setImportProgress({ current: i + 1, total: importPreview.data.length });
-      setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Processing ${formData.name}`]);
+      const rowNo = i + 1;
+      importProgressRef.current = { current: rowNo, total };
+      appendImportDebug(`${rowNo}/${total} Processing ${formData.name}`);
       try {
-        const existing = foods.find(f => f.name === formData.name);
+        const existing = existingByName.get(formData.name);
+        // 直接呼叫 API，完成後才統一重新載入一次
         if (existing) {
-          await updateFood(existing.$id, formData);
+          await fetchApi(`${API_ENDPOINTS.FOOD}/${existing.$id}`, {
+            method: "PUT",
+            body: JSON.stringify(formData),
+          });
         } else {
-          await createFood(formData);
+          const created = await fetchApi<Food>(API_ENDPOINTS.FOOD, {
+            method: "POST",
+            body: JSON.stringify(formData),
+          });
+          if (created?.$id) {
+            existingByName.set(formData.name, created);
+          }
         }
         successCount++;
-        setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Success ${formData.name}`]);
+        appendImportDebug(`${rowNo}/${total} Success ${formData.name}`, rowNo === total);
       } catch {
         failCount++;
-        setImportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${importPreview.data.length} Failed ${formData.name}`]);
+        appendImportDebug(`${rowNo}/${total} Failed ${formData.name}`, rowNo === total);
       }
     }
 
+    flushImportUi(true);
+    if (importUiFlushTimerRef.current) {
+      clearTimeout(importUiFlushTimerRef.current);
+      importUiFlushTimerRef.current = null;
+    }
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
+    importDebugRef.current = [];
+    setImportDebugMessages([]);
+    // 匯入完成後才重新載入一次
+    await loadFoods(true);
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
@@ -1457,7 +1524,10 @@ export default function FoodManagement() {
     recognition.start();
   };
 
-  if (loading) return <FullPageLoading text="載入食品資料中..." />;
+  // 僅初次尚無資料時全頁 loading；背景重新整理 / CSV 匯入中不要卸載整頁（避免匯入 modal 被拆掉閃爍）
+  if (loading && foods.length === 0 && !importing && !importPreview) {
+    return <FullPageLoading text="載入食品資料中..." />;
+  }
 
   return (
     <div className="space-y-4 lg:space-y-6" id="food-management-container">
@@ -1918,67 +1988,102 @@ export default function FoodManagement() {
         </div>
       )}
       {importPreview && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">匯入預覽</h3>
-              <p className="text-sm text-gray-500 mt-1">請確認以下資料是否正確</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-[1px]">
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+            <div className="border-b border-gray-200 p-6 dark:border-gray-700">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                {importing ? "匯入中" : "匯入預覽"}
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {importing
+                  ? "正在寫入 Appwrite，請稍候。進度會節流更新以避免畫面閃爍。"
+                  : "請確認以下資料是否正確"}
+              </p>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[50vh]">
-              {importPreview.errors.length > 0 && (
-                <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                  <h4 className="font-semibold text-red-600 dark:text-red-400 mb-2">格式錯誤:</h4>
-                  <ul className="text-sm text-red-600 dark:text-red-400 space-y-1">
-                    {importPreview.errors.map((err, i) => <li key={i}>• {err}</li>)}
-                  </ul>
-                </div>
-              )}
-              {importPreview.data.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-gray-700 dark:text-gray-300">將匯入 {importPreview.data.length} 筆資料:</h4>
-                  <div className="space-y-2">
-                    {importPreview.data.slice(0, 50).map((item, i) => {
-                      const existing = foods.find(f => f.name === item.name);
-                      return (
-                        <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{item.name}</span>
-                          <span className="text-xs text-gray-500">{item.amount} 個</span>
-                          {existing ? <span className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 rounded">更新</span> : <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded">新增</span>}
-                        </div>
-                      );
-                    })}
-                    {importPreview.data.length > 50 && (
-                      <div className="p-3 text-center text-sm text-gray-500">
-                        ...以及其他 {importPreview.data.length - 50} 筆資料
-                      </div>
-                    )}
+            <div className="max-h-[50vh] overflow-y-auto p-6">
+              {importing ? (
+                <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                    正在處理第 {importProgress.current} / {importProgress.total || importPreview.data.length} 筆
+                  </div>
+                  <div className="h-2 w-full max-w-sm overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-[width] duration-200 ease-out"
+                      style={{
+                        width: `${
+                          importProgress.total > 0
+                            ? Math.min(100, (importProgress.current / importProgress.total) * 100)
+                            : 0
+                        }%`,
+                      }}
+                    />
                   </div>
                 </div>
+              ) : (
+                <>
+                  {importPreview.errors.length > 0 && (
+                    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                      <h4 className="mb-2 font-semibold text-red-600 dark:text-red-400">格式錯誤:</h4>
+                      <ul className="space-y-1 text-sm text-red-600 dark:text-red-400">
+                        {importPreview.errors.map((err, i) => (
+                          <li key={i}>• {err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {importPreview.data.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-gray-700 dark:text-gray-300">
+                        將匯入 {importPreview.data.length} 筆資料:
+                      </h4>
+                      <div className="space-y-2">
+                        {importPreview.data.slice(0, 50).map((item, i) => {
+                          const existing = foods.find((f) => f.name === item.name);
+                          return (
+                            <div
+                              key={`${item.name}-${i}`}
+                              className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800"
+                            >
+                              <span className="font-medium text-gray-900 dark:text-gray-100">{item.name}</span>
+                              <span className="text-xs text-gray-500">{item.amount} 個</span>
+                              {existing ? (
+                                <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                  更新
+                                </span>
+                              ) : (
+                                <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                  新增
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {importPreview.data.length > 50 && (
+                          <div className="p-3 text-center text-sm text-gray-500">
+                            ...以及其他 {importPreview.data.length - 50} 筆資料
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <div className="flex flex-col gap-3 border-t border-gray-200 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] dark:border-gray-700 sm:flex-row sm:justify-end">
               {importing ? (
                 <div className="flex w-full flex-col gap-3 sm:max-w-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300"
-                        style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      ?????{importProgress.current}/{importProgress.total}
-                    </span>
-                  </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
                       <span>Import Debug Console Output</span>
-                      <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{importDebugMessages.length} entries</span>
+                      <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                        {importDebugMessages.length} entries
+                      </span>
                     </div>
                     <div className="max-h-48 overflow-y-auto rounded-xl bg-gray-900 px-3 py-2 text-xs leading-5 text-green-200">
                       {importDebugMessages.length > 0 ? (
                         importDebugMessages.map((message, index) => (
-                          <div key={`${index}-${message}`} className="border-b border-white/5 py-1 last:border-b-0">
+                          <div key={`import-log-${index}`} className="border-b border-white/5 py-1 last:border-b-0">
                             {message}
                           </div>
                         ))
@@ -1990,8 +2095,14 @@ export default function FoodManagement() {
                 </div>
               ) : (
                 <>
-                  <Button variant="outline" onClick={() => setImportPreview(null)} className="rounded-xl">取消</Button>
-                  <Button onClick={executeImport} disabled={importPreview.data.length === 0 || importPreview.errors.length > 0} className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Button variant="outline" onClick={() => setImportPreview(null)} className="rounded-xl">
+                    取消
+                  </Button>
+                  <Button
+                    onClick={executeImport}
+                    disabled={importPreview.data.length === 0 || importPreview.errors.length > 0}
+                    className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     確認匯入 ({importPreview.data.length} 筆)
                   </Button>
                 </>
@@ -2024,7 +2135,14 @@ export default function FoodManagement() {
       </datalist>
 
       <DataCard>
-        {foods.length === 0 ? (
+        {/* 匯入進行中先卸載大型表格，避免每筆進度更新重渲數百列造成畫面閃爍 */}
+        {importing ? (
+          <EmptyState
+            emoji="📥"
+            title="CSV 匯入進行中"
+            description={`正在寫入第 ${importProgress.current}/${importProgress.total || "?"} 筆，完成後會自動重新整理列表。`}
+          />
+        ) : foods.length === 0 ? (
           <EmptyState emoji="🍔" title="暫無食品資料" description="點擊上方按鈕新增您的第一筆食品資料" />
         ) : filteredFoods.length === 0 ? (
           <EmptyState emoji="🔍" title="無搜尋結果" description={`找不到「${searchQuery}」相關的食品`} />
