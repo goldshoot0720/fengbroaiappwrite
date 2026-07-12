@@ -17,7 +17,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import JSZip from "jszip";
+import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 // Helper function to add Appwrite config to URL
@@ -416,7 +416,7 @@ export default function MusicManagement() {
     if (music.length === 0) { alert('沒有音樂可以匯出'); return; }
     setExportingZip(true); setExportZipProgress({ current: 0, total: music.length, status: '準備中...' });
     try {
-      const zip = new JSZip();
+      const zip = new (await loadJSZip())();
       zip.folder('music');
       zip.folder('lyrics');
       zip.folder('covers');
@@ -523,7 +523,7 @@ export default function MusicManagement() {
     const file = e.target.files?.[0]; if (!file) return;
     setImportingZip(true); setImportZipProgress({ current: 0, total: 0, status: '讀取 ZIP 檔案...', success: 0, failed: 0 });
     try {
-      const zip = new JSZip();
+      const zip = new (await loadJSZip())();
       const contents = await zip.loadAsync(file);
 
       // Check if this is a new-format ZIP with music.csv

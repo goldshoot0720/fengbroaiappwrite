@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-
-const sdk = require('node-appwrite');
+import {
+  clearCollectionCache,
+  createAppwrite,
+  getCollection,
+  sdk,
+} from "../_lib/appwriteClient";
 
 export const dynamic = 'force-dynamic';
 
@@ -11,27 +15,8 @@ const REQUIRED_ATTRIBUTES = [
   { key: 'auth', size: 128 },
 ];
 
-function createAppwrite() {
-  const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const apiKey = process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-
-  if (!endpoint || !projectId || !databaseId || !apiKey) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  return { databases: new sdk.Databases(client), databaseId };
-}
-
 async function getOrCreateCollection(databases, databaseId) {
-  const allCollections = await databases.listCollections(databaseId);
-  const col = allCollections.collections.find(c => c.name === COLLECTION_NAME);
+  const col = await getCollection(databases, databaseId, COLLECTION_NAME, { required: false });
   if (col) {
     await ensureAttributes(databases, databaseId, col.$id);
     return col.$id;
@@ -43,6 +28,7 @@ async function getOrCreateCollection(databases, databaseId) {
     sdk.ID.unique(),
     COLLECTION_NAME
   );
+  clearCollectionCache(databaseId);
 
   // 建立屬性
   await databases.createStringAttribute(databaseId, newCol.$id, 'endpoint', 2048, true);
@@ -131,8 +117,7 @@ export async function DELETE(request) {
 
     const { databases, databaseId } = createAppwrite();
 
-    const allCollections = await databases.listCollections(databaseId);
-    const col = allCollections.collections.find(c => c.name === COLLECTION_NAME);
+    const col = await getCollection(databases, databaseId, COLLECTION_NAME, { required: false });
     if (!col) {
       return NextResponse.json({ success: true, action: 'not_found' });
     }

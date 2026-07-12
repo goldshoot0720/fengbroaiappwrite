@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus, AlertTriangle, RefreshCw } from "lucide-react";
 import { useCommonDocument, CommonDocumentData } from "@/hooks/useCommonDocument";
 import { useDocumentCache } from "@/hooks/useDocumentCache";
@@ -15,14 +16,58 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { PlyrPlayer } from "@/components/ui/plyr-player";
-import { CodeEditor } from "@/components/ui/code-editor";
-import { PDFViewer } from "@/components/ui/pdf-viewer";
-import { ImageEditor } from "@/components/ui/image-editor";
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import JSZip from "jszip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
+
+const EditorFallback = () => (
+  <div className="flex min-h-[200px] items-center justify-center">
+    <LoadingSpinner />
+  </div>
+);
+
+// Heavy media/editor deps — load only when a document viewer needs them.
+const PlyrPlayer = dynamic(
+  () => import("@/components/ui/plyr-player").then((m) => m.PlyrPlayer),
+  { ssr: false, loading: EditorFallback }
+);
+const CodeEditor = dynamic(
+  () => import("@/components/ui/code-editor").then((m) => m.CodeEditor),
+  { ssr: false, loading: EditorFallback }
+);
+const PDFViewer = dynamic(
+  () => import("@/components/ui/pdf-viewer").then((m) => m.PDFViewer),
+  { ssr: false, loading: EditorFallback }
+);
+const ImageEditor = dynamic(
+  () => import("@/components/ui/image-editor").then((m) => m.ImageEditor),
+  { ssr: false, loading: EditorFallback }
+);
+
+const ReactMarkdown = dynamic(() => import("react-markdown"), {
+  ssr: false,
+  loading: EditorFallback,
+});
+
+function MarkdownPreview({ content }: { content: string }) {
+  const [remarkGfm, setRemarkGfm] = useState<((...args: never[]) => unknown) | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    import("remark-gfm").then((mod) => {
+      if (!cancelled) setRemarkGfm(() => mod.default);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!remarkGfm) return <EditorFallback />;
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm as never]}>
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -356,6 +401,7 @@ export default function CommonDocumentManagement() {
     setExportingZip(true);
     setExportZipProgress({ current: 0, total: commondocument.length, status: '準備中...' });
     try {
+      const JSZip = await loadJSZip();
       const zip = new JSZip();
       zip.folder('files');
       zip.folder('covers');
@@ -458,6 +504,7 @@ export default function CommonDocumentManagement() {
     setImportingZip(true);
     setImportZipProgress({ current: 0, total: 0, status: '讀取 ZIP 檔案...', success: 0, failed: 0 });
     try {
+      const JSZip = await loadJSZip();
       const zip = await JSZip.loadAsync(file);
 
       // Check if this is new format with document.csv
@@ -561,8 +608,10 @@ export default function CommonDocumentManagement() {
         setTimeout(() => { setImportingZip(false); setImportZipProgress({ current: 0, total: 0, status: '', success: 0, failed: 0 }); loadCommonDocument(true); }, 2000);
       } else {
         // Legacy format: plain document files in ZIP (backwards compatible)
-        const docFiles: { name: string; file: JSZip.JSZipObject }[] = [];
-        zip.forEach((relativePath, zipEntry) => { if (!zipEntry.dir) docFiles.push({ name: relativePath, file: zipEntry }); });
+        const docFiles: { name: string; file: any }[] = [];
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) docFiles.push({ name: relativePath, file: zipEntry });
+        });
         if (docFiles.length === 0) { alert('ZIP 檔案中沒有找到文件檔案'); setImportingZip(false); return; }
         const confirmImport = window.confirm(`找到 ${docFiles.length} 份文件（舊格式），是否開始匯入？`);
         if (!confirmImport) { setImportingZip(false); return; }
@@ -2829,7 +2878,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
   const [zipCurrentPath, setZipCurrentPath] = useState<string>('');
   const [zipFileContent, setZipFileContent] = useState<string | null>(null);
   const [zipViewingFile, setZipViewingFile] = useState<string | null>(null);
-  const [zipInstance, setZipInstance] = useState<JSZip | null>(null);
+  const [zipInstance, setZipInstance] = useState<JSZipType | null>(null);
   const [isEditing, setIsEditing] = useState(openInEditMode);
   const [editedContent, setEditedContent] = useState<string>('');
   const [saving, setSaving] = useState(false);
@@ -2861,6 +2910,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
       fetch(getProxiedMediaUrl(document.file))
         .then(res => res.arrayBuffer())
         .then(async (buffer) => {
+          const JSZip = await loadJSZip();
           const zip = await JSZip.loadAsync(buffer);
           setZipInstance(zip);
           const entries: { name: string; isDir: boolean; size: number }[] = [];
@@ -3050,9 +3100,7 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         return (
           <div className="h-full overflow-auto p-8 bg-white dark:bg-gray-900">
             <article className="prose prose-lg dark:prose-invert max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {txtContent}
-              </ReactMarkdown>
+              <MarkdownPreview content={txtContent} />
             </article>
           </div>
         );

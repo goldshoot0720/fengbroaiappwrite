@@ -17,7 +17,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import JSZip from "jszip";
+import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 type ImageSortMode = "created-desc" | "size-desc";
@@ -708,7 +708,7 @@ export default function ImageGallery() {
     appendExportDebug(`開始匯出，共 ${images.length} 張圖片。`);
 
     try {
-      const zip = new JSZip();
+      const zip = new (await loadJSZip())();
       zip.folder('images');
 
       const csvRows: string[][] = [];
@@ -837,7 +837,7 @@ export default function ImageGallery() {
     setImportProgress({ current: 0, total: 0, status: '正在解壓縮 ZIP...', success: 0, skipped: 0, failed: 0 });
 
     try {
-      const zip = await JSZip.loadAsync(file);
+      const zip = await (await loadJSZip()).loadAsync(file);
 
       // Check if this is a new-format ZIP with image.csv
       const csvFile = zip.files['image.csv'];
@@ -928,7 +928,7 @@ export default function ImageGallery() {
         setTimeout(() => { setImporting(false); setImportProgress({ current: 0, total: 0, status: '', success: 0, skipped: 0, failed: 0 }); loadImages(true); }, 2000);
       } else {
         // Legacy format: plain image files in ZIP (backwards compatible)
-        const imageFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+        const imageFiles: { name: string; file: any }[] = [];
         const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
         zip.forEach((relativePath, zipEntry) => {
@@ -1050,7 +1050,7 @@ export default function ImageGallery() {
     appendImportDebug(`開始匯入 ZIP：${file.name}`);
 
     try {
-      const zip = await JSZip.loadAsync(file);
+      const zip = await (await loadJSZip()).loadAsync(file);
       appendImportDebug('ZIP 讀取完成。');
 
       const csvFile = zip.files['image.csv'];
@@ -1180,7 +1180,7 @@ export default function ImageGallery() {
       }
 
       appendImportDebug('未偵測到 image.csv，改用舊格式圖片匯入模式。');
-      const imageFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+      const imageFiles: { name: string; file: any }[] = [];
       const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
       zip.forEach((relativePath, zipEntry) => {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { STORAGE_UPLOAD_LIMIT_BYTES } from "../_lib/storageQuota";
 import { getAppwriteErrorStatus, isMissingAppwriteConfigError } from "../_lib/appwriteConfig";
+import { createAppwrite, getCollectionId } from "../_lib/appwriteClient";
 
 const sdk = require('node-appwrite');
 
@@ -31,39 +32,6 @@ function extractFileId(value) {
 }
 
 // Helper function to get collection ID by name
-async function getCollectionId(databases, databaseId, name) {
-  try {
-    const allCollections = await databases.listCollections(databaseId);
-    const col = allCollections.collections.find(c => c.name === name);
-    if (!col) return null; // Return null if not found instead of throwing
-    return col.$id;
-  } catch (error) {
-    console.error(`Error getting collection ID for ${name}:`, error.message);
-    return null;
-  }
-}
-
-function createAppwrite(config) {
-  const endpoint = config?.endpoint || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = config?.projectId || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const apiKey = config?.apiKey || process.env.APPWRITE_API_KEY || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-  const bucketId = config?.bucketId || process.env.APPWRITE_BUCKET_ID || process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
-  const databaseId = config?.databaseId || process.env.APPWRITE_DATABASE_ID;
-
-  if (!endpoint || !projectId || !apiKey || !bucketId) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  const storage = new sdk.Storage(client);
-  const databases = new sdk.Databases(client);
-
-  return { storage, databases, bucketId, databaseId, endpoint, projectId, apiKey };
-}
 
 function normalizeEndpoint(endpoint) {
   if (!endpoint) return '';
@@ -189,7 +157,9 @@ async function getAllReferencedFileIds(databases, databaseId, storageConfig, buc
   for (const [collectionName, fields] of Object.entries(collectionFields)) {
     try {
       // 使用 table name 查詢 collection ID
-      const collectionId = await getCollectionId(databases, databaseId, collectionName);
+      const collectionId = await getCollectionId(databases, databaseId, collectionName, {
+        required: false,
+      });
       
       if (!collectionId) {
         console.log(`    ⚠️ 跳過 ${collectionName}: Collection 不存在`);

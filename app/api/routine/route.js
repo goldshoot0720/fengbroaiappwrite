@@ -1,46 +1,10 @@
 import { NextResponse } from "next/server";
 import { listAllDocuments } from "../_lib/listAllDocuments";
+import { createAppwrite, getCollectionId } from "../_lib/appwriteClient";
 
 const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
-
-async function getCollectionId(databases, databaseId, name) {
-  try {
-    const allCollections = await databases.listCollections(databaseId);
-    const col = allCollections.collections.find(c => c.name === name);
-    if (!col) {
-      const error = new Error(`Collection ${name} not found`);
-      error.code = 404;
-      throw error;
-    }
-    return col.$id;
-  } catch (err) {
-    // Preserve 404 status if already set
-    if (!err.code) err.code = 404;
-    throw err;
-  }
-}
-
-function createAppwrite(searchParams) {
-  const endpoint = searchParams?.get('_endpoint') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = searchParams?.get('_project') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const databaseId = searchParams?.get('_database') || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const apiKey = searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-
-  if (!endpoint || !projectId || !databaseId || !apiKey) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  const databases = new sdk.Databases(client);
-
-  return { databases, databaseId };
-}
 
 // GET /api/routine
 export async function GET(request) {

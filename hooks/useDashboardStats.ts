@@ -54,7 +54,6 @@ interface DashboardStats {
   totalAnnualFee: number;
   expiredFoods: number;
   overdueSubscriptions: number;
-  // 詳細項目列表
   foodsExpiring7DaysList: FoodDetail[];
   foodsExpiring30DaysList: FoodDetail[];
   expiredFoodsList: FoodDetail[];
@@ -63,33 +62,82 @@ interface DashboardStats {
   overdueSubscriptionsList: SubscriptionDetail[];
 }
 
-// 不使用快取，每次都重新載入
+const EMPTY_STATS: DashboardStats = {
+  totalFoods: 0,
+  totalSubscriptions: 0,
+  totalArticles: 0,
+  totalCommonAccounts: 0,
+  totalBanks: 0,
+  totalBankDeposit: 0,
+  totalRoutines: 0,
+  foodsExpiring7Days: 0,
+  foodsExpiring30Days: 0,
+  subscriptionsExpiring3Days: 0,
+  subscriptionsExpiring7Days: 0,
+  totalMonthlyFee: 0,
+  totalAnnualFee: 0,
+  expiredFoods: 0,
+  overdueSubscriptions: 0,
+  foodsExpiring7DaysList: [],
+  foodsExpiring30DaysList: [],
+  expiredFoodsList: [],
+  subscriptionsExpiring3DaysList: [],
+  subscriptionsExpiring7DaysList: [],
+  overdueSubscriptionsList: [],
+};
+
+type TableLoadResult<T> = {
+  data: T[];
+  missingError: string | null;
+};
+
+async function loadTable<T>(api: string, cacheParam: string): Promise<TableLoadResult<T>> {
+  try {
+    const result = await fetchApi<T[]>(api + cacheParam);
+    return { data: Array.isArray(result) ? result : [], missingError: null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "";
+    if (message.includes("不存在")) {
+      return { data: [], missingError: message };
+    }
+    console.error(`Failed to load ${api}:`, err);
+    return { data: [], missingError: null };
+  }
+}
+
+function toFoodDetail(food: Food, today: Date, useFloor = false): FoodDetail {
+  const expireDate = new Date(food.todate);
+  const ms = expireDate.getTime() - today.getTime();
+  const daysRemaining = useFloor
+    ? Math.floor(ms / (1000 * 60 * 60 * 24))
+    : Math.ceil(ms / (1000 * 60 * 60 * 24));
+  return {
+    id: food.$id,
+    name: food.name,
+    daysRemaining,
+    expireDate: food.todate,
+  };
+}
+
+function toSubDetail(sub: Subscription, today: Date, useFloor = false): SubscriptionDetail {
+  const nextDate = new Date(sub.nextdate);
+  const ms = nextDate.getTime() - today.getTime();
+  const daysRemaining = useFloor
+    ? Math.floor(ms / (1000 * 60 * 60 * 24))
+    : Math.ceil(ms / (1000 * 60 * 60 * 24));
+  return {
+    id: sub.$id,
+    name: sub.name,
+    site: sub.site,
+    daysRemaining,
+    nextDate: sub.nextdate,
+    price: sub.price,
+  };
+}
 
 export function useDashboardStats() {
   const { checked: appwriteSetupChecked, hasDatabaseConfig } = useAppwriteSetup();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalFoods: 0,
-    totalSubscriptions: 0,
-    totalArticles: 0,
-    totalCommonAccounts: 0,
-    totalBanks: 0,
-    totalBankDeposit: 0,
-    totalRoutines: 0,
-    foodsExpiring7Days: 0,
-    foodsExpiring30Days: 0,
-    subscriptionsExpiring3Days: 0,
-    subscriptionsExpiring7Days: 0,
-    totalMonthlyFee: 0,
-    totalAnnualFee: 0,
-    expiredFoods: 0,
-    overdueSubscriptions: 0,
-    foodsExpiring7DaysList: [],
-    foodsExpiring30DaysList: [],
-    expiredFoodsList: [],
-    subscriptionsExpiring3DaysList: [],
-    subscriptionsExpiring7DaysList: [],
-    overdueSubscriptionsList: [],
-  });
+  const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
@@ -97,12 +145,12 @@ export function useDashboardStats() {
   useEffect(() => {
     if (!appwriteSetupChecked) return;
 
-    async function fetchStats() {
-      // 不使用快取，每次都重新載入
-      const cacheParam = `?t=${Date.now()}`;
+    let cancelled = false;
 
+    async function fetchStats() {
+      const cacheParam = `?t=${Date.now()}`;
       setError(null);
-      
+
       if (!hasDatabaseConfig) {
         setSetupRequired(true);
         setError(null);
@@ -110,233 +158,126 @@ export function useDashboardStats() {
         return;
       }
       setSetupRequired(false);
-      
+      setLoading(true);
+
       try {
-        const errors: string[] = [];
-        
-        // 檢查所有表是否存在
-        const tablesToCheck = [
-          { name: 'article', api: '/api/article', label: 'Table article' },
-          { name: 'bank', api: '/api/bank', label: 'Table bank' },
-          { name: 'commonaccount', api: '/api/commonaccount', label: 'Table commonaccount' },
-          { name: 'food', api: '/api/food', label: 'Table food' },
-          { name: 'commondocument', api: '/api/commondocument', label: 'Table commondocument' },
-          { name: 'routine', api: '/api/routine', label: 'Table routine' },
-          { name: 'subscription', api: '/api/subscription', label: 'Table subscription' },
-        ];
+        // Single parallel fetch — no double round-trip "check then load"
+        const [
+          foodsResult,
+          subsResult,
+          articlesResult,
+          accountsResult,
+          banksResult,
+          routinesResult,
+          documentsResult,
+        ] = await Promise.all([
+          loadTable<Food>("/api/food", cacheParam),
+          loadTable<Subscription>("/api/subscription", cacheParam),
+          loadTable<unknown>("/api/article", cacheParam),
+          loadTable<unknown>("/api/commonaccount", cacheParam),
+          loadTable<{ deposit?: number }>("/api/bank", cacheParam),
+          loadTable<unknown>("/api/routine", cacheParam),
+          loadTable<unknown>("/api/commondocument", cacheParam),
+        ]);
 
-        // 並行檢查所有表
-        const checkPromises = tablesToCheck.map(async (table) => {
-          try {
-            await fetchApi<any[]>(table.api + cacheParam);
-            return null;
-          } catch (err) {
-            const message = err instanceof Error ? err.message : '';
-            if (message.includes('不存在')) {
-              return message;
-            }
-            return null;
-          }
-        });
+        if (cancelled) return;
 
-        const checkResults = await Promise.all(checkPromises);
-        const tableErrors = checkResults.filter(err => err !== null) as string[];
-        
-        if (tableErrors.length > 0) {
-          throw new Error(tableErrors.join('\n'));
-        }
-        
-        // 獲取食品數據（使用快取）
-        let foods: Food[] = [];
-        try {
-          const foodsData = await fetchApi<Food[]>("/api/food" + cacheParam);
-          foods = Array.isArray(foodsData) ? foodsData : [];
-        } catch (err) {
-          console.error('Failed to load foods:', err);
+        const missing = [
+          foodsResult,
+          subsResult,
+          articlesResult,
+          accountsResult,
+          banksResult,
+          routinesResult,
+          documentsResult,
+        ]
+          .map((r) => r.missingError)
+          .filter(Boolean) as string[];
+
+        if (missing.length > 0) {
+          throw new Error(missing.join("\n"));
         }
 
-        // 獲取訂閱數據（使用快取）
-        let subscriptions: Subscription[] = [];
-        try {
-          const subsData = await fetchApi<Subscription[]>("/api/subscription" + cacheParam);
-          subscriptions = Array.isArray(subsData) ? subsData : [];
-        } catch (err) {
-          console.error('Failed to load subscriptions:', err);
-        }
-
-        // 獲取筆記數據（使用快取）
-        let articles: any[] = [];
-        try {
-          const articlesData = await fetchApi<any[]>("/api/article" + cacheParam);
-          articles = Array.isArray(articlesData) ? articlesData : [];
-        } catch (err) {
-          console.error('Failed to load articles:', err);
-        }
-
-        // 獲取常用帳號數據（使用快取）
-        let commonAccounts: any[] = [];
-        try {
-          const commonAccountsData = await fetchApi<any[]>("/api/commonaccount" + cacheParam);
-          commonAccounts = Array.isArray(commonAccountsData) ? commonAccountsData : [];
-        } catch (err) {
-          console.error('Failed to load common accounts:', err);
-        }
-
-        // 獲取銀行數據（使用快取）
-        let banks: any[] = [];
-        try {
-          const banksData = await fetchApi<any[]>("/api/bank" + cacheParam);
-          banks = Array.isArray(banksData) ? banksData : [];
-        } catch (err) {
-          console.error('Failed to load banks:', err);
-        }
-
-        // 獲取例行數據（使用快取）
-        let routines: any[] = [];
-        try {
-          const routinesData = await fetchApi<any[]>("/api/routine" + cacheParam);
-          routines = Array.isArray(routinesData) ? routinesData : [];
-        } catch (err) {
-          console.error('Failed to load routines:', err);
-        }
+        const foods = foodsResult.data;
+        const subscriptions = subsResult.data;
+        const articles = articlesResult.data;
+        const commonAccounts = accountsResult.data;
+        const banks = banksResult.data;
+        const routines = routinesResult.data;
 
         const today = new Date();
-        const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-        const threeDaysFromNow = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
+        const dayMs = 24 * 60 * 60 * 1000;
+        const sevenDaysFromNow = new Date(today.getTime() + 7 * dayMs);
+        const thirtyDaysFromNow = new Date(today.getTime() + 30 * dayMs);
+        const threeDaysFromNow = new Date(today.getTime() + 3 * dayMs);
 
-        // 計算食品統計和詳細列表
-        const foodsToProcess = Array.isArray(foods) ? foods : [];
-        const foodsExpiring7DaysList: FoodDetail[] = foodsToProcess
-          .filter(food => {
+        const foodsExpiring7DaysList = foods
+          .filter((food) => {
             if (!food.todate) return false;
             const expireDate = new Date(food.todate);
             if (Number.isNaN(expireDate.getTime())) return false;
             return expireDate <= sevenDaysFromNow && expireDate >= today;
           })
-          .map(food => {
-            const expireDate = new Date(food.todate);
-            const daysRemaining = Math.ceil((expireDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return {
-              id: food.$id,
-              name: food.name,
-              daysRemaining,
-              expireDate: food.todate
-            };
-          })
+          .map((food) => toFoodDetail(food, today))
           .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-        const foodsExpiring30DaysList: FoodDetail[] = foodsToProcess
-          .filter(food => {
+        const foodsExpiring30DaysList = foods
+          .filter((food) => {
             if (!food.todate) return false;
             const expireDate = new Date(food.todate);
             if (Number.isNaN(expireDate.getTime())) return false;
             return expireDate <= thirtyDaysFromNow && expireDate >= today;
           })
-          .map(food => {
-            const expireDate = new Date(food.todate);
-            const daysRemaining = Math.ceil((expireDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return {
-              id: food.$id,
-              name: food.name,
-              daysRemaining,
-              expireDate: food.todate
-            };
-          })
+          .map((food) => toFoodDetail(food, today))
           .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-        const expiredFoodsList: FoodDetail[] = foodsToProcess
-          .filter(food => {
+        const expiredFoodsList = foods
+          .filter((food) => {
             if (!food.todate) return false;
             const expireDate = new Date(food.todate);
             if (Number.isNaN(expireDate.getTime())) return false;
             return expireDate < today;
           })
-          .map(food => {
-            const expireDate = new Date(food.todate);
-            const daysRemaining = Math.floor((expireDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return {
-              id: food.$id,
-              name: food.name,
-              daysRemaining,
-              expireDate: food.todate
-            };
-          })
+          .map((food) => toFoodDetail(food, today, true))
           .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-        // 計算訂閱統計和詳細列表（排除無日期的訂閱）
-        const subsToProcess = Array.isArray(subscriptions) ? subscriptions : [];
-        const subscriptionsExpiring3DaysList: SubscriptionDetail[] = subsToProcess
-          .filter(sub => {
-            if (!sub.nextdate) return false; // 排除無日期
+        const subscriptionsExpiring3DaysList = subscriptions
+          .filter((sub) => {
+            if (!sub.nextdate) return false;
             const nextDate = new Date(sub.nextdate);
             return nextDate <= threeDaysFromNow && nextDate >= today;
           })
-          .map(sub => {
-            const nextDate = new Date(sub.nextdate);
-            const daysRemaining = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return {
-              id: sub.$id,
-              name: sub.name,
-              site: sub.site,
-              daysRemaining,
-              nextDate: sub.nextdate,
-              price: sub.price
-            };
-          })
+          .map((sub) => toSubDetail(sub, today))
           .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-        const subscriptionsExpiring7DaysList: SubscriptionDetail[] = subsToProcess
-          .filter(sub => {
-            if (!sub.nextdate) return false; // 排除無日期
+        const subscriptionsExpiring7DaysList = subscriptions
+          .filter((sub) => {
+            if (!sub.nextdate) return false;
             const nextDate = new Date(sub.nextdate);
             return nextDate <= sevenDaysFromNow && nextDate >= today;
           })
-          .map(sub => {
-            const nextDate = new Date(sub.nextdate);
-            const daysRemaining = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return {
-              id: sub.$id,
-              name: sub.name,
-              site: sub.site,
-              daysRemaining,
-              nextDate: sub.nextdate,
-              price: sub.price
-            };
-          })
+          .map((sub) => toSubDetail(sub, today))
           .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-        const overdueSubscriptionsList: SubscriptionDetail[] = subsToProcess
-          .filter(sub => {
-            if (!sub.nextdate) return false; // 排除無日期
+        const overdueSubscriptionsList = subscriptions
+          .filter((sub) => {
+            if (!sub.nextdate) return false;
             const nextDate = new Date(sub.nextdate);
             return nextDate < today;
           })
-          .map(sub => {
-            const nextDate = new Date(sub.nextdate);
-            const daysRemaining = Math.floor((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return {
-              id: sub.$id,
-              name: sub.name,
-              site: sub.site,
-              daysRemaining,
-              nextDate: sub.nextdate,
-              price: sub.price
-            };
-          })
+          .map((sub) => toSubDetail(sub, today, true))
           .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-        const totalMonthlyFee = subsToProcess.reduce((total, sub) => total + convertToTWD(sub.price, sub.currency), 0);
-        
-        // 計算年費總計 (所有訂閱服務費用總和，換算成台幣)
-        const totalAnnualFee = subsToProcess.reduce((total, sub) => total + convertToTWD(sub.price, sub.currency), 0);
-        
-        // 計算銀行總存款
+        const totalMonthlyFee = subscriptions.reduce(
+          (total, sub) => total + convertToTWD(sub.price, sub.currency),
+          0
+        );
+        const totalAnnualFee = totalMonthlyFee;
         const totalBankDeposit = banks.reduce((total, bank) => total + (bank.deposit || 0), 0);
 
-        const newStats = {
-          totalFoods: foodsToProcess.length,
-          totalSubscriptions: subsToProcess.length,
+        setStats({
+          totalFoods: foods.length,
+          totalSubscriptions: subscriptions.length,
           totalArticles: articles.length,
           totalCommonAccounts: commonAccounts.length,
           totalBanks: banks.length,
@@ -356,18 +297,20 @@ export function useDashboardStats() {
           subscriptionsExpiring3DaysList,
           subscriptionsExpiring7DaysList,
           overdueSubscriptionsList,
-        };
-              
-        setStats(newStats);
-      } catch (error) {
-        console.error("獲取統計數據失敗:", error);
-        setError(error instanceof Error ? error.message : "獲取統計數據失敗");
+        });
+      } catch (err) {
+        if (cancelled) return;
+        console.error("獲取統計數據失敗:", err);
+        setError(err instanceof Error ? err.message : "獲取統計數據失敗");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchStats();
+    return () => {
+      cancelled = true;
+    };
   }, [appwriteSetupChecked, hasDatabaseConfig]);
 
   return { stats, loading, error, setupRequired };

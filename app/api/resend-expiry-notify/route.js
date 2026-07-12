@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAppwrite, getCollectionId } from "../_lib/appwriteClient";
 
 const sdk = require("node-appwrite");
 
@@ -29,30 +30,6 @@ function daysUntil(dateStr) {
   const todayMs = dateKeyToUtcMs(getTaipeiDateKey());
   if (targetMs == null || todayMs == null) return null;
   return Math.round((targetMs - todayMs) / (1000 * 60 * 60 * 24));
-}
-
-function createAppwrite(searchParams, body = {}) {
-  const endpoint = body.endpoint || searchParams.get("_endpoint") || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = body.projectId || searchParams.get("_project") || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const databaseId = body.databaseId || searchParams.get("_database") || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const apiKey = body.appwriteApiKey || searchParams.get("_key") || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-
-  if (!endpoint || !projectId || !databaseId || !apiKey) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  return { databases: new sdk.Databases(client), databaseId };
-}
-
-async function getCollectionId(databases, databaseId, name) {
-  const allCollections = await databases.listCollections(databaseId);
-  const col = allCollections.collections.find((collection) => collection.name === name);
-  return col?.$id || null;
 }
 
 function verifyAuth(request) {
@@ -170,7 +147,9 @@ async function collectExpiryItems(databases, databaseId) {
   const subscriptions = [];
   const foods = [];
 
-  const subColId = await getCollectionId(databases, databaseId, "subscription");
+  const subColId = await getCollectionId(databases, databaseId, "subscription", {
+    required: false,
+  });
   if (subColId) {
     const subs = await databases.listDocuments(databaseId, subColId, [
       sdk.Query.limit(500),
@@ -192,7 +171,9 @@ async function collectExpiryItems(databases, databaseId) {
     }
   }
 
-  const foodColId = await getCollectionId(databases, databaseId, "food");
+  const foodColId = await getCollectionId(databases, databaseId, "food", {
+    required: false,
+  });
   if (foodColId) {
     const foodDocs = await databases.listDocuments(databaseId, foodColId, [
       sdk.Query.limit(500),

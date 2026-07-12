@@ -1,40 +1,11 @@
 import { NextResponse } from "next/server";
-import { listAllDocuments } from "../../_lib/listAllDocuments";
+import { createAppwrite, getCollectionId } from "../../_lib/appwriteClient";
+import { countOtherDocumentsWithField } from "../../_lib/documentRefs";
 
 const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
 const MULTIPART_VIDEO_SUFFIX = '+part';
-
-function createAppwrite(searchParams) {
-  // 從 URL 參數讀取配置（優先），否則使用 .env
-  const endpoint = searchParams?.get('_endpoint') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = searchParams?.get('_project') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const databaseId = searchParams?.get('_database') || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const apiKey = searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-  const bucketId = searchParams?.get('_bucket') || process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
-
-  if (!endpoint || !projectId || !databaseId || !apiKey) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  const databases = new sdk.Databases(client);
-  const storage = new sdk.Storage(client);
-
-  return { databases, storage, databaseId, bucketId };
-}
-
-async function getCollectionId(databases, databaseId, name) {
-  const allCollections = await databases.listCollections(databaseId);
-  const col = allCollections.collections.find(c => c.name === name);
-  if (!col) throw new Error(`Collection ${name} not found`);
-  return col.$id;
-}
 
 function parseFileSize(value) {
   const fileSize = Number(value);
@@ -196,11 +167,9 @@ export async function PUT(request, { params }) {
       
       if (oldFileId && oldFileId !== newFileId) {
         try {
-          // Count how many documents reference the old file
-          const allDocs = await listAllDocuments(databases, databaseId, collectionId, sdk);
-          const fileRefCount = allDocs.filter(d => d.$id !== id && d.file === currentDoc.file).length;
-          
-          // Only delete from storage if no other documents reference it
+          const fileRefCount = await countOtherDocumentsWithField(
+            databases, databaseId, collectionId, sdk, "file", currentDoc.file, id
+          );
           if (fileRefCount === 0) {
             await deleteVideoAssetBundle(storage, bucketId, currentDoc.file, currentDoc.filetype, searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY);
             console.log(`Deleted old video file bundle: ${oldFileId}`);
@@ -220,11 +189,9 @@ export async function PUT(request, { params }) {
       
       if (oldCoverId && oldCoverId !== newCoverId) {
         try {
-          // Count how many documents reference the old cover
-          const allDocs = await listAllDocuments(databases, databaseId, collectionId, sdk);
-          const coverRefCount = allDocs.filter(d => d.$id !== id && d.cover === currentDoc.cover).length;
-          
-          // Only delete from storage if no other documents reference it
+          const coverRefCount = await countOtherDocumentsWithField(
+            databases, databaseId, collectionId, sdk, "cover", currentDoc.cover, id
+          );
           if (coverRefCount === 0) {
             await storage.deleteFile(bucketId, oldCoverId);
             console.log(`Deleted old cover image: ${oldCoverId}`);
@@ -275,11 +242,9 @@ export async function DELETE(request, { params }) {
       const fileId = extractFileIdFromUrl(doc.file);
       if (fileId) {
         try {
-          // Count how many documents reference this file
-          const allDocs = await listAllDocuments(databases, databaseId, collectionId, sdk);
-          const fileRefCount = allDocs.filter(d => d.$id !== id && d.file === doc.file).length;
-          
-          // Only delete from storage if no other documents reference it
+          const fileRefCount = await countOtherDocumentsWithField(
+            databases, databaseId, collectionId, sdk, "file", doc.file, id
+          );
           if (fileRefCount === 0) {
             await deleteVideoAssetBundle(storage, bucketId, doc.file, doc.filetype, searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY);
             console.log(`Deleted video file bundle: ${fileId}`);
@@ -297,11 +262,9 @@ export async function DELETE(request, { params }) {
       const coverId = extractFileIdFromUrl(doc.cover);
       if (coverId) {
         try {
-          // Count how many documents reference this cover
-          const allDocs = await listAllDocuments(databases, databaseId, collectionId, sdk);
-          const coverRefCount = allDocs.filter(d => d.$id !== id && d.cover === doc.cover).length;
-          
-          // Only delete from storage if no other documents reference it
+          const coverRefCount = await countOtherDocumentsWithField(
+            databases, databaseId, collectionId, sdk, "cover", doc.cover, id
+          );
           if (coverRefCount === 0) {
             await storage.deleteFile(bucketId, coverId);
             console.log(`Deleted cover image: ${coverId}`);

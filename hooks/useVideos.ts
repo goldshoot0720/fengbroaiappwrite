@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 
 export interface VideoData {
   $id: string;
@@ -33,10 +34,7 @@ export function useVideos(enabled = true) {
     return localStorage.getItem('videos_refresh_key') || '';
   };
 
-  const setRefreshKeyValue = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('videos_refresh_key', Date.now().toString());
-  };
+  const setRefreshKeyValue = () => bumpRefreshKey("videos_refresh_key");
 
   // 載入影片資料（使用快取）
   const loadVideos = useCallback(async (forceRefresh = false) => {
@@ -81,25 +79,18 @@ export function useVideos(enabled = true) {
     loadVideos();
   }, [enabled, loadVideos]);
 
-  // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
-  useEffect(() => {
-    if (!enabled) return;
-    const checkRefreshKey = () => {
-      const storedRefreshKey = getRefreshKey();
-      if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
-        console.log('[useVideos] 偵測到快取已清除，重新載入資料');
-        loadVideos(true);
-      }
-    };
+  useRefreshKeyListener(
+    "videos_refresh_key",
+    () => {
+      loadVideos(true);
+    },
+    enabled
+  );
 
-    const interval = setInterval(checkRefreshKey, 500);
-    return () => clearInterval(interval);
-  }, [enabled, loadVideos]);
-
-  // 計算統計資料
-  const stats = {
-    total: Array.isArray(videos) ? videos.length : 0,
-  };
+  const stats = useMemo(
+    () => ({ total: Array.isArray(videos) ? videos.length : 0 }),
+    [videos]
+  );
 
   return {
     videos,

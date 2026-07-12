@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertStorageQuotaAvailable } from "../_lib/storageQuota";
+import { createAppwrite } from "../_lib/appwriteClient";
 
 const sdk = require('node-appwrite');
 const { InputFile } = require('node-appwrite/file');
@@ -10,27 +11,6 @@ export const dynamic = 'force-dynamic';
 export const bodyParser = {
   sizeLimit: '50mb'
 };
-
-function createAppwrite(config) {
-  // Use config from request headers (user input) or fallback to env (支援新舊兩種變數名)
-  const endpoint = config?.endpoint || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = config?.projectId || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const apiKey = config?.apiKey || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-  const bucketId = config?.bucketId || process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
-
-  if (!endpoint || !projectId || !apiKey || !bucketId) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  const storage = new sdk.Storage(client);
-
-  return { storage, bucketId, endpoint, projectId };
-}
 
 // POST /api/upload-music - Upload audio and document files to Appwrite Storage
 export async function POST(request) {

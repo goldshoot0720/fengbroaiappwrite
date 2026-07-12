@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import SimpleVideoPlayer from "@/components/ui/simple-video-player";
-import { PlyrPlayer } from "@/components/ui/plyr-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
 import { useVideos, VideoData } from "@/hooks/useVideos";
 import { DataCard } from "@/components/ui/data-card";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FullPageLoading } from "@/components/ui/loading-spinner";
+import { FullPageLoading, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { VideoItem } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
@@ -22,8 +22,20 @@ import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
 import { VideoScreenshotButton } from "@/components/ui/video-screenshot-button";
-import JSZip from "jszip";
+import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+
+const PlyrPlayer = dynamic(
+  () => import("@/components/ui/plyr-player").then((m) => m.PlyrPlayer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[120px] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    ),
+  }
+);
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -502,7 +514,7 @@ export default function VideoIntroduction() {
     appendExportZipDebug(`開始匯出，共 ${videos.length} 部影片。`);
 
     try {
-      const zip = new JSZip();
+      const zip = new (await loadJSZip())();
       zip.folder('videos');
       zip.folder('covers');
 
@@ -647,7 +659,7 @@ export default function VideoIntroduction() {
     setImportZipProgress({ current: 0, total: 0, status: '讀取 ZIP 檔案...', success: 0, failed: 0 });
 
     try {
-      const zip = await JSZip.loadAsync(file);
+      const zip = await (await loadJSZip()).loadAsync(file);
 
       // Check if this is a new-format ZIP with video.csv
       const csvFile = zip.files['video.csv'];
@@ -754,7 +766,7 @@ export default function VideoIntroduction() {
 
       } else {
         // Old format: import video files only (backward compatible)
-        const videoFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+        const videoFiles: { name: string; file: any }[] = [];
         const validExtensions = ['mp4', 'webm', 'ogg', 'mov'];
 
         zip.forEach((relativePath, zipEntry) => {
@@ -880,7 +892,7 @@ export default function VideoIntroduction() {
     appendImportZipDebug(`開始匯入 ZIP：${file.name}`);
 
     try {
-      const zip = await JSZip.loadAsync(file);
+      const zip = await (await loadJSZip()).loadAsync(file);
       appendImportZipDebug('ZIP 讀取完成。');
 
       const csvFile = zip.files['video.csv'];
@@ -1019,7 +1031,7 @@ export default function VideoIntroduction() {
       }
 
       appendImportZipDebug('未偵測到 video.csv，改用舊格式影片匯入模式。');
-      const videoFiles: { name: string; file: JSZip.JSZipObject }[] = [];
+      const videoFiles: { name: string; file: any }[] = [];
       const validExtensions = ['mp4', 'webm', 'ogg', 'mov'];
       zip.forEach((relativePath, zipEntry) => {
         if (!zipEntry.dir) {

@@ -1,29 +1,24 @@
 import { TABLE_SCHEMAS } from "../create-table/route";
 import { listAllDocuments } from "./listAllDocuments";
-
-const sdk = require("node-appwrite");
+import {
+  clearCollectionCache,
+  createAppwrite as createAppwriteShared,
+  getCollection as getCollectionShared,
+  sdk,
+} from "./appwriteClient";
 
 const COLLECTION_NAME = "landtophistory";
 
 function createAppwrite(searchParams) {
-  const endpoint = searchParams?.get("_endpoint") || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = searchParams?.get("_project") || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const databaseId = searchParams?.get("_database") || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const apiKey = searchParams?.get("_key") || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-
-  if (!endpoint || !projectId || !databaseId || !apiKey) {
+  try {
+    return createAppwriteShared(searchParams);
+  } catch {
     return null;
   }
-
-  const client = new sdk.Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey);
-  const databases = new sdk.Databases(client);
-
-  return { databases, databaseId };
 }
 
 async function getCollection(databases, databaseId, name = COLLECTION_NAME) {
-  const allCollections = await databases.listCollections(databaseId);
-  return allCollections.collections.find((collection) => collection.name === name) || null;
+  return getCollectionShared(databases, databaseId, name, { required: false });
 }
 
 async function createAttribute(databases, databaseId, collectionId, attribute) {
@@ -76,6 +71,7 @@ async function ensureCollection(databases, databaseId) {
       sdk.Permission.delete(sdk.Role.any()),
     ]
   );
+  clearCollectionCache(databaseId);
 
   for (const attribute of schema.attributes) {
     await createAttribute(databases, databaseId, collection.$id, attribute);

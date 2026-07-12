@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { bumpRefreshKey } from "@/hooks/useRefreshKey";
 
 interface UseApiOptions<T> {
   onSuccess?: (data: T) => void;
@@ -181,9 +182,8 @@ export function useCrud<T extends { $id: string }>(baseUrl: string) {
   };
 
   const setRefreshKeyValue = () => {
-    if (typeof window === 'undefined') return;
     const key = `crud_${baseUrl.replace(/\//g, '_')}_refresh_key`;
-    localStorage.setItem(key, Date.now().toString());
+    bumpRefreshKey(key);
   };
 
   const fetchAll = useCallback(async (forceRefresh = false) => {

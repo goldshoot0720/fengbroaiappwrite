@@ -241,8 +241,6 @@ export function getCurrentAccountLabel(): string {
 export function clearAllCaches() {
   if (typeof window === 'undefined') return;
 
-  console.log('[clearAllCaches] 清除所有快取...');
-
   // 1. 清除 localStorage 中的所有快取相關 key
   const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -255,21 +253,16 @@ export function clearAllCaches() {
       keysToRemove.push(key);
     }
   }
-  keysToRemove.forEach(key => {
-    console.log(`[clearAllCaches] 清除 localStorage key: ${key}`);
-    localStorage.removeItem(key);
-  });
+  keysToRemove.forEach(key => localStorage.removeItem(key));
 
   // 2. 清除 useCrud 的內存快取
   if ((window as any).__crudCache) {
-    console.log(`[clearAllCaches] 清除 __crudCache (${(window as any).__crudCache.size} 個項目)`);
     (window as any).__crudCache.clear();
   }
 
   // 3. 強制清除模組級快取（透過設定特殊 flag）
   const timestamp = Date.now().toString();
   localStorage.setItem('appwrite_account_switched', timestamp);
-  console.log(`[clearAllCaches] 設定 appwrite_account_switched: ${timestamp}`);
 
   // 4. 強制所有 hooks 重新載入（設定 refresh keys）
   const modules = [
@@ -280,14 +273,19 @@ export function clearAllCaches() {
     'images',
     'music',
     'videos',
-    'dashboard'
+    'podcast',
+    'commondocument',
+    'dashboard',
   ];
 
   modules.forEach(module => {
-    const key = `${module}_refresh_key`;
-    localStorage.setItem(key, timestamp);
-    console.log(`[clearAllCaches] 設定 ${key}: ${timestamp}`);
+    localStorage.setItem(`${module}_refresh_key`, timestamp);
   });
 
-  console.log('[clearAllCaches] 快取清除完成，所有模組將在下次載入時重新取得資料');
+  // 5. 同頁事件通知（localStorage 變更不會觸發同頁 storage event）
+  window.dispatchEvent(
+    new CustomEvent("fengbro:data-refresh", {
+      detail: { key: "*", timestamp: Number(timestamp) },
+    })
+  );
 }

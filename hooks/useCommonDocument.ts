@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 
 export interface CommonDocumentData {
   $id: string;
@@ -32,10 +33,7 @@ export function useCommonDocument() {
     return localStorage.getItem('commondocument_refresh_key') || '';
   };
 
-  const setRefreshKeyValue = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('commondocument_refresh_key', Date.now().toString());
-  };
+  const setRefreshKeyValue = () => bumpRefreshKey("commondocument_refresh_key");
 
   // 載入鋒兄文件資料（使用快取）
   const loadCommonDocument = useCallback(async (forceRefresh = false) => {
@@ -74,24 +72,14 @@ export function useCommonDocument() {
     loadCommonDocument();
   }, [loadCommonDocument]);
 
-  // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
-  useEffect(() => {
-    const checkRefreshKey = () => {
-      const storedRefreshKey = getRefreshKey();
-      if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
-        console.log('[useCommonCommonDocument] 偵測到快取已清除，重新載入資料');
-        loadCommonDocument(true);
-      }
-    };
+  useRefreshKeyListener("commondocument_refresh_key", () => {
+    loadCommonDocument(true);
+  });
 
-    const interval = setInterval(checkRefreshKey, 500);
-    return () => clearInterval(interval);
-  }, [loadCommonDocument]);
-
-  // 計算統計資料
-  const stats = {
-    total: Array.isArray(commondocument) ? commondocument.length : 0,
-  };
+  const stats = useMemo(
+    () => ({ total: Array.isArray(commondocument) ? commondocument.length : 0 }),
+    [commondocument]
+  );
 
   return {
     commondocument,

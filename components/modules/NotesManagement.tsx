@@ -17,7 +17,7 @@ import { ArticleFormData, Article } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlyrPlayer } from "@/components/ui/plyr-player";
+import dynamic from "next/dynamic";
 import { getProxiedMediaUrl, getAppwriteDownloadUrl, cn } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import {
@@ -28,8 +28,21 @@ import {
   uploadFileInParts,
 } from "@/lib/fileMultipart";
 import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List } from "lucide-react";
-import JSZip from "jszip";
+import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
 import { FaviconImage } from "@/components/ui/favicon-image";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+
+const PlyrPlayer = dynamic(
+  () => import("@/components/ui/plyr-player").then((m) => m.PlyrPlayer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[80px] items-center justify-center">
+        <LoadingSpinner size="sm" />
+      </div>
+    ),
+  }
+);
 
 function getTodayInputDate() {
   const now = new Date();
@@ -173,7 +186,7 @@ function ZipPreview({
         };
         if (!response.ok) throw new Error('無法讀取檔案');
         const blob = await response.blob();
-        const zip = await JSZip.loadAsync(blob);
+        const zip = await (await loadJSZip()).loadAsync(blob);
 
         const fileEntries: ZipEntry[] = [];
         zip.forEach((relativePath, file) => {
@@ -256,7 +269,7 @@ export default function NotesManagement() {
   const [currentTime] = useState(() => Date.now());
 
   // ZIP/CSV 匯入/匯出功能
-  const [importPreview, setImportPreview] = useState<{ data: ArticleFormData[], zipFile?: JSZip | null, errors: string[] } | null>(null);
+  const [importPreview, setImportPreview] = useState<{ data: ArticleFormData[], zipFile?: JSZipType | null, errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: '' });
   const [importDebugMessages, setImportDebugMessages] = useState<string[]>([]);
@@ -941,7 +954,7 @@ export default function NotesManagement() {
     console.log(`[匯出] 開始匯出，共 ${articles.length} 篇筆記`);
 
     try {
-      const zip = new JSZip();
+      const zip = new (await loadJSZip())();
       const filesFolder = zip.folder('files')!;
       const rows = [ZIP_CSV_HEADERS.join(',')];
 
@@ -1198,10 +1211,10 @@ export default function NotesManagement() {
     }
 
     try {
-      const zip = await JSZip.loadAsync(file);
+      const zip = await (await loadJSZip()).loadAsync(file);
 
       // 找到 CSV 檔案
-      let csvFile: JSZip.JSZipObject | null = null;
+      let csvFile: any | null = null;
       zip.forEach((relativePath, zipEntry) => {
         if (!zipEntry.dir && relativePath.endsWith('.csv')) {
           csvFile = zipEntry;
@@ -1214,7 +1227,7 @@ export default function NotesManagement() {
         return;
       }
 
-      const csvText = await (csvFile as JSZip.JSZipObject).async('string');
+      const csvText = await (csvFile as any).async('string');
       const result = parseCSV(csvText);
       setImportPreview({ ...result, zipFile: zip });
     } catch (err) {

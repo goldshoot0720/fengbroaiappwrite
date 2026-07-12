@@ -1,60 +1,8 @@
 import { NextResponse } from "next/server";
+import { createAppwrite, getCollectionId, getCollection, filterPayloadByAttributes } from "../../_lib/appwriteClient";
 
-const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
-
-async function getCollectionId(databases, databaseId, name) {
-  const collection = await getCollection(databases, databaseId, name);
-  return collection.$id;
-}
-
-async function getCollection(databases, databaseId, name) {
-  const allCollections = await databases.listCollections(databaseId);
-  const normalizedName = String(name).toLowerCase();
-  const col =
-    allCollections.collections.find((c) => c.name === name) ||
-    allCollections.collections.find((c) => c.$id === name) ||
-    allCollections.collections.find((c) => String(c.name || "").toLowerCase() === normalizedName) ||
-    allCollections.collections.find((c) => String(c.$id || "").toLowerCase() === normalizedName) ||
-    allCollections.collections.find((c) => String(c.name || "").toLowerCase().includes(normalizedName)) ||
-    allCollections.collections.find((c) => String(c.$id || "").toLowerCase().includes(normalizedName));
-  if (!col) throw new Error(`Collection ${name} not found`);
-  return col;
-}
-
-function filterPayloadByAttributes(payload, collection) {
-  const availableKeys = new Set(
-    (collection.attributes || [])
-      .filter((attr) => (attr.status === 'available' || !attr.status) && !String(attr.key || '').startsWith('$'))
-      .map((attr) => attr.key)
-  );
-
-  return Object.fromEntries(
-    Object.entries(payload).filter(([key]) => key === 'name' || key === 'price' || availableKeys.has(key))
-  );
-}
-
-function createAppwrite(searchParams) {
-  // 從 URL 參數讀取配置（優先），否則使用 .env
-  const endpoint = searchParams?.get('_endpoint') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = searchParams?.get('_project') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const databaseId = searchParams?.get('_database') || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const apiKey = searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-
-  if (!endpoint || !projectId || !databaseId || !apiKey) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  const databases = new sdk.Databases(client);
-
-  return { databases, databaseId };
-}
 
 // 更新訂閱
 export async function PUT(req, context) {

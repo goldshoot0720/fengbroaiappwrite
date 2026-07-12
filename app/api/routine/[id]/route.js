@@ -1,35 +1,6 @@
 import { NextResponse } from "next/server";
+import { createAppwrite, getCollectionId } from "../../_lib/appwriteClient";
 
-const sdk = require('node-appwrite');
-
-function createAppwrite(searchParams) {
-  const endpoint = searchParams?.get('_endpoint') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = searchParams?.get('_project') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const databaseId = searchParams?.get('_database') || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const apiKey = searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-  const bucketId = searchParams?.get('_bucket') || process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID;
-
-  if (!endpoint || !projectId || !databaseId || !apiKey) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  const databases = new sdk.Databases(client);
-  const storage = new sdk.Storage(client);
-
-  return { databases, storage, databaseId, bucketId };
-}
-
-async function getCollectionId(databases, databaseId, name) {
-  const allCollections = await databases.listCollections(databaseId);
-  const col = allCollections.collections.find(c => c.name === name);
-  if (!col) throw new Error(`Collection ${name} not found`);
-  return col.$id;
-}
 
 // PUT /api/routine/[id]
 export async function PUT(req, context) {

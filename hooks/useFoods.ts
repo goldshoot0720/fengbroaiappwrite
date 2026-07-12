@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Food, FoodFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 
 // 全域快取
 let cachedFoods: Food[] | null = null;
@@ -33,10 +34,7 @@ export function useFoods() {
     return localStorage.getItem('foods_refresh_key') || '';
   };
 
-  const setRefreshKey = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('foods_refresh_key', Date.now().toString());
-  };
+  const setRefreshKey = () => bumpRefreshKey("foods_refresh_key");
 
   // 載入食品資料（使用快取）
   const loadFoods = useCallback(async (forceRefresh = false) => {
@@ -176,29 +174,22 @@ export function useFoods() {
     loadFoods();
   }, [loadFoods]);
 
-  // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
-  useEffect(() => {
-    const checkRefreshKey = () => {
-      const storedRefreshKey = getRefreshKey();
-      if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
-        console.log('[useFoods] 偵測到快取已清除，重新載入資料');
-        loadFoods(true);
-      }
-    };
+  // 事件驅動快取失效（同頁 CustomEvent / 跨分頁 storage）
+  useRefreshKeyListener("foods_refresh_key", () => {
+    loadFoods(true);
+  });
 
-    const interval = setInterval(checkRefreshKey, 500);
-    return () => clearInterval(interval);
-  }, [loadFoods]);
-
-  // 計算統計資料
-  const stats = {
-    total: Array.isArray(foods) ? foods.length : 0,
-    expired: Array.isArray(foods) ? foods.filter((f) => getDaysFromToday(f.todate) < 0).length : 0,
-    expiringSoon: Array.isArray(foods) ? foods.filter((f) => {
-      const days = getDaysFromToday(f.todate);
-      return days >= 0 && days <= 7;
-    }).length : 0,
-  };
+  const stats = useMemo(() => {
+    const list = Array.isArray(foods) ? foods : [];
+    let expired = 0;
+    let expiringSoon = 0;
+    for (const food of list) {
+      const days = getDaysFromToday(food.todate);
+      if (days < 0) expired += 1;
+      else if (days <= 7) expiringSoon += 1;
+    }
+    return { total: list.length, expired, expiringSoon };
+  }, [foods]);
 
   return {
     foods,

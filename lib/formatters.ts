@@ -52,7 +52,7 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
- * 幣別匹率（對台幣）
+ * 幣別匯率（對台幣，概估）
  */
 const EXCHANGE_RATES: Record<string, number> = {
   TWD: 1,      // 台幣
@@ -60,8 +60,28 @@ const EXCHANGE_RATES: Record<string, number> = {
   EUR: 40,     // 歐元
   JPY: 0.35,   // 日圓
   CNY: 4.5,    // 人民幣
-  HKD: 4       // 港幣
+  HKD: 4,      // 港幣
+  GBP: 44,     // 英鎊
+  KRW: 0.025,  // 韓元
+  SGD: 26,     // 新加坡元
+  AUD: 23,     // 澳幣
 };
+
+/** 訂閱等表單用的幣別下拉選項 */
+export const CURRENCY_OPTIONS = [
+  { value: "TWD", label: "TWD 台幣" },
+  { value: "USD", label: "USD 美元" },
+  { value: "EUR", label: "EUR 歐元" },
+  { value: "JPY", label: "JPY 日圓" },
+  { value: "CNY", label: "CNY 人民幣" },
+  { value: "HKD", label: "HKD 港幣" },
+  { value: "GBP", label: "GBP 英鎊" },
+  { value: "KRW", label: "KRW 韓元" },
+  { value: "SGD", label: "SGD 新加坡元" },
+  { value: "AUD", label: "AUD 澳幣" },
+] as const;
+
+export type CurrencyCode = (typeof CURRENCY_OPTIONS)[number]["value"];
 
 /**
  * 將外幣轉換為台幣
@@ -98,7 +118,11 @@ export function getCurrencySymbol(currency: string): string {
     EUR: "€",
     JPY: "¥",
     CNY: "¥",
-    HKD: "HK$"
+    HKD: "HK$",
+    GBP: "£",
+    KRW: "₩",
+    SGD: "S$",
+    AUD: "A$",
   };
   return symbols[currency] || currency;
 }

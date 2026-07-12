@@ -17,7 +17,7 @@ import { WorkspaceModuleIntro } from "@/components/ui/workspace-module-intro";
 import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscriptions";
 import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { formatCurrency, formatCurrencyWithExchange, formatDate } from "@/lib/formatters";
+import { CURRENCY_OPTIONS, formatCurrency, formatCurrencyWithExchange, formatDate } from "@/lib/formatters";
 import { getAppwriteConfig, getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
 import { Subscription, SubscriptionFormData } from "@/types";
 
@@ -349,11 +349,26 @@ function SubscriptionFormCard({
           onChange={(value) => onChange({ ...form, account: value })}
           accounts={existingAccounts}
         />
-        <Input
-          placeholder="幣別"
+        <Select
           value={form.currency || "TWD"}
-          onChange={(event) => onChange({ ...form, currency: event.target.value.toUpperCase() })}
-        />
+          onValueChange={(value) => onChange({ ...form, currency: value })}
+        >
+          <SelectTrigger aria-label="幣別">
+            <SelectValue placeholder="選擇幣別" />
+          </SelectTrigger>
+          <SelectContent>
+            {CURRENCY_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+            {/* 保留 CSV/舊資料中未列在選單內的幣別 */}
+            {form.currency &&
+              !CURRENCY_OPTIONS.some((option) => option.value === form.currency) && (
+                <SelectItem value={form.currency}>{form.currency}</SelectItem>
+              )}
+          </SelectContent>
+        </Select>
         <Select
           value={form.continue === false ? "false" : "true"}
           onValueChange={(value) => onChange({ ...form, continue: value !== "false" })}

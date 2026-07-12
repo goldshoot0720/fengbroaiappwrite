@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 
 export interface MusicData {
   $id: string;
@@ -35,10 +36,7 @@ export function useMusic(enabled = true) {
     return localStorage.getItem('music_refresh_key') || '';
   };
 
-  const setRefreshKeyValue = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('music_refresh_key', Date.now().toString());
-  };
+  const setRefreshKeyValue = () => bumpRefreshKey("music_refresh_key");
 
   // 載入音樂資料（使用快取）
   const loadMusic = useCallback(async (forceRefresh = false) => {
@@ -83,25 +81,18 @@ export function useMusic(enabled = true) {
     loadMusic();
   }, [enabled, loadMusic]);
 
-  // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
-  useEffect(() => {
-    if (!enabled) return;
-    const checkRefreshKey = () => {
-      const storedRefreshKey = getRefreshKey();
-      if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
-        console.log('[useMusic] 偵測到快取已清除，重新載入資料');
-        loadMusic(true);
-      }
-    };
+  useRefreshKeyListener(
+    "music_refresh_key",
+    () => {
+      loadMusic(true);
+    },
+    enabled
+  );
 
-    const interval = setInterval(checkRefreshKey, 500);
-    return () => clearInterval(interval);
-  }, [enabled, loadMusic]);
-
-  // 計算統計資料
-  const stats = {
-    total: Array.isArray(music) ? music.length : 0,
-  };
+  const stats = useMemo(
+    () => ({ total: Array.isArray(music) ? music.length : 0 }),
+    [music]
+  );
 
   return {
     music,

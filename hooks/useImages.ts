@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 
 export interface ImageData {
   $id: string;
@@ -33,10 +34,7 @@ export function useImages(enabled = true) {
     return localStorage.getItem('images_refresh_key') || '';
   };
 
-  const setRefreshKeyValue = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('images_refresh_key', Date.now().toString());
-  };
+  const setRefreshKeyValue = () => bumpRefreshKey("images_refresh_key");
 
   // 載入圖片資料（使用快取）
   const loadImages = useCallback(async (forceRefresh = false) => {
@@ -81,25 +79,18 @@ export function useImages(enabled = true) {
     loadImages();
   }, [enabled, loadImages]);
 
-  // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
-  useEffect(() => {
-    if (!enabled) return;
-    const checkRefreshKey = () => {
-      const storedRefreshKey = getRefreshKey();
-      if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
-        console.log('[useImages] 偵測到快取已清除，重新載入資料');
-        loadImages(true);
-      }
-    };
+  useRefreshKeyListener(
+    "images_refresh_key",
+    () => {
+      loadImages(true);
+    },
+    enabled
+  );
 
-    const interval = setInterval(checkRefreshKey, 500);
-    return () => clearInterval(interval);
-  }, [enabled, loadImages]);
-
-  // 計算統計資料
-  const stats = {
-    total: Array.isArray(images) ? images.length : 0,
-  };
+  const stats = useMemo(
+    () => ({ total: Array.isArray(images) ? images.length : 0 }),
+    [images]
+  );
 
   return {
     images,

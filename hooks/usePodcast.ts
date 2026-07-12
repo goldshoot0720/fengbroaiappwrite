@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 
 export interface PodcastData {
   $id: string;
@@ -32,10 +33,7 @@ export function usePodcast(enabled = true) {
     return localStorage.getItem('podcast_refresh_key') || '';
   };
 
-  const setRefreshKeyValue = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('podcast_refresh_key', Date.now().toString());
-  };
+  const setRefreshKeyValue = () => bumpRefreshKey("podcast_refresh_key");
 
   // 載入播客資料（使用快取）
   const loadPodcast = useCallback(async (forceRefresh = false) => {
@@ -80,25 +78,18 @@ export function usePodcast(enabled = true) {
     loadPodcast();
   }, [enabled, loadPodcast]);
 
-  // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
-  useEffect(() => {
-    if (!enabled) return;
-    const checkRefreshKey = () => {
-      const storedRefreshKey = getRefreshKey();
-      if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
-        console.log('[usePodcast] 偵測到快取已清除，重新載入資料');
-        loadPodcast(true);
-      }
-    };
+  useRefreshKeyListener(
+    "podcast_refresh_key",
+    () => {
+      loadPodcast(true);
+    },
+    enabled
+  );
 
-    const interval = setInterval(checkRefreshKey, 500);
-    return () => clearInterval(interval);
-  }, [enabled, loadPodcast]);
-
-  // 計算統計資料
-  const stats = {
-    total: Array.isArray(podcast) ? podcast.length : 0,
-  };
+  const stats = useMemo(
+    () => ({ total: Array.isArray(podcast) ? podcast.length : 0 }),
+    [podcast]
+  );
 
   return {
     podcast,

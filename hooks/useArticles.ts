@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Article, ArticleFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 
 // 全域快取
 let cachedArticles: Article[] | null = null;
@@ -19,10 +20,7 @@ export function useArticles() {
     return localStorage.getItem('articles_refresh_key') || '';
   };
 
-  const setRefreshKey = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('articles_refresh_key', Date.now().toString());
-  };
+  const setRefreshKey = () => bumpRefreshKey("articles_refresh_key");
 
   // 載入文章資料（使用快取）
   const loadArticles = useCallback(async (forceRefresh = false) => {
@@ -184,19 +182,9 @@ export function useArticles() {
     loadArticles();
   }, [loadArticles]);
 
-  // 監聽 refresh key 變化（當其他頁面清除快取時重新載入）
-  useEffect(() => {
-    const checkRefreshKey = () => {
-      const storedRefreshKey = getRefreshKey();
-      if (storedRefreshKey && parseInt(storedRefreshKey) > cacheTimestamp) {
-        console.log('[useArticles] 偵測到快取已清除，重新載入資料');
-        loadArticles(true);
-      }
-    };
-
-    const interval = setInterval(checkRefreshKey, 500);
-    return () => clearInterval(interval);
-  }, [loadArticles]);
+  useRefreshKeyListener("articles_refresh_key", () => {
+    loadArticles(true);
+  });
 
   const stats = {
     total: Array.isArray(articles) ? articles.length : 0,

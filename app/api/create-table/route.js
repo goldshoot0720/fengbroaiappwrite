@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clearCollectionCache } from "../_lib/appwriteClient";
 
 const sdk = require('node-appwrite');
 
@@ -274,6 +275,7 @@ export async function GET(request) {
           ]
         );
 
+        clearCollectionCache(databaseId);
         const collectionId = collection.$id;
         send({ type: 'progress', step: 'collection', message: `Collection created (ID: ${collectionId})`, collectionId });
 
@@ -420,6 +422,7 @@ export async function POST(request) {
       ]
     );
 
+    clearCollectionCache(databaseId);
     const collectionId = collection.$id;
 
     const postDelay = schema.attributes.length > 30 ? 500 : 200;

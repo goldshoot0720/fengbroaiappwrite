@@ -1,38 +1,11 @@
 import { NextResponse } from "next/server";
 import { listAllDocuments } from "../_lib/listAllDocuments";
 import { getAppwriteErrorMessage, getAppwriteErrorStatus } from "../_lib/appwriteConfig";
+import { createAppwrite, getCollectionId } from "../_lib/appwriteClient";
 
 const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
-
-function createAppwrite(searchParams) {
-  // 從 URL 參數讀取配置（優先），否則使用 .env（支援新舊兩種變數名）
-  const endpoint = searchParams?.get('_endpoint') || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = searchParams?.get('_project') || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const databaseId = searchParams?.get('_database') || process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const apiKey = searchParams?.get('_key') || process.env.NEXT_PUBLIC_APPWRITE_API_KEY;
-
-  if (!endpoint || !projectId || !databaseId || !apiKey) {
-    throw new Error("Appwrite configuration is missing");
-  }
-
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
-
-  const databases = new sdk.Databases(client);
-
-  return { databases, databaseId };
-}
-
-async function getCollectionId(databases, databaseId, name) {
-  const allCollections = await databases.listCollections(databaseId);
-  const col = allCollections.collections.find(c => c.name === name);
-  if (!col) throw new Error(`Collection ${name} not found`);
-  return col.$id;
-}
 
 // GET /api/music - List all music
 export async function GET(request) {

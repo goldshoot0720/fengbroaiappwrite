@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   BarChart3,
   Building2,
@@ -22,23 +23,71 @@ import {
   Wrench,
 } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import AboutUs from "@/components/modules/AboutUs";
-import BankManagement from "@/components/modules/BankManagement";
-import CommonAccountManagement from "@/components/modules/CommonAccountManagement";
-import CommonDocumentManagement from "@/components/modules/CommonDocumentManagement";
-import EnhancedDashboard, { AppwriteSetupEmptyState } from "@/components/modules/EnhancedDashboard";
-import FoodManagement from "@/components/modules/FoodManagement";
-import ImageGallery from "@/components/modules/ImageGallery";
-import MusicManagement from "@/components/modules/MusicManagement";
-import NotesManagement from "@/components/modules/NotesManagement";
-import PodcastManagement from "@/components/modules/PodcastManagement";
-import RoutineManagement from "@/components/modules/RoutineManagement";
-import SettingsManagement from "@/components/modules/SettingsManagement";
-import SubscriptionManagement from "@/components/modules/SubscriptionManagement";
-import ToolsManagement from "@/components/modules/ToolsManagement";
-import VideoIntroduction from "@/components/modules/VideoIntroduction";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { hasRequiredAppwriteConfig } from "@/lib/utils";
 import { MenuItem } from "@/types";
+
+const ModuleFallback = () => (
+  <div className="flex min-h-[40vh] items-center justify-center">
+    <LoadingSpinner />
+  </div>
+);
+
+// Lazy-load heavy modules so initial dashboard JS stays small.
+const EnhancedDashboard = dynamic(
+  () => import("@/components/modules/EnhancedDashboard"),
+  { loading: ModuleFallback }
+);
+const AppwriteSetupEmptyState = dynamic(
+  () =>
+    import("@/components/modules/EnhancedDashboard").then((m) => m.AppwriteSetupEmptyState),
+  { loading: ModuleFallback }
+);
+const AboutUs = dynamic(() => import("@/components/modules/AboutUs"), {
+  loading: ModuleFallback,
+});
+const BankManagement = dynamic(() => import("@/components/modules/BankManagement"), {
+  loading: ModuleFallback,
+});
+const CommonAccountManagement = dynamic(
+  () => import("@/components/modules/CommonAccountManagement"),
+  { loading: ModuleFallback }
+);
+const CommonDocumentManagement = dynamic(
+  () => import("@/components/modules/CommonDocumentManagement"),
+  { loading: ModuleFallback }
+);
+const FoodManagement = dynamic(() => import("@/components/modules/FoodManagement"), {
+  loading: ModuleFallback,
+});
+const ImageGallery = dynamic(() => import("@/components/modules/ImageGallery"), {
+  loading: ModuleFallback,
+});
+const MusicManagement = dynamic(() => import("@/components/modules/MusicManagement"), {
+  loading: ModuleFallback,
+});
+const NotesManagement = dynamic(() => import("@/components/modules/NotesManagement"), {
+  loading: ModuleFallback,
+});
+const PodcastManagement = dynamic(() => import("@/components/modules/PodcastManagement"), {
+  loading: ModuleFallback,
+});
+const RoutineManagement = dynamic(() => import("@/components/modules/RoutineManagement"), {
+  loading: ModuleFallback,
+});
+const SettingsManagement = dynamic(() => import("@/components/modules/SettingsManagement"), {
+  loading: ModuleFallback,
+});
+const SubscriptionManagement = dynamic(
+  () => import("@/components/modules/SubscriptionManagement"),
+  { loading: ModuleFallback }
+);
+const ToolsManagement = dynamic(() => import("@/components/modules/ToolsManagement"), {
+  loading: ModuleFallback,
+});
+const VideoIntroduction = dynamic(() => import("@/components/modules/VideoIntroduction"), {
+  loading: ModuleFallback,
+});
 
 const MENU_ITEMS: MenuItem[] = [
   { id: "home", label: "鋒兄首頁", icon: <Home size={18} /> },
@@ -87,7 +136,9 @@ const APPWRITE_REQUIRED_MODULES = new Set([
 
 export default function DashboardPage() {
   const [currentModule, setCurrentModule] = useState("home");
-  const [appwriteSetupMissing, setAppwriteSetupMissing] = useState(() => !hasRequiredAppwriteConfig({ requireApiKey: true }));
+  const [appwriteSetupMissing, setAppwriteSetupMissing] = useState(
+    () => !hasRequiredAppwriteConfig({ requireApiKey: true })
+  );
 
   const handleModuleChange = useCallback((moduleId: string) => {
     setCurrentModule(moduleId);
@@ -105,19 +156,10 @@ export default function DashboardPage() {
     switch (currentModule) {
       case "home":
         return (
-          <EnhancedDashboard
-            onNavigate={handleModuleChange}
-            title="鋒兄首頁"
-            onlyTitle
-          />
+          <EnhancedDashboard onNavigate={handleModuleChange} title="鋒兄首頁" onlyTitle />
         );
       case "dashboard":
-        return (
-          <EnhancedDashboard
-            onNavigate={handleModuleChange}
-            title="鋒兄儀表"
-          />
-        );
+        return <EnhancedDashboard onNavigate={handleModuleChange} title="鋒兄儀表" />;
       case "subscription":
         return <SubscriptionManagement />;
       case "food":

@@ -11,13 +11,20 @@ export async function listAllDocuments(databases, databaseId, collectionId, sdk,
     }
 
     const response = await databases.listDocuments(databaseId, collectionId, queries);
-    documents.push(...response.documents);
+    const page = response.documents || [];
+    if (page.length) {
+      documents.push(...page);
+    }
 
-    if (!response.documents.length || response.documents.length < pageSize) {
+    // Prefer total when Appwrite returns it, otherwise fall back to page size.
+    if (!page.length || page.length < pageSize) {
+      break;
+    }
+    if (typeof response.total === "number" && documents.length >= response.total) {
       break;
     }
 
-    cursorAfter = response.documents[response.documents.length - 1].$id;
+    cursorAfter = page[page.length - 1].$id;
   }
 
   return documents;

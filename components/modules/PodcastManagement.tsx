@@ -17,7 +17,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import JSZip from "jszip";
+import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
 // Helper function to add Appwrite config to URL
@@ -387,7 +387,7 @@ export default function PodcastManagement() {
     if (podcast.length === 0) { alert('沒有播客可以匯出'); return; }
     setExportingZip(true); setExportZipProgress({ current: 0, total: podcast.length, status: '準備中...' });
     try {
-      const zip = new JSZip();
+      const zip = new (await loadJSZip())();
       zip.folder('podcast');
       zip.folder('covers');
 
@@ -485,7 +485,7 @@ export default function PodcastManagement() {
     const file = e.target.files?.[0]; if (!file) return;
     setImportingZip(true); setImportZipProgress({ current: 0, total: 0, status: '讀取 ZIP 檔案...', success: 0, failed: 0 });
     try {
-      const zip = new JSZip();
+      const zip = new (await loadJSZip())();
       const contents = await zip.loadAsync(file);
 
       // Check if this is a new-format ZIP with podcast.csv
