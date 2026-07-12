@@ -31,6 +31,7 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
 
 const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@SJdiao/videos",
+  "https://www.youtube.com/@henren778",
   "https://www.youtube.com/@libertas1984/videos",
   "https://www.youtube.com/@sunlao/videos",
   "https://www.youtube.com/@Torontobigface/videos",
