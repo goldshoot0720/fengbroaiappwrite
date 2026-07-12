@@ -1249,7 +1249,7 @@ function FengbroTubeSection({
 
             {/* 倒台指數獨立區塊 */}
             {(() => {
-              const henrenChannel = result.channels.find(c => c.sourceUrl.includes("henren778"));
+              const henrenChannel = result.downfallChannel || result.channels.find(c => c.sourceUrl.includes("henren778"));
               const downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
               if (!downfallIndexUpdate) return null;
               

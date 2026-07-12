@@ -333,10 +333,18 @@ type FengbroTubeVideoEntry = {
 
 async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
   const uniqueChannels = normalizeFengbroTubeChannels(channelsConfig);
-  const settled = await Promise.allSettled(uniqueChannels.map(fetchChannel));
-  const channels = settled.map((item, index) => {
+  const henrenConfig = { alias: "一个狠人", sourceUrl: "https://www.youtube.com/@henren778/videos" };
+  const hasHenren = uniqueChannels.some(c => isHenrenChannel(c.sourceUrl, c.alias));
+  
+  const allChannels = [...uniqueChannels];
+  if (!hasHenren) {
+    allChannels.push(henrenConfig);
+  }
+
+  const settled = await Promise.allSettled(allChannels.map(fetchChannel));
+  const allFetchedChannels = settled.map((item, index) => {
     if (item.status === "fulfilled") return item.value;
-    const channel = uniqueChannels[index];
+    const channel = allChannels[index];
     const sourceUrl = channel.sourceUrl;
     return {
       sourceUrl,
@@ -345,7 +353,12 @@ async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
       videos: [],
       error: item.reason instanceof Error ? item.reason.message : "讀取失敗",
     };
-  }).sort((left, right) => getLatestChannelTime(right) - getLatestChannelTime(left));
+  });
+
+  const downfallChannel = allFetchedChannels.find(c => isHenrenChannel(c.sourceUrl, c.title)) || null;
+  const channels = allFetchedChannels.filter(c => uniqueChannels.some(req => req.sourceUrl === c.sourceUrl));
+
+  channels.sort((left, right) => getLatestChannelTime(right) - getLatestChannelTime(left));
 
   const now = Date.now();
   const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
@@ -367,6 +380,7 @@ async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
     sourceCount: uniqueChannels.length,
     defaultSourceCount: DEFAULT_FENGBRO_TUBE_CHANNELS.length,
     channels,
+    downfallChannel,
     recentVideos: recentVideos.sort(
       (left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime()
     ),

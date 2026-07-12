@@ -13,7 +13,7 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
   blackwhite_raven: "黑白乌鸦",
   quedaren: "雀大人 | Miss. Mi",
   夸克说: "夸克说",
-  喵喵看一看: "小喵看一看「怪事先生」",
+
   sunchannelhk: "Sun Channel",
   informant510: "线人频道Informant",
   "ma-siku": "马司库",
@@ -31,7 +31,6 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
 
 const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@SJdiao/videos",
-  "https://www.youtube.com/@henren778",
   "https://www.youtube.com/@libertas1984/videos",
   "https://www.youtube.com/@sunlao/videos",
   "https://www.youtube.com/@Torontobigface/videos",
@@ -39,7 +38,7 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@blackwhite_raven/videos",
   "https://www.youtube.com/@quedaren/videos",
   "https://www.youtube.com/@%E5%A4%B8%E5%85%8B%E8%AF%B4",
-  "https://www.youtube.com/@%E5%96%B5%E5%96%B5%E7%9C%8B%E4%B8%80%E7%9C%8B/videos",
+
   "https://www.youtube.com/@SunChannelHK/videos",
   "https://www.youtube.com/@informant510/videos",
   "https://www.youtube.com/@ma-siku/videos",
