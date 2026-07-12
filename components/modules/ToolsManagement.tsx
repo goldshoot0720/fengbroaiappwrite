@@ -971,8 +971,14 @@ function FengbroTubeSection({
   onResetChannels: () => void;
   onRefresh: () => void;
 }) {
-  const [channelNavOpen, setChannelNavOpen] = useState(false);
-  const channelCount = result?.sourceCount ?? channelConfigs.length;
+  const channelNavOpenState = useState(false);
+  const [channelNavOpen, setChannelNavOpen] = channelNavOpenState;
+  
+  const visibleChannels = useMemo(() => {
+    return result?.channels.filter(c => !c.sourceUrl.includes("henren778")) || [];
+  }, [result]);
+  
+  const channelCount = result ? visibleChannels.length : channelConfigs.length;
   const resolvedChannelTitleBySource = useMemo(() => {
     return new Map((result?.channels || []).map((channel) => [channel.sourceUrl, channel.title]));
   }, [result]);
@@ -1109,7 +1115,7 @@ function FengbroTubeSection({
               >
                 <div className="min-w-0">
                   <h4 className="text-sm font-semibold text-foreground">頻道導航</h4>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{result.channels.length} 個頻道</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{visibleChannels.length} 個頻道</p>
                 </div>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors ${channelNavOpen ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>
                   {channelNavOpen ? "收合 ▲" : "展開 ▼"}
@@ -1127,7 +1133,7 @@ function FengbroTubeSection({
                     </a>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-7">
-                    {result.channels.map((channel, index) => (
+                    {visibleChannels.map((channel, index) => (
                       <a
                         key={channel.sourceUrl}
                         href={`#${getTubeChannelAnchor(index)}`}
@@ -1169,7 +1175,7 @@ function FengbroTubeSection({
             )}
 
             <div className="grid gap-5">
-              {result.channels.filter(c => !c.sourceUrl.includes("henren778")).map((channel, index) => {
+              {visibleChannels.map((channel, index) => {
                 const downfallIndexUpdate = getChannelDownfallIndexUpdate(channel);
 
                 return (
