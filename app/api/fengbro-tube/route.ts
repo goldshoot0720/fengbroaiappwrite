@@ -175,12 +175,21 @@ async function fetchChannel(channel: FengbroTubeChannelConfig) {
   const xml = await response.text();
   const { feedTitle, entries } = parseFeed(xml);
 
-  const videos = entries.slice(0, 10);
-  const downfallIndexVideo = isHenrenChannel(sourceUrl, feedTitle || title)
-    ? videos
-        .map((video) => ({ video, value: extractDownfallIndex(video.title) }))
-        .find((item) => item.value)
-    : null;
+  let videos = entries.slice(0, 10);
+  let downfallIndexVideo = null;
+  
+  if (isHenrenChannel(sourceUrl, feedTitle || title)) {
+    const downfallItems = videos
+      .map((video) => ({ video, value: extractDownfallIndex(video.title) }))
+      .filter((item) => item.value);
+      
+    if (downfallItems.length > 0) {
+      downfallIndexVideo = downfallItems[0];
+      videos = downfallItems.map(item => item.video);
+    } else {
+      videos = [];
+    }
+  }
 
   return {
     sourceUrl,
