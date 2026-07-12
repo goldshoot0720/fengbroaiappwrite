@@ -1320,10 +1320,20 @@ function FengbroTubeSection({
             {/* 倒台指數獨立區塊 */}
             {(() => {
               const henrenChannel = result.downfallChannel || result.channels.find(c => c.sourceUrl.includes("henren778"));
-              const downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
+              let downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
+              const historyEntries = getAllChannelDownfallIndexUpdates(henrenChannel);
+              
+              if (!downfallIndexUpdate && historyEntries.length > 0) {
+                 const lastEntry = historyEntries[historyEntries.length - 1];
+                 downfallIndexUpdate = {
+                    value: lastEntry.price.toFixed(2),
+                    title: "倒台指數歷史紀錄",
+                    url: "https://www.youtube.com/@henren778",
+                    publishedAt: lastEntry.date
+                 };
+              }
               if (!downfallIndexUpdate) return null;
               
-              const historyEntries = getAllChannelDownfallIndexUpdates(henrenChannel);
               const pseudoQuote: FengbroFinanceQuote = {
                 id: "downfall-index",
                 name: "倒台指數",
