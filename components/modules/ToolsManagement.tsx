@@ -1251,9 +1251,20 @@ function FengbroTubeSection({
               const pseudoQuote: FengbroFinanceQuote = {
                 id: "downfall-index",
                 name: "倒台指數",
+                displayName: "倒台指數",
                 symbol: "DFI",
                 sourceUrl: "https://www.youtube.com/@henren778",
                 group: "us",
+                price: null,
+                change: null,
+                changePercent: null,
+                currency: "",
+                high52: null,
+                low52: null,
+                dayHigh: null,
+                dayLow: null,
+                lastUpdated: new Date().toISOString(),
+                recordTag: "none",
                 historyRanges: {
                   "1y": historyEntries
                 }
