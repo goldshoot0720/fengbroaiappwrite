@@ -1264,7 +1264,7 @@ function FengbroTubeSection({
                 dayHigh: null,
                 dayLow: null,
                 lastUpdated: new Date().toISOString(),
-                recordTag: "none",
+                recordTag: null,
                 historyRanges: {
                   "1y": historyEntries
                 }
