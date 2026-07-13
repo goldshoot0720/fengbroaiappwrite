@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Mic, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,11 +12,14 @@ import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { WorkspaceModuleIntro } from "@/components/ui/workspace-module-intro";
 import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscriptions";
 import { fetchApi } from "@/hooks/useApi";
+import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
+import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
 import {
   convertToTWD,
   CURRENCY_OPTIONS,
@@ -80,8 +83,9 @@ function SubscriptionPriceDisplay({
 
 const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
 const SUBSCRIPTION_RECENT_SEARCHES_KEY = "fengbro.subscription.recentSearches";
-const SUBSCRIPTION_MIN_VOICE_RECORDING_MS = 10_000;
 const SUBSCRIPTION_RECENT_SEARCH_LIMIT = 37;
+const SUBSCRIPTION_VOICE_HELP =
+  "可說：匯出 CSV、重新整理、全選、新增訂閱 Netflix 100 元、已過期、編輯第一筆、刪除選取。說完會自動結束；安全操作直接執行。";
 
 type VoiceCommandRisk = "safe" | "review" | "danger";
 
@@ -466,6 +470,7 @@ export default function SubscriptionManagement() {
   const [inlineEditForm, setInlineEditForm] = useState<SubscriptionFormData>(INITIAL_FORM);
   const [isInlineAdding, setIsInlineAdding] = useState(false);
   const [inlineAddForm, setInlineAddForm] = useState<SubscriptionFormData>(INITIAL_FORM);
+  const [shiftingId, setShiftingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteInput, setBulkDeleteInput] = useState("");
@@ -482,19 +487,30 @@ export default function SubscriptionManagement() {
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
-  const [voiceTranscript, setVoiceTranscript] = useState("");
-  const [voiceFeedback, setVoiceFeedback] = useState("說出例如：匯出 CSV、重新整理、全選、新增訂閱、編輯第一筆、刪除選取。");
-  const [isVoiceListening, setIsVoiceListening] = useState(false);
-  const [voiceRecordingElapsedMs, setVoiceRecordingElapsedMs] = useState(0);
+  const [voiceFeedback, setVoiceFeedback] = useState(SUBSCRIPTION_VOICE_HELP);
   const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommand | null>(null);
-  const voiceRecognitionRef = useRef<any>(null);
-  const voiceRecordingStartedAtRef = useRef(0);
-  const voiceManualStopRef = useRef(false);
+  const handleVoiceTextRef = useRef<(text: string) => void>(() => {});
+  const {
+    isSupported: isVoiceSupported,
+    isListening: isVoiceListening,
+    transcript: voiceTranscript,
+    setTranscript: setVoiceTranscript,
+    elapsedMs: voiceElapsedMs,
+    canStop: canStopVoiceRecording,
+    toggle: toggleVoiceInput,
+  } = useSpeechRecognition({
+    mode: "phrase",
+    onResult: (text) => handleVoiceTextRef.current(text),
+    onEmptyResult: () => setVoiceFeedback("沒有聽清楚，請再說一次，或直接輸入文字指令。"),
+    onInterrupted: () => setVoiceFeedback("錄音已結束。可再按麥克風，或直接輸入指令。"),
+    onError: (message) => setVoiceFeedback(message),
+    onStart: () => {
+      setPendingVoiceCommand(null);
+      setVoiceFeedback("正在聽…說完停頓一下會自動結束，也可按「說完了」。");
+    },
+  });
   const importInputRef = useRef<HTMLInputElement>(null);
   const bulkDeleteInputRef = useRef<HTMLInputElement>(null);
-
-  const canStopVoiceRecording = !isVoiceListening || voiceRecordingElapsedMs >= SUBSCRIPTION_MIN_VOICE_RECORDING_MS;
-  const remainingVoiceRecordingSeconds = Math.max(0, Math.ceil((SUBSCRIPTION_MIN_VOICE_RECORDING_MS - voiceRecordingElapsedMs) / 1000));
 
   const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
@@ -541,14 +557,6 @@ export default function SubscriptionManagement() {
     }, 80);
     return () => window.clearTimeout(focusTimer);
   }, [bulkDeleteOpen, isDeleting]);
-
-  useEffect(() => {
-    if (!isVoiceListening) return;
-    const timer = window.setInterval(() => {
-      setVoiceRecordingElapsedMs(Date.now() - voiceRecordingStartedAtRef.current);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [isVoiceListening]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -945,9 +953,9 @@ export default function SubscriptionManagement() {
     setDeleteDebugMessages([]);
   };
 
-  const executeVoiceCommand = async () => {
-    if (!pendingVoiceCommand) return;
-    const command = pendingVoiceCommand;
+  const executeVoiceCommand = async (commandOverride?: VoiceCommand | null) => {
+    const command = commandOverride ?? pendingVoiceCommand;
+    if (!command) return;
     setPendingVoiceCommand(null);
 
     if (command.action === "importCsv") {
@@ -1071,88 +1079,33 @@ export default function SubscriptionManagement() {
   };
 
   const handleVoiceText = (text: string) => {
-    setVoiceTranscript(text);
-    const command = parseVoiceCommand(text);
+    const cleaned = text.trim();
+    if (!cleaned) {
+      setPendingVoiceCommand(null);
+      setVoiceFeedback("請先輸入或說出指令。");
+      return;
+    }
+    setVoiceTranscript(cleaned);
+    const command = parseVoiceCommand(cleaned);
     if (!command) {
       setPendingVoiceCommand(null);
       setVoiceFeedback("聽到了，但還無法判斷指令。可試：匯出 CSV、重新整理、全選、新增訂閱 Netflix 100 元。");
       return;
     }
+    if (shouldAutoExecuteVoiceRisk(command.risk)) {
+      setPendingVoiceCommand(null);
+      playVoiceSuccessTone();
+      void executeVoiceCommand(command);
+      return;
+    }
     setPendingVoiceCommand(command);
-    setVoiceFeedback("已解析指令，請按「確認執行」完成第二次確認。");
+    setVoiceFeedback(
+      command.risk === "danger"
+        ? "這是危險操作，請確認後再執行；刪除口令仍會再問一次。"
+        : "已理解指令，請確認後再執行。"
+    );
   };
-
-  const stopVoiceInput = () => {
-    if (!voiceRecognitionRef.current) return;
-    if (!canStopVoiceRecording) {
-      setVoiceFeedback(`錄音至少 10 秒，還要 ${remainingVoiceRecordingSeconds} 秒才能結束。`);
-      return;
-    }
-
-    voiceManualStopRef.current = true;
-    voiceRecognitionRef.current.stop();
-    setVoiceFeedback("已手動結束錄音，正在整理語音內容。");
-  };
-
-  const startVoiceInput = () => {
-    if (isVoiceListening) {
-      stopVoiceInput();
-      return;
-    }
-
-    if (typeof window === "undefined") return;
-    const SpeechRecognitionCtor = (window as typeof window & {
-      SpeechRecognition?: new () => any;
-      webkitSpeechRecognition?: new () => any;
-    }).SpeechRecognition || (window as typeof window & {
-      webkitSpeechRecognition?: new () => any;
-    }).webkitSpeechRecognition;
-
-    if (!SpeechRecognitionCtor) {
-      setVoiceFeedback("此瀏覽器不支援語音辨識，請改用文字指令輸入。");
-      return;
-    }
-
-    const recognition = new SpeechRecognitionCtor();
-    recognition.lang = "zh-TW";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    let finalTranscript = "";
-    let interimTranscript = "";
-
-    recognition.onstart = () => {
-      voiceRecognitionRef.current = recognition;
-      voiceManualStopRef.current = false;
-      voiceRecordingStartedAtRef.current = Date.now();
-      setVoiceRecordingElapsedMs(0);
-      setIsVoiceListening(true);
-      setVoiceFeedback("錄音已開始，請說完整內容；至少 10 秒後才能手動結束。");
-    };
-    recognition.onresult = (event: any) => {
-      finalTranscript = "";
-      interimTranscript = "";
-      for (let index = 0; index < event.results.length; index += 1) {
-        const text = event.results?.[index]?.[0]?.transcript || "";
-        if (event.results[index].isFinal) finalTranscript += text;
-        else interimTranscript += text;
-      }
-      setVoiceTranscript((finalTranscript || interimTranscript).trim());
-    };
-    recognition.onerror = () => {
-      setVoiceFeedback("語音辨識失敗，請再試一次或改用文字指令。");
-    };
-    recognition.onend = () => {
-      const text = (finalTranscript || interimTranscript).trim();
-      voiceRecognitionRef.current = null;
-      setIsVoiceListening(false);
-      setVoiceRecordingElapsedMs(0);
-      if (text && voiceManualStopRef.current) handleVoiceText(text);
-      else if (voiceManualStopRef.current) setVoiceFeedback("已結束錄音，但沒有收到可解析的語音內容。");
-      else setVoiceFeedback("錄音已中止，請按開始錄音再試一次。");
-    };
-    recognition.start();
-  };
+  handleVoiceTextRef.current = handleVoiceText;
 
   const handleInitializeSubscriptionTable = async () => {
     const confirmed = confirm("確定要立即初始化 subscription 表嗎？");
@@ -1250,6 +1203,36 @@ export default function SubscriptionManagement() {
       setInlineEditForm(INITIAL_FORM);
     } catch (saveError) {
       alert(saveError instanceof Error ? saveError.message : "更新失敗");
+    }
+  };
+
+  /** 列表一鍵延長下次扣款日（+28 / +30 天），直接儲存 */
+  const handleShiftNextDate = async (sub: Subscription, offsetDays: number) => {
+    if (shiftingId) return;
+    setShiftingId(sub.$id);
+    try {
+      const baseDate = sub.nextdate ? formatDate(sub.nextdate) : "";
+      await updateSubscription(sub.$id, {
+        name: sub.name,
+        site: sub.site || "",
+        price: Number(sub.price || 0),
+        nextdate: shiftDateByDays(baseDate, offsetDays),
+        note: sub.note || "",
+        account: sub.account || "",
+        currency: sub.currency || "TWD",
+        continue: sub.continue !== false,
+      });
+      // 若正在編輯同一筆，同步表單日期
+      if (inlineEditingId === sub.$id) {
+        setInlineEditForm((prev) => ({
+          ...prev,
+          nextdate: shiftDateByDays(baseDate, offsetDays),
+        }));
+      }
+    } catch (saveError) {
+      alert(saveError instanceof Error ? saveError.message : "更新扣款日失敗");
+    } finally {
+      setShiftingId(null);
     }
   };
 
@@ -1719,6 +1702,28 @@ export default function SubscriptionManagement() {
         </TableCell>
         <TableCell>
           <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={shiftingId === sub.$id}
+              onClick={() => handleShiftNextDate(sub, 28)}
+              className="rounded-lg border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+              title="下次扣款日 +28 天並儲存"
+            >
+              +28天
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={shiftingId === sub.$id}
+              onClick={() => handleShiftNextDate(sub, 30)}
+              className="rounded-lg border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+              title="下次扣款日 +30 天並儲存"
+            >
+              +30天
+            </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg">
               <Pencil className="h-3.5 w-3.5" />
             </Button>
@@ -1902,74 +1907,29 @@ export default function SubscriptionManagement() {
         }
       />
 
-      <DataCard className="border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900 dark:bg-sky-950/20">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200">
-                <Mic className="h-4 w-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-sky-950 dark:text-sky-100">AI 語音指令</h3>
-                <p className="text-xs text-sky-700/80 dark:text-sky-200/80">語音會先解析成動作，按確認後才執行；刪除仍需輸入口令。</p>
-              </div>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-sky-900/90 dark:text-sky-100/90">
-              可說：匯入 CSV、匯出 CSV、重新整理、搜尋 Netflix、已過期、30 天內、全選、新增訂閱 Netflix 100 元、標記第一筆不續訂、編輯第一筆、刪除選取。
-            </p>
-          </div>
-          <div className="w-full space-y-3 xl:max-w-2xl">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                value={voiceTranscript}
-                onChange={(event) => {
-                  setVoiceTranscript(event.target.value);
-                  setPendingVoiceCommand(null);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") handleVoiceText(voiceTranscript);
-                }}
-                placeholder="也可以打字：匯出 CSV / 搜尋 Netflix / 新增訂閱 Netflix 100 元 / 刪除選取"
-                className="bg-white/90 dark:bg-gray-950/60"
-              />
-              <Button type="button" variant="outline" onClick={startVoiceInput} className="shrink-0 rounded-xl bg-white/80">
-                <Mic className={`mr-1 h-4 w-4 ${isVoiceListening ? "animate-pulse text-red-500" : ""}`} />
-                {isVoiceListening ? (canStopVoiceRecording ? "結束錄音" : `至少 ${remainingVoiceRecordingSeconds} 秒`) : "開始錄音"}
-              </Button>
-              <Button type="button" onClick={() => handleVoiceText(voiceTranscript)} className="shrink-0 rounded-xl bg-sky-600 hover:bg-sky-700">
-                解析指令
-              </Button>
-            </div>
-            <div className="rounded-2xl border border-sky-200 bg-white/80 p-3 text-sm text-sky-950 shadow-sm dark:border-sky-900 dark:bg-gray-950/40 dark:text-sky-100">
-              <div className="font-medium">狀態</div>
-              <div className="mt-1 leading-6">{voiceFeedback}</div>
-            </div>
-            {pendingVoiceCommand && (
-              <div className={`rounded-2xl border p-3 text-sm shadow-sm ${pendingVoiceCommand.risk === "danger"
-                ? "border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100"
-                : pendingVoiceCommand.risk === "review"
-                  ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
-                  : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"
-                }`}>
-                <div className="font-semibold">等待第二次確認</div>
-                <div className="mt-1 leading-6">{pendingVoiceCommand.summary}</div>
-                <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setPendingVoiceCommand(null)} className="rounded-xl bg-white/80">
-                    取消
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => void executeVoiceCommand()}
-                    className={pendingVoiceCommand.risk === "danger" ? "rounded-xl bg-red-600 hover:bg-red-700" : "rounded-xl bg-sky-600 hover:bg-sky-700"}
-                  >
-                    確認執行
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </DataCard>
+      <VoiceCommandBar
+        title="AI 語音指令"
+        description="說完會自動結束 · 安全操作直接執行 · 新增／刪除仍需確認"
+        helpText={SUBSCRIPTION_VOICE_HELP}
+        accent="sky"
+        transcript={voiceTranscript}
+        onTranscriptChange={(value) => {
+          setVoiceTranscript(value);
+          setPendingVoiceCommand(null);
+        }}
+        feedback={voiceFeedback}
+        isListening={isVoiceListening}
+        isSupported={isVoiceSupported}
+        canStop={canStopVoiceRecording}
+        elapsedMs={voiceElapsedMs}
+        placeholder="也可以打字：匯出 CSV / 搜尋 Netflix / 新增訂閱 Netflix 100 元 / 刪除選取"
+        samples={["重新整理", "已過期", "7 天內", "匯出 CSV"]}
+        pending={pendingVoiceCommand}
+        onToggleListen={toggleVoiceInput}
+        onSubmit={handleVoiceText}
+        onConfirm={() => void executeVoiceCommand()}
+        onCancelPending={() => setPendingVoiceCommand(null)}
+      />
 
       <DataCard className="p-4">
         <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4 dark:border-gray-800">
@@ -2501,6 +2461,28 @@ export default function SubscriptionManagement() {
                     <SubscriptionPriceDisplay price={sub.price} currency={sub.currency} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={shiftingId === sub.$id}
+                      onClick={() => handleShiftNextDate(sub, 28)}
+                      className="rounded-lg border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                      title="下次扣款日 +28 天並儲存"
+                    >
+                      +28天
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={shiftingId === sub.$id}
+                      onClick={() => handleShiftNextDate(sub, 30)}
+                      className="rounded-lg border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                      title="下次扣款日 +30 天並儲存"
+                    >
+                      +30天
+                    </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg">
                       <Pencil className="mr-1 h-3.5 w-3.5" />
                       編輯

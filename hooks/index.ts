@@ -19,3 +19,12 @@ export {
   useRefreshKeyListener,
   DATA_REFRESH_EVENT,
 } from "./useRefreshKey";
+export {
+  useSpeechRecognition,
+  formatRecordingClock,
+  playVoiceSuccessTone,
+  type SpeechRecognitionMode,
+  type UseSpeechRecognitionOptions,
+  type UseSpeechRecognitionReturn,
+} from "./useSpeechRecognition";
+export { useVoicePreferences } from "./useVoicePreferences";

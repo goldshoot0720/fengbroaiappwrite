@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send } from "lucide-react";
+import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic } from "lucide-react";
 import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
+import { useVoicePreferences } from "@/hooks/useVoicePreferences";
 import { clearAllCaches, getAppwriteConfig } from "@/lib/utils";
 import { notifyAppwriteConfigChanged } from "@/hooks/useAppwriteSetup";
 import { formatFileSize } from "@/lib/formatters";
@@ -80,6 +81,7 @@ function createEmptyResendConfig() {
 
 export default function SettingsManagement() {
   const { theme, setTheme } = useTheme();
+  const { preferences: voicePreferences, updatePreferences: updateVoicePreferences } = useVoicePreferences();
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
@@ -1177,6 +1179,60 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               <Settings size={16} />
               系統
             </Button>
+          </div>
+        </DataCard>
+
+        {/* 語音設定 */}
+        <DataCard className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+              <Mic size={20} className="text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">語音控制</h3>
+              <p className="text-xs text-gray-400">全域語音 · Ctrl+Shift+V</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            調整語音指令的提示音與確認節奏，偏好會存在此瀏覽器。
+          </p>
+          <div className="space-y-3">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white/70 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-gray-300"
+                checked={voicePreferences.successSound}
+                onChange={(event) => updateVoicePreferences({ successSound: event.target.checked })}
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">安全操作成功音</span>
+                <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">搜尋、重新整理等直接執行時播放輕提示音</span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white/70 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-gray-300"
+                checked={voicePreferences.autoStartGlobal}
+                onChange={(event) => updateVoicePreferences({ autoStartGlobal: event.target.checked })}
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">開啟全域語音時自動開始聽</span>
+                <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">關閉後只會打開面板，需再按「開始說話」</span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white/70 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-gray-300"
+                checked={voicePreferences.confirmSafeActions}
+                onChange={(event) => updateVoicePreferences({ confirmSafeActions: event.target.checked })}
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">安全操作也要確認</span>
+                <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">開啟後搜尋／切頁等也會先顯示摘要，較適合謹慎操作</span>
+              </span>
+            </label>
           </div>
         </DataCard>
 

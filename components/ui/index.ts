@@ -23,3 +23,7 @@ export { FormCard, FormGrid, FormActions } from "./form-card";
 
 // 主題元件
 export { ThemeToggle, ThemeToggleCompact } from "./theme-toggle";
+
+// 語音
+export { VoiceCommandBar, type VoiceBarPending, type VoiceBarRisk } from "./voice-command-bar";
+export { GlobalVoiceCommandPanel } from "./global-voice-command-panel";

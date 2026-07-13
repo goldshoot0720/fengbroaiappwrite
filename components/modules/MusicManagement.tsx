@@ -51,7 +51,96 @@ function getDefaultMusicName(fileName: string): string {
   return fileName.replace(/\.[^/.]+$/, '');
 }
 
-const DEFAULT_MUSIC_LANGUAGES = ['中文', '英語', '日語', '韓語', '粵語', '8-bit', 'instrumental', '其他'];
+/** 音樂語言預設選項（下拉選單） */
+const MUSIC_LANGUAGE_PRESETS = ['中文', '英語', '日語', '韓語', '粵語'] as const;
+const MUSIC_LANGUAGE_CUSTOM = '__custom__';
+/** 相容舊邏輯／分組：預設語言 + 常見自訂 */
+const DEFAULT_MUSIC_LANGUAGES = [...MUSIC_LANGUAGE_PRESETS, '8-bit', 'instrumental', '其他'];
+
+function isMusicLanguagePreset(value: string | undefined | null): boolean {
+  return !!value && (MUSIC_LANGUAGE_PRESETS as readonly string[]).includes(value);
+}
+
+/** 語言下拉：中文 / 英語 / 日語 / 韓語 / 粵語 / 自行輸入語言 */
+function MusicLanguageField({
+  value,
+  onChange,
+  triggerClassName = 'h-9 rounded-lg text-sm',
+  inputClassName = 'h-9 rounded-lg text-sm',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  triggerClassName?: string;
+  inputClassName?: string;
+}) {
+  const isPreset = isMusicLanguagePreset(value);
+  const [customMode, setCustomMode] = useState(() => !!value && !isMusicLanguagePreset(value));
+
+  useEffect(() => {
+    if (isMusicLanguagePreset(value)) {
+      setCustomMode(false);
+    }
+  }, [value]);
+
+  if (customMode) {
+    return (
+      <div className="space-y-2">
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="自行輸入語言"
+          className={inputClassName}
+          aria-label="語言（自行輸入）"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setCustomMode(false);
+            onChange(isPreset ? value : '中文');
+          }}
+          className="h-7 text-xs"
+        >
+          從預設選項中選擇
+        </Button>
+      </div>
+    );
+  }
+
+  // Select 需要有效 value；舊資料若非預設則暫時列為選項
+  const selectValue = isPreset ? value : value ? value : undefined;
+
+  return (
+    <Select
+      value={selectValue}
+      onValueChange={(next) => {
+        if (next === MUSIC_LANGUAGE_CUSTOM) {
+          setCustomMode(true);
+          if (isPreset || !value) onChange('');
+          return;
+        }
+        setCustomMode(false);
+        onChange(next);
+      }}
+    >
+      <SelectTrigger className={triggerClassName} aria-label="語言">
+        <SelectValue placeholder="選擇語言" />
+      </SelectTrigger>
+      <SelectContent>
+        {MUSIC_LANGUAGE_PRESETS.map((lang) => (
+          <SelectItem key={lang} value={lang}>
+            {lang}
+          </SelectItem>
+        ))}
+        {value && !isPreset ? (
+          <SelectItem value={value}>{value}</SelectItem>
+        ) : null}
+        <SelectItem value={MUSIC_LANGUAGE_CUSTOM}>自行輸入語言</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
 
 export default function MusicManagement() {
   const { music, loading, error, stats, loadMusic } = useMusic();
@@ -738,10 +827,6 @@ export default function MusicManagement() {
     () => music.filter((item) => !item.file),
     [music]
   );
-  const musicLanguageOptions = useMemo(
-    () => Array.from(new Set([...DEFAULT_MUSIC_LANGUAGES, ...music.map((item) => item.language).filter(Boolean)])),
-    [music]
-  );
   const musicCategoryOptions = useMemo(
     () => Array.from(new Set(music.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-TW')),
     [music]
@@ -1037,11 +1122,6 @@ export default function MusicManagement() {
         </div>
       )}
 
-      <datalist id="music-language-options">
-        {musicLanguageOptions.map((language) => (
-          <option key={language} value={language} />
-        ))}
-      </datalist>
       <datalist id="music-category-options">
         {musicCategoryOptions.map((category) => (
           <option key={category} value={category} />
@@ -1169,7 +1249,10 @@ export default function MusicManagement() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Input list="music-category-options" placeholder="分類（可選既有分類或自行輸入）" value={inlineCreateForm.category} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
-                <Input list="music-language-options" placeholder="語言" value={inlineCreateForm.language} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, language: e.target.value || '中文' })} className="h-9 rounded-lg text-sm" />
+                <MusicLanguageField
+                  value={inlineCreateForm.language}
+                  onChange={(language) => setInlineCreateForm({ ...inlineCreateForm, language: language || '中文' })}
+                />
               </div>
               <Textarea placeholder="歌詞" value={inlineCreateForm.lyrics} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, lyrics: e.target.value })} className="rounded-lg text-sm h-24 resize-none" />
               <div className="space-y-2">
@@ -1891,12 +1974,9 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                     onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
                     className="h-9 rounded-lg text-sm"
                   />
-                  <Input
-                    list="music-language-options"
-                    placeholder="語言"
+                  <MusicLanguageField
                     value={inlineEditForm.language}
-                    onChange={(e) => setInlineEditForm({ ...inlineEditForm, language: e.target.value })}
-                    className="h-9 rounded-lg text-sm"
+                    onChange={(language) => setInlineEditForm({ ...inlineEditForm, language })}
                   />
                 </div>
                 <Textarea
@@ -2400,12 +2480,9 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                 onChange={(e) => setInlineEditForm({ ...inlineEditForm, category: e.target.value })}
                 className="h-9 rounded-lg text-sm"
               />
-              <Input
-                list="music-language-options"
-                placeholder="語言"
+              <MusicLanguageField
                 value={inlineEditForm.language}
-                onChange={(e) => setInlineEditForm({ ...inlineEditForm, language: e.target.value })}
-                className="h-9 rounded-lg text-sm"
+                onChange={(language) => setInlineEditForm({ ...inlineEditForm, language })}
               />
             </div>
             <Textarea
@@ -2830,13 +2907,6 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
   const [coverDuplicateInfo, setCoverDuplicateInfo] = useState<{ found: boolean; existingUrl: string; musicName: string } | null>(null); // 重複封面資訊
   const [useCategorySelect, setUseCategorySelect] = useState(true); // 是否使用選擇框
   const [useNameSelect, setUseNameSelect] = useState(!music); // 新增時預設顯示選擇框，編輯時顯示輸入框
-  const [useLanguageSelect, setUseLanguageSelect] = useState(true); // 語言選擇框
-
-  // 獲取所有已存在的語言（包括自訂的）
-  const existingLanguages = Array.from(new Set([
-    ...DEFAULT_MUSIC_LANGUAGES,
-    ...existingMusic.map(m => m.language).filter(Boolean)
-  ]));
 
   // 獲取所有已存在的分類
   const existingCategories = Array.from(new Set(existingMusic.map(m => m.category).filter(Boolean)));
@@ -3387,49 +3457,12 @@ function MusicFormModal({ music, existingMusic, onClose, onSuccess }: { music: M
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 語言 / Language
               </label>
-              {useLanguageSelect ? (
-                <div className="space-y-2">
-                  <Select
-                    value={formData.language}
-                    onValueChange={(value) => {
-                      if (value === '__custom__') {
-                        setUseLanguageSelect(false);
-                        setFormData({ ...formData, language: '' });
-                      } else {
-                        setFormData({ ...formData, language: value });
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-12 rounded-xl">
-                      <SelectValue placeholder="選擇語言 / Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {existingLanguages.map((lang) => (
-                        <SelectItem key={lang} value={lang}>{lang}</SelectItem>
-                      ))}
-                      <SelectItem value="__custom__">自行輸入... / Custom input...</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Input
-                    value={formData.language}
-                    onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                    placeholder="輸入語言 / Enter language"
-                    className="h-12 rounded-xl"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setUseLanguageSelect(true)}
-                    className="text-xs h-7"
-                  >
-                    從預設選項中選擇 / Select from options
-                  </Button>
-                </div>
-              )}
+              <MusicLanguageField
+                value={formData.language}
+                onChange={(language) => setFormData({ ...formData, language })}
+                triggerClassName="h-12 rounded-xl"
+                inputClassName="h-12 rounded-xl"
+              />
               <div className="px-1 h-4">
                 {formData.language ? (
                   <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已選擇 / Selected</span>

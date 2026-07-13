@@ -2,20 +2,23 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, CalendarClock, RefreshCw, Copy, Mic } from "lucide-react";
+import { Plus, Minus, ChevronDown, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, CalendarClock, RefreshCw, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
 import { DataCard } from "@/components/ui/data-card";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useFoods, getFoodExpiryInfo } from "@/hooks/useFoods";
 import { fetchApi } from "@/hooks/useApi";
+import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
+import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
 import { FoodFormData, Food } from "@/types";
 import { formatDate, formatDaysRemaining } from "@/lib/formatters";
 import { getExportFilename } from "@/lib/utils";
@@ -70,8 +73,9 @@ type FoodVoiceCommand = {
   rawText: string;
 };
 
-const FOOD_MIN_VOICE_RECORDING_MS = 10_000;
 const FOOD_DELETE_CONFIRMATION = "DELETE food";
+const FOOD_VOICE_HELP =
+  "可說：新增牛奶 2 瓶 7 天後到期、搜尋 Costco、7 天內、庫存加 3、把第一筆價格改成 99、刪除選取。說完會自動結束；安全操作直接執行。";
 
 function addDaysToDate(baseDate: string, days: number) {
   if (!baseDate) return "";
@@ -138,16 +142,6 @@ function chineseNumberToNumber(input: string) {
     return (left ? map[left] ?? 0 : 1) * 10 + (right ? map[right] ?? 0 : 0);
   }
   return map[input] ?? 0;
-}
-
-function getSpeechRecognitionCtor() {
-  if (typeof window === "undefined") return null;
-  return (window as typeof window & {
-    SpeechRecognition?: new () => any;
-    webkitSpeechRecognition?: new () => any;
-  }).SpeechRecognition || (window as typeof window & {
-    webkitSpeechRecognition?: new () => any;
-  }).webkitSpeechRecognition || null;
 }
 
 function formatMonthOption(month: string) {
@@ -219,16 +213,28 @@ export default function FoodManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [deleteTotal, setDeleteTotal] = useState(0);
-  const [voiceTranscript, setVoiceTranscript] = useState("");
-  const [voiceFeedback, setVoiceFeedback] = useState("可說：新增牛奶 2 瓶 7 天後到期、搜尋 Costco、7 天內、庫存加 3、把第一筆價格改成 99、刪除選取。");
-  const [isVoiceListening, setIsVoiceListening] = useState(false);
-  const [voiceRecordingElapsedMs, setVoiceRecordingElapsedMs] = useState(0);
+  const [voiceFeedback, setVoiceFeedback] = useState(FOOD_VOICE_HELP);
   const [pendingVoiceCommand, setPendingVoiceCommand] = useState<FoodVoiceCommand | null>(null);
-  const voiceRecognitionRef = useRef<any>(null);
-  const voiceRecordingStartedAtRef = useRef(0);
-  const voiceManualStopRef = useRef(false);
-  const canStopVoiceRecording = !isVoiceListening || voiceRecordingElapsedMs >= FOOD_MIN_VOICE_RECORDING_MS;
-  const remainingVoiceRecordingSeconds = Math.max(0, Math.ceil((FOOD_MIN_VOICE_RECORDING_MS - voiceRecordingElapsedMs) / 1000));
+  const handleVoiceTextRef = useRef<(text: string) => void>(() => {});
+  const {
+    isSupported: isVoiceSupported,
+    isListening: isVoiceListening,
+    transcript: voiceTranscript,
+    setTranscript: setVoiceTranscript,
+    elapsedMs: voiceElapsedMs,
+    canStop: canStopVoiceRecording,
+    toggle: toggleVoiceInput,
+  } = useSpeechRecognition({
+    mode: "phrase",
+    onResult: (text) => handleVoiceTextRef.current(text),
+    onEmptyResult: () => setVoiceFeedback("沒有聽清楚，請再說一次，或直接輸入文字指令。"),
+    onInterrupted: () => setVoiceFeedback("錄音已結束。可再按麥克風，或直接輸入指令。"),
+    onError: (message) => setVoiceFeedback(message),
+    onStart: () => {
+      setPendingVoiceCommand(null);
+      setVoiceFeedback("正在聽…說完停頓一下會自動結束，也可按「說完了」。");
+    },
+  });
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -388,14 +394,6 @@ export default function FoodManagement() {
     loadFoods(true);
   };
   const deleteSelected = () => setBulkDeleteOpen(true);
-
-  useEffect(() => {
-    if (!isVoiceListening) return;
-    const timer = window.setInterval(() => {
-      setVoiceRecordingElapsedMs(Date.now() - voiceRecordingStartedAtRef.current);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [isVoiceListening]);
 
   useEffect(() => {
     // Clean up object URLs on unmount
@@ -1464,65 +1462,26 @@ export default function FoodManagement() {
   };
 
   const handleVoiceText = (text: string) => {
-    const command = parseVoiceCommand(text);
+    const cleaned = text.trim();
+    if (!cleaned) {
+      setVoiceFeedback("請先輸入或說出語音指令。");
+      return;
+    }
+    const command = parseVoiceCommand(cleaned);
     if (!command) {
       setVoiceFeedback("請先輸入或錄到語音指令。");
       return;
     }
     setVoiceTranscript(command.rawText);
     setVoiceFeedback(command.summary);
-    if (command.risk === "safe") {
+    if (shouldAutoExecuteVoiceRisk(command.risk)) {
+      playVoiceSuccessTone();
       void executeVoiceCommand(command);
     } else {
       setPendingVoiceCommand(command);
     }
   };
-
-  const stopVoiceInput = () => {
-    if (!isVoiceListening) return;
-    if (!canStopVoiceRecording) {
-      setVoiceFeedback(`錄音至少 10 秒，還有 ${remainingVoiceRecordingSeconds} 秒。`);
-      return;
-    }
-    voiceManualStopRef.current = true;
-    voiceRecognitionRef.current?.stop?.();
-    setIsVoiceListening(false);
-  };
-
-  const startVoiceInput = () => {
-    const SpeechRecognitionCtor = getSpeechRecognitionCtor();
-    if (!SpeechRecognitionCtor) {
-      setVoiceFeedback("此瀏覽器不支援語音辨識，可以直接在文字框輸入指令後按解析。");
-      return;
-    }
-    const recognition = new SpeechRecognitionCtor();
-    recognition.lang = "zh-TW";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    voiceManualStopRef.current = false;
-    voiceRecordingStartedAtRef.current = Date.now();
-    setVoiceRecordingElapsedMs(0);
-    setIsVoiceListening(true);
-    setPendingVoiceCommand(null);
-    setVoiceFeedback("正在聽鋒兄食品指令，錄音至少 10 秒。");
-    recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results)
-        .map((result: any) => result?.[0]?.transcript || "")
-        .join("")
-        .trim();
-      setVoiceTranscript(transcript);
-    };
-    recognition.onerror = (event: any) => {
-      setIsVoiceListening(false);
-      setVoiceFeedback(`語音辨識失敗：${event?.error || "請改用文字指令"}`);
-    };
-    recognition.onend = () => {
-      setIsVoiceListening(false);
-      if (!voiceManualStopRef.current) setVoiceFeedback("語音辨識已結束，可以按解析指令或再錄一次。");
-    };
-    voiceRecognitionRef.current = recognition;
-    recognition.start();
-  };
+  handleVoiceTextRef.current = handleVoiceText;
 
   // 僅初次尚無資料時全頁 loading；背景重新整理 / CSV 匯入中不要卸載整頁（避免匯入 modal 被拆掉閃爍）
   if (loading && foods.length === 0 && !importing && !importPreview) {
@@ -1711,93 +1670,31 @@ export default function FoodManagement() {
         }
       />
 
-      <DataCard className="border-emerald-200 bg-emerald-50/70 p-4 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/20">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 space-y-2">
-            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-              <Mic size={18} />
-              <span>語音 CRUD 管理</span>
-            </div>
-            <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-              支援新增、快速新增、搜尋、篩選、編輯、複製、庫存加減、價格、商店、到期日、CSV 匯入匯出與批次清理。
-            </p>
-            <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
-              {voiceFeedback}
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Button
-              type="button"
-              onClick={isVoiceListening ? stopVoiceInput : startVoiceInput}
-              className={`min-w-[8.5rem] rounded-xl ${isVoiceListening ? "bg-emerald-700 hover:bg-emerald-800" : "bg-emerald-600 hover:bg-emerald-700"} text-white`}
-            >
-              <Mic className="mr-1 h-4 w-4" />
-              {isVoiceListening ? (canStopVoiceRecording ? "停止錄音" : `${remainingVoiceRecordingSeconds} 秒`) : "開始語音"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="min-w-[8rem] rounded-xl"
-              onClick={() => handleVoiceText(voiceTranscript)}
-              disabled={!voiceTranscript.trim()}
-            >
-              <Sparkles className="mr-1 h-4 w-4" />
-              解析指令
-            </Button>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-          <Input
-            value={voiceTranscript}
-            onChange={(event) => {
-              setVoiceTranscript(event.target.value);
-              setPendingVoiceCommand(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") handleVoiceText(voiceTranscript);
-            }}
-            placeholder="例：新增牛奶 2 瓶 7 天後到期 / 搜尋 Costco / 把第一筆庫存加 3 / 把雞蛋價格改成 99 / 刪除選取"
-            className="h-12 rounded-xl bg-white dark:bg-slate-950"
-          />
-          <div className="flex flex-wrap gap-2">
-            {["7 天內", "已過期", "無日期", "清除篩選"].map((sample) => (
-              <Button
-                key={sample}
-                type="button"
-                variant="outline"
-                className="h-12 rounded-xl bg-white dark:bg-slate-950"
-                onClick={() => handleVoiceText(sample)}
-              >
-                {sample}
-              </Button>
-            ))}
-          </div>
-        </div>
-        {pendingVoiceCommand && (
-          <div className={`mt-4 rounded-xl border p-3 ${pendingVoiceCommand.risk === "danger" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"}`}>
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">
-                  {pendingVoiceCommand.risk === "danger" ? "需要確認危險操作" : "需要確認後執行"}
-                </p>
-                <p className="mt-1 text-sm leading-6">{pendingVoiceCommand.summary}</p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <Button type="button" variant="outline" className="rounded-xl bg-white" onClick={() => setPendingVoiceCommand(null)}>
-                  取消
-                </Button>
-                <Button
-                  type="button"
-                  className={`rounded-xl text-white ${pendingVoiceCommand.risk === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"}`}
-                  onClick={() => void executeVoiceCommand(pendingVoiceCommand)}
-                >
-                  確認執行
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </DataCard>
+      <VoiceCommandBar
+        title="語音 CRUD 管理"
+        description="說完會自動結束 · 安全操作直接執行 · 新增／刪除需確認"
+        helpText={FOOD_VOICE_HELP}
+        accent="emerald"
+        transcript={voiceTranscript}
+        onTranscriptChange={(value) => {
+          setVoiceTranscript(value);
+          setPendingVoiceCommand(null);
+        }}
+        feedback={voiceFeedback}
+        isListening={isVoiceListening}
+        isSupported={isVoiceSupported}
+        canStop={canStopVoiceRecording}
+        elapsedMs={voiceElapsedMs}
+        placeholder="例：新增牛奶 2 瓶 7 天後到期 / 搜尋 Costco / 把第一筆庫存加 3 / 刪除選取"
+        samples={["7 天內", "已過期", "無日期", "清除篩選"]}
+        pending={pendingVoiceCommand}
+        onToggleListen={toggleVoiceInput}
+        onSubmit={handleVoiceText}
+        onConfirm={() => {
+          if (pendingVoiceCommand) void executeVoiceCommand(pendingVoiceCommand);
+        }}
+        onCancelPending={() => setPendingVoiceCommand(null)}
+      />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,1fr)]">
         <Card className="border-blue-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-sm">

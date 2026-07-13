@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Building2,
@@ -37,9 +37,12 @@ import { BankFormData, Bank } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatCurrency } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
+import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getExportFilename } from "@/lib/utils";
+import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
 import { SectionHeader } from "@/components/ui/section-header";
 import { isTaiwanBankAccount } from "@/lib/bankClassification";
 import { BANK_CSV_HEADERS, parseBankCsv, toBankCsvRow } from "@/lib/bankCsv";
@@ -53,6 +56,36 @@ import {
   hasBankBulkAmountValue,
   validateBankBulkAmountDraft,
 } from "@/lib/bankBulkAmount";
+
+type VoiceRisk = "safe" | "review" | "danger";
+type BankVoiceAction =
+  | "refresh"
+  | "exportCsv"
+  | "importCsv"
+  | "search"
+  | "selectAll"
+  | "clearSelection"
+  | "multiSelect"
+  | "add"
+  | "income"
+  | "expense"
+  | "filterAll"
+  | "filterActive"
+  | "filterMissing"
+  | "filterZero"
+  | "deleteSelected"
+  | "noop";
+
+type BankVoiceCommand = {
+  action: BankVoiceAction;
+  summary: string;
+  risk: VoiceRisk;
+  query?: string;
+  amount?: number;
+};
+
+const BANK_VOICE_HELP =
+  "可說：重新整理、匯出 CSV、搜尋 中信、有餘額、待補資訊、新增收入、新增支出 500、全選、刪除選取。說完會自動結束。";
 
 const FIELD_HINTS = {
   name: "銀行名稱，例如：中國信託、台新銀行。",
@@ -98,6 +131,28 @@ export default function BankManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [deleteTotal, setDeleteTotal] = useState(0);
+  const [voiceFeedback, setVoiceFeedback] = useState(BANK_VOICE_HELP);
+  const [pendingVoiceCommand, setPendingVoiceCommand] = useState<BankVoiceCommand | null>(null);
+  const handleVoiceTextRef = useRef<(text: string) => void>(() => {});
+  const {
+    isSupported: isVoiceSupported,
+    isListening: isVoiceListening,
+    transcript: voiceTranscript,
+    setTranscript: setVoiceTranscript,
+    elapsedMs: voiceElapsedMs,
+    canStop: canStopVoiceRecording,
+    toggle: toggleVoiceInput,
+  } = useSpeechRecognition({
+    mode: "phrase",
+    onResult: (text) => handleVoiceTextRef.current(text),
+    onEmptyResult: () => setVoiceFeedback("沒有聽清楚，請再說一次，或直接輸入文字指令。"),
+    onInterrupted: () => setVoiceFeedback("錄音已結束。可再按麥克風，或直接輸入指令。"),
+    onError: (message) => setVoiceFeedback(message),
+    onStart: () => {
+      setPendingVoiceCommand(null);
+      setVoiceFeedback("正在聽…說完停頓會自動結束，也可按「說完了」。");
+    },
+  });
 
   // 取得已存在的不重複資料用於下拉選單
   const existingNames = useMemo(() => {
