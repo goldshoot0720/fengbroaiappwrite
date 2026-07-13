@@ -17,7 +17,14 @@ import { WorkspaceModuleIntro } from "@/components/ui/workspace-module-intro";
 import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscriptions";
 import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { CURRENCY_OPTIONS, formatCurrency, formatCurrencyWithExchange, formatDate } from "@/lib/formatters";
+import {
+  convertToTWD,
+  CURRENCY_OPTIONS,
+  formatCurrency,
+  formatCurrencyWithExchange,
+  formatDate,
+  getCurrencySymbol,
+} from "@/lib/formatters";
 import { getAppwriteConfig, getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
 import { Subscription, SubscriptionFormData } from "@/types";
 
@@ -31,6 +38,45 @@ const INITIAL_FORM: SubscriptionFormData = {
   currency: "TWD",
   continue: true,
 };
+
+const SUBSCRIPTION_TABLE_COL_SPAN = 5;
+
+/** 列表用價格：0 不顯示；非台幣第一列原幣、第二列換算台幣 */
+function SubscriptionPriceDisplay({
+  price,
+  currency = "TWD",
+  className = "",
+}: {
+  price?: number | null;
+  currency?: string;
+  className?: string;
+}) {
+  const amount = Number(price || 0);
+  if (!amount) return null;
+
+  const code = currency || "TWD";
+  if (code === "TWD") {
+    return (
+      <div className={`text-sm font-medium text-gray-900 dark:text-gray-100 ${className}`}>
+        {formatCurrency(amount)}
+      </div>
+    );
+  }
+
+  const symbol = getCurrencySymbol(code);
+  const twdAmount = convertToTWD(amount, code);
+
+  return (
+    <div className={className}>
+      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+        {symbol} {amount.toLocaleString()}
+      </div>
+      <div className="text-xs text-gray-500 dark:text-gray-400">
+        ≈ NT$ {twdAmount.toLocaleString()}
+      </div>
+    </div>
+  );
+}
 
 const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
 const SUBSCRIPTION_RECENT_SEARCHES_KEY = "fengbro.subscription.recentSearches";
@@ -1582,7 +1628,7 @@ export default function SubscriptionManagement() {
     if (isEditing) {
       return (
         <TableRow key={sub.$id} className="bg-blue-50/60 dark:bg-blue-900/10">
-          <TableCell colSpan={8}>
+          <TableCell colSpan={SUBSCRIPTION_TABLE_COL_SPAN}>
             <SubscriptionFormCard
               title={`編輯 ${sub.name}`}
               form={inlineEditForm}
@@ -1636,20 +1682,40 @@ export default function SubscriptionManagement() {
             </div>
           </div>
         </TableCell>
-        <TableCell className="whitespace-normal break-all align-top text-sm text-gray-600 dark:text-gray-300">
-          {sub.account || "-"}
-        </TableCell>
-        <TableCell className="text-sm font-medium text-gray-900 dark:text-gray-100">{formatCurrencyWithExchange(sub.price || 0, sub.currency || "TWD")}</TableCell>
-        <TableCell>
-          <div className="text-sm text-gray-900 dark:text-gray-100">{sub.nextdate ? formatDate(sub.nextdate) : "-"}</div>
-          <div className={`text-xs ${!sub.nextdate ? "text-gray-400" : expiry.isExpired ? "text-red-600 dark:text-red-400" : expiry.daysRemaining <= 7 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+        <TableCell className="whitespace-normal align-top">
+          <div className="text-sm text-gray-900 dark:text-gray-100">
+            {sub.nextdate ? formatDate(sub.nextdate) : "-"}
+          </div>
+          <div
+            className={`text-xs ${
+              !sub.nextdate
+                ? "text-gray-400"
+                : expiry.isExpired
+                  ? "text-red-600 dark:text-red-400"
+                  : expiry.daysRemaining <= 7
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+            }`}
+          >
             {dueLabel}
           </div>
+          <div className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
+            {sub.account || "無帳號"}
+          </div>
+          <div className="mt-1">
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                sub.continue === false
+                  ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+              }`}
+            >
+              {renewalLabel}
+            </span>
+          </div>
         </TableCell>
-        <TableCell>
-          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${sub.continue === false ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"}`}>
-            {renewalLabel}
-          </span>
+        <TableCell className="whitespace-normal align-top">
+          <SubscriptionPriceDisplay price={sub.price} currency={sub.currency} />
         </TableCell>
         <TableCell>
           <div className="flex flex-wrap gap-2">
@@ -2324,11 +2390,9 @@ export default function SubscriptionManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">選取</TableHead>
-                    <TableHead className="w-[26%]">服務 / 備註</TableHead>
-                    <TableHead className="w-[22%]">帳號</TableHead>
-                    <TableHead className="w-[14%]">價格</TableHead>
-                    <TableHead className="w-[14%]">下次扣款</TableHead>
-                    <TableHead className="w-[10%]">續訂</TableHead>
+                    <TableHead className="w-[34%]">服務 / 備註</TableHead>
+                    <TableHead className="w-[28%]">下次扣款 / 帳號 / 續訂</TableHead>
+                    <TableHead className="w-[18%]">價格</TableHead>
                     <TableHead className="w-[14%]">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2366,55 +2430,75 @@ export default function SubscriptionManagement() {
 
               return (
                 <DataCard key={sub.$id} className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <button type="button" onClick={() => toggleSelect(sub.$id)} className="mt-1 text-gray-500 hover:text-blue-600">
-                        {selectedIds.has(sub.$id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                      </button>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
-                          {siteHref ? (
-                            <a
-                              href={siteHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline dark:text-blue-400"
-                            >
-                              {sub.name}
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          ) : (
-                            <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
-                          )}
+                  <div className="flex items-start gap-3">
+                    <button type="button" onClick={() => toggleSelect(sub.$id)} className="mt-1 text-gray-500 hover:text-blue-600">
+                      {selectedIds.has(sub.$id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                    </button>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
+                        {siteHref ? (
+                          <a
+                            href={siteHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                          >
+                            {sub.name}
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ) : (
+                          <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
+                        )}
+                      </div>
+                      {sub.note ? (
+                        <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
+                          {sub.note}
                         </div>
-                        {sub.note ? (
-                          <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
-                            {sub.note}
-                          </div>
-                        ) : null}
-                        <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">{sub.$id}</div>
+                      ) : null}
+                      <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">{sub.$id}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-2 text-sm">
+                    <div>
+                      <div className="text-gray-900 dark:text-gray-100">
+                        {sub.nextdate ? formatDate(sub.nextdate) : "未設定扣款日"}
+                      </div>
+                      <div
+                        className={`text-xs ${
+                          !sub.nextdate
+                            ? "text-gray-400"
+                            : expiry.isExpired
+                              ? "text-red-600 dark:text-red-400"
+                              : expiry.daysRemaining <= 7
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-emerald-600 dark:text-emerald-400"
+                        }`}
+                      >
+                        {!sub.nextdate
+                          ? "未設定"
+                          : expiry.isExpired
+                            ? `已過期 ${Math.abs(expiry.daysRemaining)} 天`
+                            : expiry.daysRemaining === 0
+                              ? "今天扣款"
+                              : `${expiry.daysRemaining} 天後`}
+                      </div>
+                      <div className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
+                        {sub.account || "無帳號"}
+                      </div>
+                      <div className="mt-1">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                            sub.continue === false
+                              ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                          }`}
+                        >
+                          {sub.continue === false ? "不續訂" : "續訂中"}
+                        </span>
                       </div>
                     </div>
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${sub.continue === false ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"}`}>
-                      {sub.continue === false ? "不續訂" : "續訂中"}
-                    </span>
-                  </div>
-                  <div className="mt-4 grid gap-2 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-gray-500 dark:text-gray-400">價格</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">{formatCurrencyWithExchange(sub.price || 0, sub.currency || "TWD")}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-gray-500 dark:text-gray-400">下次扣款</span>
-                      <span className={!sub.nextdate ? "text-gray-400" : expiry.isExpired ? "text-red-600 dark:text-red-400" : expiry.daysRemaining <= 7 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}>
-                        {!sub.nextdate ? "未設定" : `${formatDate(sub.nextdate)} / ${expiry.isExpired ? `已過期 ${Math.abs(expiry.daysRemaining)} 天` : expiry.daysRemaining === 0 ? "今天" : `${expiry.daysRemaining} 天後`}`}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-gray-500 dark:text-gray-400">帳號</span>
-                      <span className="text-gray-900 dark:text-gray-100">{sub.account || "-"}</span>
-                    </div>
+                    <SubscriptionPriceDisplay price={sub.price} currency={sub.currency} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg">
