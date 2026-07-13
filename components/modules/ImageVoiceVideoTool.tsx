@@ -159,6 +159,52 @@ export default function ImageVoiceVideoTool() {
     [handleImage],
   );
 
+  /** Accept cover image from clipboard (Ctrl/Cmd+V or drop-zone paste). */
+  const handlePasteImage = useCallback(
+    (clipboardData: DataTransfer | null | undefined): boolean => {
+      if (!clipboardData) return false;
+
+      // Prefer image/* items (screenshots, copy-image)
+      for (const item of Array.from(clipboardData.items ?? [])) {
+        if (!item.type.startsWith("image/")) continue;
+        const file = item.getAsFile();
+        if (!file) continue;
+        handleFile(file);
+        setStatus("已從剪貼簿貼上封面圖片");
+        return true;
+      }
+
+      // Fallback: some apps put image as a file in clipboardData.files
+      for (const file of Array.from(clipboardData.files ?? [])) {
+        if (!file.type.startsWith("image/")) continue;
+        handleFile(file);
+        setStatus("已從剪貼簿貼上封面圖片");
+        return true;
+      }
+
+      return false;
+    },
+    [handleFile],
+  );
+
+  // Global paste: when not typing in an input/textarea, paste image as cover
+  useEffect(() => {
+    const onWindowPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "TEXTAREA" || tag === "INPUT" || target.isContentEditable) {
+          return;
+        }
+      }
+      if (handlePasteImage(e.clipboardData)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
+  }, [handlePasteImage]);
+
   const handleScript = useCallback(
     (text: string) => {
       setScript(text);
@@ -340,7 +386,7 @@ export default function ImageVoiceVideoTool() {
           <div>
             <h3 className="text-lg font-semibold">圖片 + 語音 = 影片</h3>
             <p className="text-sm text-muted-foreground">
-              上傳封面圖與語音稿，產生多語字幕影片；暫存檔會上傳到 Appwrite Storage 供下載。
+              上傳或從剪貼簿貼上封面圖，搭配語音稿產生多語字幕影片；暫存檔會上傳到 Appwrite Storage 供下載。
             </p>
           </div>
         </div>
@@ -358,7 +404,7 @@ export default function ImageVoiceVideoTool() {
               </span>
             </div>
             <div
-              className={`relative flex min-h-[160px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition ${
+              className={`relative flex min-h-[160px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
                 dragging
                   ? "border-violet-400 bg-violet-50 dark:bg-violet-950/30"
                   : "border-slate-200 bg-slate-50/80 hover:border-violet-300 dark:border-slate-700 dark:bg-slate-900/40"
@@ -374,10 +420,22 @@ export default function ImageVoiceVideoTool() {
                 const file = e.dataTransfer.files[0];
                 if (file) handleFile(file);
               }}
+              onPaste={(e) => {
+                if (handlePasteImage(e.clipboardData)) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
               onClick={() => fileInputRef.current?.click()}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+              aria-label="上傳或貼上封面圖片"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
             >
               <input
                 ref={fileInputRef}
@@ -395,14 +453,14 @@ export default function ImageVoiceVideoTool() {
               ) : (
                 <div className="flex flex-col items-center gap-2 p-6 text-center text-muted-foreground">
                   <ImagePlus className="h-8 w-8 opacity-60" />
-                  <p className="text-sm font-medium">拖放或點擊上傳封面</p>
-                  <p className="text-xs">支援直式 · 橫式 · 正方形</p>
+                  <p className="text-sm font-medium">拖放、點擊上傳，或 Ctrl+V 貼上</p>
+                  <p className="text-xs">支援剪貼簿圖片 · 直式 · 橫式 · 正方形</p>
                 </div>
               )}
               {imageUrl && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition hover:opacity-100">
                   <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-slate-800">
-                    點擊更換
+                    點擊更換 · 或 Ctrl+V 貼上
                   </span>
                 </div>
               )}
