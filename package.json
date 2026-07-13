@@ -10,6 +10,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@monaco-editor/react": "^4.7.0",
     "@playwright/test": "^1.58.2",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -30,6 +31,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.561.0",
     "mammoth": "^1.11.0",
+    "msedge-tts": "^2.0.6",
     "next": "^16.3.0-canary.32",
     "pdfjs-dist": "^5.4.624",
     "plyr": "^3.8.4",
