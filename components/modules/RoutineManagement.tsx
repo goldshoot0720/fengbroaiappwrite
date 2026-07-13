@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Calendar, Search, Download, Upload, ArrowRight, LayoutGrid, Rows3, X, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,12 @@ import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useCrud, fetchApi } from "@/hooks/useApi";
+import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getExportFilename } from "@/lib/utils";
+import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
 
 interface Routine {
   $id: string;
@@ -53,6 +56,34 @@ const getRoutineDateTime = (date: string | null) => {
   return Number.isNaN(time) ? 0 : time;
 };
 
+type VoiceRisk = "safe" | "review" | "danger";
+type RoutineVoiceAction =
+  | "refresh"
+  | "exportCsv"
+  | "importCsv"
+  | "search"
+  | "selectAll"
+  | "clearSelection"
+  | "add"
+  | "filterAll"
+  | "filterDated"
+  | "filterLinked"
+  | "filterPhoto"
+  | "viewTable"
+  | "viewCards"
+  | "deleteSelected"
+  | "noop";
+
+type RoutineVoiceCommand = {
+  action: RoutineVoiceAction;
+  summary: string;
+  risk: VoiceRisk;
+  query?: string;
+};
+
+const ROUTINE_VOICE_HELP =
+  "可說：重新整理、匯出 CSV、搜尋 倒垃圾、有日期、有連結、列表、卡片、新增、全選、刪除選取。說完會自動結束。";
+
 export default function RoutineManagement() {
   const { items: routines, loading, error, create, update, remove, fetchAll } = useCrud<Routine>(API_ENDPOINTS.ROUTINE);
   const [form, setForm] = useState<RoutineFormData>(INITIAL_FORM);
@@ -82,6 +113,28 @@ export default function RoutineManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [deleteTotal, setDeleteTotal] = useState(0);
+  const [voiceFeedback, setVoiceFeedback] = useState(ROUTINE_VOICE_HELP);
+  const [pendingVoiceCommand, setPendingVoiceCommand] = useState<RoutineVoiceCommand | null>(null);
+  const handleVoiceTextRef = useRef<(text: string) => void>(() => {});
+  const {
+    isSupported: isVoiceSupported,
+    isListening: isVoiceListening,
+    transcript: voiceTranscript,
+    setTranscript: setVoiceTranscript,
+    elapsedMs: voiceElapsedMs,
+    canStop: canStopVoiceRecording,
+    toggle: toggleVoiceInput,
+  } = useSpeechRecognition({
+    mode: "phrase",
+    onResult: (text) => handleVoiceTextRef.current(text),
+    onEmptyResult: () => setVoiceFeedback("沒有聽清楚，請再說一次，或直接輸入文字指令。"),
+    onInterrupted: () => setVoiceFeedback("錄音已結束。可再按麥克風，或直接輸入指令。"),
+    onError: (message) => setVoiceFeedback(message),
+    onStart: () => {
+      setPendingVoiceCommand(null);
+      setVoiceFeedback("正在聽…說完停頓會自動結束，也可按「說完了」。");
+    },
+  });
 
   // 搜尋過濾
   const filteredRoutines = useMemo(() => {
@@ -566,6 +619,146 @@ export default function RoutineManagement() {
     window.open(normalized, "_blank", "noopener,noreferrer");
   };
 
+  const parseRoutineVoiceCommand = (text: string): RoutineVoiceCommand => {
+    const normalized = text.trim();
+    const lower = normalized.toLowerCase();
+
+    if (/匯入.*csv|csv.*匯入|import.*csv/i.test(normalized)) {
+      return { action: "importCsv", summary: "開啟例行 CSV 檔案選擇器，選檔後仍會預覽確認。", risk: "review" };
+    }
+    if (/匯出.*csv|csv.*匯出|export.*csv/i.test(normalized)) {
+      return { action: "exportCsv", summary: `匯出目前 ${routines.length} 筆例行事項為 CSV。`, risk: "safe" };
+    }
+    if (/重新整理|刷新|reload|refresh/i.test(normalized)) {
+      return { action: "refresh", summary: "重新載入例行事項。", risk: "safe" };
+    }
+    if (/取消全選|清除選取|clear selection/i.test(normalized)) {
+      return { action: "clearSelection", summary: `取消目前 ${selectedIds.size} 筆選取。`, risk: "safe" };
+    }
+    if (/全選|select all/i.test(normalized)) {
+      return { action: "selectAll", summary: `選取目前篩選結果 ${filteredRoutines.length} 筆。`, risk: "review" };
+    }
+    if (/有日期|最近日期|dated/i.test(normalized)) {
+      return { action: "filterDated", summary: "篩選有最近日期的例行。", risk: "safe" };
+    }
+    if (/有連結|有網址|linked/i.test(normalized)) {
+      return { action: "filterLinked", summary: "篩選有連結的例行。", risk: "safe" };
+    }
+    if (/有圖|有圖片|with photo|photo/i.test(normalized)) {
+      return { action: "filterPhoto", summary: "篩選有圖片的例行。", risk: "safe" };
+    }
+    if (/全部|顯示全部|清除篩選/i.test(normalized)) {
+      return { action: "filterAll", summary: "顯示全部例行事項。", risk: "safe" };
+    }
+    if (/卡片|card view|cards/i.test(normalized)) {
+      return { action: "viewCards", summary: "切換到卡片檢視。", risk: "safe" };
+    }
+    if (/列表|表格|table/i.test(normalized)) {
+      return { action: "viewTable", summary: "切換到列表檢視。", risk: "safe" };
+    }
+    if (/新增|建立|add|create/i.test(normalized)) {
+      return { action: "add", summary: "開啟新增例行事項表單。", risk: "review" };
+    }
+    if (/刪除選取|批次刪除|delete selected/i.test(normalized)) {
+      return {
+        action: "deleteSelected",
+        summary: `開啟刪除選取確認（${selectedIds.size} 筆）。`,
+        risk: "danger",
+      };
+    }
+    if (/搜尋|查找|search|find/i.test(lower)) {
+      const query = normalized.replace(/搜尋|查找|search|find/gi, " ").replace(/\s+/g, " ").trim();
+      return query
+        ? { action: "search", summary: `搜尋例行關鍵字「${query}」。`, risk: "safe", query }
+        : { action: "noop", summary: "請在搜尋後面加上關鍵字，例如：搜尋 倒垃圾。", risk: "safe" };
+    }
+    return {
+      action: "noop",
+      summary: "聽到了，但還不確定。可試：重新整理、有日期、搜尋 倒垃圾、列表、匯出 CSV。",
+      risk: "safe",
+    };
+  };
+
+  const executeRoutineVoiceCommand = async (command: RoutineVoiceCommand) => {
+    setPendingVoiceCommand(null);
+    setVoiceFeedback(`執行中：${command.summary}`);
+    try {
+      switch (command.action) {
+        case "refresh":
+          await fetchAll(true);
+          break;
+        case "exportCsv":
+          exportToCSV();
+          break;
+        case "importCsv":
+          document.getElementById("csv-import-routine")?.click();
+          break;
+        case "search":
+          setSearchQuery(command.query || "");
+          break;
+        case "selectAll":
+          handleSelectAll();
+          break;
+        case "clearSelection":
+          setSelectedIds(new Set());
+          setSelectionMode(false);
+          break;
+        case "add":
+          setIsFormOpen(true);
+          break;
+        case "filterAll":
+          setWorkbenchMode("all");
+          break;
+        case "filterDated":
+          setWorkbenchMode("dated");
+          break;
+        case "filterLinked":
+          setWorkbenchMode("linked");
+          break;
+        case "filterPhoto":
+          setWorkbenchMode("withPhoto");
+          break;
+        case "viewTable":
+          setViewMode("table");
+          break;
+        case "viewCards":
+          setViewMode("cards");
+          break;
+        case "deleteSelected":
+          if (selectedIds.size === 0) {
+            setVoiceFeedback("目前沒有選取項目可刪除。");
+            return;
+          }
+          setBulkDeleteOpen(true);
+          break;
+        case "noop":
+        default:
+          break;
+      }
+      setVoiceFeedback(`完成：${command.summary}`);
+    } catch (error) {
+      setVoiceFeedback(error instanceof Error ? `執行失敗：${error.message}` : "執行失敗，請再試一次。");
+    }
+  };
+
+  const handleVoiceText = (text: string) => {
+    const cleaned = text.trim();
+    if (!cleaned) {
+      setVoiceFeedback("請先輸入或說出指令。");
+      return;
+    }
+    const command = parseRoutineVoiceCommand(cleaned);
+    setVoiceTranscript(cleaned);
+    setVoiceFeedback(command.summary);
+    if (shouldAutoExecuteVoiceRisk(command.risk)) {
+      playVoiceSuccessTone();
+      void executeRoutineVoiceCommand(command);
+    } else {
+      setPendingVoiceCommand(command);
+    }
+  };
+  handleVoiceTextRef.current = handleVoiceText;
+
   return (
     <div className="space-y-6">
       <FriendlyAiCrudShell
@@ -652,6 +845,32 @@ export default function RoutineManagement() {
             </Button>
           </>
         }
+      />
+
+      <VoiceCommandBar
+        title="例行語音指令"
+        description="說完會自動結束 · 安全操作直接執行 · 新增／刪除需確認"
+        helpText={ROUTINE_VOICE_HELP}
+        accent="emerald"
+        transcript={voiceTranscript}
+        onTranscriptChange={(value) => {
+          setVoiceTranscript(value);
+          setPendingVoiceCommand(null);
+        }}
+        feedback={voiceFeedback}
+        isListening={isVoiceListening}
+        isSupported={isVoiceSupported}
+        canStop={canStopVoiceRecording}
+        elapsedMs={voiceElapsedMs}
+        placeholder="例：搜尋 倒垃圾 / 有日期 / 列表 / 匯出 CSV"
+        samples={["有日期", "有連結", "列表", "重新整理"]}
+        pending={pendingVoiceCommand}
+        onToggleListen={toggleVoiceInput}
+        onSubmit={handleVoiceText}
+        onConfirm={() => {
+          if (pendingVoiceCommand) void executeRoutineVoiceCommand(pendingVoiceCommand);
+        }}
+        onCancelPending={() => setPendingVoiceCommand(null)}
       />
 
       {error && (

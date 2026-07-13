@@ -579,6 +579,166 @@ export default function BankManagement() {
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 
+  const parseBankVoiceCommand = (text: string): BankVoiceCommand => {
+    const normalized = text.trim();
+    const lower = normalized.toLowerCase();
+
+    if (/匯入.*csv|csv.*匯入|import.*csv/i.test(normalized)) {
+      return { action: "importCsv", summary: "開啟銀行 CSV 檔案選擇器，選檔後仍會預覽確認。", risk: "review" };
+    }
+    if (/匯出.*csv|csv.*匯出|export.*csv/i.test(normalized)) {
+      return { action: "exportCsv", summary: `匯出目前 ${banks.length} 筆銀行資料為 CSV。`, risk: "safe" };
+    }
+    if (/重新整理|刷新|reload|refresh/i.test(normalized)) {
+      return { action: "refresh", summary: "重新載入銀行與電子票證資料。", risk: "safe" };
+    }
+    if (/取消全選|清除選取|clear selection/i.test(normalized)) {
+      return { action: "clearSelection", summary: `取消目前 ${selectedIds.size} 筆選取。`, risk: "safe" };
+    }
+    if (/全選|select all/i.test(normalized)) {
+      return { action: "selectAll", summary: `選取目前篩選結果 ${filteredBanks.length} 筆。`, risk: "review" };
+    }
+    if (/多選|批次|選擇模式/i.test(normalized)) {
+      return { action: "multiSelect", summary: "切換銀行多選模式。", risk: "review" };
+    }
+    if (/有餘額|非零|有錢/i.test(normalized)) {
+      return { action: "filterActive", summary: "篩選有餘額的帳戶。", risk: "safe" };
+    }
+    if (/待補|缺資訊|缺網站|缺帳號/i.test(normalized)) {
+      return { action: "filterMissing", summary: "篩選待補資訊的帳戶。", risk: "safe" };
+    }
+    if (/零餘額|沒有餘額|餘額為零/i.test(normalized)) {
+      return { action: "filterZero", summary: "篩選零餘額帳戶。", risk: "safe" };
+    }
+    if (/全部帳戶|顯示全部|清除篩選/i.test(normalized)) {
+      return { action: "filterAll", summary: "顯示全部銀行帳戶。", risk: "safe" };
+    }
+    if (/新增支出|支出|expense/i.test(normalized)) {
+      const amountMatch = normalized.match(/(\d+(?:\.\d+)?)/);
+      return {
+        action: "expense",
+        summary: amountMatch ? `開啟新增支出，金額先帶入 ${amountMatch[1]}。` : "開啟新增支出視窗。",
+        risk: "review",
+        amount: amountMatch ? Number(amountMatch[1]) : undefined,
+      };
+    }
+    if (/新增收入|收入|income/i.test(normalized)) {
+      const amountMatch = normalized.match(/(\d+(?:\.\d+)?)/);
+      return {
+        action: "income",
+        summary: amountMatch ? `開啟新增收入，金額先帶入 ${amountMatch[1]}。` : "開啟新增收入視窗。",
+        risk: "review",
+        amount: amountMatch ? Number(amountMatch[1]) : undefined,
+      };
+    }
+    if (/新增|建立|add|create/i.test(normalized)) {
+      return { action: "add", summary: "開啟新增銀行或電子票證表單。", risk: "review" };
+    }
+    if (/刪除選取|批次刪除|delete selected/i.test(normalized)) {
+      return {
+        action: "deleteSelected",
+        summary: `開啟刪除選取確認（${selectedIds.size} 筆）；仍需輸入 DELETE bank。`,
+        risk: "danger",
+      };
+    }
+    if (/搜尋|查找|search|find/i.test(lower)) {
+      const query = normalized.replace(/搜尋|查找|search|find/gi, " ").replace(/\s+/g, " ").trim();
+      return query
+        ? { action: "search", summary: `搜尋銀行關鍵字「${query}」。`, risk: "safe", query }
+        : { action: "noop", summary: "請在搜尋後面加上關鍵字，例如：搜尋 中信。", risk: "safe" };
+    }
+    return {
+      action: "noop",
+      summary: "聽到了，但還不確定。可試：重新整理、有餘額、搜尋 中信、新增收入 500、匯出 CSV。",
+      risk: "safe",
+    };
+  };
+
+  const executeBankVoiceCommand = async (command: BankVoiceCommand) => {
+    setPendingVoiceCommand(null);
+    setVoiceFeedback(`執行中：${command.summary}`);
+    try {
+      switch (command.action) {
+        case "refresh":
+          await loadBanks();
+          break;
+        case "exportCsv":
+          await exportToCSV();
+          break;
+        case "importCsv":
+          document.getElementById("csv-import-bank")?.click();
+          break;
+        case "search":
+          setSearchQuery(command.query || "");
+          break;
+        case "selectAll":
+          handleSelectAll();
+          break;
+        case "clearSelection":
+          setSelectedIds(new Set());
+          setSelectionMode(false);
+          break;
+        case "multiSelect":
+          handleToggleSelectionMode();
+          break;
+        case "add":
+          setIsFormOpen(true);
+          break;
+        case "income":
+          openTransactionModal("income");
+          if (command.amount !== undefined) setTransactionAmount(String(command.amount));
+          break;
+        case "expense":
+          openTransactionModal("expense");
+          if (command.amount !== undefined) setTransactionAmount(String(command.amount));
+          break;
+        case "filterAll":
+          setWorkbenchMode("all");
+          break;
+        case "filterActive":
+          setWorkbenchMode("active");
+          break;
+        case "filterMissing":
+          setWorkbenchMode("missingInfo");
+          break;
+        case "filterZero":
+          setWorkbenchMode("zeroBalance");
+          break;
+        case "deleteSelected":
+          if (selectedIds.size === 0) {
+            setVoiceFeedback("目前沒有選取項目可刪除。");
+            return;
+          }
+          setBulkDeleteOpen(true);
+          break;
+        case "noop":
+        default:
+          break;
+      }
+      setVoiceFeedback(`完成：${command.summary}`);
+    } catch (error) {
+      setVoiceFeedback(error instanceof Error ? `執行失敗：${error.message}` : "執行失敗，請再試一次。");
+    }
+  };
+
+  const handleVoiceText = (text: string) => {
+    const cleaned = text.trim();
+    if (!cleaned) {
+      setVoiceFeedback("請先輸入或說出指令。");
+      return;
+    }
+    const command = parseBankVoiceCommand(cleaned);
+    setVoiceTranscript(cleaned);
+    setVoiceFeedback(command.summary);
+    if (shouldAutoExecuteVoiceRisk(command.risk)) {
+      playVoiceSuccessTone();
+      void executeBankVoiceCommand(command);
+    } else {
+      setPendingVoiceCommand(command);
+    }
+  };
+  handleVoiceTextRef.current = handleVoiceText;
+
   if (loading) return <FullPageLoading text="載入銀行資料中..." />;
 
   return (
@@ -714,6 +874,32 @@ export default function BankManagement() {
             </Button>
           </>
         }
+      />
+
+      <VoiceCommandBar
+        title="銀行語音指令"
+        description="說完會自動結束 · 安全操作直接執行 · 收入／刪除需確認"
+        helpText={BANK_VOICE_HELP}
+        accent="sky"
+        transcript={voiceTranscript}
+        onTranscriptChange={(value) => {
+          setVoiceTranscript(value);
+          setPendingVoiceCommand(null);
+        }}
+        feedback={voiceFeedback}
+        isListening={isVoiceListening}
+        isSupported={isVoiceSupported}
+        canStop={canStopVoiceRecording}
+        elapsedMs={voiceElapsedMs}
+        placeholder="例：搜尋 中信 / 有餘額 / 新增收入 500 / 匯出 CSV"
+        samples={["有餘額", "待補資訊", "重新整理", "匯出 CSV"]}
+        pending={pendingVoiceCommand}
+        onToggleListen={toggleVoiceInput}
+        onSubmit={handleVoiceText}
+        onConfirm={() => {
+          if (pendingVoiceCommand) void executeBankVoiceCommand(pendingVoiceCommand);
+        }}
+        onCancelPending={() => setPendingVoiceCommand(null)}
       />
 
       {exporting && (
