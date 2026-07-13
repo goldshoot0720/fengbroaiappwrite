@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Activity, ExternalLink, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface FinanceQuote {
@@ -21,12 +21,89 @@ interface FinanceQuote {
   localLabel?: string;
   periodLabel?: string;
   imageUrl?: string;
+  imageUrls?: string[];
   error?: string;
 }
 
 interface FinanceData {
   quotes: FinanceQuote[];
   fetchedAt: string;
+}
+
+function getFinanceImageUrls(quote?: Pick<FinanceQuote, 'imageUrl' | 'imageUrls'> | null) {
+  if (!quote) return [] as string[];
+  const urls = (quote.imageUrls || []).filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+  if (urls.length > 0) return Array.from(new Set(urls));
+  if (quote.imageUrl && quote.imageUrl.trim()) return [quote.imageUrl];
+  return [];
+}
+
+function FinanceImageCarousel({
+  quote,
+  alt,
+}: {
+  quote?: Pick<FinanceQuote, 'name' | 'imageUrl' | 'imageUrls'> | null;
+  alt: string;
+}) {
+  const images = useMemo(() => getFinanceImageUrls(quote), [quote?.imageUrl, quote?.imageUrls]);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [images.join('|')]);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setIndex((current) => (current + 1) % images.length);
+    }, 4500);
+    return () => window.clearInterval(timer);
+  }, [images.length]);
+
+  if (images.length === 0) return null;
+
+  const activeIndex = index % images.length;
+
+  return (
+    <div className="relative mt-4 overflow-hidden rounded-lg shadow-md">
+      <img
+        src={images[activeIndex]}
+        alt={`${alt} ${activeIndex + 1}`}
+        className="w-full rounded-lg"
+      />
+      {images.length > 1 ? (
+        <>
+          <button
+            type="button"
+            aria-label="上一張"
+            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
+            onClick={() => setIndex((current) => (current - 1 + images.length) % images.length)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="下一張"
+            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
+            onClick={() => setIndex((current) => (current + 1) % images.length)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full bg-black/40 px-2 py-1">
+            {images.map((url, dotIndex) => (
+              <button
+                key={url}
+                type="button"
+                aria-label={`第 ${dotIndex + 1} 張`}
+                className={`h-1.5 rounded-full ${dotIndex === activeIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`}
+                onClick={() => setIndex(dotIndex)}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 export default function FinancePage() {
@@ -139,7 +216,7 @@ export default function FinancePage() {
                   KOSPI Index
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {kospi?.localLabel || '코스피'} • 韓國綜合股價指數
+                  {kospi?.localLabel || '코스피'} • 韓國綜合股價指數 • 6000點以上不再製作AI圖片與AI影片
                 </p>
               </div>
               {kospi?.sourceUrl && (
@@ -214,16 +291,8 @@ export default function FinancePage() {
                   </div>
                 )}
 
-                {/* 圖片 */}
-                {kospi?.imageUrl && (
-                  <div className="mt-4">
-                    <img 
-                      src={kospi.imageUrl} 
-                      alt="KOSPI Index Chart" 
-                      className="w-full rounded-lg shadow-md"
-                    />
-                  </div>
-                )}
+                {/* 圖片輪播 */}
+                <FinanceImageCarousel quote={kospi} alt="KOSPI Index Chart" />
               </div>
             )}
           </CardContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
@@ -130,6 +130,7 @@ type FengbroFinanceQuote = {
   youtubeLinks?: Array<{ label: string; url: string }>;
   bilibiliUrl?: string;
   imageUrl?: string;
+  imageUrls?: string[];
   group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
   provider?: "cnbc" | "yahoo" | "multpl";
   price: number | null;
@@ -463,6 +464,91 @@ function getFinanceRecordLabel(tag: FinanceRecordTag) {
 }
 
 const FENGBRO_FINANCE_TOP_ID = "fengbro-finance-top";
+
+function getFinanceImageUrls(quote: Pick<FengbroFinanceQuote, "imageUrl" | "imageUrls">) {
+  const urls = (quote.imageUrls || []).filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+  if (urls.length > 0) return Array.from(new Set(urls));
+  if (quote.imageUrl && quote.imageUrl.trim()) return [quote.imageUrl];
+  return [];
+}
+
+function FinanceImageCarousel({
+  quote,
+  alt,
+  className,
+  aspectClass = "aspect-[4/3]",
+  objectClass = "object-cover",
+}: {
+  quote: Pick<FengbroFinanceQuote, "name" | "imageUrl" | "imageUrls">;
+  alt?: string;
+  className?: string;
+  aspectClass?: string;
+  objectClass?: string;
+}) {
+  const images = useMemo(() => getFinanceImageUrls(quote), [quote.imageUrl, quote.imageUrls]);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [images.join("|")]);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setIndex((current) => (current + 1) % images.length);
+    }, 4500);
+    return () => window.clearInterval(timer);
+  }, [images.length]);
+
+  if (images.length === 0) return null;
+
+  const activeIndex = index % images.length;
+  const showControls = images.length > 1;
+
+  return (
+    <div className={`relative overflow-hidden rounded-xl border border-slate-200 bg-slate-950/5 shadow-sm ${className || ""}`}>
+      <div className={`${aspectClass} w-full overflow-hidden`}>
+        <img
+          src={images[activeIndex]}
+          alt={alt || `${quote.name} image ${activeIndex + 1}`}
+          className={`h-full w-full ${objectClass}`}
+          loading="lazy"
+        />
+      </div>
+      {showControls ? (
+        <>
+          <button
+            type="button"
+            aria-label="上一張"
+            className="absolute left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white shadow-sm backdrop-blur-sm transition hover:bg-black/60"
+            onClick={() => setIndex((current) => (current - 1 + images.length) % images.length)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="下一張"
+            className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white shadow-sm backdrop-blur-sm transition hover:bg-black/60"
+            onClick={() => setIndex((current) => (current + 1) % images.length)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/40 px-2 py-1 backdrop-blur-sm">
+            {images.map((url, dotIndex) => (
+              <button
+                key={url}
+                type="button"
+                aria-label={`第 ${dotIndex + 1} 張`}
+                className={`h-1.5 rounded-full transition ${dotIndex === activeIndex ? "w-4 bg-white" : "w-1.5 bg-white/50 hover:bg-white/80"}`}
+                onClick={() => setIndex(dotIndex)}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 function getFinanceGroupAnchor(group: FengbroFinanceQuote["group"]) {
   return `fengbro-finance-${group}`;
@@ -1666,7 +1752,7 @@ function FengbroFinanceSection({
                 },
                 kospi: {
                   title: "KOSPI Index",
-                  subtitle: "韓國綜合指數 코스피",
+                  subtitle: "韓國綜合指數 코스피 · 6000點以上不再製作AI圖片與AI影片",
                   accentClass: "text-sky-700",
                   bgClass: "bg-[linear-gradient(135deg,rgba(224,242,254,0.95),rgba(255,255,255,0.98))]",
                   borderClass: "border-sky-200",
@@ -1751,14 +1837,12 @@ function FengbroFinanceSection({
                             <p className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{quote.error}</p>
                           ) : (
                             <>
-                              {quote.imageUrl && (
-                                <img
-                                  src={quote.imageUrl}
-                                  alt={`${quote.name} image`}
-                                  className="mb-4 aspect-[4/3] w-full rounded-xl border border-slate-200 bg-slate-950/5 object-cover shadow-sm"
-                                  loading="lazy"
-                                />
-                              )}
+                              <FinanceImageCarousel
+                                quote={quote}
+                                className="mb-4"
+                                aspectClass="aspect-[4/3]"
+                                objectClass="object-cover"
+                              />
                               <div className="flex items-end justify-between gap-2">
                                 <div>
                                   <p className="text-xs text-muted-foreground">最新價</p>
@@ -1969,14 +2053,12 @@ function FengbroFinanceSection({
                           </div>
                         </div>
 
-                        {quote.imageUrl ? (
-                          <img
-                            src={quote.imageUrl}
-                            alt={`${quote.name} image`}
-                            className="mt-4 aspect-[16/9] w-full rounded-2xl border border-emerald-100 bg-slate-950/5 object-contain shadow-sm"
-                            loading="lazy"
-                          />
-                        ) : null}
+                        <FinanceImageCarousel
+                          quote={quote}
+                          className="mt-4 rounded-2xl border-emerald-100"
+                          aspectClass="aspect-[16/9]"
+                          objectClass="object-contain"
+                        />
 
                         {quote.error ? (
                           <p className="mt-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{quote.error}</p>
