@@ -1609,9 +1609,9 @@ export default function SubscriptionManagement() {
           </button>
         </TableCell>
         <TableCell>
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
-            <div>
+            <div className="min-w-0 max-w-[320px]">
               {siteHref ? (
                 <a
                   href={siteHref}
@@ -1625,7 +1625,12 @@ export default function SubscriptionManagement() {
               ) : (
                 <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
               )}
-              <div className="text-xs text-gray-500 dark:text-gray-400">{sub.$id}</div>
+              {sub.note ? (
+                <div className="mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
+                  {sub.note}
+                </div>
+              ) : null}
+              <div className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{sub.$id}</div>
             </div>
           </div>
         </TableCell>
@@ -1641,9 +1646,6 @@ export default function SubscriptionManagement() {
           <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${sub.continue === false ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"}`}>
             {renewalLabel}
           </span>
-        </TableCell>
-        <TableCell className="max-w-[260px] whitespace-pre-wrap break-words text-sm text-gray-600 dark:text-gray-300">
-          {sub.note || "-"}
         </TableCell>
         <TableCell>
           <div className="flex flex-wrap gap-2">
@@ -2318,12 +2320,11 @@ export default function SubscriptionManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">選取</TableHead>
-                    <TableHead>服務</TableHead>
+                    <TableHead>服務 / 備註</TableHead>
                     <TableHead>帳號</TableHead>
                     <TableHead>價格</TableHead>
                     <TableHead>下次扣款</TableHead>
                     <TableHead>續訂</TableHead>
-                    <TableHead>備註</TableHead>
                     <TableHead className="w-[150px]">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2366,7 +2367,7 @@ export default function SubscriptionManagement() {
                       <button type="button" onClick={() => toggleSelect(sub.$id)} className="mt-1 text-gray-500 hover:text-blue-600">
                         {selectedIds.has(sub.$id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                       </button>
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
                           {siteHref ? (
@@ -2383,7 +2384,12 @@ export default function SubscriptionManagement() {
                             <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
                           )}
                         </div>
-                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{sub.$id}</div>
+                        {sub.note ? (
+                          <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
+                            {sub.note}
+                          </div>
+                        ) : null}
+                        <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">{sub.$id}</div>
                       </div>
                     </div>
                     <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${sub.continue === false ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"}`}>
@@ -2404,9 +2410,6 @@ export default function SubscriptionManagement() {
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-gray-500 dark:text-gray-400">帳號</span>
                       <span className="text-gray-900 dark:text-gray-100">{sub.account || "-"}</span>
-                    </div>
-                    <div className="whitespace-pre-wrap break-words text-sm text-gray-600 dark:text-gray-300">
-                      {sub.note || "無備註"}
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
