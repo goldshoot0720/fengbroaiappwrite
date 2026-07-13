@@ -606,8 +606,14 @@ function FinanceHistoryChart({
     const innerWidth = width - padding.left - padding.right;
     const innerHeight = height - padding.top - padding.bottom;
     const prices = priced.map((entry) => entry.price);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
+    let minPrice = Math.min(...prices);
+    let maxPrice = Math.max(...prices);
+    
+    if (quote.id === "kospi") {
+      if (typeof quote.low52 === "number") minPrice = quote.low52;
+      if (typeof quote.high52 === "number") maxPrice = quote.high52;
+    }
+
     const domain = Math.max(maxPrice - minPrice, Math.max(1, maxPrice * 0.02));
     const domainMin = minPrice - domain * 0.1;
     const domainMax = maxPrice + domain * 0.1;
