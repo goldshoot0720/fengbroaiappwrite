@@ -477,7 +477,7 @@ function FinanceImageCarousel({
   alt,
   className,
   aspectClass = "aspect-[4/3]",
-  objectClass = "object-cover",
+  objectClass = "object-contain",
 }: {
   quote: Pick<FengbroFinanceQuote, "name" | "imageUrl" | "imageUrls">;
   alt?: string;
@@ -1856,9 +1856,9 @@ function FengbroFinanceSection({
                             <>
                               <FinanceImageCarousel
                                 quote={quote}
-                                className="mb-4"
+                                className="mb-4 bg-black/5"
                                 aspectClass="aspect-[4/3]"
-                                objectClass="object-cover"
+                                objectClass="object-contain"
                               />
                               <div className="flex items-end justify-between gap-2">
                                 <div>
