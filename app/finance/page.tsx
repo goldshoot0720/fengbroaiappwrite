@@ -65,11 +65,11 @@ function FinanceImageCarousel({
   const activeIndex = index % images.length;
 
   return (
-    <div className="relative mt-4 overflow-hidden rounded-lg shadow-md">
+    <div className="relative mt-4 aspect-[4/3] w-full overflow-hidden rounded-lg bg-slate-100 shadow-md dark:bg-slate-900">
       <img
         src={images[activeIndex]}
         alt={`${alt} ${activeIndex + 1}`}
-        className="w-full rounded-lg"
+        className="h-full w-full object-contain rounded-lg"
       />
       {images.length > 1 ? (
         <>
