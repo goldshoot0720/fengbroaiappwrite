@@ -1608,33 +1608,37 @@ export default function SubscriptionManagement() {
             {selectedIds.has(sub.$id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
           </button>
         </TableCell>
-        <TableCell>
-          <div className="flex items-start gap-3">
+        <TableCell className="whitespace-normal align-top">
+          <div className="flex items-start gap-2">
             <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
-            <div className="min-w-0 max-w-[320px]">
+            <div className="min-w-0">
               {siteHref ? (
                 <a
                   href={siteHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                  className="inline-flex max-w-full items-center gap-1 break-words font-semibold text-blue-600 hover:underline dark:text-blue-400"
                 >
                   {sub.name}
-                  <ExternalLink className="h-3.5 w-3.5" />
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                 </a>
               ) : (
-                <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
+                <div className="break-words font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
               )}
               {sub.note ? (
                 <div className="mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
                   {sub.note}
                 </div>
               ) : null}
-              <div className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{sub.$id}</div>
+              <div className="mt-0.5 truncate text-xs text-gray-400 dark:text-gray-500" title={sub.$id}>
+                {sub.$id}
+              </div>
             </div>
           </div>
         </TableCell>
-        <TableCell className="text-sm text-gray-600 dark:text-gray-300">{sub.account || "-"}</TableCell>
+        <TableCell className="whitespace-normal break-all align-top text-sm text-gray-600 dark:text-gray-300">
+          {sub.account || "-"}
+        </TableCell>
         <TableCell className="text-sm font-medium text-gray-900 dark:text-gray-100">{formatCurrencyWithExchange(sub.price || 0, sub.currency || "TWD")}</TableCell>
         <TableCell>
           <div className="text-sm text-gray-900 dark:text-gray-100">{sub.nextdate ? formatDate(sub.nextdate) : "-"}</div>
@@ -2316,16 +2320,16 @@ export default function SubscriptionManagement() {
         <>
           <div className="hidden lg:block">
             <DataCard className="overflow-hidden">
-              <Table>
+              <Table className="table-fixed">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">選取</TableHead>
-                    <TableHead>服務 / 備註</TableHead>
-                    <TableHead>帳號</TableHead>
-                    <TableHead>價格</TableHead>
-                    <TableHead>下次扣款</TableHead>
-                    <TableHead>續訂</TableHead>
-                    <TableHead className="w-[150px]">操作</TableHead>
+                    <TableHead className="w-[26%]">服務 / 備註</TableHead>
+                    <TableHead className="w-[22%]">帳號</TableHead>
+                    <TableHead className="w-[14%]">價格</TableHead>
+                    <TableHead className="w-[14%]">下次扣款</TableHead>
+                    <TableHead className="w-[10%]">續訂</TableHead>
+                    <TableHead className="w-[14%]">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
