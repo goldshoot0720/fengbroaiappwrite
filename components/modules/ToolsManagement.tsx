@@ -231,6 +231,8 @@ const LANDTOP_SAMSUNG_QUERY_KEY = "fengbro.tools.landtop.samsungQuery";
 const TUBE_CHANNELS_KEY = "fengbro.tools.tube.channels";
 const FINANCE_CUSTOM_INSTRUMENTS_KEY = "fengbro.tools.finance.customInstruments";
 const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrumentIds";
+/** Tracks which default instrument ids the client has already seen, so newly shipped defaults auto-appear. */
+const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDefaultInstrumentIds";
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "tw" },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "tw" },
@@ -319,13 +321,56 @@ function getSavedDefaultFinanceInstrumentIds() {
 
   try {
     const savedIds = window.localStorage.getItem(FINANCE_DEFAULT_INSTRUMENT_IDS_KEY);
-    if (!savedIds) return DEFAULT_FINANCE_INSTRUMENT_IDS;
+    if (!savedIds) {
+      window.localStorage.setItem(
+        FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY,
+        JSON.stringify(DEFAULT_FINANCE_INSTRUMENT_IDS)
+      );
+      return DEFAULT_FINANCE_INSTRUMENT_IDS;
+    }
+
     const parsedIds = JSON.parse(savedIds) as unknown;
     if (!Array.isArray(parsedIds)) return DEFAULT_FINANCE_INSTRUMENT_IDS;
-    const validIds = parsedIds.filter((id): id is string =>
-      typeof id === "string" && DEFAULT_FINANCE_INSTRUMENT_IDS.includes(id)
+
+    const selectedIds = [
+      ...new Set(
+        parsedIds.filter(
+          (id): id is string => typeof id === "string" && DEFAULT_FINANCE_INSTRUMENT_IDS.includes(id)
+        )
+      ),
+    ];
+
+    // Auto-append newly shipped defaults without re-adding ones the user previously removed.
+    let knownIds: string[] = [];
+    try {
+      const knownRaw = window.localStorage.getItem(FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY);
+      if (knownRaw) {
+        const parsedKnown = JSON.parse(knownRaw) as unknown;
+        if (Array.isArray(parsedKnown)) {
+          knownIds = parsedKnown.filter((id): id is string => typeof id === "string");
+        }
+      }
+    } catch {
+      knownIds = [];
+    }
+
+    // First migration after introducing known-ids tracking: treat the previous full catalog
+    // (everything except SOXL / KORU) as already known so only those two auto-appear.
+    if (knownIds.length === 0) {
+      knownIds = DEFAULT_FINANCE_INSTRUMENT_IDS.filter((id) => id !== "soxl" && id !== "koru");
+    }
+
+    const knownSet = new Set(knownIds);
+    const newlyShippedIds = DEFAULT_FINANCE_INSTRUMENT_IDS.filter((id) => !knownSet.has(id));
+    const selectedSet = new Set(selectedIds);
+    for (const id of newlyShippedIds) selectedSet.add(id);
+
+    window.localStorage.setItem(
+      FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY,
+      JSON.stringify(DEFAULT_FINANCE_INSTRUMENT_IDS)
     );
-    return [...new Set(validIds)];
+
+    return DEFAULT_FINANCE_INSTRUMENT_IDS.filter((id) => selectedSet.has(id));
   } catch {
     return DEFAULT_FINANCE_INSTRUMENT_IDS;
   }
