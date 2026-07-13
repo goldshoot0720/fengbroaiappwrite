@@ -270,14 +270,28 @@ export default function FinancePage() {
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-blue-200 dark:border-blue-800">
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
-                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                      {formatNumber(kospi?.high52)}
+                    <div className="flex items-end gap-2">
+                      <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                        {formatNumber(kospi?.high52)}
+                      </div>
+                      {typeof kospi?.price === 'number' && typeof kospi?.high52 === 'number' && (
+                        <div className={`text-sm font-semibold mb-0.5 ${kospi.price >= kospi.high52 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {kospi.price >= kospi.high52 ? '+' : ''}{((kospi.price - kospi.high52) / kospi.high52 * 100).toFixed(2)}%
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
-                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                      {formatNumber(kospi?.low52)}
+                    <div className="flex items-end gap-2">
+                      <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                        {formatNumber(kospi?.low52)}
+                      </div>
+                      {typeof kospi?.price === 'number' && typeof kospi?.low52 === 'number' && kospi.low52 > 0 && (
+                        <div className={`text-sm font-semibold mb-0.5 ${kospi.price >= kospi.low52 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {kospi.price >= kospi.low52 ? '+' : ''}{((kospi.price - kospi.low52) / kospi.low52 * 100).toFixed(2)}%
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

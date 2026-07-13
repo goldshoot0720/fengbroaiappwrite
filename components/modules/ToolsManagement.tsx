@@ -1880,11 +1880,25 @@ function FengbroFinanceSection({
                               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                                 <div className="rounded-xl bg-white/70 px-3 py-2 border border-slate-100">
                                   <p className="text-muted-foreground">52W High</p>
-                                  <p className="mt-0.5 font-semibold">{formatFinanceNumber(quote.high52, 2)}</p>
+                                  <div className="flex items-end justify-between">
+                                    <p className="mt-0.5 font-semibold">{formatFinanceNumber(quote.high52, 2)}</p>
+                                    {quote.id === "kospi" && typeof quote.price === "number" && typeof quote.high52 === "number" && (
+                                      <span className={`text-[10px] font-bold ${quote.price >= quote.high52 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                        {quote.price >= quote.high52 ? '+' : ''}{((quote.price - quote.high52) / quote.high52 * 100).toFixed(2)}%
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="rounded-xl bg-white/70 px-3 py-2 border border-slate-100">
                                   <p className="text-muted-foreground">52W Low</p>
-                                  <p className="mt-0.5 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
+                                  <div className="flex items-end justify-between">
+                                    <p className="mt-0.5 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
+                                    {quote.id === "kospi" && typeof quote.price === "number" && typeof quote.low52 === "number" && quote.low52 > 0 && (
+                                      <span className={`text-[10px] font-bold ${quote.price >= quote.low52 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                        {quote.price >= quote.low52 ? '+' : ''}{((quote.price - quote.low52) / quote.low52 * 100).toFixed(2)}%
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
