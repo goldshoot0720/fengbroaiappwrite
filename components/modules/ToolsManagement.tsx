@@ -1853,7 +1853,7 @@ function FengbroFinanceSection({
                                 )}
                                 {(typeof quote.changePercent === "number") && (
                                   (quote.id === "kospi" && Math.abs(quote.changePercent) > 8) ||
-                                  (quote.id === "sp500" && Math.abs(quote.changePercent) > 7)
+                                  (quote.id === "sp500" && quote.changePercent < -7)
                                 ) && (
                                   <span className="rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
                                     熔斷機制
@@ -2075,7 +2075,7 @@ function FengbroFinanceSection({
                               )}
                               {(typeof quote.changePercent === "number") && (
                                 (quote.id === "kospi" && Math.abs(quote.changePercent) > 8) ||
-                                (quote.id === "sp500" && Math.abs(quote.changePercent) > 7)
+                                (quote.id === "sp500" && quote.changePercent < -7)
                               ) && (
                                 <span className="rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700">
                                   熔斷機制
