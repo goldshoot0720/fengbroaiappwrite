@@ -29,35 +29,32 @@ export async function which(cmd: string): Promise<string | null> {
 }
 
 /**
- * Resolve FFmpeg binary:
- * 1. Project-local `.vendor/ffmpeg/` (auto-installed by server.py)
- * 2. System PATH
+ * Resolve FFmpeg binary (priority order):
+ * 1. Platform binary from optional `@ffmpeg-installer/<platform>` packages
+ *    (path-only — do not import `@ffmpeg-installer/ffmpeg`; its dynamic
+ *    require() breaks Turbopack: "Can't resolve <dynamic>")
+ * 2. Project-local `.vendor/ffmpeg/`
+ * 3. System PATH
  */
 export async function resolveFfmpeg(): Promise<string | null> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const ffmpeg = require('@ffmpeg-installer/ffmpeg');
-    if (ffmpeg.path) {
-      console.log(`[FFmpeg] using @ffmpeg-installer: ${ffmpeg.path}`);
-      return ffmpeg.path;
-    }
-  } catch {
-    /* ignore */
-  }
-
-  // Static relative path under cwd — turbopackIgnore keeps NFT from tracing the whole repo
+  // turbopackIgnore keeps NFT from tracing the whole repo via cwd
   const cwd = /* turbopackIgnore: true */ process.cwd();
-  const candidates =
-    process.platform === 'win32'
+  const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const platform = `${process.platform}-${process.arch}`;
+
+  const candidates = [
+    // optionalDependencies: @ffmpeg-installer/win32-x64, linux-x64, etc.
+    join(cwd, 'node_modules', '@ffmpeg-installer', platform, binary),
+    join(cwd, '.vendor', 'ffmpeg', binary),
+    // allow .exe under vendor on non-Windows if someone dropped a Windows build
+    ...(process.platform !== 'win32'
       ? [join(cwd, '.vendor', 'ffmpeg', 'ffmpeg.exe')]
-      : [
-          join(cwd, '.vendor', 'ffmpeg', 'ffmpeg'),
-          join(cwd, '.vendor', 'ffmpeg', 'ffmpeg.exe'),
-        ];
+      : []),
+  ];
 
   for (const p of candidates) {
     if (await fileExists(p)) {
-      console.log(`[FFmpeg] using vendor: ${p}`);
+      console.log(`[FFmpeg] using: ${p}`);
       return p;
     }
   }
