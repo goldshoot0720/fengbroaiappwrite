@@ -492,28 +492,45 @@ function FinanceImageCarousel({
     setIndex(0);
   }, [images.join("|")]);
 
+  const activeIndex = images.length > 0 ? index % images.length : 0;
+  const activeUrl = images[activeIndex];
+  const isVideo = activeUrl?.toLowerCase().endsWith('.mp4');
+
   useEffect(() => {
     if (images.length <= 1) return;
+    if (isVideo) return; // For videos, we rely on the onEnded event to advance
     const timer = window.setInterval(() => {
       setIndex((current) => (current + 1) % images.length);
     }, 4500);
     return () => window.clearInterval(timer);
-  }, [images.length]);
+  }, [images.length, isVideo]);
 
   if (images.length === 0) return null;
 
-  const activeIndex = index % images.length;
   const showControls = images.length > 1;
 
   return (
     <div className={`relative overflow-hidden rounded-xl border border-slate-200 bg-slate-950/5 shadow-sm ${className || ""}`}>
       <div className={`${aspectClass} w-full overflow-hidden`}>
-        <img
-          src={images[activeIndex]}
-          alt={alt || `${quote.name} image ${activeIndex + 1}`}
-          className={`h-full w-full ${objectClass}`}
-          loading="lazy"
-        />
+        {isVideo ? (
+          <video
+            key={activeUrl}
+            src={activeUrl}
+            className={`h-full w-full ${objectClass}`}
+            autoPlay
+            muted
+            playsInline
+            onEnded={() => setIndex((current) => (current + 1) % images.length)}
+          />
+        ) : (
+          <img
+            key={activeUrl}
+            src={activeUrl}
+            alt={alt || `${quote.name} image ${activeIndex + 1}`}
+            className={`h-full w-full ${objectClass}`}
+            loading="lazy"
+          />
+        )}
       </div>
       {showControls ? (
         <>
