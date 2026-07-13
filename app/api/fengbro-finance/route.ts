@@ -408,8 +408,8 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const previousClose =
     pickNumber(meta, ["regularMarketPreviousClose", "previousClose"]) ??
     (closes.length > 1 ? closes[closes.length - 2] : null);
-  const high52 = closes.length ? Math.max(...closes) : pickNumber(meta, ["fiftyTwoWeekHigh"]) ?? null;
-  const low52 = closes.length ? Math.min(...closes) : pickNumber(meta, ["fiftyTwoWeekLow"]) ?? null;
+  const high52 = pickNumber(meta, ["fiftyTwoWeekHigh"]) ?? (closes.length ? Math.max(...closes) : null);
+  const low52 = pickNumber(meta, ["fiftyTwoWeekLow"]) ?? (closes.length ? Math.min(...closes) : null);
   const change =
     pickNumber(meta, ["regularMarketChange"]) ??
     (price != null && previousClose != null ? price - previousClose : null);
@@ -420,13 +420,18 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const dayHigh = pickNumber(meta, ["regularMarketDayHigh"]) ?? highs.at(-1) ?? null;
   const dayLow = pickNumber(meta, ["regularMarketDayLow"]) ?? lows.at(-1) ?? null;
 
+  let currency = pickText(meta, ["currency"]);
+  if (!currency) {
+    currency = meta.exchangeTimezoneName === "America/New_York" ? "USD" : "TWD";
+  }
+
   return {
     ...instrument,
     displayName: pickText(meta, ["shortName", "longName"]) || instrument.name,
     price,
     change,
     changePercent,
-    currency: pickText(meta, ["currency"]) || "TWD",
+    currency,
     high52,
     low52,
     dayHigh,

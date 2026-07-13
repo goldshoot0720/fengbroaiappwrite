@@ -1,22 +1,22 @@
 {
-  "snapshotDate": "2026-07-12",
-  "totalFiles": 209,
-  "totalLines": 68397,
+  "snapshotDate": "2026-07-13",
+  "totalFiles": 222,
+  "totalLines": 68993,
   "breakdown": [
     {
       "label": "TSX",
       "files": 66,
-      "lines": 47640
+      "lines": 48017
     },
     {
       "label": "TypeScript",
       "files": 50,
-      "lines": 9261
+      "lines": 9289
     },
     {
       "label": "JavaScript",
-      "files": 53,
-      "lines": 6757
+      "files": 65,
+      "lines": 6944
     },
     {
       "label": "Markdown",
@@ -30,8 +30,8 @@
     },
     {
       "label": "JSON",
-      "files": 6,
-      "lines": 198
+      "files": 7,
+      "lines": 202
     }
   ]
 }
