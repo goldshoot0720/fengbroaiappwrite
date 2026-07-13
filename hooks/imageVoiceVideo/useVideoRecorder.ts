@@ -6,8 +6,11 @@ import {
   VIDEO_FPS,
   mediaRecorderBitrateOptions,
 } from '@/lib/imageVoiceVideo/videoQuality';
+import {
+  activeSubtitlesForElapsed,
+  computeSegmentStarts,
+} from '@/lib/imageVoiceVideo/subtitleTiming';
 import type { ScriptLine, Track, Gender } from '@/lib/imageVoiceVideo/scriptParser';
-import type { SubtitleLine } from './useCanvasRenderer';
 import { useCanvasRenderer } from './useCanvasRenderer';
 
 export interface RecordingOptions {
@@ -78,9 +81,18 @@ function requestCanvasFrame(stream: MediaStream) {
 /**
  * Always create a fresh capture stream for each recording.
  * Reusing a previous track often yields 0-duration / empty WebM in Chrome.
+ *
+ * Prefer frameRate 0 + requestFrame() so each paint is encoded (auto fps can
+ * stick on the first frame in some Chromium paths). Fall back to VIDEO_FPS
+ * when requestFrame is unavailable.
  */
 function createCanvasStream(canvas: HTMLCanvasElement): MediaStream {
-  // VIDEO_FPS ≥ 24; captureStream drives encoder cadence
+  const probe = canvas.captureStream(0);
+  const probeTrack = probe.getVideoTracks()[0] as CanvasCaptureTrack | undefined;
+  if (probeTrack?.requestFrame) {
+    return probe;
+  }
+  stopTracks(probe, ['video']);
   return canvas.captureStream(VIDEO_FPS);
 }
 
@@ -126,10 +138,9 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
       // Keep context running (do NOT suspend). A suspended context during
       // MediaRecorder setup can produce silent / 0-length audio tracks.
 
-      // ── 1. Build spoken text + subtitle tracks ─────────────────
+      // ── 1. Build spoken text per language track ─────────────────
       onStatus('正在翻譯字幕…');
       const spokenByTrack: string[][] = [];
-      const allSubtitleTracks: SubtitleLine[][] = [];
 
       for (const track of tracks) {
         let spoken: string[];
@@ -143,14 +154,6 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
           );
         }
         spokenByTrack.push(spoken);
-        allSubtitleTracks.push(
-          spoken.map(text => ({
-            text,
-            startAt: 0,
-            endAt: 0,
-            language: track.language,
-          })),
-        );
       }
 
       // ── 2. Build audio (TTS) — batch per track ─────────────────
@@ -191,14 +194,14 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
       }
 
       for (let i = 0; i < scriptLines.length; i++) {
-        const maxDur = Math.max(...trackBuffers.map(bufs => bufs[i].duration), 0.4);
-        segmentDurations[i] = maxDur + 0.2;
+        const durs = trackBuffers.map(bufs => bufs[i]?.duration ?? 0);
+        const maxDur = Math.max(...durs, 0.4);
+        // Guard against NaN from a bad decode (Math.max(NaN, 0.4) === NaN)
+        segmentDurations[i] = (Number.isFinite(maxDur) ? maxDur : 0.4) + 0.2;
       }
 
-      const segmentStarts = segmentDurations.reduce<number[]>((starts, _dur, idx) => {
-        starts.push(idx === 0 ? 0 : starts[idx - 1] + segmentDurations[idx - 1]);
-        return starts;
-      }, []);
+      const segmentStarts = computeSegmentStarts(segmentDurations);
+      const trackLanguages = tracks.map(tr => tr.language);
 
       trackBuffers.forEach((buffers, trackIndex) => {
         buffers.forEach((buffer, lineIndex) => {
@@ -226,15 +229,18 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
         segmentDurations.reduce((a, b) => a + b, 0),
       );
 
-      let cumTime = 0;
-      for (let i = 0; i < scriptLines.length; i++) {
-        for (const trackSubs of allSubtitleTracks) {
-          trackSubs[i].startAt = cumTime;
-          trackSubs[i].endAt = cumTime + segmentDurations[i];
-        }
-        cumTime += segmentDurations[i];
-      }
-      const flatSubtitles = allSubtitleTracks.flat();
+      /** Always paint the cue for the current speech segment (line 1, 2, …). */
+      const paintAt = (elapsedSec: number) => {
+        const active = activeSubtitlesForElapsed(
+          spokenByTrack,
+          trackLanguages,
+          segmentStarts,
+          segmentDurations,
+          elapsedSec,
+        );
+        // showAll=true: we already selected the active line(s); do not re-filter by time
+        drawFrame(canvas, image, active, elapsedSec, true);
+      };
 
       // ── 3. Canvas stream + MediaRecorder ────────────────────────
       // Ensure context is running before we attach streams / start encoder
@@ -242,12 +248,12 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
         await audioContext.resume();
       }
 
-      drawFrame(canvas, image, flatSubtitles, 0);
+      paintAt(0);
 
       canvasStream = createCanvasStream(canvas);
       // Paint + push a few frames so the first cluster isn't empty
       for (let i = 0; i < 3; i++) {
-        drawFrame(canvas, image, flatSubtitles, 0);
+        paintAt(0);
         requestCanvasFrame(canvasStream);
         await sleep(20);
       }
@@ -352,8 +358,10 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
             // Prefer wall-clock elapsed for subtitles so progress stays correct
             // even if AudioContext is throttled slightly.
             const recordWallStart = performance.now();
+            let lastStatusPct = -1;
+            let lastStatusAt = 0;
 
-            resources.worker.onmessage = () => {
+            const paintElapsed = () => {
               const wallElapsed = (performance.now() - recordWallStart) / 1000;
               const audioElapsed = ctx.currentTime - audioStartTime;
               // Use the larger of the two so we never under-draw near the end
@@ -362,11 +370,24 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
                 Math.max(wallElapsed, audioElapsed, 0),
               );
               const pct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
-              onStatus(`正在錄製影片 ${pct}% (請勿切換分頁或關閉螢幕，否則會中斷)…`);
-              drawFrame(canvas, image, flatSubtitles, elapsed);
+              // Throttle React status updates — every frame setState can stall paints
+              // and leave the encoder stuck on the first subtitle frame.
+              const now = performance.now();
+              if (pct !== lastStatusPct && now - lastStatusAt >= 200) {
+                lastStatusPct = pct;
+                lastStatusAt = now;
+                onStatus(`正在錄製影片 ${pct}% (請勿切換分頁或關閉螢幕，否則會中斷)…`);
+              }
+              paintAt(elapsed);
               requestCanvasFrame(streamForFrames);
             };
+
+            resources.worker.onmessage = () => {
+              paintElapsed();
+            };
             resources.worker.postMessage('start');
+            // Immediate first paint after audio starts (don't wait for first interval)
+            paintElapsed();
 
             setTimeout(() => {
               try {
@@ -374,7 +395,7 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
               } catch {
                 /* ignore */
               }
-              drawFrame(canvas, image, flatSubtitles, Math.max(0, totalDuration - 0.01));
+              paintAt(Math.max(0, totalDuration - 0.01));
               requestCanvasFrame(streamForFrames);
               setTimeout(() => {
                 try {

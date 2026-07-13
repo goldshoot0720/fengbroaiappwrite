@@ -107,8 +107,10 @@ export default function ImageVoiceVideoTool() {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Apply canvas resolution + redraw when size / content changes
+  // Apply canvas resolution + redraw when size / content changes.
+  // Skip while recording so preview redraws cannot overwrite timed subtitle frames.
   useEffect(() => {
+    if (recording) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -125,7 +127,7 @@ export default function ImageVoiceVideoTool() {
       language: scriptLang,
     }));
     drawFrame(canvas, imageEl, subs, 0, true);
-  }, [imageEl, script, scriptLang, drawFrame, canvasSize]);
+  }, [imageEl, script, scriptLang, drawFrame, canvasSize, recording]);
 
   // Cleanup blob URLs on unmount
   useEffect(() => {
@@ -609,10 +611,12 @@ export default function ImageVoiceVideoTool() {
               </span>
             </div>
             <div className="flex justify-center rounded-2xl bg-slate-950 p-3">
+              {/*
+                Do not bind width/height as React props: re-setting canvas dimensions
+                clears the bitmap. Size is applied only in the effect below / on generate.
+              */}
               <canvas
                 ref={canvasRef}
-                width={canvasSize.width}
-                height={canvasSize.height}
                 className="max-h-[420px] w-auto max-w-full rounded-lg"
                 style={{
                   aspectRatio: `${canvasSize.width} / ${canvasSize.height}`,

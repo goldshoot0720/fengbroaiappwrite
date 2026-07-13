@@ -1,5 +1,6 @@
 'use client';
 import { useCallback } from 'react';
+import { filterActiveByTime } from '@/lib/imageVoiceVideo/subtitleTiming';
 
 export interface SubtitleLine {
   text: string;
@@ -78,9 +79,8 @@ export function useCanvasRenderer() {
     }
 
     // ── Active subtitles (text only, no black box) ───────────────
-    const active = showAll
-      ? subtitleLines
-      : subtitleLines.filter(s => elapsed >= s.startAt && elapsed < s.endAt);
+    // Prefer later cue at segment boundaries so line 2+ is not skipped.
+    const active = filterActiveByTime(subtitleLines, elapsed, showAll);
 
     if (active.length === 0) return;
 
