@@ -12,14 +12,24 @@ import {
   normalizeFengbroTubeChannels,
   normalizeFengbroTubeSource,
 } from "@/lib/fengbroTubeChannels";
+import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
+import ManualPriceTracker from "@/components/modules/ManualPriceTracker";
 
-type ToolsTab = "price-compare" | "landtop" | "fengbro-tube" | "fengbro-finance";
+type ToolsTab = "price-compare" | "landtop" | "fengbro-tube" | "fengbro-finance" | "image-voice-video";
 type PriceSource = "local" | "biggo-api";
 
 type PriceHistoryEntry = {
   date: string;
   price: number | null;
   currency?: string;
+};
+
+type ComparisonOffer = {
+  merchant: string;
+  title: string;
+  price: number | null;
+  url: string;
+  source: string;
 };
 
 type PriceHistoryResult = {
@@ -31,6 +41,9 @@ type PriceHistoryResult = {
   history?: PriceHistoryEntry[];
   resolvedAt?: string;
   notice?: string;
+  matchedTitle?: string;
+  matchedUrl?: string;
+  comparisons?: ComparisonOffer[];
 };
 
 type RecentLink = {
@@ -192,6 +205,7 @@ const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "landtop", label: "手機比價" },
   { id: "fengbro-tube", label: "鋒兄Tube" },
   { id: "fengbro-finance", label: "\u92d2\u5144\u91d1\u878d" },
+  { id: "image-voice-video", label: "圖片語音影片" },
 ];
 
 function getPlatformInfo(url?: string, title?: string, source?: string) {
@@ -205,7 +219,7 @@ function getPlatformInfo(url?: string, title?: string, source?: string) {
 }
 
 const PRICE_SOURCES: Array<{ id: PriceSource; label: string; hint: string }> = [
-  { id: "biggo-api", label: "BigGo API", hint: "查詢 BigGo 歷史價格資料" },
+  { id: "biggo-api", label: "BigGo + 公開備援", hint: "優先 BigGo 歷史價；429 時自動改用 PChome / momo 公開 API 比價" },
   { id: "local", label: "本地佔位", hint: "保留本地測試流程，不連外查價" },
 ];
 
@@ -2704,7 +2718,7 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
 
   return (
     <section className="space-y-6">
-      <PageTitle title="鋒兄工具" description="工具模組集中入口與手機比價工作台。" />
+      <PageTitle title="鋒兄工具" description="工具模組集中入口：比價、Tube、金融、圖片語音影片。" />
 
       <DataCard className="p-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -2888,9 +2902,51 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
                 )}
 
                 <PriceTrendChart history={result.history || []} currency={result.currency} />
+
+                {Array.isArray(result.comparisons) && result.comparisons.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-sm font-semibold">即時跨店比價</h5>
+                      <span className="text-xs text-muted-foreground">
+                        {result.comparisons.length} 筆 · 來源 {result.source || "公開 API"}
+                      </span>
+                    </div>
+                    <div className="grid gap-2">
+                      {result.comparisons.map((offer) => (
+                        <a
+                          key={`${offer.merchant}-${offer.url}`}
+                          href={offer.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-start justify-between gap-3 rounded-xl border border-border bg-white px-3 py-2 text-left shadow-sm transition hover:border-amber-300"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                {offer.merchant}
+                              </span>
+                              <span className="truncate text-xs text-muted-foreground">{offer.source}</span>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-sm font-medium text-foreground">{offer.title}</p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-semibold text-amber-700">
+                              {formatPriceWithCurrency(offer.price, result.currency || "TWD")}
+                            </p>
+                            <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                              開啟 <ExternalLink size={10} />
+                            </p>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </DataCard>
+
+          <ManualPriceTracker />
         </>
       ) : activeTab === "landtop" ? (
         <DataCard className="relative overflow-hidden border-0 bg-gradient-to-br from-sky-50 to-indigo-50 p-6 shadow-sm ring-1 ring-inset ring-sky-100/50 backdrop-blur-3xl dark:from-sky-950/40 dark:to-indigo-950/40 dark:ring-sky-900/20">
@@ -3099,6 +3155,8 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
           onResetChannels={handleResetTubeChannels}
           onRefresh={() => void loadTube()}
         />
+      ) : activeTab === "image-voice-video" ? (
+        <ImageVoiceVideoTool />
       ) : (
         <FengbroFinanceSection
           result={financeResult}

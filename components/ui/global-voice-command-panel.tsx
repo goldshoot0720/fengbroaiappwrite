@@ -101,7 +101,8 @@ const MODULE_VOICE_META: Record<string, { name: string; aliases: string[] }> = {
   podcast: { name: zh.podcast, aliases: [zh.podcast, "\u64ad\u5ba2", "\u97f3\u8a0a", "\u7bc0\u76ee", "podcast"] },
   "bank-stats": { name: zh.bank, aliases: [zh.bank, "\u9280\u884c", "\u8ca1\u52d9", "\u5e33\u6236", "\u9280\u884c\u7d71\u8a08", "\u8cc7\u91d1", "bank", "finance"] },
   routine: { name: zh.routine, aliases: [zh.routine, "\u4f8b\u884c", "\u884c\u7a0b", "\u5f85\u8fa6", "\u7fd2\u6163", "\u4f8b\u884c\u516c\u4e8b", "routine", "habit"] },
-  tools: { name: zh.tools, aliases: [zh.tools, "\u5de5\u5177", "\u6bd4\u50f9", "\u5c0f\u5de5\u5177", "\u67e5\u50f9", "tools", "tool"] },
+  tools: { name: zh.tools, aliases: [zh.tools, "\u5de5\u5177", "\u6bd4\u50f9", "\u5c0f\u5de5\u5177", "\u67e5\u50f9", "\u5716\u7247\u8a9e\u97f3", "\u5716\u7247\u8a9e\u97f3\u5f71\u7247", "tools", "tool"] },
+  "image-voice-video": { name: "\u5716\u7247\u8a9e\u97f3\u5f71\u7247", aliases: ["\u5716\u7247\u8a9e\u97f3\u5f71\u7247", "\u5716\u7247\u8a9e\u97f3", "\u5716\u52a0\u8072", "image voice video", "ivv"] },
   settings: { name: zh.settings, aliases: [zh.settings, "\u8a2d\u5b9a", "\u8a2d\u7f6e", "\u914d\u7f6e", "\u7cfb\u7d71\u8a2d\u5b9a", "settings", "config"] },
   about: { name: zh.about, aliases: [zh.about, "\u95dc\u65bc", "\u8aaa\u660e", "\u5c08\u6848\u8aaa\u660e", "about"] },
 };
@@ -194,6 +195,11 @@ const moduleActions: Record<string, VoiceAction[]> = {
   tools: [
     { key: "tools-compare", aliases: /\u6bd4\u50f9|\u50f9\u683c|\u641c\u50f9|compare/, labels: ["\u6bd4\u50f9", "\u641c\u50f9", "\u67e5\u8a62"], risk: "safe", summary: "Run or focus price comparison tool." },
     { key: "tools-open", aliases: /\u6253\u958b|\u958b\u555f|open/, labels: ["\u6253\u958b", "\u958b\u555f"], risk: "review", summary: "Open visible tool link if available." },
+    { key: "tools-ivv", aliases: /\u5716\u7247\u8a9e\u97f3|\u5716\u52a0\u8072|\u751f\u6210\u5f71\u7247|image.?voice/, labels: ["\u5716\u7247\u8a9e\u97f3\u5f71\u7247", "\u751f\u6210\u5f71\u7247"], risk: "review", summary: "Open image+voice video tool or generate video." },
+  ],
+  "image-voice-video": [
+    { key: "ivv-generate", aliases: /\u751f\u6210|\u958b\u59cb|\u4e0a\u50b3\u66ab\u5b58|generate/, labels: ["\u751f\u6210\u5f71\u7247", "\u751f\u6210"], risk: "review", summary: "Generate image+voice video and upload temp file." },
+    { key: "ivv-download", aliases: /\u4e0b\u8f09|download/, labels: ["\u4e0b\u8f09"], risk: "safe", summary: "Download generated video if available." },
   ],
   settings: [
     { key: "settings-save", aliases: /\u5132\u5b58|\u4fdd\u5b58|save/, labels: ["\u5132\u5b58", "\u4fdd\u5b58"], risk: "review", summary: "Save settings. Review current settings before confirming." },

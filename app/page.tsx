@@ -17,6 +17,7 @@ import {
   Play,
   Podcast,
   Landmark,
+  Clapperboard,
   Settings,
   Smartphone,
   Star,
@@ -113,6 +114,7 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "landtop", label: "手機比價", icon: <Smartphone size={18} /> },
       { id: "fengbro-tube", label: "鋒兄Tube", icon: <Play size={18} /> },
       { id: "fengbro-finance", label: "鋒兄金融", subtitle: "CNBC 報價", icon: <Landmark size={18} /> },
+      { id: "image-voice-video", label: "圖片語音影片", subtitle: "圖+聲=影", icon: <Clapperboard size={18} /> },
     ],
   },
   { id: "settings", label: "鋒兄設定", icon: <Settings size={18} /> },
@@ -192,6 +194,8 @@ export default function DashboardPage() {
         return <ToolsManagement initialTab="fengbro-tube" />;
       case "fengbro-finance":
         return <ToolsManagement initialTab="fengbro-finance" />;
+      case "image-voice-video":
+        return <ToolsManagement initialTab="image-voice-video" />;
       case "settings":
         return <SettingsManagement />;
       case "about":

@@ -20,7 +20,7 @@ const topLevelMenus = [
 ];
 
 // 鋒兄工具子選單
-const toolsChildren = [/鋒兄比價/, /手機比價/, /鋒兄Tube/, /鋒兄金融/];
+const toolsChildren = [/鋒兄比價/, /手機比價/, /鋒兄Tube/, /鋒兄金融/, /圖片語音影片/];
 
 async function getDesktopSidebar(page) {
   const sidebar = page.locator("aside").filter({ has: page.getByText("Design Mode") }).first();

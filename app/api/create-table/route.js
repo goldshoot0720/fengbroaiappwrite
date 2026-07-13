@@ -186,6 +186,18 @@ const TABLE_SCHEMAS = {
       { key: 'suggestedPrice', type: 'integer', required: false },
       { key: 'snapshotDate', type: 'datetime', required: true }
     ]
+  },
+  // 鋒兄比價：使用者手動商品與價格紀錄（records 以 JSON 字串存放）
+  manualprice: {
+    name: "manualprice",
+    attributes: [
+      { key: 'name', type: 'string', size: 200, required: true },
+      { key: 'shop', type: 'string', size: 100, required: false },
+      { key: 'note', type: 'string', size: 500, required: false },
+      { key: 'currency', type: 'string', size: 20, required: false },
+      { key: 'recordsJson', type: 'string', size: 20000, required: false },
+      { key: 'localId', type: 'string', size: 100, required: false }
+    ]
   }
 };
 
