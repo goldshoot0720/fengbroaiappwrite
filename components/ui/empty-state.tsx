@@ -20,16 +20,16 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <div className={cn("text-center py-8 sm:py-12", className)}>
+    <div className={cn("py-8 text-center sm:py-12", className)}>
       <div className="flex flex-col items-center gap-3">
         {(icon || emoji) && (
-          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--line-soft)] bg-muted sm:h-16 sm:w-16">
             {icon || <span className="text-2xl sm:text-3xl">{emoji}</span>}
           </div>
         )}
-        <p className="text-gray-500 dark:text-gray-400 font-medium">{title}</p>
+        <p className="font-medium text-foreground">{title}</p>
         {description && (
-          <p className="text-sm text-gray-400 dark:text-gray-500">{description}</p>
+          <p className="max-w-md text-sm text-muted-foreground">{description}</p>
         )}
         {action && <div className="mt-2">{action}</div>}
       </div>

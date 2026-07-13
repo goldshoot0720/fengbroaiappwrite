@@ -68,7 +68,7 @@ export function VideoScreenshotButton({ videoTitle, onScreenshotTaken }: VideoSc
 
         // Show success message
         const message = document.createElement('div');
-        message.className = 'fixed top-20 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[101] flex items-center gap-2 animate-in fade-in slide-in-from-top duration-300';
+        message.className = 'fixed top-20 left-1/2 z-[var(--z-toast)] flex -translate-x-1/2 transform items-center gap-2 rounded-lg bg-success px-6 py-3 text-success-foreground shadow-lg animate-in fade-in slide-in-from-top duration-300';
         message.innerHTML = `
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>

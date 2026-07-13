@@ -406,32 +406,32 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         </DataCard>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-          <DataCard className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border-blue-100 dark:border-blue-800">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+          <DataCard className="surface-raised border-[var(--line-soft)] p-6">
+            <div className="mb-6 flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[var(--shadow-soft)]">
                 <Zap size={24} />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">精美介紹</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">鋒兄管理資訊系統核心架構</p>
+                <h2 className="font-display text-xl font-semibold text-foreground">精美介紹</h2>
+                <p className="text-sm text-muted-foreground">鋒兄管理資訊系統核心架構</p>
               </div>
             </div>
             
             <div className="space-y-4">
-              <IntroItem icon={Cloud} label="網頁部署" value="Vercel 雲端空間" color="text-blue-600" />
-              <IntroItem icon={Layout} label="前端框架" value="Next.js (基於 React)" color="text-indigo-600" />
-              <IntroItem icon={Server} label="後端服務" value="Appwrite (BaaS 解決方案)" color="text-pink-600" />
-              <IntroItem icon={FileVideo} label="多媒體儲存" value="Appwrite Storage (圖片/音樂/影片/文件)" color="text-orange-600" />
+              <IntroItem icon={Cloud} label="網頁部署" value="Vercel 雲端空間" color="text-[var(--accent-strong)]" />
+              <IntroItem icon={Layout} label="前端框架" value="Next.js (基於 React)" color="text-[var(--chart-2)]" />
+              <IntroItem icon={Server} label="後端服務" value="Appwrite (BaaS 解決方案)" color="text-[var(--chart-5)]" />
+              <IntroItem icon={FileVideo} label="多媒體儲存" value="Appwrite Storage (圖片/音樂/影片/文件)" color="text-[var(--chart-4)]" />
             </div>
           </DataCard>
 
-          <DataCard className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border-purple-100 dark:border-purple-800 flex flex-col justify-center">
-            <div className="text-center space-y-4">
-              <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-xl rotate-3 hover:rotate-0 transition-transform duration-300">
-                <span className="text-white font-bold text-3xl">鋒</span>
+          <DataCard className="surface-raised flex flex-col justify-center border-[var(--line-soft)] p-6">
+            <div className="space-y-4 text-center">
+              <div className="mx-auto mb-4 flex h-20 w-20 rotate-3 items-center justify-center rounded-3xl bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] shadow-[var(--shadow-strong)] transition-impeccable hover:rotate-0">
+                <span className="text-3xl font-bold text-[var(--accent-foreground)]">鋒</span>
               </div>
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">本網站建置</h3>
-              <p className="text-gray-600 dark:text-gray-300 leading-relaxed max-w-sm mx-auto">
+              <h3 className="font-display text-2xl font-semibold text-foreground">本網站建置</h3>
+              <p className="mx-auto max-w-sm leading-relaxed text-muted-foreground">
                 透過現代化的技術棧，為您提供極致流暢且安全的資訊管理體驗。
               </p>
             </div>
@@ -534,17 +534,17 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
 
       {/* 通知權限提示（桌面或已安裝 PWA） */}
       {notificationPermission === "default" && !permissionDismissed && (
-        <DataCard className="p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500">
+        <DataCard className="border-l-4 border-[var(--info)] bg-info/10 p-4 dark:bg-info/15">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-              <BellRing className="text-blue-600 dark:text-blue-400" size={20} />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-info/15">
+              <BellRing className="text-info" size={20} />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              <p className="text-sm font-medium text-foreground">
                 啟用通知，訂閱到期、食品過期時即時提醒
               </p>
               {isIOS && (
-                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   點下方按鈕後，請在彈出視窗中選擇「允許」
                 </p>
               )}
@@ -552,11 +552,11 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
             <div className="flex items-center gap-2">
               <button
                 onClick={handleRequestPermission}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-impeccable hover:bg-primary/90"
               >
                 啟用通知
               </button>
-              <button onClick={handleDismissBanner} className="p-2 text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors" title="關閉提示">
+              <button onClick={handleDismissBanner} className="p-2 text-muted-foreground transition-impeccable hover:text-foreground" title="關閉提示">
                 <X size={16} />
               </button>
             </div>
@@ -623,30 +623,30 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       
       {/* 主要統計卡片 */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard title="訂閱服務" value={stats.totalSubscriptions} icon={CreditCard} gradient="from-green-500 to-green-600" />
-        <StatCard title="年費總計" value={formatCurrency(stats.totalAnnualFee)} icon={DollarSign} gradient="from-purple-500 to-purple-600" />
-        <StatCard title="食品項目" value={stats.totalFoods} icon={Package} gradient="from-blue-500 to-blue-600" />
-        <StatCard title="需要關注" value={stats.foodsExpiring7Days + stats.subscriptionsExpiring3Days} icon={AlertTriangle} gradient="from-yellow-500 to-orange-500" />
+        <StatCard title="訂閱服務" value={stats.totalSubscriptions} icon={CreditCard} />
+        <StatCard title="年費總計" value={formatCurrency(stats.totalAnnualFee)} icon={DollarSign} />
+        <StatCard title="食品項目" value={stats.totalFoods} icon={Package} />
+        <StatCard title="需要關注" value={stats.foodsExpiring7Days + stats.subscriptionsExpiring3Days} icon={AlertTriangle} gradient="from-[var(--warning)] to-[var(--chart-5)]" />
       </div>
 
       {/* 其他統計 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        <StatCard title="筆記總數" value={stats.totalArticles} icon={FileText} gradient="from-indigo-500 to-indigo-600" />
-        <StatCard title="常用帳號總數" value={stats.totalCommonAccounts} icon={Star} gradient="from-pink-500 to-pink-600" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+        <StatCard title="筆記總數" value={stats.totalArticles} icon={FileText} />
+        <StatCard title="常用帳號總數" value={stats.totalCommonAccounts} icon={Star} />
       </div>
 
       {/* 多媒體統計 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <StatCard title="音樂總數" value={mediaStats.totalMusic} icon={Music} gradient="from-violet-500 to-violet-600" />
-        <StatCard title="文件總數" value={mediaStats.totalDocuments} icon={FileText} gradient="from-green-500 to-green-600" />
-        <StatCard title="播客總數" value={mediaStats.totalPodcasts} icon={Mic} gradient="from-orange-500 to-orange-600" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <StatCard title="音樂總數" value={mediaStats.totalMusic} icon={Music} />
+        <StatCard title="文件總數" value={mediaStats.totalDocuments} icon={FileText} />
+        <StatCard title="播客總數" value={mediaStats.totalPodcasts} icon={Mic} />
       </div>
 
       {/* 銀行統計 + 例行統計 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <StatCard title="銀行總數" value={stats.totalBanks} icon={Building2} gradient="from-cyan-500 to-cyan-600" />
-        <StatCard title="銀行存款" value={formatCurrency(stats.totalBankDeposit)} icon={Building2} gradient="from-emerald-500 to-emerald-600" />
-        <StatCard title="例行數量" value={stats.totalRoutines} icon={CalendarClock} gradient="from-purple-500 to-purple-600" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <StatCard title="銀行總數" value={stats.totalBanks} icon={Building2} />
+        <StatCard title="銀行存款" value={formatCurrency(stats.totalBankDeposit)} icon={Building2} />
+        <StatCard title="例行數量" value={stats.totalRoutines} icon={CalendarClock} />
       </div>
 
       {/* 提醒和建議 */}

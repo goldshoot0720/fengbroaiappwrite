@@ -1,6 +1,19 @@
 import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -45,7 +58,11 @@ export default function RootLayout({
   const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 
   return (
-    <html lang="zh-TW" className="scroll-smooth" suppressHydrationWarning>
+    <html
+      lang="zh-TW"
+      className={`scroll-smooth ${geistSans.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/apple-touch-icon.png" type="image/png" sizes="180x180" />
@@ -57,6 +74,12 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        {/* FOUC-safe theme + density boot — isolated from SW/VAPID IIFE */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('ui-theme')||'system';var d=localStorage.getItem('ui-density')||'comfortable';var r=document.documentElement;r.classList.remove('light','dark');if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.classList.add(t);if(d==='compact'||d==='comfortable'){r.dataset.density=d;}else{r.dataset.density='comfortable';}}catch(e){}})();`,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -211,8 +234,13 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="safe-area-inset antialiased">
-        <ThemeProvider defaultTheme="system" storageKey="ui-theme">
+      <body className="safe-area-inset antialiased font-sans">
+        <ThemeProvider
+          defaultTheme="system"
+          defaultDensity="comfortable"
+          storageKey="ui-theme"
+          densityStorageKey="ui-density"
+        >
           {children}
         </ThemeProvider>
       </body>

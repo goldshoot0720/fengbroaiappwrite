@@ -5,6 +5,7 @@ import { SubSectionHeader } from "./section-header";
 
 interface FormCardProps {
   title: string | React.ReactNode;
+  /** @deprecated Brand rail is gold by default; gradient class strings are ignored for Impeccable shell. */
   accentColor?: string;
   children: React.ReactNode;
   className?: string;
@@ -12,19 +13,19 @@ interface FormCardProps {
 
 export function FormCard({
   title,
-  accentColor = "from-blue-500 to-blue-600",
+  accentColor: _accentColor,
   children,
   className,
 }: FormCardProps) {
   return (
     <div
       className={cn(
-        "bg-white dark:bg-gray-800 p-4 lg:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700",
+        "surface-raised rounded-xl p-4 sm:rounded-2xl lg:p-6",
         className
       )}
     >
-      {typeof title === 'string' ? (
-        <SubSectionHeader title={title} accentColor={accentColor} />
+      {typeof title === "string" ? (
+        <SubSectionHeader title={title} />
       ) : (
         <div className="mb-4">{title}</div>
       )}
@@ -49,7 +50,7 @@ export function FormGrid({ children, columns = 4, className }: FormGridProps) {
   };
 
   return (
-    <div className={cn("grid gap-4", gridCols[columns], className)}>
+    <div className={cn("grid gap-stack", gridCols[columns], className)}>
       {children}
     </div>
   );
@@ -63,7 +64,12 @@ interface FormActionsProps {
 
 export function FormActions({ children, className }: FormActionsProps) {
   return (
-    <div className={cn("mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center [&>*]:w-full sm:[&>*]:w-auto", className)}>
+    <div
+      className={cn(
+        "mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center [&>*]:w-full sm:[&>*]:w-auto",
+        className
+      )}
+    >
       {children}
     </div>
   );

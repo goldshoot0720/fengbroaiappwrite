@@ -1,9 +1,8 @@
 "use client";
 
-import { Moon, Sun, Monitor } from "lucide-react";
+import { Moon, Sun, Monitor, Rows3, StretchHorizontal } from "lucide-react";
 import { useTheme } from "@/components/providers/theme-provider";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -46,12 +45,12 @@ export function ThemeToggle() {
         variant="outline"
         size="sm"
         onClick={toggleTheme}
-        className="w-auto px-3 py-2 h-auto bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200"
+        className="h-auto w-auto border-[var(--line-strong)] bg-[color:var(--panel-strong)] px-3 py-2 transition-impeccable hover:bg-muted"
         title={`當前: ${getLabel()}, 點擊切換`}
       >
         <div className="flex items-center gap-2">
           {getIcon()}
-          <span className="text-xs font-medium hidden sm:inline">
+          <span className="hidden text-xs font-medium sm:inline">
             {getLabel()}
           </span>
         </div>
@@ -89,10 +88,38 @@ export function ThemeToggleCompact() {
       variant="ghost"
       size="sm"
       onClick={toggleTheme}
-      className="w-9 h-9 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
+      className="h-9 w-9 p-0 transition-impeccable hover:bg-muted"
       title={`切換主題 (當前: ${theme === "light" ? "淺色" : theme === "dark" ? "暗黑" : "系統"})`}
     >
       {getIcon()}
+    </Button>
+  );
+}
+
+/** Density toggle for Design Mode card (comfortable | compact) */
+export function DensityToggleCompact() {
+  const { density, setDensity } = useTheme();
+  const isCompact = density === "compact";
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setDensity(isCompact ? "comfortable" : "compact")}
+      className="h-9 w-9 p-0 transition-impeccable hover:bg-muted"
+      title={
+        isCompact
+          ? "目前：緊湊密度，點擊切換為舒適"
+          : "目前：舒適密度，點擊切換為緊湊"
+      }
+      aria-label={isCompact ? "切換為舒適密度" : "切換為緊湊密度"}
+      aria-pressed={isCompact}
+    >
+      {isCompact ? (
+        <Rows3 className="h-4 w-4" />
+      ) : (
+        <StretchHorizontal className="h-4 w-4" />
+      )}
     </Button>
   );
 }

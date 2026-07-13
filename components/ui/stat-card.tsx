@@ -45,7 +45,7 @@ export function StatCard({
           <p className="text-[11px] uppercase tracking-[0.26em] text-[var(--muted-foreground)]">
             {title}
           </p>
-          <p className="mt-3 break-words font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">
+          <p className="tabular-nums mt-3 break-words font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">
             {value}
           </p>
         </div>

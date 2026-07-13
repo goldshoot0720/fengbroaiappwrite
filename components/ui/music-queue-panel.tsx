@@ -116,7 +116,7 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
   }
 
   return (
-    <div className="fixed bottom-20 right-3 z-50 md:right-3 md:top-20 md:bottom-auto xl:right-4">
+    <div className="fixed bottom-20 right-3 z-[var(--z-dock)] md:right-3 md:top-20 md:bottom-auto xl:right-4">
       {/* 音頻元素 */}
       <audio 
         ref={audioRef} 

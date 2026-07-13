@@ -96,7 +96,7 @@ export function ImageEditor({ imageUrl, onSave, onCancel, fileName = 'edited-ima
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 z-50 flex flex-col">
+    <div className="fixed inset-0 z-[var(--z-modal)] flex flex-col bg-black/90">
       {/* Toolbar */}
       <div className="flex items-center justify-between p-4 bg-gray-900 border-b border-gray-700">
         <h3 className="text-white font-medium">圖片編輯</h3>

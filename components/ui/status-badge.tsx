@@ -2,7 +2,13 @@
 
 import { cn } from "@/lib/utils";
 
-type StatusType = "expired" | "urgent" | "warning" | "normal" | "success" | "info";
+type StatusType =
+  | "expired"
+  | "urgent"
+  | "warning"
+  | "normal"
+  | "success"
+  | "info";
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -12,12 +18,16 @@ interface StatusBadgeProps {
 }
 
 const statusStyles: Record<StatusType, string> = {
-  expired: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  urgent: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-  warning: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  normal: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
-  success: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  info: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  expired:
+    "bg-destructive/12 text-destructive dark:bg-destructive/20 dark:text-destructive",
+  urgent:
+    "bg-warning/20 text-warning-foreground dark:bg-warning/15 dark:text-warning",
+  warning:
+    "bg-warning/15 text-warning-foreground dark:bg-warning/12 dark:text-warning",
+  normal: "bg-muted text-muted-foreground",
+  success:
+    "bg-success/12 text-success dark:bg-success/15 dark:text-success",
+  info: "bg-info/12 text-info dark:bg-info/15 dark:text-info",
 };
 
 const sizeStyles = {
@@ -26,11 +36,16 @@ const sizeStyles = {
   lg: "px-3 py-1.5 text-base",
 };
 
-export function StatusBadge({ status, children, className, size = "sm" }: StatusBadgeProps) {
+export function StatusBadge({
+  status,
+  children,
+  className,
+  size = "sm",
+}: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center font-medium rounded-full",
+        "inline-flex items-center rounded-full font-medium",
         statusStyles[status],
         sizeStyles[size],
         className
@@ -41,23 +56,24 @@ export function StatusBadge({ status, children, className, size = "sm" }: Status
   );
 }
 
-// 狀態指示點
 interface StatusDotProps {
   status: StatusType;
   className?: string;
 }
 
 const dotStyles: Record<StatusType, string> = {
-  expired: "bg-red-500",
-  urgent: "bg-orange-500",
-  warning: "bg-yellow-500",
-  normal: "bg-gray-400",
-  success: "bg-green-500",
-  info: "bg-blue-500",
+  expired: "bg-destructive",
+  urgent: "bg-warning",
+  warning: "bg-warning",
+  normal: "bg-muted-foreground/50",
+  success: "bg-success",
+  info: "bg-info",
 };
 
 export function StatusDot({ status, className }: StatusDotProps) {
   return (
-    <span className={cn("w-2 h-2 rounded-full", dotStyles[status], className)} />
+    <span
+      className={cn("h-2 w-2 rounded-full", dotStyles[status], className)}
+    />
   );
 }

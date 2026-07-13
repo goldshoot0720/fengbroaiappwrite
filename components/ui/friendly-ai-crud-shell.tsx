@@ -201,7 +201,7 @@ export function FriendlyAiCrudShell({
 
               {/* ── Recent searches dropdown ── */}
               {isRecentOpen && recentSearches.length > 0 && (
-                <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-[420px] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 shadow-xl backdrop-blur-lg dark:border-slate-700 dark:bg-slate-900/95">
+                <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[420px] overflow-y-auto rounded-2xl border border-[var(--line-soft)] bg-[color:var(--panel-strong)] shadow-xl backdrop-blur-lg">
                   {/* Header */}
                   <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-2.5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">

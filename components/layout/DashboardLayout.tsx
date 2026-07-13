@@ -15,7 +15,10 @@ import { BirthdayEasterEgg } from "@/components/ui/birthday-easter-egg";
 import { GlobalVoiceCommandPanel } from "@/components/ui/global-voice-command-panel";
 import { MusicQueuePanel } from "@/components/ui/music-queue-panel";
 import { PodcastQueuePanel } from "@/components/ui/podcast-queue-panel";
-import { ThemeToggleCompact } from "@/components/ui/theme-toggle";
+import {
+  DensityToggleCompact,
+  ThemeToggleCompact,
+} from "@/components/ui/theme-toggle";
 import EnhancedScrollNavigation from "@/components/ui/enhanced-scroll-navigation";
 import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { cn } from "@/lib/utils";
@@ -138,7 +141,7 @@ export default function DashboardLayout({
                   <BirthdayEasterEgg inline />
                 </div>
               )}
-              <div className="surface-panel rounded-[24px] p-3 sm:p-4 md:rounded-[28px] md:p-5 xl:rounded-[32px] xl:p-8">
+              <div className="surface-panel pad-panel rounded-[24px] md:rounded-[28px] xl:rounded-[32px]">
                 {children}
               </div>
             </div>
@@ -146,15 +149,20 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      <MusicQueuePanel />
-      <PodcastQueuePanel />
-      <VideoQueuePanel />
-      <GlobalVoiceCommandPanel
-        currentModule={currentModule}
-        menuItems={menuItems}
-        onNavigate={onModuleChange}
-      />
-      <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} />
+      <div
+        className={cn(isSidebarOpen && isMobile && "pointer-events-none")}
+        {...(isSidebarOpen && isMobile ? { inert: true as unknown as boolean } : {})}
+      >
+        <MusicQueuePanel />
+        <PodcastQueuePanel />
+        <VideoQueuePanel />
+        <GlobalVoiceCommandPanel
+          currentModule={currentModule}
+          menuItems={menuItems}
+          onNavigate={onModuleChange}
+        />
+        <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} />
+      </div>
     </div>
   );
 }
@@ -178,7 +186,7 @@ function MobileHeader({
   onToggle: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/90 px-3 py-3.5 backdrop-blur-xl md:hidden">
+    <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/90 px-3 py-3.5 backdrop-blur-xl md:hidden">
       <div className="mx-auto flex max-w-[1680px] items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
@@ -192,6 +200,9 @@ function MobileHeader({
             variant="ghost"
             size="icon"
             onClick={onToggle}
+            aria-expanded={isSidebarOpen}
+            aria-controls="mobile-sidebar"
+            aria-label={isSidebarOpen ? "關閉選單" : "開啟選單"}
             className="rounded-full border border-[var(--line-strong)] bg-white/60 text-[var(--foreground)] hover:bg-white dark:bg-white/5 dark:hover:bg-white/10"
           >
             {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
@@ -219,13 +230,16 @@ function DesktopSidebar({
         <BrandBlock />
 
         <div className="mt-5 flex items-center gap-3 rounded-[22px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5">
-          <ThemeToggleCompact />
+          <div className="flex items-center gap-1">
+            <ThemeToggleCompact />
+            <DensityToggleCompact />
+          </div>
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
+            <p className="text-micro text-[var(--muted-foreground)]">
               Design Mode
             </p>
             <p className="mt-1 truncate text-sm font-medium text-[var(--foreground)]">
-              Impeccable 2026
+              Impeccable 2026–27
             </p>
           </div>
         </div>
@@ -344,12 +358,15 @@ function MobileSidebar({
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-[var(--z-drawer-open)] md:hidden">
       <div
         className="absolute inset-0 bg-[rgba(17,23,20,0.32)] backdrop-blur-sm"
         onClick={onClose}
       />
-      <aside className="surface-panel absolute inset-y-0 left-0 flex w-[90vw] max-w-[380px] flex-col rounded-r-[32px] border-l-0 p-4">
+      <aside
+        id="mobile-sidebar"
+        className="surface-floating absolute inset-y-0 left-0 flex w-[90vw] max-w-[380px] flex-col rounded-r-[32px] border-l-0 p-4"
+      >
         <div className="flex items-center justify-between">
           <BrandBlock />
           <Button
@@ -570,11 +587,13 @@ function MenuItemComponent({
   return (
     <div className={cn(level > 0 && "pl-4")}>
       <button
+        type="button"
         onClick={() => onMenuClick(item)}
+        aria-current={!hasChildren && isActive ? "page" : undefined}
         className={cn(
-          "group flex w-full items-center justify-between rounded-[22px] px-3 py-3 text-left transition-all duration-200",
+          "nav-item group flex w-full items-center justify-between rounded-[22px] px-3 text-left transition-impeccable",
           isActive || isChildActive
-            ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_36px_rgba(199,149,65,0.25)]"
+            ? "nav-item-active"
             : "bg-transparent text-[var(--muted-foreground)] hover:bg-white/60 hover:text-[var(--foreground)] dark:hover:bg-white/5",
           isMobile && "min-h-12"
         )}

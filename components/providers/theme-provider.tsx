@@ -1,67 +1,130 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 type Theme = "dark" | "light" | "system";
+type Density = "comfortable" | "compact";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
   defaultTheme?: Theme;
+  defaultDensity?: Density;
   storageKey?: string;
+  densityStorageKey?: string;
 };
 
 type ThemeProviderState = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  density: Density;
+  setDensity: (density: Density) => void;
 };
 
 const initialState: ThemeProviderState = {
   theme: "system",
   setTheme: () => null,
+  density: "comfortable",
+  setDensity: () => null,
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+function applyThemeClass(theme: Theme) {
+  const root = window.document.documentElement;
+  root.classList.remove("light", "dark");
+
+  if (theme === "system") {
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+      .matches
+      ? "dark"
+      : "light";
+    root.classList.add(systemTheme);
+    return;
+  }
+
+  root.classList.add(theme);
+}
+
+function applyDensity(density: Density) {
+  window.document.documentElement.dataset.density = density;
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = "system",
+  defaultDensity = "comfortable",
   storageKey = "ui-theme",
+  densityStorageKey = "ui-density",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
+  const [theme, setThemeState] = useState<Theme>(defaultTheme);
+  const [density, setDensityState] = useState<Density>(defaultDensity);
 
   useEffect(() => {
-    // 初始化時從 localStorage 讀取主題
-    const storedTheme = localStorage?.getItem(storageKey) as Theme;
-    if (storedTheme) {
-      setTheme(storedTheme);
+    try {
+      const storedTheme = localStorage.getItem(storageKey) as Theme | null;
+      if (storedTheme === "dark" || storedTheme === "light" || storedTheme === "system") {
+        setThemeState(storedTheme);
+      }
+      const storedDensity = localStorage.getItem(densityStorageKey) as Density | null;
+      if (storedDensity === "comfortable" || storedDensity === "compact") {
+        setDensityState(storedDensity);
+      }
+    } catch {
+      /* ignore */
     }
-  }, [storageKey]);
+  }, [storageKey, densityStorageKey]);
 
   useEffect(() => {
-    const root = window.document.documentElement;
+    applyThemeClass(theme);
 
-    root.classList.remove("light", "dark");
+    if (theme !== "system") return;
 
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light";
-
-      root.classList.add(systemTheme);
-      return;
-    }
-
-    root.classList.add(theme);
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyThemeClass("system");
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, [theme]);
 
-  const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      localStorage?.setItem(storageKey, theme);
-      setTheme(theme);
+  useEffect(() => {
+    applyDensity(density);
+  }, [density]);
+
+  const setTheme = useCallback(
+    (next: Theme) => {
+      try {
+        localStorage.setItem(storageKey, next);
+      } catch {
+        /* ignore */
+      }
+      setThemeState(next);
     },
+    [storageKey],
+  );
+
+  const setDensity = useCallback(
+    (next: Density) => {
+      try {
+        localStorage.setItem(densityStorageKey, next);
+      } catch {
+        /* ignore */
+      }
+      setDensityState(next);
+    },
+    [densityStorageKey],
+  );
+
+  const value: ThemeProviderState = {
+    theme,
+    setTheme,
+    density,
+    setDensity,
   };
 
   return (
@@ -79,3 +142,5 @@ export const useTheme = () => {
 
   return context;
 };
+
+export type { Theme, Density };
