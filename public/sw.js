@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v10';
+const CACHE_NAME = 'fengbro-ai-v11';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -107,7 +107,7 @@ async function checkExpiryBackground() {
     const data = await response.json();
     const { expiringSubscriptions = [], expiringFoods = [] } = data;
 
-    // 訂閱即將到期通知
+    // 訂閱即將到期通知（0–7 天，與 push-send / policy 一致）
     for (const item of expiringSubscriptions) {
       const label = item.daysLeft === 0 ? '今天到期！' : `${item.daysLeft} 天後到期`;
       await self.registration.showNotification('📅 訂閱到期提醒', {
@@ -120,7 +120,7 @@ async function checkExpiryBackground() {
       });
     }
 
-    // 食品即將過期通知
+    // 食品即將過期通知（0–7 天）
     for (const item of expiringFoods) {
       const label = item.daysLeft === 0 ? '今天過期！' : `${item.daysLeft} 天後過期`;
       await self.registration.showNotification('🍱 食品過期提醒', {

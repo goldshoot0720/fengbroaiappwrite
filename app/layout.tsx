@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { ServiceWorkerBootstrap } from "@/components/providers/ServiceWorkerBootstrap";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -55,8 +56,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-
   return (
     <html
       lang="zh-TW"
@@ -74,163 +73,10 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        {/* FOUC-safe theme + density boot — isolated from SW/VAPID IIFE */}
+        {/* FOUC-safe theme + density boot */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('ui-theme')||'system';var d=localStorage.getItem('ui-density')||'comfortable';var r=document.documentElement;r.classList.remove('light','dark');if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.classList.add(t);if(d==='compact'||d==='comfortable'){r.dataset.density=d;}else{r.dataset.density='comfortable';}}catch(e){}})();`,
-          }}
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              var VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
-
-              function getRuntimeVapidPublicKey() {
-                try {
-                  return localStorage.getItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY') || VAPID_PUBLIC_KEY || '';
-                } catch (_) {
-                  return VAPID_PUBLIC_KEY || '';
-                }
-              }
-
-              function urlBase64ToUint8Array(base64String) {
-                var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-                var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-                var rawData = window.atob(base64);
-                return Uint8Array.from(rawData, function(char) {
-                  return char.charCodeAt(0);
-                });
-              }
-
-              function isSameApplicationServerKey(subscription, vapidPublicKey) {
-                if (!subscription || !subscription.options || !subscription.options.applicationServerKey) return true;
-                try {
-                  var expected = urlBase64ToUint8Array(vapidPublicKey);
-                  var current = new Uint8Array(subscription.options.applicationServerKey);
-                  if (expected.length !== current.length) return false;
-                  for (var i = 0; i < expected.length; i++) {
-                    if (expected[i] !== current[i]) return false;
-                  }
-                  return true;
-                } catch (_) {
-                  return true;
-                }
-              }
-
-              async function subscribeToPush(registration) {
-                if (!('pushManager' in registration)) return;
-                if (!('Notification' in window)) return;
-                if (Notification.permission !== 'granted') return;
-                var runtimeVapidPublicKey = getRuntimeVapidPublicKey();
-                if (!runtimeVapidPublicKey) return;
-                try {
-                  var sub = await registration.pushManager.getSubscription();
-                  if (sub && !isSameApplicationServerKey(sub, runtimeVapidPublicKey)) {
-                    await sub.unsubscribe();
-                    sub = null;
-                  }
-                  if (!sub) {
-                    sub = await registration.pushManager.subscribe({
-                      userVisibleOnly: true,
-                      applicationServerKey: urlBase64ToUint8Array(runtimeVapidPublicKey),
-                    });
-                  }
-                  if (sub) {
-                    await fetch('/api/push-subscribe', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(sub.toJSON()),
-                    });
-                  }
-                } catch (e) {
-                  console.error('[SW] Push subscribe error:', e);
-                }
-              }
-
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', async function() {
-                  try {
-                    const swVersion = 'v10';
-                    let reloadedForSw = sessionStorage.getItem('fengbro_sw_reloaded') === swVersion;
-
-                    navigator.serviceWorker.addEventListener('controllerchange', function() {
-                      if (reloadedForSw) return;
-                      reloadedForSw = true;
-                      sessionStorage.setItem('fengbro_sw_reloaded', swVersion);
-                      window.location.reload();
-                    });
-
-                    const reg = await navigator.serviceWorker.register('/sw.js?v=' + swVersion, {
-                      scope: '/',
-                      updateViaCache: 'none',
-                    });
-                    await reg.update();
-
-                    function sendConfigToSW(registration) {
-                      const config = {
-                        endpoint: localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT') || '',
-                        projectId: localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID') || '',
-                        databaseId: localStorage.getItem('APPWRITE_DATABASE_ID') || '',
-                        apiKey: localStorage.getItem('APPWRITE_API_KEY') || '',
-                      };
-                      const sw = registration.active || registration.installing || registration.waiting;
-                      if (sw) {
-                        sw.postMessage({ type: 'SAVE_CONFIG', config });
-                      }
-                    }
-
-                    function hasAppwriteConfig() {
-                      return Boolean(
-                        localStorage.getItem('NEXT_PUBLIC_APPWRITE_ENDPOINT') &&
-                        localStorage.getItem('NEXT_PUBLIC_APPWRITE_PROJECT_ID') &&
-                        localStorage.getItem('APPWRITE_DATABASE_ID') &&
-                        localStorage.getItem('APPWRITE_API_KEY')
-                      );
-                    }
-
-                    if (reg.active) {
-                      sendConfigToSW(reg);
-                      if (hasAppwriteConfig()) {
-                        subscribeToPush(reg);
-                      }
-                    } else {
-                      reg.addEventListener('updatefound', () => {
-                        const newWorker = reg.installing;
-                        if (newWorker) {
-                          newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'activated') {
-                              sendConfigToSW(reg);
-                              if (hasAppwriteConfig()) {
-                                subscribeToPush(reg);
-                              }
-                            }
-                          });
-                        }
-                      });
-                    }
-
-                    if (hasAppwriteConfig() && 'periodicSync' in reg) {
-                      try {
-                        const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
-                        if (status.state === 'granted') {
-                          await reg.periodicSync.register('check-expiry', {
-                            minInterval: 12 * 60 * 60 * 1000,
-                          });
-                        }
-                      } catch (e) {}
-                    }
-
-                    if (hasAppwriteConfig() && 'sync' in reg) {
-                      try {
-                        await reg.sync.register('check-expiry-sync');
-                      } catch (e) {}
-                    }
-                  } catch (e) {
-                    console.error('SW registration failed:', e);
-                  }
-                });
-              }
-            `,
           }}
         />
       </head>
@@ -241,6 +87,7 @@ export default function RootLayout({
           storageKey="ui-theme"
           densityStorageKey="ui-density"
         >
+          <ServiceWorkerBootstrap />
           {children}
         </ThemeProvider>
       </body>

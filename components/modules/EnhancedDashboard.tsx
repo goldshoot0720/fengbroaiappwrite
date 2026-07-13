@@ -1,10 +1,12 @@
 "use client";
 
 import NextImage from "next/image";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useMediaStats } from "@/hooks/useMediaStats";
-import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Cloud, Layout, Server, FileVideo, Shield, Zap, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, BellRing, BellOff, X, Download } from "lucide-react";
+import { useNotificationPermission } from "@/hooks/useNotificationPermission";
+import { useExpiryNotifications, sendExpiryOsNotifications } from "@/hooks/useExpiryNotifications";
+import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Cloud, Layout, Server, FileVideo, Shield, Zap, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
@@ -12,6 +14,7 @@ import { StatusDot } from "@/components/ui/status-badge";
 import { PageTitle } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
 import { FaviconImage } from "@/components/ui/favicon-image";
+import { NotificationPermissionBanner } from "@/components/notifications/NotificationPermissionBanner";
 import { formatCurrency, formatDaysRemaining } from "@/lib/formatters";
 import { FoodDetail, SubscriptionDetail } from "@/types";
 import PlumberTycoon from "@/components/modules/PlumberTycoon";
@@ -74,29 +77,25 @@ const FENG_BRO_ASCII_MOBILE = String.raw`
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
   const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats();
   const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats();
-  const notificationSentRef = useRef(false);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
-  const [permissionDismissed, setPermissionDismissed] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  const {
+    permission: notificationPermission,
+    permissionDismissed,
+    dismissBanner,
+    requestPermission,
+    isIOS,
+    isStandalone,
+  } = useNotificationPermission();
   const [tubeRecentVideos, setTubeRecentVideos] = useState<FengbroTubeRecentVideo[]>([]);
   const [tubeNoticeDismissed, setTubeNoticeDismissed] = useState(false);
   const [financeAlerts, setFinanceAlerts] = useState<FinanceAlertNotice[]>([]);
   const [financeAlertsDismissed, setFinanceAlertsDismissed] = useState(false);
 
-  // 偵測環境：iOS、standalone（已安裝 PWA）
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const ua = navigator.userAgent;
-    const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    setIsIOS(ios);
-
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsStandalone(standalone);
-  }, []);
+  useExpiryNotifications({
+    stats,
+    financeAlerts,
+    enabled: !onlyTitle && !loading && !dashboardError,
+    depsKey: `${stats.subscriptionsExpiring3DaysList.length}-${stats.foodsExpiring7DaysList.length}-${stats.expiredFoodsList.length}-${financeAlerts.length}`,
+  });
 
   useEffect(() => {
     if (onlyTitle) return;
@@ -162,190 +161,12 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     } catch {}
   };
 
-  // 檢查通知權限狀態
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof Notification === "undefined") {
-      setNotificationPermission("unsupported");
-      return;
-    }
-    setNotificationPermission(Notification.permission);
-
-    // 檢查是否已經關閉過提示
-    try {
-      const dismissed = window.localStorage.getItem("notificationBannerDismissed");
-      if (dismissed === "true") setPermissionDismissed(true);
-    } catch {}
-  }, []);
-
-  // 透過 Service Worker 發送通知（手機和桌面皆可）
-  const showSwNotification = async (ntTitle: string, options?: NotificationOptions) => {
-    try {
-      if ("serviceWorker" in navigator) {
-        const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification(ntTitle, options);
-        return;
-      }
-    } catch {}
-    // fallback: 桌面直接用 Notification API
-    try { new Notification(ntTitle, options); } catch {}
-  };
-
-  // 請求通知權限，授權後立刻發送實際到期項目通知
   const handleRequestPermission = async () => {
-    if (typeof Notification === "undefined") return;
-    try {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
-      if (permission === "granted") {
-        // 授權後立刻發送實際通知，而非僅顯示確認訊息
-        await sendNotifications();
-      }
-    } catch {}
-  };
-
-  const handleDismissBanner = () => {
-    setPermissionDismissed(true);
-    try {
-      window.localStorage.setItem("notificationBannerDismissed", "true");
-    } catch {}
-  };
-
-  // 發送到期/過期通知的核心函數
-  const sendNotifications = async () => {
-    if (typeof window === "undefined") return;
-    if (typeof Notification === "undefined") return;
-    if (Notification.permission !== "granted") return;
-
-    const now = new Date();
-    if (now.getHours() < 5) return;
-
-    const today = now.toISOString().slice(0, 10);
-    const storageKey = "dashboardNotificationSession";
-    let notified: Record<string, string> = {};
-
-    try {
-      const raw = window.sessionStorage.getItem(storageKey);
-      if (raw) notified = JSON.parse(raw) as Record<string, string>;
-    } catch {}
-
-    const updated = { ...notified };
-    let hasNew = false;
-
-    // 訂閱到期通知
-    const subItems = stats.subscriptionsExpiring3DaysList.filter(
-      (item) => item.daysRemaining >= 0 && item.daysRemaining <= 3
-    );
-    for (const item of subItems) {
-      const key = `sub-${item.id}-${item.nextDate}-${today}`;
-      if (notified[key] !== "shown") {
-        await showSwNotification("訂閱即將到期提醒", {
-          body: `${item.name} 將在 ${item.daysRemaining} 天內到期`,
-          icon: "/favicon.ico",
-          tag: `sub-${item.id}`,
-        });
-        updated[key] = "shown";
-        hasNew = true;
-      }
-    }
-
-    // 食品過期通知
-    const foodItems = stats.foodsExpiring7DaysList.filter(
-      (item) => item.daysRemaining >= 0 && item.daysRemaining <= 3
-    );
-    for (const item of foodItems) {
-      const key = `food-${item.id}-${today}`;
-      if (notified[key] !== "shown") {
-        await showSwNotification("食品即將過期提醒", {
-          body: `${item.name} 將在 ${item.daysRemaining} 天內過期`,
-          icon: "/favicon.ico",
-          tag: `food-${item.id}`,
-        });
-        updated[key] = "shown";
-        hasNew = true;
-      }
-    }
-
-    // 已過期食品通知
-    const expiredFoods = stats.expiredFoodsList.slice(0, 3);
-    for (const item of expiredFoods) {
-      const key = `expired-${item.id}-${today}`;
-      if (notified[key] !== "shown") {
-        await showSwNotification("食品已過期", {
-          body: `${item.name} 已過期 ${Math.abs(item.daysRemaining)} 天`,
-          icon: "/favicon.ico",
-          tag: `expired-${item.id}`,
-        });
-        updated[key] = "shown";
-        hasNew = true;
-      }
-    }
-
-    for (const alert of financeAlerts) {
-      const key = `finance-${alert.id}-${alert.current ?? "na"}-${today}`;
-      if (notified[key] !== "shown") {
-        await showSwNotification(`${alert.name} 突破提醒`, {
-          body: `目前 ${alert.current ?? "--"}${alert.currency ? ` ${alert.currency}` : ""}，已突破 ${alert.threshold}`,
-          icon: "/favicon.ico",
-          tag: `finance-${alert.id}`,
-        });
-        updated[key] = "shown";
-        hasNew = true;
-      }
-    }
-
-    if (hasNew) {
-      try {
-        window.sessionStorage.setItem(storageKey, JSON.stringify(updated));
-      } catch {}
+    const permission = await requestPermission();
+    if (permission === "granted") {
+      await sendExpiryOsNotifications({ stats, financeAlerts });
     }
   };
-
-  // 頁面載入時發送通知
-  useEffect(() => {
-    if (onlyTitle || loading || dashboardError || notificationSentRef.current) return;
-    sendNotifications();
-    notificationSentRef.current = true;
-  }, [loading, dashboardError, onlyTitle, stats.subscriptionsExpiring3DaysList.length, stats.foodsExpiring7DaysList.length, stats.expiredFoodsList.length, financeAlerts.length]);
-
-  // PWA 從背景回到前景時重新檢查通知
-  useEffect(() => {
-    if (onlyTitle) return;
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        notificationSentRef.current = false;
-        if (!loading && !dashboardError) {
-          sendNotifications();
-          notificationSentRef.current = true;
-        }
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [onlyTitle, loading, dashboardError, stats]);
-
-  useEffect(() => {
-    if (onlyTitle || loading || dashboardError) return;
-
-    const scheduleNextDailyCheck = () => {
-      const now = new Date();
-      const next = new Date(now);
-      next.setHours(5, 21, 0, 0);
-      if (next.getTime() <= now.getTime()) {
-        next.setDate(next.getDate() + 1);
-      }
-
-      const timeout = window.setTimeout(() => {
-        notificationSentRef.current = false;
-        void sendNotifications();
-        scheduleNextDailyCheck();
-      }, next.getTime() - now.getTime());
-
-      return timeout;
-    };
-
-    const timeout = scheduleNextDailyCheck();
-    return () => window.clearTimeout(timeout);
-  }, [onlyTitle, loading, dashboardError, stats, financeAlerts.length]);
 
   if (dashboardSetupRequired) {
     return (
@@ -510,80 +331,14 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         </DataCard>
       )}
 
-      {/* iOS 未安裝 PWA 提示 */}
-      {isIOS && !isStandalone && notificationPermission === "unsupported" && !permissionDismissed && (
-        <DataCard className="p-4 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-xl flex items-center justify-center">
-              <Download className="text-amber-600 dark:text-amber-400" size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                要接收通知，請先安裝至主畫面
-              </p>
-              <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                點 Safari 下方「分享」按鈕 → 「加入主畫面」→ 從主畫面開啟後即可啟用通知
-              </p>
-            </div>
-            <button onClick={handleDismissBanner} className="p-2 text-amber-400 hover:text-amber-600 transition-colors" title="關閉提示">
-              <X size={16} />
-            </button>
-          </div>
-        </DataCard>
-      )}
-
-      {/* 通知權限提示（桌面或已安裝 PWA） */}
-      {notificationPermission === "default" && !permissionDismissed && (
-        <DataCard className="border-l-4 border-[var(--info)] bg-info/10 p-4 dark:bg-info/15">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-info/15">
-              <BellRing className="text-info" size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">
-                啟用通知，訂閱到期、食品過期時即時提醒
-              </p>
-              {isIOS && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  點下方按鈕後，請在彈出視窗中選擇「允許」
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleRequestPermission}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-impeccable hover:bg-primary/90"
-              >
-                啟用通知
-              </button>
-              <button onClick={handleDismissBanner} className="p-2 text-muted-foreground transition-impeccable hover:text-foreground" title="關閉提示">
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-        </DataCard>
-      )}
-
-      {/* 通知被拒絕提示 */}
-      {notificationPermission === "denied" && !permissionDismissed && (
-        <DataCard className="p-4 bg-gray-50 dark:bg-gray-800/50 border-l-4 border-gray-400">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center">
-              <BellOff className="text-gray-500 dark:text-gray-400" size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                {isIOS
-                  ? "通知已被拒絕，請至 iOS「設定」→ 找到本 App →「通知」→ 開啟允許通知"
-                  : "通知已被封鎖，請至瀏覽器設定 > 網站權限 > 通知，允許此網站發送通知"}
-              </p>
-            </div>
-            <button onClick={handleDismissBanner} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="關閉提示">
-              <X size={16} />
-            </button>
-          </div>
-        </DataCard>
-      )}
+      <NotificationPermissionBanner
+        permission={notificationPermission}
+        permissionDismissed={permissionDismissed}
+        isIOS={isIOS}
+        isStandalone={isStandalone}
+        onRequestPermission={() => void handleRequestPermission()}
+        onDismiss={dismissBanner}
+      />
 
       <PageTitle title={title} description="鋒兄管理資訊系統 - 數據匯總與分析" />
 

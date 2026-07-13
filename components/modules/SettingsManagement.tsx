@@ -1,14 +1,29 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic } from "lucide-react";
+import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic, Activity, AlertTriangle, Info } from "lucide-react";
 import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useVoicePreferences } from "@/hooks/useVoicePreferences";
 import { clearAllCaches, getAppwriteConfig } from "@/lib/utils";
 import { notifyAppwriteConfigChanged } from "@/hooks/useAppwriteSetup";
+import { useWebPush } from "@/hooks/useWebPush";
 import { formatFileSize } from "@/lib/formatters";
+import {
+  RESEND_SLOT_COUNT,
+  RESEND_DEFAULT_VISIBLE_SLOT_COUNT,
+  RESEND_VISIBLE_SLOT_OPTIONS,
+  RESEND_DEFAULT_FROM,
+  getResendSlotFields,
+  createEmptyResendConfig,
+} from "@/lib/notifications/resendConfig";
+import {
+  runNotificationSelfCheck,
+  type SelfCheckReport,
+  type CheckStatus,
+} from "@/lib/notifications/selfCheck";
+import { API_ENDPOINTS } from "@/lib/constants";
 import packageJson from "@/package.json";
 
 interface CollectionStats {
@@ -44,44 +59,18 @@ interface CreateProgress {
   collectionId?: string;
 }
 
-const RESEND_SLOT_COUNT = 21;
-const RESEND_DEFAULT_VISIBLE_SLOT_COUNT = 3;
-const RESEND_VISIBLE_SLOT_OPTIONS = [3, 6, 9, 12, 15, 18, 21];
-const RESEND_DEFAULT_FROM = 'FengBro <onboarding@resend.dev>';
-
-function getResendSuffix(slot: number) {
-  return slot === 1 ? '' : String(slot);
-}
-
-function getResendSlotFields(slot: number) {
-  const suffix = getResendSuffix(slot);
-  return {
-    apiKey: `apiKey${suffix}`,
-    toEmail: `toEmail${suffix}`,
-    envApiKey: `RESEND_API_KEY${suffix}`,
-    envToEmail: `RESEND_TO_EMAIL${suffix}`,
-    bodyApiKey: `resendApiKey${suffix}`,
-    bodyToEmail: `resendTo${suffix}`,
-  };
-}
-
-function createEmptyResendConfig() {
-  const config: Record<string, string> = {
-    fromEmail: RESEND_DEFAULT_FROM
-  };
-
-  for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
-    const fields = getResendSlotFields(slot);
-    config[fields.apiKey] = '';
-    config[fields.toEmail] = '';
-  }
-
-  return config;
-}
-
 export default function SettingsManagement() {
   const { theme, setTheme } = useTheme();
   const { preferences: voicePreferences, updatePreferences: updateVoicePreferences } = useVoicePreferences();
+  const {
+    notificationPermission,
+    pushSubscribed,
+    pushLoading,
+    enablePush,
+    disablePush,
+  } = useWebPush({
+    envVapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+  });
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
@@ -102,15 +91,14 @@ export default function SettingsManagement() {
   const [resendConfig, setResendConfig] = useState<Record<string, string>>(createEmptyResendConfig);
   const [resendVisibleSlotCount, setResendVisibleSlotCount] = useState(RESEND_DEFAULT_VISIBLE_SLOT_COUNT);
   const [resendTestLoading, setResendTestLoading] = useState(false);
+  const [selfCheckLoading, setSelfCheckLoading] = useState(false);
+  const [selfCheckReport, setSelfCheckReport] = useState<SelfCheckReport | null>(null);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkIsUpdate, setBulkIsUpdate] = useState(false);
   const [bulkQueue, setBulkQueue] = useState<string[]>([]);
   const bulkQueueRef = useRef<string[]>([]);
   const bulkModeRef = useRef(false);
   const bulkIsUpdateRef = useRef(false);
-  const [notificationPermission, setNotificationPermission] = useState<string>('default');
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [pushLoading, setPushLoading] = useState(false);
   const [storageStats, setStorageStats] = useState<any>(null);
   const [cleaningStorage, setCleaningStorage] = useState(false);
   const [scanProgress, setScanProgress] = useState<{
@@ -175,56 +163,6 @@ export default function SettingsManagement() {
     setResendConfig(savedResendConfig);
   }, []);
 
-  const getPushPublicKey = () => {
-    if (typeof window === 'undefined') return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
-    return localStorage.getItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY') || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
-  };
-
-  const urlBase64ToUint8Array = (base64String: string) => {
-    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = window.atob(base64);
-    return Uint8Array.from(rawData, (char) => char.charCodeAt(0));
-  };
-
-  const isSameApplicationServerKey = (subscription: PushSubscription, vapidPublicKey: string) => {
-    const currentKey = subscription.options?.applicationServerKey;
-    if (!currentKey) return true;
-    const expectedKey = urlBase64ToUint8Array(vapidPublicKey);
-    const currentBytes = new Uint8Array(currentKey);
-    return expectedKey.length === currentBytes.length && expectedKey.every((byte, index) => byte === currentBytes[index]);
-  };
-
-  const fetchPushSubscription = async (init: RequestInit) => {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
-
-    try {
-      const response = await fetch('/api/push-subscribe', {
-        ...init,
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        let message = `HTTP ${response.status}`;
-        try {
-          const data = await response.json();
-          if (data?.error) message = data.error;
-        } catch {}
-        throw new Error(message);
-      }
-
-      return response;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        throw new Error('Push subscribe request timed out. Please try again.');
-      }
-      throw err;
-    } finally {
-      window.clearTimeout(timeoutId);
-    }
-  };
-
   const handleSaveConfig = () => {
     if (typeof window === 'undefined') return;
     
@@ -276,6 +214,54 @@ export default function SettingsManagement() {
     window.location.reload();
   };
 
+  const handleNotificationSelfCheck = async (sendTestOsNotification = false) => {
+    setSelfCheckLoading(true);
+    try {
+      const report = await runNotificationSelfCheck({
+        includeServer: true,
+        sendTestOsNotification,
+        appwrite: {
+          endpoint: appwriteConfig.endpoint,
+          projectId: appwriteConfig.projectId,
+          databaseId: appwriteConfig.databaseId,
+          apiKey: appwriteConfig.apiKey,
+        },
+      });
+      setSelfCheckReport(report);
+    } catch (err) {
+      setSelfCheckReport({
+        checkedAt: new Date().toISOString(),
+        overall: "fail",
+        summary: { pass: 0, warn: 0, fail: 1, info: 0 },
+        items: [
+          {
+            id: "selfcheck.error",
+            channel: "client",
+            label: "自我檢測",
+            status: "fail",
+            detail: err instanceof Error ? err.message : "未知錯誤",
+          },
+        ],
+      });
+    } finally {
+      setSelfCheckLoading(false);
+    }
+  };
+
+  const selfCheckStatusClass = (status: CheckStatus) => {
+    if (status === "pass") return "text-green-600 dark:text-green-400";
+    if (status === "warn") return "text-amber-600 dark:text-amber-400";
+    if (status === "fail") return "text-red-600 dark:text-red-400";
+    return "text-sky-600 dark:text-sky-400";
+  };
+
+  const selfCheckStatusLabel = (status: CheckStatus) => {
+    if (status === "pass") return "通過";
+    if (status === "warn") return "警告";
+    if (status === "fail") return "失敗";
+    return "資訊";
+  };
+
   const handleSaveResendConfig = () => {
     if (typeof window === 'undefined') return;
     const nextConfig: Record<string, string> = {};
@@ -314,7 +300,7 @@ export default function SettingsManagement() {
 
     setResendTestLoading(true);
     try {
-      const response = await fetch('/api/resend-expiry-notify', {
+      const response = await fetch(API_ENDPOINTS.RESEND_EXPIRY_NOTIFY, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -488,91 +474,6 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
   useEffect(() => {
     fetchStats();
   }, []);
-
-  // 初始化推播通知狀態
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!('Notification' in window)) {
-      setNotificationPermission('unsupported');
-      return;
-    }
-    setNotificationPermission(Notification.permission);
-    if ('serviceWorker' in navigator && Notification.permission === 'granted') {
-      navigator.serviceWorker.ready.then(async (reg) => {
-        const sub = await reg.pushManager.getSubscription();
-        setPushSubscribed(!!sub);
-      }).catch(() => {});
-    }
-  }, []);
-
-  const handleEnablePush = async () => {
-    if (!('Notification' in window)) return;
-    setPushLoading(true);
-    try {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
-      if (permission !== 'granted') return;
-
-      const reg = await navigator.serviceWorker.ready;
-      if (!('pushManager' in reg)) {
-        alert('此瀏覽器不支援推播通知');
-        return;
-      }
-
-      const vapidKey = getPushPublicKey();
-      if (!vapidKey) {
-        alert('請先在鋒兄設定填入 NEXT_PUBLIC_VAPID_PUBLIC_KEY，再啟用推播通知');
-        return;
-      }
-
-      let sub = await reg.pushManager.getSubscription();
-      if (sub && !isSameApplicationServerKey(sub, vapidKey)) {
-        await sub.unsubscribe();
-        sub = null;
-      }
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidKey),
-        });
-      }
-      if (sub) {
-        await fetchPushSubscription({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sub.toJSON()),
-        });
-        setPushSubscribed(true);
-      }
-    } catch (err) {
-      console.error('Push subscribe error:', err);
-      alert('啟用推播通知失敗：' + (err instanceof Error ? err.message : '未知錯誤'));
-    } finally {
-      setPushLoading(false);
-    }
-  };
-
-  const handleDisablePush = async () => {
-    setPushLoading(true);
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await fetchPushSubscription({
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        });
-        await sub.unsubscribe();
-      }
-      setPushSubscribed(false);
-    } catch (err) {
-      console.error('Push unsubscribe error:', err);
-      alert('取消推播通知失敗：' + (err instanceof Error ? err.message : '未知錯誤'));
-    } finally {
-      setPushLoading(false);
-    }
-  };
 
   const handleCreateTable = async (tableName: string, isUpdate = false) => {
     // 如果是更新操作且不在批次模式中，顯示警告
@@ -1315,7 +1216,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                 <div className="flex gap-3">
                   {!pushSubscribed ? (
                     <Button
-                      onClick={handleEnablePush}
+                      onClick={enablePush}
                       disabled={pushLoading || notificationPermission === 'denied'}
                       className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
                     >
@@ -1327,7 +1228,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                     </Button>
                   ) : (
                     <Button
-                      onClick={handleDisablePush}
+                      onClick={disablePush}
                       disabled={pushLoading}
                       variant="outline"
                       className="flex-1 flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400"
@@ -1347,6 +1248,90 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                       <strong>先儲存推播公鑰，再啟用推播通知。</strong> 每天 05:06（台灣時間）會自動推播到期提醒，即使 APP 完全關閉也能收到通知。
                     </span>
                   </p>
+                </div>
+
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 dark:border-indigo-900 dark:bg-indigo-950/40">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <Activity size={18} className="text-indigo-600 dark:text-indigo-400" />
+                      <div>
+                        <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">通知自我檢測</p>
+                        <p className="text-xs text-indigo-700/80 dark:text-indigo-300/80">
+                          檢查權限、SW、VAPID、Appwrite、到期掃描與 Email 設定
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        onClick={() => void handleNotificationSelfCheck(false)}
+                        disabled={selfCheckLoading}
+                        variant="outline"
+                        className="flex items-center justify-center gap-2"
+                      >
+                        {selfCheckLoading ? (
+                          <><Loader2 size={16} className="animate-spin" /> 檢測中...</>
+                        ) : (
+                          <><Activity size={16} /> 執行檢測</>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => void handleNotificationSelfCheck(true)}
+                        disabled={selfCheckLoading}
+                        className="flex items-center justify-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700"
+                      >
+                        {selfCheckLoading ? (
+                          <><Loader2 size={16} className="animate-spin" /> 檢測中...</>
+                        ) : (
+                          <><Bell size={16} /> 檢測 + 測試 OS 通知</>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {selfCheckReport && (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium text-indigo-900 dark:text-indigo-100">總評：</span>
+                        <span className={`font-bold ${selfCheckStatusClass(selfCheckReport.overall)}`}>
+                          {selfCheckStatusLabel(selfCheckReport.overall)}
+                        </span>
+                        <span className="text-xs text-indigo-700/70 dark:text-indigo-300/70">
+                          通過 {selfCheckReport.summary.pass} · 警告 {selfCheckReport.summary.warn} · 失敗 {selfCheckReport.summary.fail} · 資訊 {selfCheckReport.summary.info}
+                        </span>
+                        <span className="text-xs text-indigo-600/60 dark:text-indigo-400/60">
+                          {new Date(selfCheckReport.checkedAt).toLocaleString("zh-TW")}
+                        </span>
+                      </div>
+                      <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                        {selfCheckReport.items.map((row) => (
+                          <div
+                            key={row.id}
+                            className="flex items-start gap-2 rounded-lg border border-indigo-100 bg-white/80 px-3 py-2 text-sm dark:border-indigo-900/60 dark:bg-gray-950/50"
+                          >
+                            {row.status === "pass" ? (
+                              <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-600" />
+                            ) : row.status === "fail" ? (
+                              <X size={16} className="mt-0.5 shrink-0 text-red-600" />
+                            ) : row.status === "warn" ? (
+                              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                            ) : (
+                              <Info size={16} className="mt-0.5 shrink-0 text-sky-600" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium text-gray-800 dark:text-gray-100">{row.label}</span>
+                                <span className={`text-xs font-semibold ${selfCheckStatusClass(row.status)}`}>
+                                  {selfCheckStatusLabel(row.status)}
+                                </span>
+                                <span className="text-[10px] uppercase tracking-wide text-gray-400">{row.channel}</span>
+                              </div>
+                              <p className="mt-0.5 break-words text-xs text-gray-600 dark:text-gray-400">{row.detail}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}

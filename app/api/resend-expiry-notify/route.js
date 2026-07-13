@@ -1,47 +1,14 @@
 import { NextResponse } from "next/server";
-import { createAppwrite, getCollectionId } from "../_lib/appwriteClient";
-
-const sdk = require("node-appwrite");
+import { createAppwrite } from "../_lib/appwriteClient";
+import { verifyAuth } from "../_lib/cronAuth";
+import { collectExpiryItems } from "../_lib/expiryCollector";
+import { getTaipeiDateKey } from "../../../lib/notifications/daysUntil";
+import { NOTIFICATION_POLICY } from "../../../lib/notifications/policy";
+import { RESEND_SLOT_COUNT } from "../../../lib/notifications/resendConfig";
 
 export const dynamic = "force-dynamic";
 
-const TAIPEI_TIME_ZONE = "Asia/Taipei";
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
-const RESEND_SLOT_COUNT = 21;
-
-function getTaipeiDateKey(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: TAIPEI_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
-function dateKeyToUtcMs(dateKey) {
-  const [year, month, day] = String(dateKey).slice(0, 10).split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return Date.UTC(year, month - 1, day);
-}
-
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const targetMs = dateKeyToUtcMs(String(dateStr).slice(0, 10));
-  const todayMs = dateKeyToUtcMs(getTaipeiDateKey());
-  if (targetMs == null || todayMs == null) return null;
-  return Math.round((targetMs - todayMs) / (1000 * 60 * 60 * 24));
-}
-
-function verifyAuth(request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return true;
-
-  const authHeader = request.headers.get("authorization");
-  if (authHeader === `Bearer ${cronSecret}`) return true;
-
-  const { searchParams } = new URL(request.url);
-  return searchParams.get("secret") === cronSecret;
-}
 
 async function readBody(request) {
   if (request.method !== "POST") return {};
@@ -64,8 +31,16 @@ function getResendConfig(searchParams, body = {}) {
     const suffix = slot === 1 ? "" : String(slot);
     return {
       keyName: `RESEND_API_KEY${suffix}`,
-      apiKey: body[`resendApiKey${suffix}`] || searchParams.get(`_resendKey${suffix}`) || process.env[`RESEND_API_KEY${suffix}`] || "",
-      to: body[`resendTo${suffix}`] || searchParams.get(`_resendTo${suffix}`) || process.env[`RESEND_TO_EMAIL${suffix}`] || "",
+      apiKey:
+        body[`resendApiKey${suffix}`] ||
+        searchParams.get(`_resendKey${suffix}`) ||
+        process.env[`RESEND_API_KEY${suffix}`] ||
+        "",
+      to:
+        body[`resendTo${suffix}`] ||
+        searchParams.get(`_resendTo${suffix}`) ||
+        process.env[`RESEND_TO_EMAIL${suffix}`] ||
+        "",
       from,
     };
   }).filter((config) => config.apiKey || config.to);
@@ -99,13 +74,17 @@ function buildEmail({ subscriptions, foods, todayKey }) {
     "",
     foods.length ? "食品：到期前一周" : "",
     ...foodLines,
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const html = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6;color:#172033">
       <h2 style="margin:0 0 12px">鋒兄到期提醒</h2>
       <p style="margin:0 0 16px;color:#64748b">檢查日期：${todayKey}</p>
-      ${subscriptions.length ? `
+      ${
+        subscriptions.length
+          ? `
         <h3 style="margin:20px 0 8px">訂閱：到期前一天</h3>
         <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">
           <thead>
@@ -118,79 +97,45 @@ function buildEmail({ subscriptions, foods, todayKey }) {
             </tr>
           </thead>
           <tbody>
-            ${subscriptions.map((item) => {
-              const renewalStyle = item.continue === false
-                ? "color:#dc2626;font-weight:600"
-                : "color:#16a34a";
-              return `<tr style="border-bottom:1px solid #e2e8f0">
+            ${subscriptions
+              .map((item) => {
+                const renewalStyle =
+                  item.continue === false
+                    ? "color:#dc2626;font-weight:600"
+                    : "color:#16a34a";
+                return `<tr style="border-bottom:1px solid #e2e8f0">
                 <td style="padding:8px 12px;font-weight:600">${item.name}</td>
                 <td style="padding:8px 12px;color:#64748b">${item.account || "-"}</td>
                 <td style="padding:8px 12px">${formatDate(item.nextdate)}</td>
                 <td style="padding:8px 12px;${renewalStyle}">${formatRenewal(item.continue)}</td>
                 <td style="padding:8px 12px;color:#64748b;max-width:200px">${item.note || "-"}</td>
               </tr>`;
-            }).join("")}
+              })
+              .join("")}
           </tbody>
         </table>
-      ` : ""}
-      ${foods.length ? `
+      `
+          : ""
+      }
+      ${
+        foods.length
+          ? `
         <h3 style="margin:20px 0 8px">食品：到期前一周</h3>
         <ul>${foods.map((item) => `<li><strong>${item.name}</strong>：${formatDate(item.todate)} 到期</li>`).join("")}</ul>
-      ` : ""}
+      `
+          : ""
+      }
     </div>
   `;
 
   return { subject: title, text, html };
 }
 
-async function collectExpiryItems(databases, databaseId) {
-  const subscriptions = [];
-  const foods = [];
-
-  const subColId = await getCollectionId(databases, databaseId, "subscription", {
-    required: false,
-  });
-  if (subColId) {
-    const subs = await databases.listDocuments(databaseId, subColId, [
-      sdk.Query.limit(500),
-      sdk.Query.orderAsc("nextdate"),
-    ]);
-    for (const doc of subs.documents) {
-      if (daysUntil(doc.nextdate) === 1) {
-        subscriptions.push({
-          id: doc.$id,
-          name: doc.name || "未命名訂閱",
-          nextdate: doc.nextdate,
-          account: doc.account || "",
-          continue: doc.continue,
-          note: doc.note || "",
-          price: doc.price,
-          currency: doc.currency || "TWD",
-        });
-      }
-    }
-  }
-
-  const foodColId = await getCollectionId(databases, databaseId, "food", {
-    required: false,
-  });
-  if (foodColId) {
-    const foodDocs = await databases.listDocuments(databaseId, foodColId, [
-      sdk.Query.limit(500),
-      sdk.Query.orderAsc("todate"),
-    ]);
-    for (const doc of foodDocs.documents) {
-      if (daysUntil(doc.todate) === 7) {
-        foods.push({ id: doc.$id, name: doc.name || "未命名食品", todate: doc.todate });
-      }
-    }
-  }
-
-  return { subscriptions, foods };
-}
-
 async function sendResendEmail({ apiKey, from, to, subject, html, text, idempotencyKey }) {
-  const recipients = String(to).split(",").map((item) => item.trim()).filter(Boolean);
+  const recipients = String(to)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
   if (!recipients.length) throw new Error("RESEND_TO_EMAIL is missing");
 
   const response = await fetch(RESEND_ENDPOINT, {
@@ -218,7 +163,8 @@ async function handleResendExpiryNotify(request) {
       const suffix = index === 0 ? "" : String(index + 1);
       return body[`resendApiKey${suffix}`];
     }).some(Boolean);
-    const hasManualCredentials = request.method === "POST" && hasManualResendKey && body.appwriteApiKey;
+    const hasManualCredentials =
+      request.method === "POST" && hasManualResendKey && body.appwriteApiKey;
 
     if (!hasManualCredentials && !verifyAuth(request)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -238,16 +184,24 @@ async function handleResendExpiryNotify(request) {
 
     const invalidConfig = resendConfigs.find((config) => !config.apiKey || !config.to);
     if (invalidConfig) {
-      return NextResponse.json({
-        error: `${invalidConfig.keyName} requires both API key and recipient email`,
-        maxResendSlots: RESEND_SLOT_COUNT,
-        configuredResendSlots: resendConfigs.length,
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: `${invalidConfig.keyName} requires both API key and recipient email`,
+          maxResendSlots: RESEND_SLOT_COUNT,
+          configuredResendSlots: resendConfigs.length,
+        },
+        { status: 400 }
+      );
     }
 
     const { databases, databaseId } = createAppwrite(searchParams, body);
     const todayKey = getTaipeiDateKey();
-    const { subscriptions, foods } = await collectExpiryItems(databases, databaseId);
+    const { subscriptions, foods } = await collectExpiryItems(databases, databaseId, {
+      mode: "exact",
+      subscriptionDays: NOTIFICATION_POLICY.email.subscriptionExactDays,
+      foodDays: NOTIFICATION_POLICY.email.foodExactDays,
+      limit: 500,
+    });
 
     if (subscriptions.length === 0 && foods.length === 0) {
       return NextResponse.json({
@@ -262,13 +216,15 @@ async function handleResendExpiryNotify(request) {
     }
 
     const email = buildEmail({ subscriptions, foods, todayKey });
-    const resendResults = await Promise.all(resendConfigs.map((resend, index) =>
-      sendResendEmail({
-        ...resend,
-        ...email,
-        idempotencyKey: `fengbro-expiry-${todayKey}-${index + 1}`,
-      })
-    ));
+    const resendResults = await Promise.all(
+      resendConfigs.map((resend, index) =>
+        sendResendEmail({
+          ...resend,
+          ...email,
+          idempotencyKey: `fengbro-expiry-${todayKey}-${index + 1}`,
+        })
+      )
+    );
 
     return NextResponse.json({
       success: true,
@@ -282,7 +238,13 @@ async function handleResendExpiryNotify(request) {
     });
   } catch (error) {
     console.error("resend-expiry-notify error:", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Resend email notification failed" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Resend email notification failed",
+      },
+      { status: 500 }
+    );
   }
 }
 

@@ -86,6 +86,9 @@ export const API_ENDPOINTS = {
   ROUTINE: "/api/routine",
   PUSH_SUBSCRIBE: "/api/push-subscribe",
   PUSH_SEND: "/api/push-send",
+  CHECK_EXPIRY: "/api/check-expiry",
+  RESEND_EXPIRY_NOTIFY: "/api/resend-expiry-notify",
+  NOTIFICATION_SELFCHECK: "/api/notification-selfcheck",
 } as const;
 
 // 動畫設定
