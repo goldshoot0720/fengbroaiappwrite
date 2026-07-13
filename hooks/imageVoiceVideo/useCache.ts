@@ -33,6 +33,17 @@ export function useCache() {
     });
   }, []);
 
+  const clearImage = useCallback(async (key: string) => {
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_STORE, 'readwrite');
+    tx.objectStore(IMAGE_STORE).delete(key);
+    await new Promise<void>((res, rej) => {
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  }, []);
+
   const saveScript = useCallback((text: string) => {
     try { localStorage.setItem(SCRIPT_KEY, text); } catch { /* ignore */ }
   }, []);
@@ -41,5 +52,9 @@ export function useCache() {
     try { return localStorage.getItem(SCRIPT_KEY) ?? ''; } catch { return ''; }
   }, []);
 
-  return { saveImage, loadImage, saveScript, loadScript };
+  const clearScript = useCallback(() => {
+    try { localStorage.removeItem(SCRIPT_KEY); } catch { /* ignore */ }
+  }, []);
+
+  return { saveImage, loadImage, clearImage, saveScript, loadScript, clearScript };
 }

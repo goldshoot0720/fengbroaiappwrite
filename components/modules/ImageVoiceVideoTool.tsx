@@ -245,6 +245,21 @@ export default function ImageVoiceVideoTool() {
     [handleImage],
   );
 
+  /** Manually clear cover image (UI + blob URL + IndexedDB cache). */
+  const handleClearImage = useCallback(() => {
+    setImageUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setImageEl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    void imageCache.clearImage("last");
+    setStatus("已清除封面圖片");
+    if (voiceGenderModeRef.current === "auto") {
+      void resolveVoiceGender(null, "auto", false);
+    }
+  }, [imageCache, resolveVoiceGender]);
+
   /** Accept cover image from clipboard (Ctrl/Cmd+V or drop-zone paste). */
   const handlePasteImage = useCallback(
     (clipboardData: DataTransfer | null | undefined): boolean => {
@@ -298,6 +313,13 @@ export default function ImageVoiceVideoTool() {
     },
     [imageCache],
   );
+
+  /** Manually clear voice script (UI + localStorage cache). */
+  const handleClearScript = useCallback(() => {
+    setScript("");
+    imageCache.clearScript();
+    setStatus("已清除語音稿");
+  }, [imageCache]);
 
   const handleOrientation = useCallback((mode: OrientationMode) => {
     setOrientationMode(mode);
@@ -504,11 +526,27 @@ export default function ImageVoiceVideoTool() {
         <div className="space-y-4">
           {/* Image */}
           <DataCard className="space-y-3 p-5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold">1. 封面圖片</p>
-              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
-                可選
-              </span>
+              <div className="flex items-center gap-2">
+                {imageUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1 rounded-full px-2.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                    onClick={handleClearImage}
+                    disabled={busy}
+                    aria-label="清除封面圖片"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    清除
+                  </Button>
+                )}
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                  可選
+                </span>
+              </div>
             </div>
             <div
               className={`relative flex min-h-[160px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
@@ -552,6 +590,8 @@ export default function ImageVoiceVideoTool() {
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) handleFile(f);
+                  // Allow re-selecting the same file after clear/replace
+                  e.target.value = "";
                 }}
               />
               {imageUrl ? (
@@ -576,7 +616,23 @@ export default function ImageVoiceVideoTool() {
 
           {/* Script */}
           <DataCard className="space-y-3 p-5">
-            <p className="text-sm font-semibold">2. 語音稿</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold">2. 語音稿</p>
+              {script.trim() && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 rounded-full px-2.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                  onClick={handleClearScript}
+                  disabled={busy}
+                  aria-label="清除語音稿"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  清除
+                </Button>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs text-muted-foreground" htmlFor="ivv-script-lang">
                 稿件語言
