@@ -16,7 +16,16 @@ import { useCache } from "@/hooks/imageVoiceVideo/useCache";
 import { useCanvasRenderer } from "@/hooks/imageVoiceVideo/useCanvasRenderer";
 import { useVideoRecorder } from "@/hooks/imageVoiceVideo/useVideoRecorder";
 import { LANG_OPTIONS } from "@/lib/imageVoiceVideo/languages";
-import { parseScriptLines, safeFilename, type Track } from "@/lib/imageVoiceVideo/scriptParser";
+import {
+  parseScriptLines,
+  safeFilename,
+  type Gender,
+  type Track,
+} from "@/lib/imageVoiceVideo/scriptParser";
+import {
+  DEFAULT_TRACK_GENDER,
+  detectImageGender,
+} from "@/lib/imageVoiceVideo/detectImageGender";
 import {
   orientationLabel,
   resolveCanvasSize,
@@ -29,11 +38,21 @@ import {
 import { hasRequiredAppwriteConfig } from "@/lib/utils";
 
 const ORIENT_STORAGE_KEY = "fengbro.tools.ivv.orientation";
+const GENDER_MODE_STORAGE_KEY = "fengbro.tools.ivv.voiceGenderMode";
+
+/** Global voice default: auto = detect single face in cover image; else male/female */
+type VoiceGenderMode = "auto" | Gender;
 
 const ORIENT_OPTIONS: { value: OrientationMode; label: string; hint: string }[] = [
   { value: "auto", label: "自動", hint: "依圖片" },
   { value: "portrait", label: "直式", hint: "9:16" },
   { value: "landscape", label: "橫式", hint: "16:9" },
+];
+
+const VOICE_GENDER_OPTIONS: { value: VoiceGenderMode; label: string; hint: string }[] = [
+  { value: "auto", label: "自動", hint: "單一人物" },
+  { value: "male", label: "男聲", hint: "預設" },
+  { value: "female", label: "女聲", hint: "手動" },
 ];
 
 function formatBytes(bytes: number): string {
@@ -48,8 +67,12 @@ export default function ImageVoiceVideoTool() {
   const [script, setScript] = useState("");
   const [scriptLang, setScriptLang] = useState("zh-TW");
   const [tracks, setTracks] = useState<Track[]>([
-    { language: "zh-TW", label: "繁中", gender: "female" },
+    { language: "zh-TW", label: "繁中", gender: DEFAULT_TRACK_GENDER },
   ]);
+  /** auto: pick from single person in image; male/female: fixed; fallback always male */
+  const [voiceGenderMode, setVoiceGenderMode] = useState<VoiceGenderMode>("auto");
+  const [genderHint, setGenderHint] = useState("預設男聲；上傳單一人物圖可自動選擇");
+  const [detectingGender, setDetectingGender] = useState(false);
   const [rate, setRate] = useState(0);
   const [volume, setVolume] = useState(100);
   const [format, setFormat] = useState<"mp4" | "webm">("mp4");
@@ -69,9 +92,14 @@ export default function ImageVoiceVideoTool() {
   const resultUrlRef = useRef<string | null>(null);
   const storageFileIdRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const voiceGenderModeRef = useRef<VoiceGenderMode>("auto");
+  const recordingRef = useRef(false);
   const imageCache = useCache();
   const { drawFrame } = useCanvasRenderer();
   const { record } = useVideoRecorder(setStatus);
+
+  voiceGenderModeRef.current = voiceGenderMode;
+  recordingRef.current = recording;
 
   const canvasSize = useMemo(
     () => resolveCanvasSize(orientationMode, imageEl),
@@ -85,12 +113,21 @@ export default function ImageVoiceVideoTool() {
   const orientText = orientationLabel(orientationMode, canvasSize.orientation);
   const downloadName = `${safeFilename(filename.trim() || firstLine || "影片")}.${resultExt}`;
 
-  // Restore cache + orientation preference
+  // Restore cache + orientation / voice-gender preference
   useEffect(() => {
     try {
       const saved = localStorage.getItem(ORIENT_STORAGE_KEY) as OrientationMode | null;
       if (saved === "auto" || saved === "portrait" || saved === "landscape") {
         setOrientationMode(saved);
+      }
+      const savedGender = localStorage.getItem(GENDER_MODE_STORAGE_KEY) as VoiceGenderMode | null;
+      if (savedGender === "auto" || savedGender === "male" || savedGender === "female") {
+        setVoiceGenderMode(savedGender);
+        voiceGenderModeRef.current = savedGender;
+        if (savedGender !== "auto") {
+          setTracks((prev) => prev.map((t) => ({ ...t, gender: savedGender })));
+          setGenderHint(savedGender === "male" ? "固定使用男聲" : "固定使用女聲");
+        }
       }
     } catch {
       /* ignore */
@@ -107,8 +144,52 @@ export default function ImageVoiceVideoTool() {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Apply gender to every language track */
+  const applyGenderToTracks = useCallback((gender: Gender) => {
+    setTracks((prev) => prev.map((t) => (t.gender === gender ? t : { ...t, gender })));
+  }, []);
+
+  /**
+   * Auto: detect single face → that gender; else default male.
+   * Manual male/female: lock all tracks to that gender.
+   */
+  const resolveVoiceGender = useCallback(
+    async (image: HTMLImageElement | null, mode: VoiceGenderMode, announce = true) => {
+      if (mode === "male" || mode === "female") {
+        applyGenderToTracks(mode);
+        const msg = mode === "male" ? "固定使用男聲" : "固定使用女聲";
+        setGenderHint(msg);
+        if (announce && !recordingRef.current) setStatus(msg);
+        return;
+      }
+
+      setDetectingGender(true);
+      try {
+        const result = await detectImageGender(image);
+        if (voiceGenderModeRef.current !== "auto") return;
+        applyGenderToTracks(result.gender);
+        setGenderHint(result.message);
+        // Don't overwrite idle status when there's no image yet
+        if (announce && !recordingRef.current && result.reason !== "no-image") {
+          setStatus(result.message);
+        }
+      } finally {
+        setDetectingGender(false);
+      }
+    },
+    [applyGenderToTracks],
+  );
+
+  // Re-run auto detect when cover image loads / changes (or mode is auto)
+  useEffect(() => {
+    if (voiceGenderMode !== "auto") return;
+    void resolveVoiceGender(imageEl, "auto", Boolean(imageEl));
+  }, [imageEl, voiceGenderMode, resolveVoiceGender]);
+
   // Apply canvas resolution + redraw when size / content changes.
   // Skip while recording so preview redraws cannot overwrite timed subtitle frames.
+  // Preview shows only the first script line (same as t=0 of the export) — never
+  // join every line with " / ", which looked like duplicated captions.
   useEffect(() => {
     if (recording) return;
     const canvas = canvasRef.current;
@@ -120,12 +201,17 @@ export default function ImageVoiceVideoTool() {
     }
 
     const lines = parseScriptLines(script);
-    const subs = lines.map((l, i) => ({
-      text: l.text,
-      startAt: i,
-      endAt: i + 1,
-      language: scriptLang,
-    }));
+    const first = lines[0];
+    const subs = first
+      ? [
+          {
+            text: first.text,
+            startAt: 0,
+            endAt: 1,
+            language: scriptLang,
+          },
+        ]
+      : [];
     drawFrame(canvas, imageEl, subs, 0, true);
   }, [imageEl, script, scriptLang, drawFrame, canvasSize, recording]);
 
@@ -222,19 +308,40 @@ export default function ImageVoiceVideoTool() {
     }
   }, []);
 
+  const handleVoiceGenderMode = useCallback(
+    (mode: VoiceGenderMode) => {
+      setVoiceGenderMode(mode);
+      voiceGenderModeRef.current = mode;
+      try {
+        localStorage.setItem(GENDER_MODE_STORAGE_KEY, mode);
+      } catch {
+        /* ignore */
+      }
+      void resolveVoiceGender(imageEl, mode);
+    },
+    [imageEl, resolveVoiceGender],
+  );
+
   const isTrackSelected = (lang: string) => tracks.some((t) => t.language === lang);
+
+  const defaultGenderForNewTrack = (): Gender => {
+    if (voiceGenderMode === "male" || voiceGenderMode === "female") return voiceGenderMode;
+    return tracks[0]?.gender ?? DEFAULT_TRACK_GENDER;
+  };
 
   const toggleTrack = (lang: string, label: string) => {
     if (isTrackSelected(lang)) {
       if (tracks.length <= 1) return;
       setTracks(tracks.filter((t) => t.language !== lang));
     } else {
-      setTracks([...tracks, { language: lang, label, gender: "female" }]);
+      setTracks([...tracks, { language: lang, label, gender: defaultGenderForNewTrack() }]);
     }
   };
 
-  const setTrackGender = (lang: string, gender: "female" | "male") => {
+  const setTrackGender = (lang: string, gender: Gender) => {
+    // Per-track manual override leaves global mode as-is but updates that track
     setTracks(tracks.map((t) => (t.language === lang ? { ...t, gender } : t)));
+    setGenderHint(gender === "male" ? "已手動指定男聲（此語言）" : "已手動指定女聲（此語言）");
   };
 
   const clearResult = useCallback(async () => {
@@ -386,7 +493,7 @@ export default function ImageVoiceVideoTool() {
           <div>
             <h3 className="text-lg font-semibold">圖片 + 語音 = 影片</h3>
             <p className="text-sm text-muted-foreground">
-              上傳或從剪貼簿貼上封面圖，搭配語音稿產生多語字幕影片；暫存檔會上傳到 Appwrite Storage 供下載。
+              上傳或從剪貼簿貼上封面圖，搭配語音稿產生多語字幕影片。預設男聲；若封面為單一人物可自動選擇聲線。暫存檔會上傳到 Appwrite Storage。
             </p>
           </div>
         </div>
@@ -496,13 +603,45 @@ export default function ImageVoiceVideoTool() {
               spellCheck={false}
             />
             <p className="text-xs text-muted-foreground">
-              每行一段字幕。「男：」開頭使用男聲，「女：」或無前綴使用軌道預設性別。
+              每行一段字幕。「男：」→ 男聲，「女：」→ 女聲；無前綴使用下方軌道預設（預設男聲，或依圖片單一人物自動選擇）。
             </p>
           </DataCard>
 
           {/* Tracks */}
           <DataCard className="space-y-3 p-5">
-            <p className="text-sm font-semibold">3. 語音語言（可多選）</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold">3. 語音語言（可多選）</p>
+              {detectingGender && (
+                <span className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-300">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  偵測聲線…
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs text-muted-foreground">預設聲線</span>
+              <div className="flex flex-wrap gap-2">
+                {VOICE_GENDER_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                      voiceGenderMode === o.value
+                        ? "border-violet-500 bg-violet-600 text-white"
+                        : "border-slate-200 bg-white hover:border-violet-300 dark:border-slate-700 dark:bg-slate-900"
+                    }`}
+                    onClick={() => handleVoiceGenderMode(o.value)}
+                    title={o.hint}
+                  >
+                    {o.label}
+                    <span className="ml-1 text-xs opacity-70">{o.hint}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">{genderHint}</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {LANG_OPTIONS.map(({ value, short, flag }) => {
                 const track = tracks.find((t) => t.language === value);
@@ -531,17 +670,6 @@ export default function ImageVoiceVideoTool() {
                         <button
                           type="button"
                           className={`flex-1 rounded-md px-1 py-0.5 text-xs ${
-                            track.gender === "female"
-                              ? "bg-violet-600 text-white"
-                              : "bg-slate-100 dark:bg-slate-800"
-                          }`}
-                          onClick={() => setTrackGender(value, "female")}
-                        >
-                          ♀ 女
-                        </button>
-                        <button
-                          type="button"
-                          className={`flex-1 rounded-md px-1 py-0.5 text-xs ${
                             track.gender === "male"
                               ? "bg-violet-600 text-white"
                               : "bg-slate-100 dark:bg-slate-800"
@@ -549,6 +677,17 @@ export default function ImageVoiceVideoTool() {
                           onClick={() => setTrackGender(value, "male")}
                         >
                           ♂ 男
+                        </button>
+                        <button
+                          type="button"
+                          className={`flex-1 rounded-md px-1 py-0.5 text-xs ${
+                            track.gender === "female"
+                              ? "bg-violet-600 text-white"
+                              : "bg-slate-100 dark:bg-slate-800"
+                          }`}
+                          onClick={() => setTrackGender(value, "female")}
+                        >
+                          ♀ 女
                         </button>
                       </div>
                     )}
@@ -662,12 +801,17 @@ export default function ImageVoiceVideoTool() {
         {/* Right: preview + actions */}
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           <DataCard className="space-y-3 p-5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold">即時預覽</p>
               <span className="text-xs text-muted-foreground">
                 {canvasSize.width}×{canvasSize.height}
               </span>
             </div>
+            {lineCount > 1 && (
+              <p className="text-xs text-muted-foreground">
+                示意第一句字幕；成片會依語音逐句切換（不會一次顯示全部語音稿）
+              </p>
+            )}
             <div className="flex justify-center rounded-2xl bg-slate-950 p-3">
               {/*
                 Do not bind width/height as React props: re-setting canvas dimensions
@@ -687,6 +831,13 @@ export default function ImageVoiceVideoTool() {
               </span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs dark:bg-slate-800">
                 {lineCount} 段 · {trackCount} 語
+              </span>
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-800 dark:bg-violet-950/50 dark:text-violet-200">
+                {voiceGenderMode === "auto"
+                  ? `自動 · ${tracks[0]?.gender === "female" ? "女聲" : "男聲"}`
+                  : voiceGenderMode === "female"
+                    ? "女聲"
+                    : "男聲"}
               </span>
             </div>
           </DataCard>

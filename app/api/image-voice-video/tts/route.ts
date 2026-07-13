@@ -146,7 +146,9 @@ function parseItem(raw: unknown, fallbackLang: string, fallbackGender: Gender): 
   const text = String(o.text ?? '').trim();
   if (!text) return null;
   const language = String(o.language ?? fallbackLang);
-  const gender: Gender = o.gender === 'male' ? 'male' : fallbackGender;
+  // Explicit female only when requested; otherwise keep fallback (default male)
+  const gender: Gender =
+    o.gender === 'female' ? 'female' : o.gender === 'male' ? 'male' : fallbackGender;
   return { text, language, gender };
 }
 
@@ -169,7 +171,7 @@ export async function POST(req: NextRequest) {
 
       const items: TtsItem[] = [];
       for (const raw of payload.items) {
-        const item = parseItem(raw, 'zh-TW', 'female');
+        const item = parseItem(raw, 'zh-TW', 'male');
         if (!item) {
           return NextResponse.json({ error: 'each item needs non-empty text' }, { status: 400 });
         }
@@ -237,7 +239,8 @@ export async function POST(req: NextRequest) {
     // ── Single mode (backward compatible): raw audio/mpeg ──
     const text = String(payload.text ?? '').trim();
     const language = String(payload.language ?? 'zh-TW');
-    const gender: Gender = payload.gender === 'male' ? 'male' : 'female';
+    // Default male voice unless female is explicitly requested
+    const gender: Gender = payload.gender === 'female' ? 'female' : 'male';
 
     if (!text) {
       return NextResponse.json({ error: 'text required' }, { status: 400 });

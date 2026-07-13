@@ -229,7 +229,7 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
         segmentDurations.reduce((a, b) => a + b, 0),
       );
 
-      /** Always paint the cue for the current speech segment (line 1, 2, …). */
+      /** Always paint only the cue(s) for the current speech segment (one per language). */
       const paintAt = (elapsedSec: number) => {
         const active = activeSubtitlesForElapsed(
           spokenByTrack,
@@ -238,7 +238,7 @@ export function useVideoRecorder(onStatus: (msg: string) => void) {
           segmentDurations,
           elapsedSec,
         );
-        // showAll=true: we already selected the active line(s); do not re-filter by time
+        // showAll=true: trust pre-selected current-segment cues (still ≤1 per language)
         drawFrame(canvas, image, active, elapsedSec, true);
       };
 

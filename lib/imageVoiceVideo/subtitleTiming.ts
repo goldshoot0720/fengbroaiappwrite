@@ -33,8 +33,8 @@ export function segmentIndexAt(
 }
 
 /**
- * Build only the currently spoken cue(s) — one per language track.
- * Callers should draw with showAll=true so the time filter cannot drop line 2+.
+ * Build only the currently spoken cue(s) — one per language track for this segment.
+ * Never returns multiple script lines for the same language (avoids stacked duplicates).
  */
 export function activeSubtitlesForElapsed(
   spokenByTrack: string[][],
@@ -64,21 +64,21 @@ export function activeSubtitlesForElapsed(
 }
 
 /**
- * Time-window filter used by the canvas renderer.
- * At exact boundaries, prefer the later cue (higher startAt) so line 2 is not skipped.
+ * Collapse to at most one cue per language.
+ * Prefer the latest-starting cue whose time window contains `elapsed`.
+ * Never return every script line at once (that produced "行1 / 行2 / 行3" duplicates).
  */
-export function filterActiveByTime(
+function pickOnePerLanguage(
   subtitleLines: SubtitleLine[],
   elapsed: number,
-  showAll = false,
+  /** When true, if nothing matches time, keep the latest cue (caller pre-selected). */
+  fallbackToLatest: boolean,
 ): SubtitleLine[] {
-  if (showAll) return subtitleLines;
   if (subtitleLines.length === 0) return [];
 
   const t = Math.max(0, elapsed);
   const eps = 1e-4;
 
-  // Group by language, pick the latest cue that has started and not fully ended
   const byLang = new Map<string, SubtitleLine[]>();
   for (const line of subtitleLines) {
     const key = line.language || '';
@@ -110,7 +110,28 @@ export function filterActiveByTime(
       }
       if (chosen && t > chosen.endAt + 0.25) chosen = null;
     }
+    // Recording passes only the current segment cue(s); accept them even if
+    // wall-clock / AudioContext drift slightly outside [start, end).
+    if (!chosen && fallbackToLatest && sorted.length > 0) {
+      chosen = sorted[sorted.length - 1];
+    }
     if (chosen) active.push(chosen);
   }
   return active;
+}
+
+/**
+ * Time-window filter used by the canvas renderer.
+ * Always ≤1 cue per language — never joins all script lines into one caption.
+ * At exact boundaries, prefer the later cue (higher startAt) so line 2 is not skipped.
+ *
+ * `showAll=true` means "caller already chose the active set; still collapse per language
+ * and prefer time match, else keep latest" — it does NOT mean "draw every line at once".
+ */
+export function filterActiveByTime(
+  subtitleLines: SubtitleLine[],
+  elapsed: number,
+  showAll = false,
+): SubtitleLine[] {
+  return pickOnePerLanguage(subtitleLines, elapsed, showAll);
 }

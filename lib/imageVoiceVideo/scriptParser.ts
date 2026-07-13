@@ -19,7 +19,8 @@ export interface Track {
 /**
  * Parse script text into lines.
  * Lines prefixed with "男：" → male; "女：" → female; otherwise gender is null
- * (caller should fall back to track gender). Blank lines are skipped.
+ * (caller should fall back to track gender — tool default is male, or auto from single face).
+ * Blank lines are skipped.
  */
 export function parseScriptLines(raw: string): ScriptLine[] {
   return raw

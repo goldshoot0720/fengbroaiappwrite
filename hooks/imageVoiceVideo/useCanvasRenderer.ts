@@ -79,23 +79,28 @@ export function useCanvasRenderer() {
     }
 
     // ── Active subtitles (text only, no black box) ───────────────
-    // Prefer later cue at segment boundaries so line 2+ is not skipped.
+    // ≤1 cue per language (never "行1 / 行2 / 行3" on the same frame).
     const active = filterActiveByTime(subtitleLines, elapsed, showAll);
 
     if (active.length === 0) return;
 
-    const groups = new Map<string, SubtitleLine[]>();
+    // Preserve language order; one text block per language track
+    const byLang = new Map<string, SubtitleLine>();
     for (const s of active) {
-      if (!groups.has(s.language)) groups.set(s.language, []);
-      groups.get(s.language)!.push(s);
+      const key = s.language || '';
+      const prev = byLang.get(key);
+      if (!prev || s.startAt >= prev.startAt) byLang.set(key, s);
     }
 
     let trackY = H - bottomMargin;
 
-    for (const [, subs] of [...groups.entries()].reverse()) {
-      const text = subs.map(s => s.text).join(' / ');
+    for (const sub of [...byLang.values()].reverse()) {
+      const text = (sub.text || '').trim();
+      if (!text) continue;
+
       ctx.font = `bold ${fontSize}px ${FONT_FAMILY}`;
       const maxTextWidth = W - sidePad * 2;
+      // Visual wrap of a single cue only (not multiple script segments)
       const lines = wrapText(ctx, text, Math.max(40, maxTextWidth));
 
       const blockH = lines.length * lineHeight;
