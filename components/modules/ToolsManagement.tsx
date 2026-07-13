@@ -1851,7 +1851,10 @@ function FengbroFinanceSection({
                                     {recordLabel}
                                   </span>
                                 )}
-                                {quote.id === "kospi" && typeof quote.changePercent === "number" && Math.abs(quote.changePercent) > 8 && (
+                                {(typeof quote.changePercent === "number") && (
+                                  (quote.id === "kospi" && Math.abs(quote.changePercent) > 8) ||
+                                  (quote.id === "sp500" && Math.abs(quote.changePercent) > 7)
+                                ) && (
                                   <span className="rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
                                     熔斷機制
                                   </span>
@@ -2068,6 +2071,14 @@ function FengbroFinanceSection({
                               {quote.isThresholdAlert && (
                                 <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
                                   突破門檻
+                                </span>
+                              )}
+                              {(typeof quote.changePercent === "number") && (
+                                (quote.id === "kospi" && Math.abs(quote.changePercent) > 8) ||
+                                (quote.id === "sp500" && Math.abs(quote.changePercent) > 7)
+                              ) && (
+                                <span className="rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700">
+                                  熔斷機制
                                 </span>
                               )}
                             </div>
