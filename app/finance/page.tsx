@@ -263,6 +263,11 @@ export default function FinancePage() {
                       <TrendingDown className="w-5 h-5" />
                     ) : null}
                     <span>{formatChange(kospi?.change ?? null, kospi?.changePercent ?? null)}</span>
+                    {typeof kospi?.changePercent === 'number' && Math.abs(kospi.changePercent) > 8 && (
+                      <span className="ml-2 rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-sm font-bold text-orange-700 dark:border-orange-900 dark:bg-orange-900/50 dark:text-orange-400">
+                        熔斷機制
+                      </span>
+                    )}
                   </div>
                 )}
 

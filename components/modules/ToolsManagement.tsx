@@ -1851,6 +1851,11 @@ function FengbroFinanceSection({
                                     {recordLabel}
                                   </span>
                                 )}
+                                {quote.id === "kospi" && typeof quote.changePercent === "number" && Math.abs(quote.changePercent) > 8 && (
+                                  <span className="rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
+                                    熔斷機制
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
