@@ -229,19 +229,19 @@ function DesktopSidebar({
       <div className="surface-panel flex w-full flex-col rounded-[30px] p-3">
         <BrandBlock />
 
-        <div className="mt-5 flex items-center gap-3 rounded-[22px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5">
-          <div className="flex items-center gap-1">
-            <ThemeToggleCompact />
-            <DensityToggleCompact />
-          </div>
-          <div className="min-w-0">
-            <p className="text-micro text-[var(--muted-foreground)]">
+        <div className="mt-5 flex flex-col gap-2 rounded-[22px] border border-[var(--line-strong)] bg-white/60 px-3 py-3 dark:bg-white/5">
+          <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-1">
+              <ThemeToggleCompact />
+              <DensityToggleCompact />
+            </div>
+            <p className="whitespace-nowrap text-micro text-[var(--muted-foreground)]">
               Design Mode
             </p>
-            <p className="mt-1 truncate text-sm font-medium text-[var(--foreground)]">
-              Impeccable 2026–27
-            </p>
           </div>
+          <p className="text-sm font-medium leading-5 text-[var(--foreground)]">
+            Impeccable 2026~2027
+          </p>
         </div>
 
         <nav className="mt-6 flex-1 space-y-2 overflow-y-auto pr-1">
