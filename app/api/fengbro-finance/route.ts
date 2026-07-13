@@ -368,7 +368,7 @@ async function fetchInstrument(instrument: FinanceInstrument) {
     change: pickNumber(quote, ["change", "net_change"]),
     changePercent: pickNumber(quote, ["change_pct", "change_percent", "pctchange"]),
     currency: pickText(quote, ["currencyCode", "currency"]) || "",
-    high52,
+    high52: instrument.id === "kospi" ? 9385.59 : high52,
     low52,
     dayHigh,
     dayLow,
