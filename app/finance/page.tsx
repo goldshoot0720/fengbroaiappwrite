@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Activity, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isKospiMarketOpen, KOSPI_LIVE_POLL_MS } from '@/lib/kospiMarketHours';
 
 interface FinanceQuote {
   id: string;
@@ -110,25 +111,93 @@ export default function FinancePage() {
   const [data, setData] = useState<FinanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [kospiLiveOpen, setKospiLiveOpen] = useState(false);
+  const [kospiLiveRefreshing, setKospiLiveRefreshing] = useState(false);
+  const [kospiLiveUpdatedAt, setKospiLiveUpdatedAt] = useState<string | null>(null);
+  const kospiLiveInFlightRef = useRef(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await fetch('/api/fengbro-finance');
       if (!response.ok) throw new Error('載入失敗');
-      const result = await response.json();
+      const result = await response.json() as FinanceData;
       setData(result);
+      setKospiLiveUpdatedAt(result.fetchedAt);
     } catch (err) {
       setError(err instanceof Error ? err.message : '發生錯誤');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const refreshKospiLive = useCallback(async () => {
+    if (kospiLiveInFlightRef.current) return;
+    if (!isKospiMarketOpen()) return;
+
+    kospiLiveInFlightRef.current = true;
+    setKospiLiveRefreshing(true);
+    try {
+      const params = new URLSearchParams({
+        defaults: JSON.stringify(['kospi']),
+        skipHistory: '1',
+      });
+      const response = await fetch(`/api/fengbro-finance?${params.toString()}`);
+      if (!response.ok) throw new Error('KOSPI 更新失敗');
+      const result = await response.json() as FinanceData;
+      const kospiQuote = result.quotes.find((quote) => quote.id === 'kospi');
+      if (!kospiQuote) return;
+
+      setData((previous) => {
+        if (!previous) return result;
+        return {
+          ...previous,
+          fetchedAt: result.fetchedAt,
+          quotes: previous.quotes.map((quote) =>
+            quote.id === 'kospi'
+              ? {
+                  ...kospiQuote,
+                  imageUrl: quote.imageUrl || kospiQuote.imageUrl,
+                  imageUrls: quote.imageUrls?.length ? quote.imageUrls : kospiQuote.imageUrls,
+                  periodLabel: quote.periodLabel || kospiQuote.periodLabel,
+                  localLabel: quote.localLabel || kospiQuote.localLabel,
+                }
+              : quote
+          ),
+        };
+      });
+      setKospiLiveUpdatedAt(result.fetchedAt);
+    } catch {
+      // Silent live poll failures.
+    } finally {
+      kospiLiveInFlightRef.current = false;
+      setKospiLiveRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    loadData();
+    void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const syncOpen = () => setKospiLiveOpen(isKospiMarketOpen());
+    syncOpen();
+    const clockTimer = window.setInterval(syncOpen, 15_000);
+    return () => window.clearInterval(clockTimer);
   }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      if (isKospiMarketOpen()) void refreshKospiLive();
+    };
+    const startTimer = window.setTimeout(tick, 2_000);
+    const pollTimer = window.setInterval(tick, KOSPI_LIVE_POLL_MS);
+    return () => {
+      window.clearTimeout(startTimer);
+      window.clearInterval(pollTimer);
+    };
+  }, [refreshKospiLive]);
 
   // 獲取特定商品的報價
   const getQuote = (id: string) => data?.quotes.find(q => q.id === id);
@@ -187,23 +256,36 @@ export default function FinancePage() {
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
       {/* 頁面標題 */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-4xl font-bold mb-2">鋒兄金融</h1>
           <p className="text-muted-foreground">即時金融市場資訊 - 來自 CNBC & Yahoo Finance</p>
+          <p className="mt-1 text-sm text-sky-700 dark:text-sky-400">
+            KOSPI：週一至週五 09:00–15:30（首爾時間）每分鐘自動更新
+            {kospiLiveOpen ? ' · 交易中' : ' · 目前休市'}
+          </p>
         </div>
-        <Button onClick={loadData} variant="outline" className="flex items-center gap-2">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        <Button onClick={() => void loadData()} variant="outline" className="flex items-center gap-2">
+          <RefreshCw className={`w-4 h-4 ${loading || kospiLiveRefreshing ? 'animate-spin' : ''}`} />
           重新整理
         </Button>
       </div>
 
       {/* 更新時間 */}
-      {data?.fetchedAt && (
-        <div className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-          最後更新: {new Date(data.fetchedAt).toLocaleString('zh-TW')}
-        </div>
-      )}
+      <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+        {data?.fetchedAt && (
+          <span>最後更新: {new Date(data.fetchedAt).toLocaleString('zh-TW')}</span>
+        )}
+        {kospiLiveOpen && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
+            <span className={`h-1.5 w-1.5 rounded-full bg-sky-500 ${kospiLiveRefreshing ? 'animate-pulse' : ''}`} />
+            KOSPI 即時
+            {kospiLiveUpdatedAt
+              ? ` · ${new Date(kospiLiveUpdatedAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+              : ''}
+          </span>
+        )}
+      </div>
 
       {/* 第一區塊: KOSPI Index */}
       <section className="mb-8">
@@ -214,9 +296,22 @@ export default function FinancePage() {
                 <CardTitle className="text-2xl flex items-center gap-2">
                   <Activity className="w-6 h-6 text-blue-600" />
                   KOSPI Index
+                  <span
+                    className={`ml-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                      kospiLiveOpen
+                        ? 'border-sky-200 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-900/50 dark:text-sky-300'
+                        : 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {kospiLiveOpen
+                      ? kospiLiveRefreshing
+                        ? '即時更新中…'
+                        : '即時 · 每分鐘'
+                      : '休市'}
+                  </span>
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {kospi?.localLabel || '코스피'} • 韓國綜合股價指數 • 6000點以上不再製作AI圖片與AI影片
+                  {kospi?.localLabel || '코스피'} • 韓國綜合股價指數 • 週一至週五 09:00–15:30 每分鐘更新 • 6000點以上不再製作AI圖片與AI影片
                 </p>
               </div>
               {kospi?.sourceUrl && (

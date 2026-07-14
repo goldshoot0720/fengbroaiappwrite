@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
@@ -12,6 +12,7 @@ import {
   normalizeFengbroTubeChannels,
   normalizeFengbroTubeSource,
 } from "@/lib/fengbroTubeChannels";
+import { isKospiMarketOpen, KOSPI_LIVE_POLL_MS } from "@/lib/kospiMarketHours";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import ManualPriceTracker from "@/components/modules/ManualPriceTracker";
 
@@ -1574,6 +1575,9 @@ function FengbroFinanceSection({
   onSaveCustomInstrument,
   onDeleteCustomInstrument,
   onRefresh,
+  kospiLiveOpen = false,
+  kospiLiveRefreshing = false,
+  kospiLiveUpdatedAt = null,
 }: {
   result: FengbroFinanceResult | null;
   loading: boolean;
@@ -1589,6 +1593,9 @@ function FengbroFinanceSection({
   onSaveCustomInstrument: () => void;
   onDeleteCustomInstrument: (instrument: CustomFinanceInstrument) => void;
   onRefresh: () => void;
+  kospiLiveOpen?: boolean;
+  kospiLiveRefreshing?: boolean;
+  kospiLiveUpdatedAt?: string | null;
 }) {
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1639,9 +1646,22 @@ function FengbroFinanceSection({
               <p className="mt-1 text-sm text-muted-foreground">
                 CNBC 報價監控：股指、商品、利率與加密貨幣，觸及新高或新低時自動標註。
               </p>
+              <p className="mt-1 text-xs text-sky-700/90">
+                KOSPI：週一至週五 09:00–15:30（首爾時間）每分鐘自動更新指數
+                {kospiLiveOpen ? " · 交易中" : " · 目前休市"}
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {kospiLiveOpen && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                <span className={`h-1.5 w-1.5 rounded-full bg-sky-500 ${kospiLiveRefreshing ? "animate-pulse" : ""}`} />
+                KOSPI 即時
+                {kospiLiveUpdatedAt
+                  ? ` · ${new Date(kospiLiveUpdatedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                  : ""}
+              </span>
+            )}
             {result?.fetchedAt && (
               <span className="rounded-full border border-emerald-100 bg-white px-3 py-1 text-xs text-muted-foreground">
                 更新：{new Date(result.fetchedAt).toLocaleString("zh-TW")}
@@ -1836,7 +1856,9 @@ function FengbroFinanceSection({
                 },
                 kospi: {
                   title: "KOSPI Index",
-                  subtitle: "韓國綜合指數 코스피 · 6000點以上不再製作AI圖片與AI影片",
+                  subtitle: kospiLiveOpen
+                    ? "韓國綜合指數 코스피 · 交易中每分鐘更新 · 6000點以上不再製作AI圖片與AI影片"
+                    : "韓國綜合指數 코스피 · 週一至週五 09:00–15:30 每分鐘更新 · 6000點以上不再製作AI圖片與AI影片",
                   accentClass: "text-sky-700",
                   bgClass: "bg-[linear-gradient(135deg,rgba(224,242,254,0.95),rgba(255,255,255,0.98))]",
                   borderClass: "border-sky-200",
@@ -1900,11 +1922,26 @@ function FengbroFinanceSection({
                               {cfg.subtitle}
                             </p>
                             <h4 className="mt-1 text-lg font-semibold text-foreground leading-tight">{cfg.title}</h4>
-                            {(quote.localLabel || recordLabel) && (
+                            {(quote.localLabel || recordLabel || quote.id === "kospi") && (
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 {quote.localLabel && (
                                   <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
                                     {quote.localLabel}
+                                  </span>
+                                )}
+                                {quote.id === "kospi" && (
+                                  <span
+                                    className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                      kospiLiveOpen
+                                        ? "border-sky-200 bg-sky-100 text-sky-800"
+                                        : "border-slate-200 bg-slate-100 text-slate-600"
+                                    }`}
+                                  >
+                                    {kospiLiveOpen
+                                      ? kospiLiveRefreshing
+                                        ? "即時更新中…"
+                                        : "即時 · 每分鐘"
+                                      : "休市"}
                                   </span>
                                 )}
                                 {recordLabel && (
@@ -2393,6 +2430,10 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
   const [financeError, setFinanceError] = useState("");
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
   const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
+  const [kospiLiveOpen, setKospiLiveOpen] = useState(false);
+  const [kospiLiveRefreshing, setKospiLiveRefreshing] = useState(false);
+  const [kospiLiveUpdatedAt, setKospiLiveUpdatedAt] = useState<string | null>(null);
+  const kospiLiveInFlightRef = useRef(false);
   const [selectedDefaultFinanceInstrumentIds, setSelectedDefaultFinanceInstrumentIds] = useState<string[]>(
     getSavedDefaultFinanceInstrumentIds
   );
@@ -2668,12 +2709,101 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
       const data = (await response.json()) as FengbroFinanceResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
       setFinanceResult(data);
+      if (data.quotes.some((quote) => quote.id === "kospi")) {
+        setKospiLiveUpdatedAt(data.fetchedAt);
+      }
     } catch (error) {
       setFinanceError(error instanceof Error ? error.message : "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
     } finally {
       setFinanceLoading(false);
     }
   }, [customFinanceInstruments, selectedDefaultFinanceInstrumentIds]);
+
+  /** Lightweight KOSPI-only poll during regular session (preserves chart history). */
+  const refreshKospiLive = useCallback(async () => {
+    if (!selectedDefaultFinanceInstrumentIds.includes("kospi")) return;
+    if (kospiLiveInFlightRef.current) return;
+    if (!isKospiMarketOpen()) return;
+
+    kospiLiveInFlightRef.current = true;
+    setKospiLiveRefreshing(true);
+    try {
+      const params = new URLSearchParams({
+        defaults: JSON.stringify(["kospi"]),
+        skipHistory: "1",
+      });
+      const response = await fetch(`/api/fengbro-finance?${params.toString()}`);
+      const data = (await response.json()) as FengbroFinanceResult & { error?: string };
+      if (!response.ok) throw new Error(data.error || "KOSPI 更新失敗");
+
+      const kospiQuote = data.quotes.find((quote) => quote.id === "kospi");
+      if (!kospiQuote) return;
+
+      setFinanceResult((previous) => {
+        if (!previous) {
+          return data;
+        }
+        const hasKospi = previous.quotes.some((quote) => quote.id === "kospi");
+        const nextQuotes = hasKospi
+          ? previous.quotes.map((quote) => {
+              if (quote.id !== "kospi") return quote;
+              return {
+                ...kospiQuote,
+                // Keep heavier fields from full load so charts/media do not flash empty.
+                historyRanges: quote.historyRanges ?? kospiQuote.historyRanges,
+                historyErrors: quote.historyErrors ?? kospiQuote.historyErrors,
+                imageUrl: quote.imageUrl || kospiQuote.imageUrl,
+                imageUrls: quote.imageUrls?.length ? quote.imageUrls : kospiQuote.imageUrls,
+                youtubeUrl: quote.youtubeUrl || kospiQuote.youtubeUrl,
+                youtubeLabel: quote.youtubeLabel || kospiQuote.youtubeLabel,
+                youtubeLinks: quote.youtubeLinks?.length ? quote.youtubeLinks : kospiQuote.youtubeLinks,
+                bilibiliUrl: quote.bilibiliUrl || kospiQuote.bilibiliUrl,
+                periodLabel: quote.periodLabel || kospiQuote.periodLabel,
+                localLabel: quote.localLabel || kospiQuote.localLabel,
+              };
+            })
+          : [...previous.quotes, kospiQuote];
+
+        return {
+          ...previous,
+          fetchedAt: data.fetchedAt,
+          quotes: nextQuotes,
+        };
+      });
+      setKospiLiveUpdatedAt(data.fetchedAt);
+    } catch {
+      // Silent live poll failures — full refresh still available via button.
+    } finally {
+      kospiLiveInFlightRef.current = false;
+      setKospiLiveRefreshing(false);
+    }
+  }, [selectedDefaultFinanceInstrumentIds]);
+
+  useEffect(() => {
+    const syncOpen = () => setKospiLiveOpen(isKospiMarketOpen());
+    syncOpen();
+    const clockTimer = window.setInterval(syncOpen, 15_000);
+    return () => window.clearInterval(clockTimer);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "fengbro-finance") return;
+    if (!selectedDefaultFinanceInstrumentIds.includes("kospi")) return;
+
+    const tick = () => {
+      if (isKospiMarketOpen()) {
+        void refreshKospiLive();
+      }
+    };
+
+    // First live tick shortly after tab open / deps change (full load is separate).
+    const startTimer = window.setTimeout(tick, 2_000);
+    const pollTimer = window.setInterval(tick, KOSPI_LIVE_POLL_MS);
+    return () => {
+      window.clearTimeout(startTimer);
+      window.clearInterval(pollTimer);
+    };
+  }, [activeTab, selectedDefaultFinanceInstrumentIds, refreshKospiLive]);
 
   const handleSaveCustomFinanceInstrument = useCallback(() => {
     const normalizedInstrument = normalizeCustomFinanceInstrument(customFinanceDraft);
@@ -3220,6 +3350,9 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
           onSaveCustomInstrument={handleSaveCustomFinanceInstrument}
           onDeleteCustomInstrument={handleDeleteCustomFinanceInstrument}
           onRefresh={() => void loadFinance()}
+          kospiLiveOpen={kospiLiveOpen}
+          kospiLiveRefreshing={kospiLiveRefreshing}
+          kospiLiveUpdatedAt={kospiLiveUpdatedAt}
         />
       )}
     </section>

@@ -489,7 +489,7 @@ async function fetchMultplInstrument(instrument: FinanceInstrument) {
   };
 }
 
-async function fetchFinanceInstrument(instrument: FinanceInstrument) {
+async function fetchFinanceInstrument(instrument: FinanceInstrument, options?: { skipHistory?: boolean }) {
   const quote =
     instrument.provider === "yahoo"
       ? await fetchYahooInstrument(instrument)
@@ -497,7 +497,7 @@ async function fetchFinanceInstrument(instrument: FinanceInstrument) {
         ? await fetchMultplInstrument(instrument)
         : await fetchInstrument(instrument);
 
-  if (instrument.provider === "multpl") {
+  if (options?.skipHistory || instrument.provider === "multpl") {
     return { ...quote, historyRanges: {}, historyErrors: {} };
   }
 
@@ -515,9 +515,16 @@ async function fetchFinanceInstrument(instrument: FinanceInstrument) {
   }
 }
 
+function shouldSkipHistory(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const raw = searchParams.get("skipHistory") ?? searchParams.get("quoteOnly");
+  return raw === "1" || raw === "true";
+}
+
 export async function GET(request: Request) {
+  const skipHistory = shouldSkipHistory(request);
   const instruments = [...getDefaultFinanceInstruments(request), ...getCustomFinanceInstruments(request)];
-  const settled = await Promise.allSettled(instruments.map(fetchFinanceInstrument));
+  const settled = await Promise.allSettled(instruments.map((instrument) => fetchFinanceInstrument(instrument, { skipHistory })));
   const quotes = settled.map((item, index) => {
     if (item.status === "fulfilled") return item.value;
     const instrument = instruments[index];
