@@ -278,7 +278,7 @@ function getSavedTubeChannels() {
   }
 }
 
-const FINANCE_CUSTOM_GROUPS: FengbroFinanceQuote["group"][] = ["tw", "tw-stocks", "asia", "asia-stocks", "korea", "fx", "commodities", "rates", "us", "us-stocks", "crypto"];
+const FINANCE_CUSTOM_GROUPS: FengbroFinanceQuote["group"][] = ["korea", "us-stocks", "asia-stocks", "tw", "tw-stocks", "us", "asia", "fx", "commodities", "rates", "crypto"];
 
 function normalizeCustomFinanceInstrument(input: Partial<CustomFinanceInstrument>): CustomFinanceInstrument | null {
   const symbol = typeof input.symbol === "string" ? input.symbol.trim().toUpperCase() : "";
@@ -1660,7 +1660,7 @@ function FengbroFinanceSection({
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const groupedQuotes = useMemo(() => {
-    const order: FengbroFinanceQuote["group"][] = ["tw", "tw-stocks", "us", "us-stocks", "valuation", "asia", "asia-stocks", "korea", "fx", "commodities", "rates", "crypto"];
+    const order: FengbroFinanceQuote["group"][] = ["korea", "us-stocks", "asia-stocks", "tw", "tw-stocks", "us", "valuation", "asia", "fx", "commodities", "rates", "crypto"];
     const query = searchQuery.trim().toLowerCase();
     return order
       .map((group) => ({
