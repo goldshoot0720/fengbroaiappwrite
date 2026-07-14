@@ -145,7 +145,7 @@ type FengbroFinanceQuote = {
   bilibiliUrl?: string;
   imageUrl?: string;
   imageUrls?: string[];
-  group: "tw" | "asia" | "korea" | "fx" | "commodities" | "rates" | "us" | "crypto" | "valuation";
+  group: "tw" | "tw-stocks" | "asia" | "asia-stocks" | "korea" | "fx" | "commodities" | "rates" | "us" | "us-stocks" | "crypto" | "valuation";
   provider?: "cnbc" | "yahoo" | "multpl";
   price: number | null;
   change: number | null;
@@ -236,18 +236,18 @@ const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrum
 const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDefaultInstrumentIds";
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "tw" },
-  { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "tw" },
-  { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "us" },
+  { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "tw-stocks" },
+  { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "us-stocks" },
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
   { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", provider: "cnbc", group: "us" },
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", provider: "cnbc", group: "us" },
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", provider: "cnbc", group: "us" },
-  { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", provider: "cnbc", group: "us" },
-  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", provider: "cnbc", group: "us" },
-  { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us" },
+  { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", provider: "cnbc", group: "us-stocks" },
+  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", provider: "cnbc", group: "us-stocks" },
+  { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us-stocks" },
   { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", provider: "multpl", group: "valuation" },
   { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", provider: "cnbc", group: "asia" },
-  { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", provider: "yahoo", group: "asia" },
+  { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", provider: "yahoo", group: "asia-stocks" },
   { id: "kospi", name: "KOSPI Index", symbol: ".KS11", provider: "cnbc", group: "asia" },
   { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", provider: "yahoo", group: "korea" },
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", provider: "yahoo", group: "korea" },
@@ -278,7 +278,7 @@ function getSavedTubeChannels() {
   }
 }
 
-const FINANCE_CUSTOM_GROUPS: FengbroFinanceQuote["group"][] = ["tw", "asia", "korea", "fx", "commodities", "rates", "us", "crypto"];
+const FINANCE_CUSTOM_GROUPS: FengbroFinanceQuote["group"][] = ["tw", "tw-stocks", "asia", "asia-stocks", "korea", "fx", "commodities", "rates", "us", "us-stocks", "crypto"];
 
 function normalizeCustomFinanceInstrument(input: Partial<CustomFinanceInstrument>): CustomFinanceInstrument | null {
   const symbol = typeof input.symbol === "string" ? input.symbol.trim().toUpperCase() : "";
@@ -499,14 +499,17 @@ function formatFinanceNumber(value: number | null, maximumFractionDigits = 2) {
 
 function getFinanceGroupLabel(group: FengbroFinanceQuote["group"]) {
   const labels: Record<FengbroFinanceQuote["group"], string> = {
-    tw: "台股",
-    asia: "\u4e9e\u6d32\u6307\u6578",
+    tw: "台股指數",
+    "tw-stocks": "台股",
+    asia: "亞洲指數",
+    "asia-stocks": "亞股",
     korea: "韓股",
     fx: "匯率",
-    commodities: "\u5546\u54c1",
-    rates: "\u5229\u7387",
-    us: "\u7f8e\u80a1\u6307\u6578",
-    crypto: "\u52a0\u5bc6\u8ca8\u5e63",
+    commodities: "商品",
+    rates: "利率",
+    us: "美股指數",
+    "us-stocks": "美股",
+    crypto: "加密貨幣",
     valuation: "估值指標",
   };
   return labels[group];
@@ -1657,7 +1660,7 @@ function FengbroFinanceSection({
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const groupedQuotes = useMemo(() => {
-    const order: FengbroFinanceQuote["group"][] = ["tw", "us", "valuation", "asia", "korea", "fx", "commodities", "rates", "crypto"];
+    const order: FengbroFinanceQuote["group"][] = ["tw", "tw-stocks", "us", "us-stocks", "valuation", "asia", "asia-stocks", "korea", "fx", "commodities", "rates", "crypto"];
     const query = searchQuery.trim().toLowerCase();
     return order
       .map((group) => ({
@@ -1897,20 +1900,13 @@ function FengbroFinanceSection({
             )}
             {/* ── 精選焦點區塊 ─────────────────────────────────────── */}
             {(() => {
-              const featuredIds = ["gold", "kospi", "nikkei-225", "phlx-semiconductor", "tsmc", "bitcoin"];
+              const featuredIds = ["kospi", "nikkei-225", "phlx-semiconductor"];
               const featuredQuotes = featuredIds
                 .map((id) => (result?.quotes || []).find((q) => q.id === id))
                 .filter((q): q is NonNullable<typeof q> => !!q)
                 .sort((a, b) => (b.price || 0) - (a.price || 0));
               if (featuredQuotes.length === 0) return null;
               const featuredLabels: Record<string, { title: string; subtitle: string; accentClass: string; bgClass: string; borderClass: string }> = {
-                gold: {
-                  title: "Gold COMEX",
-                  subtitle: "黃金期貨 @GC.1",
-                  accentClass: "text-amber-600",
-                  bgClass: "bg-[linear-gradient(135deg,rgba(254,243,199,0.8),rgba(255,255,255,0.98))]",
-                  borderClass: "border-amber-200",
-                },
                 kospi: {
                   title: "KOSPI Index",
                   subtitle: kospiLiveOpen
@@ -1933,20 +1929,6 @@ function FengbroFinanceSection({
                   accentClass: "text-violet-700",
                   bgClass: "bg-[linear-gradient(135deg,rgba(237,233,254,0.95),rgba(255,255,255,0.98))]",
                   borderClass: "border-violet-200",
-                },
-                tsmc: {
-                  title: "台積電",
-                  subtitle: "Taiwan Semiconductor · 2330.TW",
-                  accentClass: "text-emerald-700",
-                  bgClass: "bg-[linear-gradient(135deg,rgba(209,250,229,0.95),rgba(255,255,255,0.98))]",
-                  borderClass: "border-emerald-200",
-                },
-                bitcoin: {
-                  title: "Bitcoin",
-                  subtitle: "比特幣 BTC",
-                  accentClass: "text-amber-700",
-                  bgClass: "bg-[linear-gradient(135deg,rgba(254,243,199,0.95),rgba(255,255,255,0.98))]",
-                  borderClass: "border-amber-200",
                 },
               };
               return (
