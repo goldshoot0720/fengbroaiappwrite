@@ -96,7 +96,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
 const YAHOO_CHART_ENDPOINT = "https://query1.finance.yahoo.com/v8/finance/chart";
-const CUSTOM_FINANCE_GROUPS: FinanceInstrumentGroup[] = ["korea", "us-stocks", "asia-stocks", "tw", "tw-stocks", "us", "asia", "fx", "commodities", "rates", "crypto"];
+const CUSTOM_FINANCE_GROUPS: FinanceInstrumentGroup[] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "fx", "rates", "commodities", "crypto"];
 const DEFAULT_INSTRUMENT_IDS = new Set(INSTRUMENTS.map((instrument) => instrument.id));
 
 function slugifyInstrumentId(value: string) {

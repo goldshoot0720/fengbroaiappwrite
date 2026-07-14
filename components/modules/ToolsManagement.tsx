@@ -278,7 +278,7 @@ function getSavedTubeChannels() {
   }
 }
 
-const FINANCE_CUSTOM_GROUPS: FengbroFinanceQuote["group"][] = ["korea", "us-stocks", "asia-stocks", "tw", "tw-stocks", "us", "asia", "fx", "commodities", "rates", "crypto"];
+const FINANCE_CUSTOM_GROUPS: FengbroFinanceQuote["group"][] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "fx", "rates", "commodities", "crypto"];
 
 function normalizeCustomFinanceInstrument(input: Partial<CustomFinanceInstrument>): CustomFinanceInstrument | null {
   const symbol = typeof input.symbol === "string" ? input.symbol.trim().toUpperCase() : "";
@@ -1660,7 +1660,8 @@ function FengbroFinanceSection({
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const groupedQuotes = useMemo(() => {
-    const order: FengbroFinanceQuote["group"][] = ["korea", "us-stocks", "asia-stocks", "tw", "tw-stocks", "us", "valuation", "asia", "fx", "commodities", "rates", "crypto"];
+    // 精選焦點 → 亞洲指數 → 韓股 → 亞股 → 美股指數 → 美股 → 台股指數 → 台股 → 估值指標 → 匯率 → 利率 → 商品 → 加密貨幣
+    const order: FengbroFinanceQuote["group"][] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "valuation", "fx", "rates", "commodities", "crypto"];
     const query = searchQuery.trim().toLowerCase();
     return order
       .map((group) => ({
@@ -1885,6 +1886,12 @@ function FengbroFinanceSection({
             {groupedQuotes.length > 0 && (
               <div className="rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-3 shadow-sm">
                 <div className="flex gap-2 overflow-x-auto pb-1">
+                  <a
+                    href="#fengbro-finance-featured"
+                    className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-100"
+                  >
+                    精選焦點
+                  </a>
                   {groupedQuotes.map(({ group, quotes }) => (
                     <a
                       key={group}
@@ -1932,7 +1939,7 @@ function FengbroFinanceSection({
                 },
               };
               return (
-                <div>
+                <div id="fengbro-finance-featured" className="scroll-mt-28">
                   <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">精選焦點</p>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6">
                     {featuredQuotes.map((quote, idx) => {
