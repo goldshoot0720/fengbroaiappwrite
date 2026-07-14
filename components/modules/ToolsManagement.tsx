@@ -534,6 +534,20 @@ function getFinanceImageUrls(quote: Pick<FengbroFinanceQuote, "imageUrl" | "imag
   return [];
 }
 
+const FINANCE_IMAGE_SLIDE_MS = 4500;
+/** If video metadata never loads / autoplay never starts, skip after this. */
+const FINANCE_VIDEO_STALL_MS = 12_000;
+/** Extra buffer after known duration before force-advance. */
+const FINANCE_VIDEO_END_BUFFER_MS = 2_000;
+/** Hard cap so a broken duration cannot hang the carousel. */
+const FINANCE_VIDEO_MAX_MS = 180_000;
+
+function isFinanceMediaVideo(url?: string | null) {
+  if (!url) return false;
+  const path = url.split("?")[0]?.toLowerCase() || "";
+  return path.endsWith(".mp4") || path.endsWith(".webm") || path.endsWith(".mov");
+}
+
 function FinanceImageCarousel({
   quote,
   alt,
@@ -549,23 +563,64 @@ function FinanceImageCarousel({
 }) {
   const images = useMemo(() => getFinanceImageUrls(quote), [quote.imageUrl, quote.imageUrls]);
   const [index, setIndex] = useState(0);
+  const imagesKey = images.join("|");
+  const mediaAdvanceLockRef = useRef(false);
+  const videoFallbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setIndex(0);
-  }, [images.join("|")]);
+  }, [imagesKey]);
 
   const activeIndex = images.length > 0 ? index % images.length : 0;
   const activeUrl = images[activeIndex];
-  const isVideo = activeUrl?.toLowerCase().endsWith('.mp4');
+  const isVideo = isFinanceMediaVideo(activeUrl);
+
+  const clearVideoFallback = useCallback(() => {
+    if (videoFallbackTimerRef.current != null) {
+      window.clearTimeout(videoFallbackTimerRef.current);
+      videoFallbackTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
+    mediaAdvanceLockRef.current = false;
+    clearVideoFallback();
+  }, [activeUrl, clearVideoFallback]);
+
+  const advance = useCallback(() => {
+    setIndex((current) => (images.length > 0 ? (current + 1) % images.length : 0));
+  }, [images.length]);
+
+  /** Media-driven advance (ended/error/fallback): at most once per active slide. */
+  const advanceFromMedia = useCallback(() => {
+    if (mediaAdvanceLockRef.current || images.length <= 1) return;
+    mediaAdvanceLockRef.current = true;
+    clearVideoFallback();
+    advance();
+  }, [advance, clearVideoFallback, images.length]);
+
+  const scheduleVideoFallback = useCallback(
+    (ms: number) => {
+      clearVideoFallback();
+      const capped = Math.min(Math.max(ms, FINANCE_VIDEO_STALL_MS), FINANCE_VIDEO_MAX_MS);
+      videoFallbackTimerRef.current = window.setTimeout(advanceFromMedia, capped);
+    },
+    [advanceFromMedia, clearVideoFallback],
+  );
+
+  // Images: fixed interval. Videos: prefer onEnded; stall/duration fallbacks prevent freeze.
+  useEffect(() => {
     if (images.length <= 1) return;
-    if (isVideo) return; // For videos, we rely on the onEnded event to advance
-    const timer = window.setInterval(() => {
-      setIndex((current) => (current + 1) % images.length);
-    }, 4500);
+
+    if (isVideo) {
+      // Until metadata loads, use a short stall timeout so a dead video cannot block the carousel.
+      scheduleVideoFallback(FINANCE_VIDEO_STALL_MS);
+      return () => clearVideoFallback();
+    }
+
+    const timer = window.setInterval(advance, FINANCE_IMAGE_SLIDE_MS);
     return () => window.clearInterval(timer);
-  }, [images.length, isVideo]);
+  }, [images.length, isVideo, activeUrl, advance, scheduleVideoFallback, clearVideoFallback]);
 
   if (images.length === 0) return null;
 
@@ -582,7 +637,15 @@ function FinanceImageCarousel({
             autoPlay
             muted
             playsInline
-            onEnded={() => setIndex((current) => (current + 1) % images.length)}
+            preload="auto"
+            onLoadedMetadata={(event) => {
+              const durationSec = event.currentTarget.duration;
+              if (Number.isFinite(durationSec) && durationSec > 0) {
+                scheduleVideoFallback(durationSec * 1000 + FINANCE_VIDEO_END_BUFFER_MS);
+              }
+            }}
+            onEnded={advanceFromMedia}
+            onError={advanceFromMedia}
           />
         ) : (
           <img
@@ -591,6 +654,7 @@ function FinanceImageCarousel({
             alt={alt || `${quote.name} image ${activeIndex + 1}`}
             className={`h-full w-full ${objectClass}`}
             loading="lazy"
+            onError={advanceFromMedia}
           />
         )}
       </div>
@@ -608,7 +672,7 @@ function FinanceImageCarousel({
             type="button"
             aria-label="下一張"
             className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white shadow-sm backdrop-blur-sm transition hover:bg-black/60"
-            onClick={() => setIndex((current) => (current + 1) % images.length)}
+            onClick={advance}
           >
             <ChevronRight className="h-4 w-4" />
           </button>
