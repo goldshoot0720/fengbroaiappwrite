@@ -422,6 +422,37 @@ function formatPublishedDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatDownfallDateTime(value: string) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "--";
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function formatDownfallRelativeTime(value: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  const time = date.getTime();
+  if (!Number.isFinite(time)) return "";
+  const diffMs = Date.now() - time;
+  if (diffMs < 0) return "";
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diffMs < hour) return `${Math.max(1, Math.floor(diffMs / minute))} 分鐘前`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)} 小時前`;
+  if (diffMs < 30 * day) return `${Math.floor(diffMs / day)} 天前`;
+  if (diffMs < 365 * day) return `${Math.floor(diffMs / (30 * day))} 個月前`;
+  return `${Math.floor(diffMs / (365 * day))} 年前`;
+}
+
 function normalizeTubeDigits(value: string) {
   return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
 }
@@ -1497,9 +1528,12 @@ function FengbroTubeSection({
                             target="_blank"
                             rel="noreferrer"
                             className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100"
-                            title={downfallIndexUpdate.title}
+                            title={`${downfallIndexUpdate.title}\n時間：${formatDownfallDateTime(downfallIndexUpdate.publishedAt)}`}
                           >
-                            更新：倒台指數 {downfallIndexUpdate.value}
+                            倒台指數 {downfallIndexUpdate.value}
+                            <span className="ml-1 font-medium text-amber-600/80">
+                              · {formatPublishedDate(downfallIndexUpdate.publishedAt)}
+                            </span>
                           </a>
                         )}
                       </div>
@@ -1559,24 +1593,37 @@ function FengbroTubeSection({
               const henrenChannel = result.downfallChannel || result.channels.find(c => c.sourceUrl.includes("henren778"));
               let downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
               const historyEntries = getAllChannelDownfallIndexUpdates(henrenChannel);
-              
-              if (!downfallIndexUpdate && historyEntries.length > 0) {
+              const isHistoryFallback = !downfallIndexUpdate && historyEntries.length > 0;
+
+              if (isHistoryFallback) {
                  const lastEntry = historyEntries[historyEntries.length - 1];
                  downfallIndexUpdate = {
                     value: (lastEntry.price || 0).toFixed(2),
-                    title: "倒台指數歷史紀錄",
-                    url: "https://www.youtube.com/@henren778",
+                    title: "倒台指數歷史紀錄（尚無近期影片資料）",
+                    url: henrenChannel?.sourceUrl || "https://www.youtube.com/@henren778/videos",
                     publishedAt: lastEntry.date
                  };
               }
               if (!downfallIndexUpdate) return null;
+
+              const sourceChannelTitle =
+                henrenChannel?.title && !isBrokenFengbroTubeTitle(henrenChannel.title)
+                  ? henrenChannel.title
+                  : "一个狠人";
+              const sourceChannelUrl =
+                henrenChannel?.sourceUrl || "https://www.youtube.com/@henren778/videos";
+              const publishedLabel = formatDownfallDateTime(downfallIndexUpdate.publishedAt);
+              const relativeLabel = formatDownfallRelativeTime(downfallIndexUpdate.publishedAt);
+              const isVideoSource =
+                Boolean(downfallIndexUpdate.url) &&
+                /youtube\.com\/watch|youtu\.be\//i.test(downfallIndexUpdate.url);
               
               const pseudoQuote: FengbroFinanceQuote = {
                 id: "downfall-index",
                 name: "倒台指數",
                 displayName: "倒台指數",
                 symbol: "DFI",
-                sourceUrl: "https://www.youtube.com/@henren778",
+                sourceUrl: sourceChannelUrl,
                 group: "us",
                 price: null,
                 change: null,
@@ -1586,7 +1633,7 @@ function FengbroTubeSection({
                 low52: null,
                 dayHigh: null,
                 dayLow: null,
-                lastUpdated: new Date().toISOString(),
+                lastUpdated: downfallIndexUpdate.publishedAt || new Date().toISOString(),
                 recordTag: null,
                 historyRanges: {
                   "1y": historyEntries
@@ -1595,19 +1642,74 @@ function FengbroTubeSection({
 
               return (
                 <div className="mt-8 flex flex-col items-center gap-4">
-                  <a
-                    href={downfallIndexUpdate.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex flex-col items-center gap-1 rounded-3xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-white px-8 py-4 shadow-sm transition hover:scale-105 hover:border-amber-400 hover:shadow-md"
-                    title={downfallIndexUpdate.title}
-                  >
-                    <span className="text-sm font-bold text-amber-700 tracking-wider">📊 倒台指數</span>
-                    <span className="text-4xl font-black text-amber-600 tracking-tighter">{downfallIndexUpdate.value}</span>
-                    <span className="text-xs text-amber-600/70 font-medium mt-1">
-                      {formatPublishedDate(downfallIndexUpdate.publishedAt)} 更新
-                    </span>
-                  </a>
+                  <div className="w-full max-w-lg rounded-3xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-white px-6 py-5 shadow-sm sm:px-8">
+                    <div className="flex flex-col items-center gap-1 text-center">
+                      <span className="text-sm font-bold tracking-wider text-amber-700">📊 倒台指數</span>
+                      <span className="text-4xl font-black tracking-tighter text-amber-600">
+                        {downfallIndexUpdate.value}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-2 rounded-2xl border border-amber-100 bg-white/90 px-3 py-3 text-left text-xs text-amber-900/80">
+                      <div className="flex items-start gap-2">
+                        <span className="shrink-0 font-semibold text-amber-700">來源頻道</span>
+                        <a
+                          href={sourceChannelUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="min-w-0 font-medium text-amber-800 underline-offset-2 hover:underline"
+                        >
+                          {sourceChannelTitle}
+                          <ExternalLink className="ml-1 inline h-3 w-3 align-text-top opacity-70" />
+                        </a>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="shrink-0 font-semibold text-amber-700">
+                          {isVideoSource ? "來源影片" : "資料說明"}
+                        </span>
+                        {isVideoSource ? (
+                          <a
+                            href={downfallIndexUpdate.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="min-w-0 line-clamp-2 font-medium text-amber-800 underline-offset-2 hover:underline"
+                            title={downfallIndexUpdate.title}
+                          >
+                            {downfallIndexUpdate.title}
+                            <ExternalLink className="ml-1 inline h-3 w-3 align-text-top opacity-70" />
+                          </a>
+                        ) : (
+                          <span className="min-w-0">{downfallIndexUpdate.title}</span>
+                        )}
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="shrink-0 font-semibold text-amber-700">影片時間</span>
+                        <span className="min-w-0 font-medium text-amber-800">
+                          {publishedLabel}
+                          {relativeLabel ? (
+                            <span className="ml-1.5 text-amber-600/75">（{relativeLabel}）</span>
+                          ) : null}
+                          {isHistoryFallback ? (
+                            <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                              歷史回退
+                            </span>
+                          ) : null}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isVideoSource ? (
+                      <a
+                        href={downfallIndexUpdate.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex w-full items-center justify-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
+                      >
+                        開啟來源影片
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
+                  </div>
                   
                   {historyEntries.length > 1 && (
                     <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
