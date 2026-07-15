@@ -3,6 +3,7 @@ import {
   DEFAULT_FENGBRO_TUBE_CHANNELS,
   type FengbroTubeChannelConfig,
   getFengbroTubeAlias,
+  isBrokenFengbroTubeTitle,
   normalizeFengbroTubeChannels,
 } from "@/lib/fengbroTubeChannels";
 
@@ -10,8 +11,25 @@ export const dynamic = "force-dynamic";
 
 const YOUTUBE_HEADERS = {
   "user-agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "accept-language": "zh-TW,zh;q=0.9,en;q=0.8",
+  "cache-control": "no-cache",
+};
+
+/** YouTube Atom RSS has been returning 404; keep as last-resort only. */
+const YOUTUBE_FETCH_INIT: RequestInit = {
+  headers: YOUTUBE_HEADERS,
+  cache: "no-store",
+};
+
+type TubeVideoEntry = {
+  videoId: string;
+  title: string;
+  url: string;
+  publishedAt: string;
+  updatedAt: string;
+  thumbnail: string;
 };
 
 const BILIBILI_HEADERS = {
@@ -78,9 +96,91 @@ function getBilibiliMid(sourceUrl: string) {
   }
 }
 
+function isBrokenYouTubeTitle(title: string) {
+  return isBrokenFengbroTubeTitle(title);
+}
+
 function getChannelTitle(channel: FengbroTubeChannelConfig, title: string) {
   const defaultAlias = getFengbroTubeAlias(channel.sourceUrl);
-  return !channel.alias || channel.alias === defaultAlias ? title : channel.alias;
+  const cleanedTitle = isBrokenYouTubeTitle(title) ? "" : title.trim();
+  const cleanedAlias =
+    channel.alias && !isBrokenYouTubeTitle(channel.alias) ? channel.alias.trim() : "";
+  if (cleanedAlias && cleanedAlias !== defaultAlias) return cleanedAlias;
+  if (defaultAlias) return defaultAlias;
+  if (cleanedAlias) return cleanedAlias;
+  if (cleanedTitle) return cleanedTitle;
+  return fallbackNameFromUrl(channel.sourceUrl);
+}
+
+function walkJson(node: unknown, visitor: (value: Record<string, unknown>) => void) {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) walkJson(item, visitor);
+    return;
+  }
+  const record = node as Record<string, unknown>;
+  visitor(record);
+  for (const value of Object.values(record)) walkJson(value, visitor);
+}
+
+function textFromYouTubeField(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value !== "object") return "";
+  const record = value as Record<string, unknown>;
+  if (typeof record.simpleText === "string") return record.simpleText;
+  if (typeof record.content === "string") return record.content;
+  if (Array.isArray(record.runs)) {
+    return record.runs
+      .map((run) => (run && typeof run === "object" && typeof (run as { text?: unknown }).text === "string" ? (run as { text: string }).text : ""))
+      .join("");
+  }
+  return "";
+}
+
+function parseRelativePublishedAt(value: string, now = Date.now()) {
+  const text = value.trim().toLowerCase();
+  if (!text) return "";
+  if (/剛剛|刚刚|just now|moments? ago/.test(text)) return new Date(now).toISOString();
+
+  const match =
+    text.match(/(\d+)\s*(秒|second|seconds|分鐘|分钟|minute|minutes|小時|小时|hour|hours|天|day|days|週|周|week|weeks|個月|个月|month|months|年|year|years)\s*(前|ago)?/) ||
+    text.match(/(\d+)\s*(seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s*ago/);
+  if (!match) return "";
+
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount < 0) return "";
+  const unit = match[2];
+  const msByUnit: Record<string, number> = {
+    秒: 1000,
+    second: 1000,
+    seconds: 1000,
+    分鐘: 60 * 1000,
+    分钟: 60 * 1000,
+    minute: 60 * 1000,
+    minutes: 60 * 1000,
+    小時: 60 * 60 * 1000,
+    小时: 60 * 60 * 1000,
+    hour: 60 * 60 * 1000,
+    hours: 60 * 60 * 1000,
+    天: 24 * 60 * 60 * 1000,
+    day: 24 * 60 * 60 * 1000,
+    days: 24 * 60 * 60 * 1000,
+    週: 7 * 24 * 60 * 60 * 1000,
+    周: 7 * 24 * 60 * 60 * 1000,
+    week: 7 * 24 * 60 * 60 * 1000,
+    weeks: 7 * 24 * 60 * 60 * 1000,
+    個月: 30 * 24 * 60 * 60 * 1000,
+    个月: 30 * 24 * 60 * 60 * 1000,
+    month: 30 * 24 * 60 * 60 * 1000,
+    months: 30 * 24 * 60 * 60 * 1000,
+    年: 365 * 24 * 60 * 60 * 1000,
+    year: 365 * 24 * 60 * 60 * 1000,
+    years: 365 * 24 * 60 * 60 * 1000,
+  };
+  const unitMs = msByUnit[unit];
+  if (!unitMs) return "";
+  return new Date(now - amount * unitMs).toISOString();
 }
 
 function normalizeDigits(value: string) {
@@ -112,32 +212,123 @@ function isHenrenChannel(sourceUrl: string, title: string) {
   return /henren778/i.test(sourceUrl) || /一[個个]狠人/.test(title);
 }
 
-async function resolveChannelId(sourceUrl: string) {
+function getVideosPageUrl(sourceUrl: string) {
   const channelUrl = normalizeChannelUrl(sourceUrl);
-  const response = await fetch(channelUrl, {
-    headers: YOUTUBE_HEADERS,
-    next: { revalidate: 60 * 60 * 6 },
-  });
-  const html = await response.text();
+  return /\/videos$/i.test(sourceUrl) ? sourceUrl.replace(/\/$/, "") : `${channelUrl}/videos`;
+}
+
+function resolveChannelMetaFromHtml(sourceUrl: string, html: string) {
   const channelId =
-    pick(html, /"externalId"\s*:\s*"([^"]+)"/) ||
-    pick(html, /"channelId"\s*:\s*"([^"]+)"/) ||
+    pick(html, /"externalId"\s*:\s*"(UC[\w-]+)"/) ||
+    pick(html, /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]+)"/) ||
+    pick(html, /property="og:url" content="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]+)"/) ||
+    pick(html, /"channelId"\s*:\s*"(UC[\w-]+)"/) ||
     pick(html, /youtube\.com\/channel\/(UC[\w-]+)/);
+
+  const rawTitle =
+    pick(html, /<meta property="og:title" content="([^"]+)"/) ||
+    pick(html, /<title>(.*?)<\/title>/) ||
+    fallbackNameFromUrl(sourceUrl);
+  const title = isBrokenYouTubeTitle(rawTitle)
+    ? fallbackNameFromUrl(sourceUrl)
+    : rawTitle.replace(/ - YouTube$/i, "");
+
+  return { channelId, title };
+}
+
+async function resolveChannelPage(sourceUrl: string) {
+  const videosPageUrl = getVideosPageUrl(sourceUrl);
+  const response = await fetch(videosPageUrl, YOUTUBE_FETCH_INIT);
+  const html = await response.text();
+  const { channelId, title } = resolveChannelMetaFromHtml(sourceUrl, html);
 
   if (!channelId) {
     throw new Error("找不到 YouTube channel id");
   }
+  if (!response.ok && isBrokenYouTubeTitle(title)) {
+    throw new Error(`YouTube 頻道讀取失敗 (${response.status})`);
+  }
 
-  const title =
-    pick(html, /<meta property="og:title" content="([^"]+)"/) ||
-    pick(html, /<title>(.*?)<\/title>/) ||
-    fallbackNameFromUrl(sourceUrl);
+  return { channelId, title, html, videosPageUrl };
+}
 
-  return { channelId, title: title.replace(/ - YouTube$/i, "") };
+function extractJsonObjectAfterMarker(html: string, marker: string): unknown | null {
+  const markerIndex = html.indexOf(marker);
+  if (markerIndex < 0) return null;
+
+  const equalsIndex = html.indexOf("=", markerIndex + marker.length);
+  if (equalsIndex < 0) return null;
+
+  let start = equalsIndex + 1;
+  while (start < html.length && /\s/.test(html[start])) start += 1;
+  if (html[start] !== "{") return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < html.length; index += 1) {
+    const char = html[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(html.slice(start, index + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractYtInitialData(html: string): unknown | null {
+  const regexMatch = html.match(/ytInitialData\s*=\s*(\{[\s\S]*?\})\s*;\s*(?:<\/script>|var\s+|window)/);
+  if (regexMatch) {
+    try {
+      return JSON.parse(regexMatch[1]);
+    } catch {
+      // fall through to bracket parser
+    }
+  }
+  return extractJsonObjectAfterMarker(html, "ytInitialData");
+}
+
+function extractInnertubeClientConfig(html: string) {
+  return {
+    apiKey: pick(html, /"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/),
+    clientVersion:
+      pick(html, /"INNERTUBE_CLIENT_VERSION"\s*:\s*"([^"]+)"/) || "2.20260714.01.00",
+    clientName: pick(html, /"INNERTUBE_CLIENT_NAME"\s*:\s*"([^"]+)"/) || "WEB",
+  };
 }
 
 function parseFeed(xml: string) {
+  if (!xml.includes("<entry>") && !xml.includes("<feed")) {
+    return { feedTitle: "", entries: [] as TubeVideoEntry[] };
+  }
+
   const feedTitle = pick(xml, /<title>(.*?)<\/title>/);
+  if (isBrokenYouTubeTitle(feedTitle)) {
+    return { feedTitle: "", entries: [] as TubeVideoEntry[] };
+  }
+
   const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((match) => {
     const entry = match[1];
     const videoId = pick(entry, /<yt:videoId>(.*?)<\/yt:videoId>/);
@@ -157,41 +348,228 @@ function parseFeed(xml: string) {
       updatedAt,
       thumbnail,
     };
-  }).filter((entry) => !entry.url.includes("/shorts/"));
+  }).filter((entry) => entry.videoId && entry.title && !entry.url.includes("/shorts/"));
 
   return { feedTitle, entries };
+}
+
+function parseVideosFromYouTubeData(data: unknown): TubeVideoEntry[] {
+  if (!data) return [];
+
+  const lockups: Record<string, unknown>[] = [];
+  const renderers: Record<string, unknown>[] = [];
+  walkJson(data, (node) => {
+    if (node.lockupViewModel && typeof node.lockupViewModel === "object") {
+      lockups.push(node.lockupViewModel as Record<string, unknown>);
+    }
+    if (node.videoRenderer && typeof node.videoRenderer === "object") {
+      renderers.push(node.videoRenderer as Record<string, unknown>);
+    }
+    if (node.gridVideoRenderer && typeof node.gridVideoRenderer === "object") {
+      renderers.push(node.gridVideoRenderer as Record<string, unknown>);
+    }
+    if (node.richItemRenderer && typeof node.richItemRenderer === "object") {
+      const content = (node.richItemRenderer as Record<string, unknown>).content;
+      if (content && typeof content === "object") {
+        const contentRecord = content as Record<string, unknown>;
+        if (contentRecord.videoRenderer && typeof contentRecord.videoRenderer === "object") {
+          renderers.push(contentRecord.videoRenderer as Record<string, unknown>);
+        }
+        if (contentRecord.lockupViewModel && typeof contentRecord.lockupViewModel === "object") {
+          lockups.push(contentRecord.lockupViewModel as Record<string, unknown>);
+        }
+      }
+    }
+  });
+
+  const videos: TubeVideoEntry[] = [];
+  const seen = new Set<string>();
+  const now = Date.now();
+
+  for (const lockup of lockups) {
+    const rendererContext = lockup.rendererContext as Record<string, unknown> | undefined;
+    const commandContext = rendererContext?.commandContext as Record<string, unknown> | undefined;
+    const onTap = commandContext?.onTap as Record<string, unknown> | undefined;
+    const innertubeCommand = onTap?.innertubeCommand as Record<string, unknown> | undefined;
+    const watchEndpoint = innertubeCommand?.watchEndpoint as Record<string, unknown> | undefined;
+    const commandMetadata = innertubeCommand?.commandMetadata as Record<string, unknown> | undefined;
+    const webCommandMetadata = commandMetadata?.webCommandMetadata as Record<string, unknown> | undefined;
+    const watchUrl = typeof webCommandMetadata?.url === "string" ? webCommandMetadata.url : "";
+    const videoId =
+      (typeof lockup.contentId === "string" && lockup.contentId) ||
+      (typeof watchEndpoint?.videoId === "string" && watchEndpoint.videoId) ||
+      watchUrl.match(/[?&]v=([\w-]{11})/)?.[1] ||
+      "";
+
+    if (!videoId || videoId.length !== 11 || seen.has(videoId)) continue;
+    if (watchUrl.includes("/shorts/")) continue;
+
+    const metadata = lockup.metadata as Record<string, unknown> | undefined;
+    const lockupMetadata = metadata?.lockupMetadataViewModel as Record<string, unknown> | undefined;
+    const title = textFromYouTubeField(lockupMetadata?.title) || textFromYouTubeField(lockup.title);
+    if (!title || isBrokenYouTubeTitle(title)) continue;
+
+    const contentMetadata = lockupMetadata?.metadata as Record<string, unknown> | undefined;
+    const contentMetadataViewModel = contentMetadata?.contentMetadataViewModel as Record<string, unknown> | undefined;
+    const metadataRows = Array.isArray(contentMetadataViewModel?.metadataRows)
+      ? (contentMetadataViewModel.metadataRows as Array<Record<string, unknown>>)
+      : [];
+    const metaTexts = metadataRows.flatMap((row) => {
+      const parts = Array.isArray(row.metadataParts) ? (row.metadataParts as Array<Record<string, unknown>>) : [];
+      return parts.map((part) => textFromYouTubeField(part.text)).filter(Boolean);
+    });
+    const publishedAtText =
+      metaTexts.find((text) => /前|ago|天|小時|小时|分钟|分鐘|週|周|月|年|streamed|直播/.test(text)) ||
+      metaTexts[metaTexts.length - 1] ||
+      "";
+    const publishedAt = parseRelativePublishedAt(publishedAtText, now);
+
+    const contentImage = lockup.contentImage as Record<string, unknown> | undefined;
+    const thumbnailViewModel = contentImage?.thumbnailViewModel as Record<string, unknown> | undefined;
+    const image = thumbnailViewModel?.image as Record<string, unknown> | undefined;
+    const sources = Array.isArray(image?.sources) ? (image.sources as Array<Record<string, unknown>>) : [];
+    const thumbnailUrl =
+      (typeof sources[sources.length - 1]?.url === "string" && (sources[sources.length - 1].url as string)) ||
+      `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+    seen.add(videoId);
+    videos.push({
+      videoId,
+      title,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      publishedAt,
+      updatedAt: publishedAt,
+      thumbnail: thumbnailUrl.startsWith("//") ? `https:${thumbnailUrl}` : thumbnailUrl,
+    });
+  }
+
+  for (const renderer of renderers) {
+    const videoId = typeof renderer.videoId === "string" ? renderer.videoId : "";
+    if (!videoId || seen.has(videoId)) continue;
+    const title = textFromYouTubeField(renderer.title);
+    if (!title || isBrokenYouTubeTitle(title)) continue;
+    const nav = renderer.navigationEndpoint as Record<string, unknown> | undefined;
+    const commandMetadata = nav?.commandMetadata as Record<string, unknown> | undefined;
+    const webCommandMetadata = commandMetadata?.webCommandMetadata as Record<string, unknown> | undefined;
+    const watchUrl = typeof webCommandMetadata?.url === "string" ? webCommandMetadata.url : "";
+    if (watchUrl.includes("/shorts/")) continue;
+
+    const publishedAtText = textFromYouTubeField(renderer.publishedTimeText);
+    const publishedAt = parseRelativePublishedAt(publishedAtText, now);
+    const thumbnailObj = renderer.thumbnail as Record<string, unknown> | undefined;
+    const thumbnails = Array.isArray(thumbnailObj?.thumbnails)
+      ? (thumbnailObj.thumbnails as Array<Record<string, unknown>>)
+      : [];
+    const thumbnailUrl =
+      (typeof thumbnails[thumbnails.length - 1]?.url === "string" && (thumbnails[thumbnails.length - 1].url as string)) ||
+      `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+    seen.add(videoId);
+    videos.push({
+      videoId,
+      title,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      publishedAt,
+      updatedAt: publishedAt,
+      thumbnail: thumbnailUrl.startsWith("//") ? `https:${thumbnailUrl}` : thumbnailUrl,
+    });
+  }
+
+  return videos;
+}
+
+function parseVideosFromChannelHtml(html: string): TubeVideoEntry[] {
+  return parseVideosFromYouTubeData(extractYtInitialData(html));
+}
+
+async function fetchYouTubeInnertubeVideos(channelId: string, html: string): Promise<TubeVideoEntry[]> {
+  const { apiKey, clientVersion } = extractInnertubeClientConfig(html);
+  if (!apiKey || !channelId) return [];
+
+  try {
+    const response = await fetch(
+      `https://www.youtube.com/youtubei/v1/browse?key=${encodeURIComponent(apiKey)}&prettyPrint=false`,
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          ...YOUTUBE_HEADERS,
+          "content-type": "application/json",
+          "x-youtube-client-name": "1",
+          "x-youtube-client-version": clientVersion,
+          origin: "https://www.youtube.com",
+          referer: `https://www.youtube.com/channel/${channelId}/videos`,
+        },
+        body: JSON.stringify({
+          context: {
+            client: {
+              clientName: "WEB",
+              clientVersion,
+              hl: "zh-TW",
+              gl: "TW",
+            },
+          },
+          browseId: channelId,
+          // videos tab
+          params: "EgZ2aWRlb3PyBgQKAjoA",
+        }),
+      }
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return parseVideosFromYouTubeData(data);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchYouTubeFeedVideos(channelId: string) {
+  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
+  try {
+    const response = await fetch(feedUrl, YOUTUBE_FETCH_INIT);
+    if (!response.ok) return { feedTitle: "", entries: [] as TubeVideoEntry[] };
+    const xml = await response.text();
+    if (isBrokenYouTubeTitle(pick(xml, /<title>(.*?)<\/title>/))) {
+      return { feedTitle: "", entries: [] as TubeVideoEntry[] };
+    }
+    return parseFeed(xml);
+  } catch {
+    return { feedTitle: "", entries: [] as TubeVideoEntry[] };
+  }
 }
 
 async function fetchChannel(channel: FengbroTubeChannelConfig) {
   if (isBilibiliSource(channel.sourceUrl)) return fetchBilibiliChannel(channel);
 
   const { sourceUrl } = channel;
-  const { channelId, title } = await resolveChannelId(sourceUrl);
-  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
-  const response = await fetch(feedUrl, {
-    headers: YOUTUBE_HEADERS,
-    next: { revalidate: 60 * 30 },
-  });
-  const xml = await response.text();
-  const { feedTitle, entries } = parseFeed(xml);
+  const { channelId, title, html } = await resolveChannelPage(sourceUrl);
 
-  let videos = entries.slice(0, 15);
-  
-  if (sourceUrl.toLowerCase().includes("leonard2834")) {
-    videos = videos.filter(video => !/Leonard精[選选]片段/i.test(video.title));
+  // Prefer page / Innertube scrape: Atom RSS currently returns 404 for many channels.
+  let videos = parseVideosFromChannelHtml(html).slice(0, 15);
+  if (videos.length === 0) {
+    videos = (await fetchYouTubeInnertubeVideos(channelId, html)).slice(0, 15);
   }
-  
+  const feed = videos.length === 0 ? await fetchYouTubeFeedVideos(channelId) : { feedTitle: "", entries: [] as TubeVideoEntry[] };
+  if (videos.length === 0) {
+    videos = feed.entries.slice(0, 15);
+  }
+
+  if (sourceUrl.toLowerCase().includes("leonard2834")) {
+    videos = videos.filter((video) => !/Leonard精[選选]片段/i.test(video.title));
+  }
+
   videos = videos.slice(0, 10);
-  let downfallIndexVideo = null;
-  
-  if (isHenrenChannel(sourceUrl, feedTitle || title)) {
+  let downfallIndexVideo: { video: TubeVideoEntry; value: string } | null = null;
+  const resolvedTitle = getChannelTitle(channel, title || feed.feedTitle);
+
+  if (isHenrenChannel(sourceUrl, resolvedTitle)) {
     const downfallItems = videos
       .map((video) => ({ video, value: extractDownfallIndex(video.title) }))
       .filter((item) => item.value);
-      
+
     if (downfallItems.length > 0) {
       downfallIndexVideo = downfallItems[0];
-      videos = downfallItems.map(item => item.video);
+      videos = downfallItems.map((item) => item.video);
     } else {
       videos = [];
     }
@@ -200,7 +578,7 @@ async function fetchChannel(channel: FengbroTubeChannelConfig) {
   return {
     sourceUrl,
     channelId,
-    title: getChannelTitle(channel, feedTitle || title),
+    title: resolvedTitle,
     videos,
     downfallIndexUpdate: downfallIndexVideo
       ? {
@@ -328,15 +706,6 @@ function getLatestChannelTime(channel: { videos: Array<{ publishedAt: string; up
   );
 }
 
-type FengbroTubeVideoEntry = {
-  videoId: string;
-  title: string;
-  url: string;
-  publishedAt: string;
-  updatedAt: string;
-  thumbnail: string;
-};
-
 async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
   const uniqueChannels = normalizeFengbroTubeChannels(channelsConfig);
   const henrenConfig = { alias: "一个狠人", sourceUrl: "https://www.youtube.com/@henren778/videos" };
@@ -370,11 +739,11 @@ async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
   const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
   const recentVideos = channels.flatMap((channel) =>
     channel.videos
-      .filter((video: FengbroTubeVideoEntry) => {
+      .filter((video: TubeVideoEntry) => {
         const time = new Date(video.publishedAt || video.updatedAt).getTime();
         return Number.isFinite(time) && now - time <= threeDaysMs;
       })
-      .map((video: FengbroTubeVideoEntry) => ({
+      .map((video: TubeVideoEntry) => ({
         ...video,
         channelTitle: channel.title,
         channelId: channel.channelId,

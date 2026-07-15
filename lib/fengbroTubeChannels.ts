@@ -90,13 +90,18 @@ export function getFengbroTubeHandle(sourceUrl: string) {
   }
 }
 
+export function isBrokenFengbroTubeTitle(title: string) {
+  return /Error\s*\d+\s*\(|Not Found|Server Error|!!1/i.test(title || "");
+}
+
 export function getFengbroTubeAlias(sourceUrl: string, fallback = "") {
   const handle = getFengbroTubeHandle(sourceUrl);
   return FENGBRO_TUBE_TITLE_OVERRIDES[handle] || fallback;
 }
 
 export function getFengbroTubeFallbackTitle(sourceUrl: string, fallback = "") {
-  return getFengbroTubeAlias(sourceUrl) || fallback || getFengbroTubeHandle(sourceUrl) || sourceUrl;
+  const cleanedFallback = isBrokenFengbroTubeTitle(fallback) ? "" : fallback.trim();
+  return getFengbroTubeAlias(sourceUrl) || cleanedFallback || getFengbroTubeHandle(sourceUrl) || sourceUrl;
 }
 
 export function toFengbroTubeChannelConfig(input: unknown): FengbroTubeChannelConfig | null {
@@ -113,7 +118,8 @@ export function toFengbroTubeChannelConfig(input: unknown): FengbroTubeChannelCo
   if (!sourceUrl) return null;
 
   const alias = typeof value.alias === "string" ? value.alias.trim() : "";
-  const normalizedAlias = alias === "未命名頻道" ? "" : alias;
+  const normalizedAlias =
+    !alias || alias === "未命名頻道" || isBrokenFengbroTubeTitle(alias) ? "" : alias;
   return { alias: normalizedAlias || getFengbroTubeAlias(sourceUrl), sourceUrl };
 }
 

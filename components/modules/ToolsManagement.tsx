@@ -9,6 +9,7 @@ import {
   DEFAULT_FENGBRO_TUBE_CHANNELS,
   type FengbroTubeChannelConfig,
   getFengbroTubeFallbackTitle,
+  isBrokenFengbroTubeTitle,
   normalizeFengbroTubeChannels,
   normalizeFengbroTubeSource,
 } from "@/lib/fengbroTubeChannels";
@@ -373,7 +374,11 @@ function getSavedDefaultFinanceInstrumentIds() {
 
 function hasCustomTubeAlias(alias: string) {
   const normalizedAlias = alias.trim();
-  return Boolean(normalizedAlias && normalizedAlias !== "未命名頻道");
+  return Boolean(
+    normalizedAlias &&
+      normalizedAlias !== "未命名頻道" &&
+      !isBrokenFengbroTubeTitle(normalizedAlias)
+  );
 }
 
 function getSamsungDefaultLandtopQuery(date = new Date()) {
@@ -2667,6 +2672,14 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
         normalizeFengbroTubeChannels(
           currentChannels.map((channel) => {
             const fallbackTitle = getFengbroTubeFallbackTitle(channel.sourceUrl);
+            // Drop previously saved YouTube error-page titles (e.g. "Error 404 (Not Found)!!1").
+            if (isBrokenFengbroTubeTitle(channel.alias)) {
+              const resolvedTitle = resolvedTitles.get(channel.sourceUrl) || "";
+              return {
+                ...channel,
+                alias: getFengbroTubeFallbackTitle(channel.sourceUrl, resolvedTitle),
+              };
+            }
             if (hasCustomTubeAlias(channel.alias) && channel.alias.trim() !== fallbackTitle) return channel;
             const resolvedTitle = resolvedTitles.get(channel.sourceUrl);
             return {
