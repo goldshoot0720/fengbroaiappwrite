@@ -74,8 +74,8 @@ export default function EnhancedScrollNavigation({
 
   if (!showButtons) return null;
 
+  // Stay on bottom-right; clear mobile home-indicator area without colliding with left voice FAB.
   return (
-    {/* Stay on bottom-right; clear mobile home-indicator area without colliding with left voice FAB. */}
     <div className="fixed right-2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[var(--z-dock)] flex flex-col items-end gap-3 sm:right-4 sm:bottom-6">
       {/* 快速導航選單 */}
       {showQuickNav && quickNavItems.length > 0 && (
