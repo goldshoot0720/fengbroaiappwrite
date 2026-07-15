@@ -75,7 +75,8 @@ export default function EnhancedScrollNavigation({
   if (!showButtons) return null;
 
   return (
-    <div className="fixed right-2 bottom-[7.25rem] z-[var(--z-dock)] flex flex-col items-end gap-3 sm:right-4 sm:bottom-4 tablet-8-7">
+    {/* Stay on bottom-right; clear mobile home-indicator area without colliding with left voice FAB. */}
+    <div className="fixed right-2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[var(--z-dock)] flex flex-col items-end gap-3 sm:right-4 sm:bottom-6">
       {/* 快速導航選單 */}
       {showQuickNav && quickNavItems.length > 0 && (
         <div className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-xl p-2 mb-2 min-w-[200px] max-w-[250px] sm:min-w-[220px]">

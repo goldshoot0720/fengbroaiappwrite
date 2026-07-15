@@ -1019,7 +1019,8 @@ export function GlobalVoiceCommandPanel({
     "安全操作";
 
   return (
-    <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 z-[var(--z-voice)] flex max-w-[calc(100vw-1.5rem)] flex-col items-start gap-2 md:bottom-6 md:left-auto md:right-6 md:max-w-[560px]">
+    {/* Keep on bottom-left so it never covers right-side scroll / queue docks. */}
+    <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-start gap-2 md:bottom-6 md:left-6">
       {open && (
         <div className="w-full rounded-[24px] border border-[var(--line-strong)] bg-white/92 p-4 shadow-[0_24px_80px_rgba(17,24,39,0.18)] backdrop-blur-xl dark:bg-gray-950/92">
           <div className="flex items-start justify-between gap-3">
