@@ -74,7 +74,6 @@ const RELEASE_ITEMS = [
     title: "手機比價介面現代化升級與頻道優化",
     bullets: [
       "手機比價介面全面導入琉璃質感 (Glassmorphism)，加入環境光暈、懸停動畫與質感徽章設計。",
-      "鋒兄Tube 頻道清單更新，新增 Leonard 頻道。",
     ],
   },
   {

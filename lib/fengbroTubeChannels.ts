@@ -4,53 +4,26 @@ export type FengbroTubeChannelConfig = {
 };
 
 export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
-  sjdiao: "习书记",
   henren778: "一个狠人",
   libertas1984: "Cao Cao's daily observation",
   sunlao: "政經孫老師",
-  torontobigface: "多伦多方脸",
-  junyulan: "君語瀾 JunYuLan",
   blackwhite_raven: "黑白乌鸦",
-  quedaren: "雀大人 | Miss. Mi",
-  夸克说: "夸克说",
 
-  sunchannelhk: "Sun Channel",
   informant510: "线人频道Informant",
   "ma-siku": "马司库",
   monsterise: "怪獸崛起 MONSTERISE",
-  neixianzhang: "張内咸脫口秀",
-  修仙者小烨: "修仙者小烨",
-  cheapaoe: "cheap",
-  storytellerhk: "StorytellerHK 說書客",
-  mrshenofficial: "公子沈 Terence Shen",
-  gc趙氏讀書生活: "Gavinchiu趙氏讀書生活",
   tankman2020: "二爷故事",
-  leonard2834: "Leonard",
 };
 
 const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
-  "https://www.youtube.com/@SJdiao/videos",
   "https://www.youtube.com/@libertas1984/videos",
   "https://www.youtube.com/@sunlao/videos",
-  "https://www.youtube.com/@Torontobigface/videos",
-  "https://www.youtube.com/@junyulan/videos",
   "https://www.youtube.com/@blackwhite_raven/videos",
-  "https://www.youtube.com/@quedaren/videos",
-  "https://www.youtube.com/@%E5%A4%B8%E5%85%8B%E8%AF%B4",
 
-  "https://www.youtube.com/@SunChannelHK/videos",
   "https://www.youtube.com/@informant510/videos",
   "https://www.youtube.com/@ma-siku/videos",
   "https://www.youtube.com/@monsterise/videos",
-  "https://www.youtube.com/@NeixianZhang/videos",
-  "https://www.youtube.com/@%E4%BF%AE%E4%BB%99%E8%80%85%E5%B0%8F%E7%83%A8/videos",
-  "https://www.youtube.com/@cheapaoe/videos",
-  "https://www.youtube.com/@StorytellerHK/videos",
-  "https://www.youtube.com/@mrshenofficial/videos",
-  "https://www.youtube.com/@GC%E8%B6%99%E6%B0%8F%E8%AE%80%E6%9B%B8%E7%94%9F%E6%B4%BB",
   "https://www.youtube.com/@Tankman2020/videos",
-  "https://www.youtube.com/@leonard2834/videos",
-
 ];
 
 export function normalizeFengbroTubeSource(input: string) {
