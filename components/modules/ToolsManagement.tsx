@@ -144,6 +144,7 @@ type FengbroFinanceQuote = {
   youtubeLabel?: string;
   youtubeLinks?: Array<{ label: string; url: string }>;
   bilibiliUrl?: string;
+  relatedLinks?: Array<{ label: string; url: string }>;
   imageUrl?: string;
   imageUrls?: string[];
   group: "tw" | "tw-stocks" | "asia" | "asia-stocks" | "korea" | "fx" | "commodities" | "rates" | "us" | "us-stocks" | "crypto" | "valuation";
@@ -2296,6 +2297,11 @@ function FengbroFinanceSection({
                                     Bilibili <Play className="inline h-3 w-3" />
                                   </a>
                                 )}
+                                {quote.relatedLinks?.map((link) => (
+                                  <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-800 hover:bg-amber-100">
+                                    {link.label} <ExternalLink className="inline h-3 w-3" />
+                                  </a>
+                                ))}
                                 <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50">
                                   {quote.provider === "yahoo" ? "Yahoo" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
                                 </a>
@@ -2458,6 +2464,11 @@ function FengbroFinanceSection({
                                 Bilibili <Play className="inline h-3 w-3" />
                               </a>
                             )}
+                            {quote.relatedLinks?.map((link) => (
+                              <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-800 hover:bg-amber-100">
+                                {link.label} <ExternalLink className="inline h-3 w-3" />
+                              </a>
+                            ))}
                             <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100">
                               {quote.provider === "yahoo" ? "Yahoo" : quote.provider === "multpl" || quote.id === "shiller-pe" ? "Multpl" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
                             </a>
