@@ -47,7 +47,6 @@
 #### `public/finance/` 子目錄
 - **`nikkei-225-index.png`** - 日經225指數圖表
 - **`kospi-index.png`** - KOSPI指數圖表
-- **`dow-jones-doac.png`** - 道瓊工業指數圖表
 
 ---
 
@@ -65,8 +64,7 @@ public/
 ├── cats2.25fimage2.png            ✅
 ├── finance/
 │   ├── nikkei-225-index.png       ✅
-│   ├── kospi-index.png            ✅
-│   └── dow-jones-doac.png         ✅
+│   └── kospi-index.png            ✅
 ├── manifest.json                  ✅
 ├── sw.js                          ✅
 ├── offline.html                   ✅
