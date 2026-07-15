@@ -503,19 +503,28 @@ const HARDCODED_DOWNFALL_INDEX_HISTORY: PriceHistoryEntry[] = [
   { date: "2024-06-01T00:00:00Z", price: 70.58 },
 ];
 
+function getChannelDownfallVideoSamples(channel: FengbroTubeChannel | undefined) {
+  if (!channel) return [] as Array<{ video: FengbroTubeVideo; value: string }>;
+  const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
+  if (!isHenrenChannel) return [];
+
+  return channel.videos
+    .map((video) => ({ video, value: extractTubeDownfallIndex(video.title) }))
+    .filter((item): item is { video: FengbroTubeVideo; value: string } => Boolean(item.value));
+}
+
 function getAllChannelDownfallIndexUpdates(channel: FengbroTubeChannel | undefined): PriceHistoryEntry[] {
   if (!channel) return HARDCODED_DOWNFALL_INDEX_HISTORY;
   const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
   if (!isHenrenChannel) return HARDCODED_DOWNFALL_INDEX_HISTORY;
 
-  const dynamicPoints = channel.videos
-    .map((video) => ({ video, value: extractTubeDownfallIndex(video.title) }))
-    .filter((item) => item.value)
-    .map(item => ({ date: item.video.publishedAt, price: Number(item.value) }))
+  const dynamicPoints = getChannelDownfallVideoSamples(channel)
+    .map((item) => ({ date: item.video.publishedAt, price: Number(item.value) }))
+    .filter((item) => Number.isFinite(item.price) && item.date)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const lastHardcodedDate = new Date(HARDCODED_DOWNFALL_INDEX_HISTORY[HARDCODED_DOWNFALL_INDEX_HISTORY.length - 1].date).getTime();
-  const newDynamicPoints = dynamicPoints.filter(p => new Date(p.date).getTime() > lastHardcodedDate);
+  const newDynamicPoints = dynamicPoints.filter((p) => new Date(p.date).getTime() > lastHardcodedDate);
 
   return [...HARDCODED_DOWNFALL_INDEX_HISTORY, ...newDynamicPoints];
 }
@@ -1515,6 +1524,9 @@ function FengbroTubeSection({
             <div className="grid gap-5">
               {visibleChannels.map((channel, index) => {
                 const downfallIndexUpdate = getChannelDownfallIndexUpdate(channel);
+                const downfallSampleCount = downfallIndexUpdate
+                  ? getAllChannelDownfallIndexUpdates(channel).length
+                  : 0;
 
                 return (
                 <div id={getTubeChannelAnchor(index)} key={channel.sourceUrl} className="min-w-0 max-w-full scroll-mt-28 overflow-hidden rounded-[28px] border border-border bg-white p-4 shadow-sm">
@@ -1528,11 +1540,12 @@ function FengbroTubeSection({
                             target="_blank"
                             rel="noreferrer"
                             className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100"
-                            title={`${downfallIndexUpdate.title}\n時間：${formatDownfallDateTime(downfallIndexUpdate.publishedAt)}`}
+                            title={`${downfallIndexUpdate.title}\n時間：${formatDownfallDateTime(downfallIndexUpdate.publishedAt)}\n樣本數：${downfallSampleCount}`}
                           >
                             倒台指數 {downfallIndexUpdate.value}
                             <span className="ml-1 font-medium text-amber-600/80">
                               · {formatPublishedDate(downfallIndexUpdate.publishedAt)}
+                              · 樣本 {downfallSampleCount}
                             </span>
                           </a>
                         )}
@@ -1593,6 +1606,10 @@ function FengbroTubeSection({
               const henrenChannel = result.downfallChannel || result.channels.find(c => c.sourceUrl.includes("henren778"));
               let downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
               const historyEntries = getAllChannelDownfallIndexUpdates(henrenChannel);
+              const videoSamples = getChannelDownfallVideoSamples(henrenChannel);
+              const videoSampleCount = videoSamples.length;
+              const historySampleCount = historyEntries.length;
+              const hardcodedSampleCount = HARDCODED_DOWNFALL_INDEX_HISTORY.length;
               const isHistoryFallback = !downfallIndexUpdate && historyEntries.length > 0;
 
               if (isHistoryFallback) {
@@ -1617,6 +1634,10 @@ function FengbroTubeSection({
               const isVideoSource =
                 Boolean(downfallIndexUpdate.url) &&
                 /youtube\.com\/watch|youtu\.be\//i.test(downfallIndexUpdate.url);
+              const sampleCountLabel =
+                videoSampleCount > 0
+                  ? `${historySampleCount}（近期影片 ${videoSampleCount} + 歷史基線 ${hardcodedSampleCount}）`
+                  : `${historySampleCount}（歷史基線 ${hardcodedSampleCount}）`;
               
               const pseudoQuote: FengbroFinanceQuote = {
                 id: "downfall-index",
@@ -1648,9 +1669,18 @@ function FengbroTubeSection({
                       <span className="text-4xl font-black tracking-tighter text-amber-600">
                         {downfallIndexUpdate.value}
                       </span>
+                      <span className="mt-1 rounded-full border border-amber-200 bg-amber-100/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                        樣本數 {historySampleCount}
+                      </span>
                     </div>
 
                     <div className="mt-4 space-y-2 rounded-2xl border border-amber-100 bg-white/90 px-3 py-3 text-left text-xs text-amber-900/80">
+                      <div className="flex items-start gap-2">
+                        <span className="shrink-0 font-semibold text-amber-700">樣本數</span>
+                        <span className="min-w-0 font-medium text-amber-800">
+                          {sampleCountLabel}
+                        </span>
+                      </div>
                       <div className="flex items-start gap-2">
                         <span className="shrink-0 font-semibold text-amber-700">來源頻道</span>
                         <a
