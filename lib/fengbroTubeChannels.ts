@@ -13,6 +13,7 @@ export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
   "ma-siku": "马司库",
   monsterise: "怪獸崛起 MONSTERISE",
   tankman2020: "二爷故事",
+  tengumedia: "天狗衛視",
 };
 
 const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
@@ -24,6 +25,7 @@ const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
   "https://www.youtube.com/@ma-siku/videos",
   "https://www.youtube.com/@monsterise/videos",
   "https://www.youtube.com/@Tankman2020/videos",
+  "https://www.youtube.com/@tengumedia/videos",
 ];
 
 export function normalizeFengbroTubeSource(input: string) {
