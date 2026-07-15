@@ -460,73 +460,149 @@ function normalizeTubeDigits(value: string) {
 function extractTubeDownfallIndex(title: string) {
   const normalizedTitle = normalizeTubeDigits(title);
   const numberPattern = "([0-9]+(?:\\.[0-9]+)?)";
-  const formatIndex = (value: string) => Number(value).toFixed(2).padStart(5, "0");
+  const formatIndex = (value: string) => Number(value).toFixed(2);
+  const movementUnits = "飆至|飙至|升至|漲至|涨至|達到|达到|衝到|冲到|升到|達|达|突破|破|到|至";
+  const isPlausibleIndex = (raw: string, nextText = "") => {
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 1 || value > 100) return false;
+    if (/^[月日號号年]/.test(nextText)) return false;
+    if (value >= 40) return true;
+    return raw.includes(".");
+  };
+
+  const movementNearLabel = normalizedTitle.match(
+    new RegExp(`倒台指[數数][」』"']?.{0,40}?(?:${movementUnits})\\s*${numberPattern}`)
+  );
+  if (movementNearLabel?.[1]) {
+    const full = movementNearLabel[0];
+    const num = movementNearLabel[1];
+    const nextText = full.slice(full.lastIndexOf(num) + num.length);
+    if (isPlausibleIndex(num, nextText)) return formatIndex(num);
+  }
+
+  const indexAfterLabel = normalizedTitle.match(
+    new RegExp(`倒台指[數数][」』"']?\\s*${numberPattern}(?![月日號号年])`)
+  );
+  if (indexAfterLabel?.[1] && isPlausibleIndex(indexAfterLabel[1])) {
+    return formatIndex(indexAfterLabel[1]);
+  }
+
   const labelMatch = /倒台指[數数]/.exec(normalizedTitle);
   if (labelMatch) {
-    const afterLabelText = normalizedTitle.slice(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 80);
-    const movementValue = afterLabelText.match(new RegExp(`(?:飆至|飙至|升至|漲至|涨至|達到|达到|達|达|至|突破|破)\\s*${numberPattern}`));
-    if (movementValue?.[1]) return formatIndex(movementValue[1]);
+    const afterLabelText = normalizedTitle.slice(
+      labelMatch.index + labelMatch[0].length,
+      labelMatch.index + labelMatch[0].length + 80
+    );
+    const movementValue = afterLabelText.match(new RegExp(`(?:${movementUnits})\\s*${numberPattern}`));
+    if (movementValue?.[1] && isPlausibleIndex(movementValue[1])) return formatIndex(movementValue[1]);
 
     const afterLabelNumbers = [...afterLabelText.matchAll(new RegExp(numberPattern, "g"))];
     const firstNonDateNumber = afterLabelNumbers.find((match) => {
       const nextText = afterLabelText.slice((match.index || 0) + match[0].length).trimStart();
-      return !/^[月日號号]/.test(nextText);
+      return isPlausibleIndex(match[1], nextText);
     });
     if (firstNonDateNumber?.[1]) return formatIndex(firstNonDateNumber[1]);
   }
   const beforeLabel = normalizedTitle.match(new RegExp(`${numberPattern}\\s*(?:分|%|％)?\\s*倒台指[數数]`));
-  return beforeLabel?.[1] ? formatIndex(beforeLabel[1]) : "";
+  if (beforeLabel?.[1] && isPlausibleIndex(beforeLabel[1])) return formatIndex(beforeLabel[1]);
+  return "";
+}
+
+/** Thumbnail-only values with verified air dates (mirrors API known map). */
+const KNOWN_TUBE_DOWNFALL_BY_VIDEO_ID: Record<string, { value: string; publishedAt: string }> = {
+  sticRfV28VM: { value: "67.44", publishedAt: "2025-10-04T00:00:00.000Z" },
+};
+
+function resolveTubeDownfallIndexForVideo(video: FengbroTubeVideo) {
+  const fromTitle = extractTubeDownfallIndex(video.title);
+  if (fromTitle) {
+    return {
+      value: fromTitle,
+      publishedAt: video.publishedAt || video.updatedAt || "",
+      title: video.title,
+      url: video.url,
+    };
+  }
+  const known = KNOWN_TUBE_DOWNFALL_BY_VIDEO_ID[video.videoId];
+  if (!known) return null;
+  return {
+    value: known.value,
+    publishedAt: video.publishedAt || video.updatedAt || known.publishedAt,
+    title: video.title,
+    url: video.url,
+  };
 }
 
 function getChannelDownfallIndexUpdate(channel: FengbroTubeChannel) {
-  if (channel.downfallIndexUpdate) return channel.downfallIndexUpdate;
+  if (channel.downfallIndexUpdate) {
+    const videoId = channel.downfallIndexUpdate.url.match(/[?&]v=([\w-]{11})/)?.[1] || "";
+    const known = videoId ? KNOWN_TUBE_DOWNFALL_BY_VIDEO_ID[videoId] : undefined;
+    if (known && Number(channel.downfallIndexUpdate.value) === Number(known.value)) {
+      return {
+        ...channel.downfallIndexUpdate,
+        publishedAt: known.publishedAt,
+      };
+    }
+    return channel.downfallIndexUpdate;
+  }
   const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
   if (!isHenrenChannel) return null;
 
   const matched = channel.videos
-    .map((video) => ({ video, value: extractTubeDownfallIndex(video.title) }))
-    .find((item) => item.value);
+    .map((video) => resolveTubeDownfallIndexForVideo(video))
+    .find((item) => item);
 
   return matched
     ? {
         value: matched.value,
-        title: matched.video.title,
-        url: matched.video.url,
-        publishedAt: matched.video.publishedAt,
+        title: matched.title,
+        url: matched.url,
+        publishedAt: matched.publishedAt,
       }
     : null;
 }
 
+// Verified baseline points. 67.44 = first Saturday of Oct 2025 (2025-10-04).
 const HARDCODED_DOWNFALL_INDEX_HISTORY: PriceHistoryEntry[] = [
-  { date: "2023-10-01T00:00:00Z", price: 67.44 },
-  { date: "2023-11-01T00:00:00Z", price: 68.28 },
-  { date: "2024-06-01T00:00:00Z", price: 70.58 },
+  { date: "2025-10-04T00:00:00.000Z", price: 67.44 },
+  { date: "2025-11-01T00:00:00.000Z", price: 68.28 },
+  { date: "2026-06-07T00:00:00.000Z", price: 70.58 },
 ];
 
 function getChannelDownfallVideoSamples(channel: FengbroTubeChannel | undefined) {
-  if (!channel) return [] as Array<{ video: FengbroTubeVideo; value: string }>;
+  if (!channel) return [] as Array<{ video: FengbroTubeVideo; value: string; publishedAt: string }>;
   const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
   if (!isHenrenChannel) return [];
 
   return channel.videos
-    .map((video) => ({ video, value: extractTubeDownfallIndex(video.title) }))
-    .filter((item): item is { video: FengbroTubeVideo; value: string } => Boolean(item.value));
+    .map((video) => {
+      const resolved = resolveTubeDownfallIndexForVideo(video);
+      if (!resolved) return null;
+      return {
+        video: { ...video, publishedAt: resolved.publishedAt || video.publishedAt },
+        value: resolved.value,
+        publishedAt: resolved.publishedAt || video.publishedAt,
+      };
+    })
+    .filter((item): item is { video: FengbroTubeVideo; value: string; publishedAt: string } => Boolean(item));
 }
 
 function getAllChannelDownfallIndexUpdates(channel: FengbroTubeChannel | undefined): PriceHistoryEntry[] {
-  if (!channel) return HARDCODED_DOWNFALL_INDEX_HISTORY;
-  const isHenrenChannel = /henren778/i.test(channel.sourceUrl) || /一[個个]狠人/.test(channel.title);
-  if (!isHenrenChannel) return HARDCODED_DOWNFALL_INDEX_HISTORY;
-
   const dynamicPoints = getChannelDownfallVideoSamples(channel)
-    .map((item) => ({ date: item.video.publishedAt, price: Number(item.value) }))
+    .map((item) => ({ date: item.publishedAt, price: Number(item.value) }))
     .filter((item) => Number.isFinite(item.price) && item.date)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const lastHardcodedDate = new Date(HARDCODED_DOWNFALL_INDEX_HISTORY[HARDCODED_DOWNFALL_INDEX_HISTORY.length - 1].date).getTime();
-  const newDynamicPoints = dynamicPoints.filter((p) => new Date(p.date).getTime() > lastHardcodedDate);
+  // Merge by rounded price, prefer dynamic dates when available.
+  const byPrice = new Map<string, PriceHistoryEntry>();
+  for (const point of HARDCODED_DOWNFALL_INDEX_HISTORY) {
+    byPrice.set(Number(point.price).toFixed(2), point);
+  }
+  for (const point of dynamicPoints) {
+    byPrice.set(Number(point.price).toFixed(2), point);
+  }
 
-  return [...HARDCODED_DOWNFALL_INDEX_HISTORY, ...newDynamicPoints];
+  return [...byPrice.values()].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
 const FENGBRO_TUBE_TOP_ID = "fengbro-tube-top";
