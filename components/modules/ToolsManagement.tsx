@@ -15,9 +15,10 @@ import {
 } from "@/lib/fengbroTubeChannels";
 import { isKospiMarketOpen, KOSPI_LIVE_POLL_MS } from "@/lib/kospiMarketHours";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
+import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
 import ManualPriceTracker from "@/components/modules/ManualPriceTracker";
 
-type ToolsTab = "price-compare" | "landtop" | "fengbro-tube" | "fengbro-finance" | "image-voice-video";
+type ToolsTab = "price-compare" | "landtop" | "fengbro-tube" | "fengbro-finance" | "fengbro-news" | "image-voice-video";
 type PriceSource = "local" | "biggo-api";
 
 type PriceHistoryEntry = {
@@ -233,6 +234,7 @@ const TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "landtop", label: "手機比價" },
   { id: "fengbro-tube", label: "鋒兄Tube" },
   { id: "fengbro-finance", label: "\u92d2\u5144\u91d1\u878d" },
+  { id: "fengbro-news", label: "鋒兄新聞" },
   { id: "image-voice-video", label: "圖片語音影片" },
 ];
 
@@ -3376,7 +3378,7 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
 
   return (
     <section className="space-y-6">
-      <PageTitle title="鋒兄工具" description="工具模組集中入口：比價、Tube、金融、圖片語音影片。" />
+      <PageTitle title="鋒兄工具" description="工具模組集中入口：比價、Tube、金融、新聞、圖片語音影片。" />
 
       <DataCard className="p-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -3813,6 +3815,8 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
           onResetChannels={handleResetTubeChannels}
           onRefresh={() => void loadTube()}
         />
+      ) : activeTab === "fengbro-news" ? (
+        <FengbroNewsTool />
       ) : activeTab === "image-voice-video" ? (
         <ImageVoiceVideoTool />
       ) : (
