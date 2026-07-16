@@ -59,6 +59,7 @@ type FengbroNewsResult = {
   onlyLocked: boolean;
   siteCount: number;
   resultCount: number;
+  maxAgeYears?: number;
   fetchedAt: string;
   results: NewsArticle[];
   bySite: SiteSearchResult[];
@@ -127,7 +128,7 @@ export default function FengbroNewsTool() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<FengbroNewsResult | null>(null);
-  const [managerOpen, setManagerOpen] = useState(true);
+  const [managerOpen, setManagerOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const {
     items: recentTitleQueries,
@@ -340,7 +341,7 @@ export default function FengbroNewsTool() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-600/80">FengBro News</p>
               <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄新聞</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                鎖定網站焦點後，只在指定網站搜尋「標題包含關鍵字」的文章。
+                鎖定網站焦點後，只在指定網站搜尋「標題包含關鍵字」的文章（最多三年內）。
               </p>
             </div>
           </div>
@@ -366,7 +367,7 @@ export default function FengbroNewsTool() {
             </Button>
             <Button type="button" variant="outline" onClick={() => setManagerOpen((o) => !o)} className="gap-2 rounded-xl">
               <Wrench size={16} />
-              {managerOpen ? "收合來源" : "管理來源"}
+              {managerOpen ? "收合來源" : "展開來源"}
             </Button>
           </div>
         </div>
@@ -565,7 +566,7 @@ export default function FengbroNewsTool() {
               </Button>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              範例：鎖定三個公部門網站，標題含「中新地下道」→ 應得到交通局、鐵道局、中壢區公所各一則。
+              僅顯示近三年內可判斷日期的新聞；無日期者保留。範例：標題含「中新地下道」。
             </p>
 
             <div className="mt-3 rounded-2xl border border-sky-100 bg-white/80 px-3 py-3">
@@ -637,7 +638,8 @@ export default function FengbroNewsTool() {
                 <h4 className="text-sm font-semibold text-foreground">
                   「{result.query}」共 {result.resultCount} 則
                   <span className="ml-2 font-normal text-muted-foreground">
-                    （焦點 {result.siteCount} 站）
+                    （焦點 {result.siteCount} 站
+                    {result.maxAgeYears ? ` · 近 ${result.maxAgeYears} 年` : ""}）
                   </span>
                 </h4>
               </div>
@@ -672,6 +674,12 @@ export default function FengbroNewsTool() {
                           {article.siteName}
                           <span className="mx-1.5 text-slate-300">·</span>
                           {article.domain}
+                          {article.publishedAt ? (
+                            <>
+                              <span className="mx-1.5 text-slate-300">·</span>
+                              {new Date(article.publishedAt).toLocaleDateString("zh-TW")}
+                            </>
+                          ) : null}
                         </p>
                         <p className="truncate text-[11px] text-sky-700/80">{article.url}</p>
                       </div>
