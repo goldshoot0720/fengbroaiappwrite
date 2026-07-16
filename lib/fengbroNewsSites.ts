@@ -100,6 +100,7 @@ export const DEFAULT_FENGBRO_NEWS_SITES: FengbroNewsSiteConfig[] = [
     domain: "leho.com.tw",
     homeUrl: "https://leho.com.tw/",
     adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://leho.com.tw/?s={q}",
     locked: true,
   },
   {
@@ -109,6 +110,263 @@ export const DEFAULT_FENGBRO_NEWS_SITES: FengbroNewsSiteConfig[] = [
     homeUrl: "https://udn.com/news/index",
     adapter: "generic-keyword-url",
     searchUrlTemplate: "https://udn.com/search/word/2/{q}",
+    locked: true,
+  },
+  {
+    id: "tycg",
+    name: "桃園市政府",
+    domain: "tycg.gov.tw",
+    homeUrl: "https://www.tycg.gov.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.tycg.gov.tw/Advanced_Search.aspx?q={q}",
+    locked: true,
+  },
+  {
+    id: "bella",
+    name: "Bella 儂儂",
+    domain: "bella.tw",
+    homeUrl: "https://www.bella.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.bella.tw/search?q={q}",
+    locked: true,
+  },
+  {
+    id: "youtube-tbc-news-nty",
+    name: "TBC 新聞 (NTY)",
+    domain: "youtube.com",
+    homeUrl: "https://www.youtube.com/@TBC-news-NTY/videos",
+    adapter: "youtube-channel",
+    locked: true,
+  },
+  {
+    id: "youtube-pnnpts",
+    name: "PNN 公視新聞網",
+    domain: "youtube.com",
+    homeUrl: "https://www.youtube.com/@PNNPTS/videos",
+    adapter: "youtube-channel",
+    locked: true,
+  },
+  {
+    id: "youtube-beiken-vitality",
+    name: "北健活力頻道",
+    domain: "youtube.com",
+    homeUrl: "https://www.youtube.com/@北健活力頻道/videos",
+    adapter: "youtube-channel",
+    locked: true,
+  },
+  {
+    id: "youtube-nantaoyuantbc",
+    name: "南桃園 TBC",
+    domain: "youtube.com",
+    homeUrl: "https://www.youtube.com/@nantaoyuantbc/videos",
+    adapter: "youtube-channel",
+    locked: true,
+  },
+  {
+    id: "ey-gov",
+    name: "行政院",
+    domain: "ey.gov.tw",
+    homeUrl: "https://www.ey.gov.tw/",
+    adapter: "generic-keyword-url",
+    // 新聞與公告列表；關鍵字命中靠列表掃 + Google News 備援
+    searchUrlTemplate: "https://www.ey.gov.tw/Page/4EC20EEEEEAF363C",
+    locked: true,
+  },
+  {
+    id: "dorts-tycg",
+    name: "桃園市政府捷運工程局",
+    domain: "dorts.tycg.gov.tw",
+    homeUrl: "https://dorts.tycg.gov.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://dorts.tycg.gov.tw/News.aspx",
+    locked: true,
+  },
+  {
+    id: "hakkanews",
+    name: "客新聞",
+    domain: "hakkanews.tw",
+    homeUrl: "https://hakkanews.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://hakkanews.tw/?s={q}",
+    locked: true,
+  },
+  {
+    id: "mygo",
+    name: "MyGo!",
+    domain: "mygo.com",
+    homeUrl: "https://www.mygo.com/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.mygo.com/?s={q}",
+    locked: true,
+  },
+  {
+    id: "businesstoday",
+    name: "今周刊",
+    domain: "businesstoday.com.tw",
+    homeUrl: "https://www.businesstoday.com.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.businesstoday.com.tw/search?q={q}",
+    locked: true,
+  },
+  {
+    id: "yahoo-news-tw",
+    name: "Yahoo奇摩新聞",
+    domain: "tw.news.yahoo.com",
+    homeUrl: "https://tw.news.yahoo.com/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://tw.news.yahoo.com/search?p={q}",
+    locked: true,
+  },
+  {
+    id: "homeplus-news",
+    name: "住商新聞",
+    domain: "news.homeplus.net.tw",
+    homeUrl: "https://news.homeplus.net.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://news.homeplus.net.tw/?s={q}",
+    locked: true,
+  },
+  {
+    id: "tycc",
+    name: "桃園市議會",
+    domain: "tycc.gov.tw",
+    homeUrl: "https://www.tycc.gov.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.tycc.gov.tw/home.jsp?id=45&q={q}",
+    locked: true,
+  },
+  {
+    id: "motc",
+    name: "交通部",
+    domain: "motc.gov.tw",
+    homeUrl: "https://www.motc.gov.tw/",
+    adapter: "generic-keyword-url",
+    // 新聞稿列表；關鍵字靠掃描 + Google News 備援
+    searchUrlTemplate: "https://www.motc.gov.tw/ch/home.jsp?id=14&parentpath=0,2",
+    locked: true,
+  },
+  // 桃園市政府 (tycg.gov.tw) 已於上方 id: "tycg" 登錄
+  {
+    id: "annewsmedia",
+    name: "AN 新聞",
+    domain: "annewsmedia.com",
+    homeUrl: "https://annewsmedia.com/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://annewsmedia.com/?s={q}",
+    locked: true,
+  },
+  {
+    id: "housefun-news",
+    name: "好房網新聞",
+    domain: "news.housefun.com.tw",
+    homeUrl: "https://news.housefun.com.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://news.housefun.com.tw/search?q={q}",
+    locked: true,
+  },
+  {
+    id: "myhousing",
+    name: "住展房屋網",
+    domain: "myhousing.com.tw",
+    homeUrl: "https://www.myhousing.com.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.myhousing.com.tw/?s={q}",
+    locked: true,
+  },
+  {
+    id: "youtube-bv2dp",
+    name: "BV2DP",
+    domain: "youtube.com",
+    homeUrl: "https://www.youtube.com/@bv2dp/videos",
+    adapter: "youtube-channel",
+    locked: true,
+  },
+  {
+    id: "youtube-ttv-news",
+    name: "台視新聞 TTV NEWS",
+    domain: "youtube.com",
+    homeUrl: "https://www.youtube.com/@TTV_NEWS/videos",
+    adapter: "youtube-channel",
+    locked: true,
+  },
+  {
+    id: "leju",
+    name: "樂居",
+    domain: "leju.com.tw",
+    homeUrl: "https://www.leju.com.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.leju.com.tw/?s={q}",
+    locked: true,
+  },
+  {
+    id: "youtube-qianliyan",
+    name: "千里眼新視界",
+    domain: "youtube.com",
+    homeUrl: "https://www.youtube.com/@千里眼新視界/videos",
+    adapter: "youtube-channel",
+    locked: true,
+  },
+  {
+    id: "ptt-home-sale",
+    name: "PTT 房屋板",
+    domain: "ptt.cc",
+    homeUrl: "https://www.ptt.cc/bbs/home-sale/index.html",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.ptt.cc/bbs/home-sale/search?q={q}",
+    locked: true,
+  },
+  {
+    id: "ctee",
+    name: "工商時報",
+    domain: "ctee.com.tw",
+    homeUrl: "https://www.ctee.com.tw/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.ctee.com.tw/search/{q}",
+    locked: true,
+  },
+  {
+    id: "tyenews",
+    name: "桃園電子報",
+    domain: "tyenews.com",
+    homeUrl: "https://tyenews.com/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://tyenews.com/?s={q}",
+    locked: true,
+  },
+  // 自由時報 (ltn.com.tw) 已於上方 id: "ltn" 登錄
+  {
+    id: "thehubnews",
+    name: "樞紐新聞",
+    domain: "thehubnews.net",
+    homeUrl: "https://www.thehubnews.net/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.thehubnews.net/?s={q}",
+    locked: true,
+  },
+  {
+    id: "storm-new7",
+    name: "新新聞",
+    domain: "storm.mg",
+    homeUrl: "https://new7.storm.mg/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://new7.storm.mg/?s={q}",
+    locked: true,
+  },
+  {
+    id: "youtube-ntyprogram-shorts",
+    name: "年代向錢看 Shorts",
+    domain: "youtube.com",
+    homeUrl: "https://www.youtube.com/@ntyprogram/shorts",
+    adapter: "youtube-channel",
+    locked: true,
+  },
+  {
+    id: "mobile01",
+    name: "Mobile01",
+    domain: "mobile01.com",
+    homeUrl: "https://www.mobile01.com/",
+    adapter: "generic-keyword-url",
+    searchUrlTemplate: "https://www.mobile01.com/googlesearch.php?q={q}",
     locked: true,
   },
 ];
@@ -156,12 +414,25 @@ export function extractYouTubeChannelKey(homeUrl: string): string {
   return "";
 }
 
-/** Normalize YouTube channel URL to https://www.youtube.com/@handle/videos form when possible. */
+/** Channel tab: videos (default) | shorts | streams | featured */
+export function extractYouTubeChannelTab(homeUrl: string): "videos" | "shorts" | "streams" | "featured" {
+  try {
+    const path = decodeURIComponent(new URL(homeUrl).pathname).toLowerCase();
+    if (/\/shorts(?:\/|$)/i.test(path)) return "shorts";
+    if (/\/streams(?:\/|$)/i.test(path)) return "streams";
+    if (/\/featured(?:\/|$)/i.test(path)) return "featured";
+  } catch {
+    // fall through
+  }
+  return "videos";
+}
+
+/** Normalize YouTube channel URL; preserve /shorts|/streams when present. */
 export function normalizeYouTubeChannelUrl(input: string): string {
   const raw = (input || "").trim();
   if (!raw) return "";
 
-  // Bare handle
+  // Bare handle → videos tab
   if (raw.startsWith("@")) {
     return `https://www.youtube.com/${encodeURI(raw)}/videos`;
   }
@@ -179,18 +450,24 @@ export function normalizeYouTubeChannelUrl(input: string): string {
     if (!isYouTubeHost(url.hostname)) return "";
 
     const path = decodeURIComponent(url.pathname).replace(/\/+$/, "");
+    const tabMatch = path.match(/\/(videos|shorts|streams|featured)$/i);
+    const tab = tabMatch ? tabMatch[1].toLowerCase() : "videos";
+
     const handle = path.match(/^\/@([^/]+)/)?.[1];
-    if (handle) return `https://www.youtube.com/@${handle}/videos`;
+    if (handle) return `https://www.youtube.com/@${handle}/${tab}`;
 
     const channelId = path.match(/^\/channel\/(UC[\w-]+)/)?.[1];
-    if (channelId) return `https://www.youtube.com/channel/${channelId}/videos`;
+    if (channelId) return `https://www.youtube.com/channel/${channelId}/${tab}`;
 
     const legacy = path.match(/^\/(?:c|user)\/([^/]+)/)?.[1];
-    if (legacy) return `https://www.youtube.com/@${legacy}/videos`;
+    if (legacy) return `https://www.youtube.com/@${legacy}/${tab}`;
 
     // /videos alone or channel root
     if (path === "" || path === "/") return "";
-    return `https://www.youtube.com${path}${/\/videos$/i.test(path) ? "" : "/videos"}`;
+    if (/\/(videos|shorts|streams|featured)$/i.test(path)) {
+      return `https://www.youtube.com${path}`;
+    }
+    return `https://www.youtube.com${path}/videos`;
   } catch {
     return "";
   }
@@ -246,7 +523,10 @@ export function guessSiteNameFromUrl(homeUrl: string, domain: string): string {
 /** Unique key for dedupe (YouTube channels / PTT boards share parent domains). */
 export function fengbroNewsSiteKey(site: Pick<FengbroNewsSiteConfig, "id" | "domain" | "homeUrl" | "adapter">): string {
   if (site.adapter === "youtube-channel" || isYouTubeHost(site.domain) || isYouTubeHost(site.homeUrl)) {
-    return `yt:${extractYouTubeChannelKey(site.homeUrl) || site.id || site.homeUrl}`.toLowerCase();
+    const ch = extractYouTubeChannelKey(site.homeUrl) || site.id || site.homeUrl;
+    const tab = extractYouTubeChannelTab(site.homeUrl);
+    // Allow same channel videos + shorts as two sources
+    return `yt:${ch}:${tab}`.toLowerCase();
   }
   // PTT boards: /bbs/Railway/...
   try {
@@ -285,10 +565,11 @@ export function normalizeFengbroNewsSite(
   const adapter = (input.adapter || guessed) as FengbroNewsAdapter;
 
   const ytKey = extractYouTubeChannelKey(homeUrl);
+  const ytTab = isYt ? extractYouTubeChannelTab(homeUrl) : "videos";
   const id =
     (input.id || "").trim() ||
     (isYt && ytKey
-      ? `youtube-${ytKey.replace(/[^a-z0-9._-]+/gi, "-").toLowerCase()}`
+      ? `youtube-${ytKey.replace(/[^a-z0-9._-]+/gi, "-").toLowerCase()}${ytTab !== "videos" ? `-${ytTab}` : ""}`
       : domain.replace(/[^a-z0-9.-]+/gi, "-").replace(/^-|-$/g, "")) ||
     `site-${Date.now()}`;
 
