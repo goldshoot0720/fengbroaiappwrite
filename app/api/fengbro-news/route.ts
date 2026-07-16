@@ -281,61 +281,50 @@ async function searchTycgZhongli(site: FengbroNewsSiteConfig, query: string): Pr
   };
 }
 
-/** Generic: fetch a keyword search URL template and extract links whose text matches query */
-async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
-  const template = site.searchUrlTemplate;
-  if (!template) {
-    return {
-      siteId: site.id,
-      siteName: site.name,
-      domain: site.domain,
-      articles: [],
-      error: "此網站尚未設定 searchUrlTemplate，無法自動搜尋",
-    };
+function hostMatchesDomain(url: string, domain: string) {
+  try {
+    const host = normalizeDomain(new URL(url).hostname);
+    const d = domain.replace(/^www\./, "");
+    if (host === d || host.endsWith(`.${d}`)) return true;
+    // Cross-subdomain news search hosts (search.ltn.com.tw ↔ ltn.com.tw)
+    const root = d.split(".").slice(-2).join(".");
+    const hostRoot = host.split(".").slice(-2).join(".");
+    if (root.length > 3 && hostRoot === root) return true;
+    return false;
+  } catch {
+    return false;
   }
+}
 
-  const listUrl = template.includes("{q}")
-    ? template.replaceAll("{q}", encodeURIComponent(query))
-    : template;
-
-  let text = "";
-  let source = listUrl;
-  const direct = await fetchText(listUrl);
-  if (direct.ok && direct.text.length > 2000 && !direct.text.includes("Incapsula") && !direct.text.includes("ROBOTS")) {
-    text = direct.text;
-  } else {
-    // Fallback reader for hard sites
-    const via = await fetchViaJina(listUrl);
-    if (!via.ok) {
-      return {
-        siteId: site.id,
-        siteName: site.name,
-        domain: site.domain,
-        articles: [],
-        error: `HTTP ${direct.status}/${via.status}`,
-        source: listUrl,
-      };
-    }
-    text = via.text;
-    source = `${listUrl} (via reader)`;
-  }
-
+function extractArticlesFromText(
+  text: string,
+  baseUrl: string,
+  site: FengbroNewsSiteConfig,
+  query: string,
+  seen: Set<string>
+): NewsArticle[] {
   const articles: NewsArticle[] = [];
-  const seen = new Set<string>();
   const domain = normalizeDomain(site.domain);
 
-  // HTML anchors
-  const htmlRe = /href="(https?:\/\/[^"]+|\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  // HTML anchors (href before or after text)
+  const htmlRe =
+    /<a\b[^>]*href="(https?:\/\/[^"]+|\/[^"]+)"[^>]*>([\s\S]*?)<\/a>|<a\b[^>]*>([\s\S]*?)<\/a>/gi;
   let m: RegExpExecArray | null;
   while ((m = htmlRe.exec(text))) {
-    const title = stripTags(m[2]);
-    if (!title || title.length < 4 || !titleMatches(title, query)) continue;
-    const url = canonicalizeUrl(absoluteUrl(listUrl, m[1]));
-    try {
-      if (!normalizeDomain(new URL(url).hostname).endsWith(domain.replace(/^www\./, ""))) continue;
-    } catch {
-      continue;
+    let href = m[1] || "";
+    let rawTitle = m[2] || m[3] || "";
+    if (!href) {
+      const innerHref = /href="(https?:\/\/[^"]+|\/[^"]+)"/i.exec(m[0]);
+      href = innerHref?.[1] || "";
     }
+    if (!href) continue;
+    // PTT: title is often plain text inside r-ent blocks
+    const title = stripTags(rawTitle);
+    if (!title || title.length < 4 || !titleMatches(title, query)) continue;
+    // Skip pure navigation chrome
+    if (/^(上一頁|下一頁|最新|看板|所有文章|搜尋|首頁|回目錄)$/i.test(title)) continue;
+    const url = canonicalizeUrl(absoluteUrl(baseUrl, href));
+    if (!hostMatchesDomain(url, domain)) continue;
     if (seen.has(url)) continue;
     seen.add(url);
     articles.push({
@@ -347,17 +336,32 @@ async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query: strin
     });
   }
 
+  // PTT list rows: <div class="title"><a href="...">title</a>
+  if (domain.includes("ptt.cc")) {
+    const pttRe = /class="title"[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    while ((m = pttRe.exec(text))) {
+      const title = stripTags(m[2]);
+      if (!title || !titleMatches(title, query)) continue;
+      const url = canonicalizeUrl(absoluteUrl(baseUrl, m[1]));
+      if (seen.has(url)) continue;
+      seen.add(url);
+      articles.push({
+        title,
+        url,
+        siteId: site.id,
+        siteName: site.name,
+        domain: site.domain,
+      });
+    }
+  }
+
   // Markdown links from reader
   const mdRe = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi;
   while ((m = mdRe.exec(text))) {
     const title = normalizeSpace(m[1]);
-    if (!title || !titleMatches(title, query)) continue;
+    if (!title || title.length < 4 || !titleMatches(title, query)) continue;
     const url = canonicalizeUrl(m[2]);
-    try {
-      if (!normalizeDomain(new URL(url).hostname).endsWith(domain.replace(/^www\./, ""))) continue;
-    } catch {
-      continue;
-    }
+    if (!hostMatchesDomain(url, domain)) continue;
     if (seen.has(url)) continue;
     seen.add(url);
     articles.push({
@@ -366,6 +370,300 @@ async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query: strin
       siteId: site.id,
       siteName: site.name,
       domain: site.domain,
+    });
+  }
+
+  return articles;
+}
+
+async function fetchPageText(url: string): Promise<{ text: string; source: string; error?: string }> {
+  const direct = await fetchText(url);
+  if (
+    direct.ok &&
+    direct.text.length > 800 &&
+    !direct.text.includes("Incapsula") &&
+    !/META NAME="ROBOTS" CONTENT="NOINDEX,\s*NOFOLLOW"/i.test(direct.text)
+  ) {
+    return { text: direct.text, source: url };
+  }
+
+  const via = await fetchViaJina(url);
+  if (!via.ok || via.text.length < 200) {
+    return {
+      text: "",
+      source: url,
+      error: `HTTP ${direct.status}${via.ok ? "" : `/${via.status}`}`,
+    };
+  }
+  return { text: via.text, source: `${url} (via reader)` };
+}
+
+/**
+ * Generic: prefer searchUrlTemplate with {q}; otherwise scan homeUrl / list page
+ * and filter anchors whose title contains the keyword.
+ */
+async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
+  const candidates: string[] = [];
+  const template = site.searchUrlTemplate?.trim();
+  if (template) {
+    candidates.push(
+      template.includes("{q}") ? template.replaceAll("{q}", encodeURIComponent(query)) : template
+    );
+  }
+  if (site.homeUrl) candidates.push(site.homeUrl);
+  // Common TW gov news list patterns as soft fallbacks
+  try {
+    const origin = new URL(site.homeUrl || `https://${site.domain}`).origin;
+    candidates.push(
+      `${origin}/News.aspx`,
+      `${origin}/news`,
+      `${origin}/News`,
+      `https://${site.domain}/`
+    );
+  } catch {
+    candidates.push(`https://${site.domain}/`);
+  }
+
+  const uniqueUrls = [...new Set(candidates.filter(Boolean))];
+  const articles: NewsArticle[] = [];
+  const seen = new Set<string>();
+  const sources: string[] = [];
+  let lastError = "";
+
+  for (const listUrl of uniqueUrls) {
+    try {
+      const page = await fetchPageText(listUrl);
+      if (page.error && !page.text) {
+        lastError = page.error;
+        continue;
+      }
+      sources.push(page.source);
+      const found = extractArticlesFromText(page.text, listUrl, site, query, seen);
+      articles.push(...found);
+      if (articles.length >= 8) break;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "抓取失敗";
+    }
+  }
+
+  return {
+    siteId: site.id,
+    siteName: site.name,
+    domain: site.domain,
+    articles,
+    error:
+      articles.length === 0
+        ? lastError || "此來源未找到標題符合的文章（可設定搜尋 URL 模板含 {q} 提升命中）"
+        : undefined,
+    source: sources[0] || site.homeUrl,
+  };
+}
+
+type YouTubeVideoHit = {
+  title: string;
+  url: string;
+  videoId: string;
+  publishedAt?: string;
+};
+
+function decodeXml(value: string) {
+  return decodeHtml(
+    value
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+      .replace(/<[^>]+>/g, "")
+  );
+}
+
+function pickXml(text: string, pattern: RegExp) {
+  return decodeXml(pattern.exec(text)?.[1] || "");
+}
+
+function getYouTubeVideosPageUrl(homeUrl: string) {
+  try {
+    const url = new URL(homeUrl);
+    const path = url.pathname.replace(/\/+$/, "");
+    if (/\/videos$/i.test(path)) return `https://www.youtube.com${path}`;
+    return `https://www.youtube.com${path}/videos`;
+  } catch {
+    return homeUrl;
+  }
+}
+
+function resolveYouTubeChannelIdFromHtml(html: string) {
+  return (
+    /"externalId"\s*:\s*"(UC[\w-]+)"/.exec(html)?.[1] ||
+    /"channelId"\s*:\s*"(UC[\w-]+)"/.exec(html)?.[1] ||
+    /youtube\.com\/channel\/(UC[\w-]+)/.exec(html)?.[1] ||
+    /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]+)"/.exec(html)?.[1] ||
+    ""
+  );
+}
+
+function parseYouTubeFeedEntries(xml: string): YouTubeVideoHit[] {
+  if (!xml.includes("<entry>")) return [];
+  const entries = xml.split("<entry>").slice(1);
+  const hits: YouTubeVideoHit[] = [];
+  for (const entry of entries) {
+    const videoId =
+      pickXml(entry, /<yt:videoId>(.*?)<\/yt:videoId>/) ||
+      pickXml(entry, /video:videoid>(.*?)<\/yt:videoId>/i) ||
+      "";
+    const title = pickXml(entry, /<title>([\s\S]*?)<\/title>/);
+    const link =
+      pickXml(entry, /<link[^>]+href="([^"]+)"/) ||
+      (videoId ? `https://www.youtube.com/watch?v=${videoId}` : "");
+    const publishedAt =
+      pickXml(entry, /<published>(.*?)<\/published>/) ||
+      pickXml(entry, /<updated>(.*?)<\/updated>/);
+    if (!title || !link) continue;
+    hits.push({
+      title,
+      url: link,
+      videoId: videoId || link.match(/[?&]v=([\w-]{11})/)?.[1] || "",
+      publishedAt: publishedAt || undefined,
+    });
+  }
+  return hits;
+}
+
+function parseYouTubeVideosFromHtml(html: string): YouTubeVideoHit[] {
+  const hits: YouTubeVideoHit[] = [];
+  const seen = new Set<string>();
+
+  // "videoId":"xxxxxxxxxxx" near "title":{"runs":[{"text":"..."}]}
+  const re =
+    /"videoId"\s*:\s*"([\w-]{11})"[\s\S]{0,400}?"text"\s*:\s*"((?:\\.|[^"\\]){2,200})"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const videoId = m[1];
+    if (seen.has(videoId)) continue;
+    let title = m[2]
+      .replace(/\\u0026/g, "&")
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, " ")
+      .replace(/\\\//g, "/");
+    try {
+      title = JSON.parse(`"${m[2]}"`) as string;
+    } catch {
+      // keep cleaned title
+    }
+    title = normalizeSpace(title);
+    if (!title || title.length < 2) continue;
+    if (/^(watch later|share|mix|播放清單|稍後再看)/i.test(title)) continue;
+    seen.add(videoId);
+    hits.push({
+      title,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      videoId,
+    });
+  }
+
+  // Alternate pattern: title first then videoId
+  if (hits.length < 3) {
+    const re2 =
+      /"text"\s*:\s*"((?:\\.|[^"\\]){2,200})"[\s\S]{0,200}?"videoId"\s*:\s*"([\w-]{11})"/g;
+    while ((m = re2.exec(html))) {
+      const videoId = m[2];
+      if (seen.has(videoId)) continue;
+      let title = m[1];
+      try {
+        title = JSON.parse(`"${m[1]}"`) as string;
+      } catch {
+        title = m[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
+      }
+      title = normalizeSpace(title);
+      if (!title || title.length < 2) continue;
+      seen.add(videoId);
+      hits.push({
+        title,
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        videoId,
+      });
+    }
+  }
+
+  return hits;
+}
+
+/** YouTube channel videos — match title keyword against recent uploads. */
+async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
+  const videosPageUrl = getYouTubeVideosPageUrl(site.homeUrl);
+  let html = "";
+  let channelId = "";
+  let source = videosPageUrl;
+
+  try {
+    const page = await fetchText(videosPageUrl);
+    html = page.text;
+    channelId = resolveYouTubeChannelIdFromHtml(html);
+  } catch (error) {
+    return {
+      siteId: site.id,
+      siteName: site.name,
+      domain: site.domain,
+      articles: [],
+      error: error instanceof Error ? error.message : "YouTube 讀取失敗",
+      source: videosPageUrl,
+    };
+  }
+
+  let hits: YouTubeVideoHit[] = [];
+
+  if (channelId) {
+    try {
+      const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
+      const feed = await fetchText(feedUrl, {
+        headers: { accept: "application/atom+xml,application/xml,text/xml,*/*" },
+      });
+      if (feed.ok && feed.text.includes("<entry>")) {
+        hits = parseYouTubeFeedEntries(feed.text);
+        source = feedUrl;
+      }
+    } catch {
+      // fall through to HTML parse
+    }
+  }
+
+  if (hits.length === 0 && html) {
+    hits = parseYouTubeVideosFromHtml(html);
+    source = videosPageUrl;
+  }
+
+  // Last resort: jina reader on videos page
+  if (hits.length === 0) {
+    try {
+      const via = await fetchViaJina(videosPageUrl);
+      if (via.ok) {
+        const mdHits: YouTubeVideoHit[] = [];
+        const re = /\[([^\]]+)\]\((https?:\/\/(?:www\.)?youtube\.com\/watch\?v=([\w-]{11})[^)\s]*)\)/gi;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(via.text))) {
+          mdHits.push({ title: normalizeSpace(m[1]), url: m[2], videoId: m[3] });
+        }
+        if (mdHits.length) {
+          hits = mdHits;
+          source = `${videosPageUrl} (via reader)`;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const articles: NewsArticle[] = [];
+  const seen = new Set<string>();
+  for (const hit of hits) {
+    if (!titleMatches(hit.title, query)) continue;
+    const url = hit.url.startsWith("http") ? hit.url : `https://www.youtube.com/watch?v=${hit.videoId}`;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    articles.push({
+      title: hit.title,
+      url,
+      siteId: site.id,
+      siteName: site.name,
+      domain: site.domain,
+      publishedAt: hit.publishedAt,
     });
   }
 
@@ -374,6 +672,12 @@ async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query: strin
     siteName: site.name,
     domain: site.domain,
     articles,
+    error:
+      hits.length === 0
+        ? "無法讀取此 YouTube 頻道影片列表"
+        : articles.length === 0
+          ? `頻道近作中沒有標題含「${query}」的影片`
+          : undefined,
     source,
   };
 }
@@ -387,8 +691,14 @@ async function searchSite(site: FengbroNewsSiteConfig, query: string): Promise<S
         return await searchRbNreo(site, query);
       case "tycg-zhongli":
         return await searchTycgZhongli(site, query);
+      case "youtube-channel":
+        return await searchYouTubeChannel(site, query);
       case "generic-keyword-url":
       default:
+        // Auto-route YouTube URLs even if adapter was stored as generic
+        if (/youtube\.com|youtu\.be/i.test(site.homeUrl || site.domain)) {
+          return await searchYouTubeChannel(site, query);
+        }
         return await searchGenericKeywordUrl(site, query);
     }
   } catch (error) {

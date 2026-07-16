@@ -150,8 +150,8 @@ export default function DashboardLayout({
         <MusicQueuePanel />
         <PodcastQueuePanel />
         <VideoQueuePanel />
-        {/* 左側浮動列：全域語音在向上箭頭上方一點 */}
-        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-start gap-2 sm:bottom-6 sm:left-4">
+        {/* 右側浮動列：全域語音在向上箭頭上方一點 */}
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4">
           <GlobalVoiceCommandPanel
             currentModule={currentModule}
             menuItems={menuItems}

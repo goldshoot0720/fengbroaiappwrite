@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Clock,
   ExternalLink,
   Focus,
   Lock,
@@ -15,16 +16,21 @@ import {
   Unlock,
   UtensilsCrossed,
   Wrench,
+  X,
 } from "lucide-react";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
+import { useRecentSearches } from "@/hooks/useRecentSearches";
 import {
   DEFAULT_FENGBRO_NEWS_SITES,
   FENGBRO_NEWS_QUERY_KEY,
   FENGBRO_NEWS_SITES_KEY,
+  fengbroNewsSiteKey,
+  guessFengbroNewsAdapter,
   normalizeDomain,
   normalizeFengbroNewsSite,
   normalizeFengbroNewsSites,
+  normalizeHomeUrl,
   type FengbroNewsAdapter,
   type FengbroNewsSiteConfig,
 } from "@/lib/fengbroNewsSites";
@@ -84,10 +90,11 @@ const TRA_BENTO_STORE_URL =
   "https://www.railway.gov.tw/tra-tip-web/tip/tip004/tip421/storeLocation";
 
 const ADAPTER_OPTIONS: Array<{ id: FengbroNewsAdapter; label: string; hint: string }> = [
+  { id: "generic-keyword-url", label: "通用來源（自動）", hint: "掃首頁／列表或 {q} 搜尋模板" },
+  { id: "youtube-channel", label: "YouTube 頻道", hint: "頻道影片標題關鍵字" },
   { id: "tycg-traffic", label: "桃園交通局", hint: "businessd/post 關鍵字列表" },
   { id: "rb-nreo", label: "鐵道局北工", hint: "NREO 最新消息（reader）" },
   { id: "tycg-zhongli", label: "中壢區公所", hint: "News.aspx 分頁掃標題" },
-  { id: "generic-keyword-url", label: "通用模板", hint: "searchUrlTemplate 含 {q}" },
 ];
 
 function loadSites(): FengbroNewsSiteConfig[] {
@@ -120,14 +127,21 @@ export default function FengbroNewsTool() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<FengbroNewsResult | null>(null);
-  const [managerOpen, setManagerOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const {
+    items: recentTitleQueries,
+    addSearch: addRecentTitleQuery,
+    removeSearch: removeRecentTitleQuery,
+    clearAll: clearRecentTitleQueries,
+  } = useRecentSearches("fengbro-news-titles");
 
   const [draftName, setDraftName] = useState("");
-  const [draftDomain, setDraftDomain] = useState("");
   const [draftHomeUrl, setDraftHomeUrl] = useState("");
   const [draftAdapter, setDraftAdapter] = useState<FengbroNewsAdapter>("generic-keyword-url");
   const [draftTemplate, setDraftTemplate] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [formMessage, setFormMessage] = useState("");
 
   const [bentoLoading, setBentoLoading] = useState(false);
   const [bentoError, setBentoError] = useState("");
@@ -155,50 +169,82 @@ export default function FengbroNewsTool() {
 
   const clearDraft = () => {
     setDraftName("");
-    setDraftDomain("");
     setDraftHomeUrl("");
     setDraftAdapter("generic-keyword-url");
     setDraftTemplate("");
     setEditingId(null);
+    setAdvancedOpen(false);
+    setFormMessage("");
   };
 
   const handleSaveSite = () => {
+    const homeUrl = normalizeHomeUrl(draftHomeUrl);
+    if (!homeUrl && !draftName.trim()) {
+      setFormMessage("請至少填寫網站網址（或名稱＋網址）");
+      return;
+    }
+    if (!homeUrl) {
+      setFormMessage("請填寫網站網址，例如 https://example.gov.tw/");
+      return;
+    }
+
+    // When user leaves adapter at default, re-guess from URL for known sites / YouTube
+    const adapter =
+      draftAdapter === "generic-keyword-url"
+        ? guessFengbroNewsAdapter(homeUrl)
+        : draftAdapter;
+
     const site = normalizeFengbroNewsSite({
       id: editingId || undefined,
       name: draftName,
-      domain: draftDomain || draftHomeUrl,
-      homeUrl: draftHomeUrl || (draftDomain ? `https://${normalizeDomain(draftDomain)}/` : ""),
-      adapter: draftAdapter,
+      homeUrl,
+      adapter,
       searchUrlTemplate: draftTemplate || undefined,
       locked: true,
     });
+    const existing = site
+      ? editingId
+        ? sites.find((s) => s.id === editingId)
+        : sites.find((s) => fengbroNewsSiteKey(s) === fengbroNewsSiteKey(site))
+      : undefined;
+    if (site && existing && !editingId) {
+      site.locked = existing.locked;
+      site.id = existing.id;
+    }
     if (!site) {
-      setError("請填寫網站名稱與網域（或首頁網址）");
+      setFormMessage("無法解析此網站，請檢查網址格式");
       return;
     }
+
+    const wasEditing = Boolean(editingId);
+    const siteKey = fengbroNewsSiteKey(site);
     setSites((prev) => {
-      const without = prev.filter((s) => s.id !== site.id && s.domain !== site.domain);
       if (editingId) {
-        const idx = prev.findIndex((s) => s.id === editingId);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = { ...site, id: editingId, locked: prev[idx].locked };
-          return next;
-        }
+        return prev.map((s) => (s.id === editingId ? { ...site, id: editingId, locked: s.locked } : s));
       }
-      return [...without, site];
+      const withoutDup = prev.filter(
+        (s) => fengbroNewsSiteKey(s) !== siteKey && s.id !== site.id
+      );
+      return [...withoutDup, { ...site, locked: true }];
     });
-    clearDraft();
+    setDraftName("");
+    setDraftHomeUrl("");
+    setDraftAdapter("generic-keyword-url");
+    setDraftTemplate("");
+    setEditingId(null);
+    setAdvancedOpen(false);
+    setFormMessage(wasEditing ? `已更新來源「${site.name}」` : `已新增並鎖定來源「${site.name}」`);
     setError("");
   };
 
   const handleEditSite = (site: FengbroNewsSiteConfig) => {
     setEditingId(site.id);
     setDraftName(site.name);
-    setDraftDomain(site.domain);
     setDraftHomeUrl(site.homeUrl);
     setDraftAdapter(site.adapter);
     setDraftTemplate(site.searchUrlTemplate || "");
+    setAdvancedOpen(site.adapter !== "generic-keyword-url" || Boolean(site.searchUrlTemplate));
+    setFormMessage("");
     setManagerOpen(true);
   };
 
@@ -228,6 +274,10 @@ export default function FengbroNewsTool() {
         return;
       }
 
+      if (overrideQuery !== undefined) {
+        setQuery(q);
+      }
+
       setLoading(true);
       setError("");
       try {
@@ -245,6 +295,7 @@ export default function FengbroNewsTool() {
           throw new Error(data.error || "鋒兄新聞搜尋失敗");
         }
         setResult(data);
+        addRecentTitleQuery(q);
       } catch (err) {
         setResult(null);
         setError(err instanceof Error ? err.message : "鋒兄新聞搜尋失敗");
@@ -252,7 +303,7 @@ export default function FengbroNewsTool() {
         setLoading(false);
       }
     },
-    [query, lockedCount, sites]
+    [query, lockedCount, sites, addRecentTitleQuery]
   );
 
   const loadBentoStores = useCallback(async (focusOnly: boolean) => {
@@ -300,11 +351,22 @@ export default function FengbroNewsTool() {
               </span>
             )}
             <span className="rounded-full border border-sky-100 bg-white px-3 py-1 text-xs text-muted-foreground">
-              焦點：{lockedCount} / {sites.length}
+              來源：{sites.length} · 鎖定 {lockedCount}
             </span>
+            <Button
+              type="button"
+              onClick={() => {
+                setManagerOpen(true);
+                clearDraft();
+              }}
+              className="gap-2 rounded-xl bg-sky-600 hover:bg-sky-700"
+            >
+              <Plus size={16} />
+              新增新聞來源
+            </Button>
             <Button type="button" variant="outline" onClick={() => setManagerOpen((o) => !o)} className="gap-2 rounded-xl">
               <Wrench size={16} />
-              網站焦點
+              {managerOpen ? "收合來源" : "管理來源"}
             </Button>
           </div>
         </div>
@@ -316,10 +378,10 @@ export default function FengbroNewsTool() {
                 <div>
                   <h4 className="flex items-center gap-2 font-semibold text-foreground">
                     <Focus size={16} className="text-sky-600" />
-                    鎖定網站焦點
+                    新聞來源網站
                   </h4>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    預設範例：桃園市政府交通局、交通部鐵道局北部工程分局、桃園市中壢區公所。
+                    可新增任意新聞／公部門網站。鎖定後才會納入標題關鍵字搜尋；設定存在本機瀏覽器。
                   </p>
                 </div>
                 <Button type="button" variant="outline" onClick={handleResetSites} className="gap-2 rounded-xl">
@@ -328,53 +390,86 @@ export default function FengbroNewsTool() {
                 </Button>
               </div>
 
-              <div className="mt-4 grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
-                <input
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  placeholder="網站名稱（如 桃園市政府交通局）"
-                  className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                />
-                <input
-                  value={draftDomain}
-                  onChange={(e) => setDraftDomain(e.target.value)}
-                  placeholder="網域（如 traffic.tycg.gov.tw）"
-                  className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                />
-                <input
-                  value={draftHomeUrl}
-                  onChange={(e) => setDraftHomeUrl(e.target.value)}
-                  placeholder="首頁網址（可選）"
-                  className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                />
-                <select
-                  value={draftAdapter}
-                  onChange={(e) => setDraftAdapter(e.target.value as FengbroNewsAdapter)}
-                  className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                >
-                  {ADAPTER_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label} — {opt.hint}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={draftTemplate}
-                  onChange={(e) => setDraftTemplate(e.target.value)}
-                  placeholder="通用模板 URL，關鍵字用 {q}"
-                  className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100 lg:col-span-2"
-                  disabled={draftAdapter !== "generic-keyword-url"}
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button type="button" onClick={handleSaveSite} className="gap-2 rounded-xl bg-sky-600 hover:bg-sky-700">
-                  <Plus size={16} />
-                  {editingId ? "儲存網站" : "新增並鎖定"}
-                </Button>
-                {editingId && (
-                  <Button type="button" variant="ghost" onClick={clearDraft} className="rounded-xl">
-                    取消編輯
+              <div className="mt-4 rounded-2xl border border-dashed border-sky-200 bg-sky-50/40 p-4">
+                <p className="text-sm font-medium text-foreground">
+                  {editingId ? "編輯新聞來源" : "新增新聞來源網站"}
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)_auto]">
+                  <input
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveSite();
+                    }}
+                    placeholder="網站名稱（可留空，自動用網域）"
+                    className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                  />
+                  <input
+                    value={draftHomeUrl}
+                    onChange={(e) => {
+                      setDraftHomeUrl(e.target.value);
+                      const domain = normalizeDomain(e.target.value);
+                      if (domain && draftAdapter === "generic-keyword-url") {
+                        // keep generic; guess applied on save
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveSite();
+                    }}
+                    placeholder="網站網址，例如 https://www.youtube.com/@tnews6460/videos"
+                    className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                  />
+                  <Button type="button" onClick={handleSaveSite} className="h-11 gap-2 rounded-xl bg-sky-600 hover:bg-sky-700">
+                    <Plus size={16} />
+                    {editingId ? "儲存來源" : "新增來源"}
                   </Button>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdvancedOpen((o) => !o)}
+                    className="text-xs font-medium text-sky-700 hover:underline"
+                  >
+                    {advancedOpen ? "收合進階設定" : "進階設定（適配器／搜尋模板）"}
+                  </button>
+                  {editingId && (
+                    <Button type="button" variant="ghost" onClick={clearDraft} className="h-8 rounded-xl px-2 text-xs">
+                      取消編輯
+                    </Button>
+                  )}
+                </div>
+
+                {advancedOpen && (
+                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                    <select
+                      value={draftAdapter}
+                      onChange={(e) => setDraftAdapter(e.target.value as FengbroNewsAdapter)}
+                      className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                    >
+                      {ADAPTER_OPTIONS.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label} — {opt.hint}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={draftTemplate}
+                      onChange={(e) => setDraftTemplate(e.target.value)}
+                      placeholder="搜尋 URL 模板（可選），關鍵字用 {q}"
+                      className="h-11 rounded-xl border border-border bg-white px-3 text-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                    />
+                    <p className="text-xs text-muted-foreground lg:col-span-2">
+                      通用來源會掃首頁／新聞列表；若站內有關鍵字搜尋頁，可填模板例如{" "}
+                      <code className="rounded bg-white px-1">https://example.gov.tw/search?q={"{q}"}</code>
+                    </p>
+                  </div>
+                )}
+
+                {formMessage && (
+                  <p className="mt-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs text-sky-800">
+                    {formMessage}
+                  </p>
                 )}
               </div>
 
@@ -424,7 +519,7 @@ export default function FengbroNewsTool() {
                         type="button"
                         onClick={() => handleDeleteSite(site.id)}
                         className="rounded-full p-2 text-sky-600 transition hover:bg-sky-100 hover:text-sky-800"
-                        title="刪除網站"
+                        title="刪除來源"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -472,6 +567,64 @@ export default function FengbroNewsTool() {
             <p className="mt-2 text-xs text-muted-foreground">
               範例：鎖定三個公部門網站，標題含「中新地下道」→ 應得到交通局、鐵道局、中壢區公所各一則。
             </p>
+
+            <div className="mt-3 rounded-2xl border border-sky-100 bg-white/80 px-3 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <Clock size={14} className="text-sky-600" />
+                  最近搜尋文章標題
+                  {recentTitleQueries.length > 0 && (
+                    <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] tabular-nums text-sky-700">
+                      {recentTitleQueries.length}
+                    </span>
+                  )}
+                </div>
+                {recentTitleQueries.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => clearRecentTitleQueries()}
+                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                  >
+                    <Trash2 size={12} />
+                    清除全部
+                  </button>
+                )}
+              </div>
+
+              {recentTitleQueries.length === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  搜尋過的文章標題會出現在這裡，點一下可再次搜尋。
+                </p>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {recentTitleQueries.map((term) => (
+                    <span
+                      key={term}
+                      className="inline-flex max-w-full items-center gap-1 rounded-full border border-sky-200 bg-sky-50/80 pl-2.5 text-xs text-sky-900"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => void runSearch(term)}
+                        disabled={loading}
+                        className="min-w-0 truncate py-1 font-medium hover:text-sky-700 disabled:opacity-60"
+                        title={`搜尋「${term}」`}
+                      >
+                        {term}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeRecentTitleQuery(term)}
+                        className="rounded-full p-1 text-sky-500 transition hover:bg-sky-100 hover:text-sky-800"
+                        aria-label={`移除最近搜尋 ${term}`}
+                        title="移除"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {error && (

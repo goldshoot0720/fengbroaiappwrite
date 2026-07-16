@@ -646,7 +646,7 @@ export function GlobalVoiceCommandPanel({
   currentModule: string;
   menuItems: MenuItem[];
   onNavigate: (moduleId: string) => void;
-  /** When true, parent left dock handles fixed positioning (voice sits above scroll-up). */
+  /** When true, parent right dock handles fixed positioning (voice sits above scroll-up). */
   docked?: boolean;
 }) {
   const [feedback, setFeedback] = useState(HELP_HINT);
@@ -1021,13 +1021,13 @@ export function GlobalVoiceCommandPanel({
     pendingCommand?.risk === "review" ? "需確認後執行" :
     "安全操作";
 
-  // Docked: parent left stack (above up-arrow). Standalone: bottom-left fixed FAB.
+  // Docked: parent right stack (above up-arrow). Standalone: bottom-right fixed FAB.
   return (
     <div
       className={
         docked
-          ? "relative z-[var(--z-voice)] flex w-full max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-start gap-2"
-          : "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-start gap-2 md:bottom-6 md:left-6"
+          ? "relative z-[var(--z-voice)] flex w-full max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-end gap-2"
+          : "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-3 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-end gap-2 md:bottom-6 md:right-6"
       }
     >
       {open && (

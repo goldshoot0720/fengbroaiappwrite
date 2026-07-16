@@ -14,7 +14,7 @@ interface EnhancedScrollNavigationProps {
   showThreshold?: number;
   showProgress?: boolean;
   quickNavItems?: QuickNavItem[];
-  /** When true, parent provides fixed left dock positioning. */
+  /** When true, parent provides fixed right dock positioning. */
   docked?: boolean;
 }
 
@@ -77,12 +77,12 @@ export default function EnhancedScrollNavigation({
 
   if (!showButtons) return null;
 
-  // Docked: sits under global voice on the left stack. Standalone: bottom-right dock.
+  // Docked: sits under global voice on the right stack. Standalone: bottom-right dock.
   return (
     <div
       className={
         docked
-          ? "relative z-[var(--z-dock)] flex flex-col items-start gap-2"
+          ? "relative z-[var(--z-dock)] flex flex-col items-end gap-2"
           : "fixed right-2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[var(--z-dock)] flex flex-col items-end gap-3 sm:right-4 sm:bottom-6"
       }
     >
@@ -106,7 +106,7 @@ export default function EnhancedScrollNavigation({
         </div>
       )}
 
-      <div className={`flex flex-col gap-3 ${docked ? "items-start" : "items-center"}`}>
+      <div className={`flex flex-col gap-3 ${docked ? "items-end" : "items-center"}`}>
         {/* 滾動進度指示器 */}
         {showProgress && (
           <div className="relative">
