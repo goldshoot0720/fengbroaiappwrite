@@ -2245,18 +2245,23 @@ function FengbroTwMarketBoardCard({
 }
 
 /**
- * Mount TW index only after 鋒兄金融 has settled and the browser is idle,
- * so CNBC quotes paint / fetch first and the heavy TWSE/TPEx recompute does not contend.
+ * Mount TW index only after 鋒兄金融 has fully finished loading and painted.
+ * Sequence: finance fetch settled → double rAF (commit/paint) → short settle delay
+ * → requestIdleCallback → mount heavy TWSE/TPEx panel.
  */
 function DeferredFengbroTwIndexPanel({ financeReady }: { financeReady: boolean }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Once mounted, keep the panel even if finance refresh toggles loading.
     if (!financeReady || mounted) return;
 
     let cancelled = false;
+    let raf1 = 0;
+    let raf2 = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let safetyTimer: ReturnType<typeof setTimeout> | undefined;
     let idleId: number | undefined;
-    let timerId: ReturnType<typeof setTimeout> | undefined;
 
     const mount = () => {
       if (!cancelled) setMounted(true);
@@ -2267,21 +2272,50 @@ function DeferredFengbroTwIndexPanel({ financeReady }: { financeReady: boolean }
       cancelIdleCallback?: (id: number) => void;
     };
 
-    if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(mount, { timeout: 1500 });
-    } else {
-      // Fallback: short defer after finance paint.
-      timerId = setTimeout(mount, 400);
-    }
+    // After finance data is on screen: wait for paint, layout settle, then idle.
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        settleTimer = setTimeout(() => {
+          if (typeof win.requestIdleCallback === "function") {
+            idleId = win.requestIdleCallback(mount, { timeout: 3000 });
+          } else {
+            mount();
+          }
+        }, 900);
+      });
+    });
+
+    // Hard ceiling so TW index still appears if the browser never goes idle.
+    safetyTimer = setTimeout(mount, 6000);
 
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+      if (settleTimer != null) clearTimeout(settleTimer);
+      if (safetyTimer != null) clearTimeout(safetyTimer);
       if (idleId != null && typeof win.cancelIdleCallback === "function") {
         win.cancelIdleCallback(idleId);
       }
-      if (timerId != null) clearTimeout(timerId);
     };
   }, [financeReady, mounted]);
+
+  // During CNBC load: only a light wait note (no heavy skeleton / no API).
+  if (!financeReady) {
+    return (
+      <div
+        id="fengbro-finance-tw-market-avg"
+        className="scroll-mt-28 border-t border-emerald-100 bg-white/90 p-4 sm:p-6"
+        aria-busy="true"
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/80">FengBro TW Index</p>
+        <h4 className="mt-1 text-lg font-semibold text-foreground">鋒兄台股上市／上櫃指數</h4>
+        <p className="mt-2 text-sm text-muted-foreground">
+          等待上方「鋒兄金融」畫面完整載入後再顯示…
+        </p>
+      </div>
+    );
+  }
 
   if (!mounted) {
     return (
@@ -2293,7 +2327,7 @@ function DeferredFengbroTwIndexPanel({ financeReady }: { financeReady: boolean }
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/80">FengBro TW Index</p>
         <h4 className="mt-1 text-lg font-semibold text-foreground">鋒兄台股上市／上櫃指數</h4>
         <p className="mt-2 text-sm text-muted-foreground">
-          {financeReady ? "鋒兄金融已就緒，正在排程載入台股指數…" : "等待鋒兄金融報價載入後再顯示…"}
+          鋒兄金融已載入完成，排程載入台股上市／上櫃指數…
         </p>
         <div className="mt-4 grid gap-4 xl:grid-cols-2">
           {["上市", "上櫃"].map((label) => (
@@ -2579,8 +2613,8 @@ function FengbroFinanceSection({
 }) {
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // 鋒兄金融報價已就緒（有資料或載入結束且失敗）後才允許延遲掛載台股指數。
-  const financeReadyForTwIndex = Boolean(result) || (!loading && Boolean(error));
+  // 必須等鋒兄金融 API 完全結束（loading=false），且畫面有結果或錯誤，才算「以上畫面完整載入」。
+  const financeReadyForTwIndex = !loading && (Boolean(result) || Boolean(error));
   const groupedQuotes = useMemo(() => {
     // 精選焦點 → 亞洲指數 → 韓股 → 亞股 → 美股指數 → 美股 → 台股指數 → 台股 → 估值指標 → 匯率 → 利率 → 商品 → 加密貨幣
     const order: FengbroFinanceQuote["group"][] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "valuation", "fx", "rates", "commodities", "crypto"];
