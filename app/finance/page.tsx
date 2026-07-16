@@ -709,45 +709,70 @@ export default function FinancePage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex items-baseline gap-3">
-                  <div className="text-5xl font-bold text-teal-600 dark:text-teal-400">
-                    {formatNumber(tsm?.price, 2)}
-                  </div>
-                  {tsm?.currency && (
-                    <div className="text-lg text-gray-500">{tsm.currency}</div>
-                  )}
-                </div>
-
-                {(tsm?.change !== null || tsm?.changePercent !== null) && (
-                  <div className={`flex items-center gap-2 text-lg font-semibold ${
-                    isPositive(tsm?.change)
-                      ? 'text-green-600 dark:text-green-400'
-                      : isNegative(tsm?.change)
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {isPositive(tsm?.change) ? (
-                      <TrendingUp className="w-5 h-5" />
-                    ) : isNegative(tsm?.change) ? (
-                      <TrendingDown className="w-5 h-5" />
-                    ) : null}
-                    <span>{formatChange(tsm?.change ?? null, tsm?.changePercent ?? null)}</span>
-                  </div>
-                )}
-
-                {tsm?.marketSession !== 'pre' && tsm?.preMarketPrice != null && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
-                    <div className="font-semibold text-amber-800 dark:text-amber-300">最近盤前 Pre-Market</div>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-2 text-amber-950 dark:text-amber-100">
-                      <span className="text-xl font-bold tabular-nums">{formatNumber(tsm.preMarketPrice, 2)}</span>
-                      {(tsm.preMarketChange != null || tsm.preMarketChangePercent != null) && (
-                        <span className="font-semibold">
-                          {formatChange(tsm.preMarketChange ?? null, tsm.preMarketChangePercent ?? null)}
-                        </span>
+                {/* 最新價 / 盤前價 分開顯示（最新價=正規盤最新，不是一年歷史價） */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-teal-200 bg-white/70 px-4 py-4 dark:border-teal-800 dark:bg-teal-950/20">
+                    <div className="text-sm font-semibold text-teal-800 dark:text-teal-300">最新價</div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <div className="text-4xl font-bold tabular-nums text-teal-600 dark:text-teal-400">
+                        {formatNumber(tsm?.price, 2)}
+                      </div>
+                      {tsm?.currency && (
+                        <div className="text-sm text-gray-500">{tsm.currency}</div>
                       )}
                     </div>
+                    {(tsm?.change !== null || tsm?.changePercent !== null) && (
+                      <div className={`mt-2 flex items-center gap-1.5 text-sm font-semibold ${
+                        isPositive(tsm?.change)
+                          ? 'text-green-600 dark:text-green-400'
+                          : isNegative(tsm?.change)
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-600 dark:text-gray-400'
+                      }`}>
+                        {isPositive(tsm?.change) ? (
+                          <TrendingUp className="w-4 h-4" />
+                        ) : isNegative(tsm?.change) ? (
+                          <TrendingDown className="w-4 h-4" />
+                        ) : null}
+                        <span>{formatChange(tsm?.change ?? null, tsm?.changePercent ?? null)}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 dark:border-amber-800 dark:bg-amber-950/30">
+                    <div className="text-sm font-semibold text-amber-800 dark:text-amber-300">盤前價 Pre-Market</div>
+                    {tsm?.preMarketPrice != null ? (
+                      <>
+                        <div className="mt-1 flex items-baseline gap-2">
+                          <div className="text-4xl font-bold tabular-nums text-amber-900 dark:text-amber-100">
+                            {formatNumber(tsm.preMarketPrice, 2)}
+                          </div>
+                          {tsm?.currency && (
+                            <div className="text-sm text-amber-700/80 dark:text-amber-300/80">{tsm.currency}</div>
+                          )}
+                        </div>
+                        {(tsm.preMarketChange != null || tsm.preMarketChangePercent != null) && (
+                          <div className={`mt-2 flex items-center gap-1.5 text-sm font-semibold ${
+                            isPositive(tsm.preMarketChange)
+                              ? 'text-green-600 dark:text-green-400'
+                              : isNegative(tsm.preMarketChange)
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-amber-800 dark:text-amber-300'
+                          }`}>
+                            {isPositive(tsm.preMarketChange) ? (
+                              <TrendingUp className="w-4 h-4" />
+                            ) : isNegative(tsm.preMarketChange) ? (
+                              <TrendingDown className="w-4 h-4" />
+                            ) : null}
+                            <span>{formatChange(tsm.preMarketChange ?? null, tsm.preMarketChangePercent ?? null)}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="mt-3 text-sm text-amber-800/70 dark:text-amber-300/70">目前無盤前報價</div>
+                    )}
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-teal-200 dark:border-teal-800">
                   <div>

@@ -403,9 +403,11 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     !/\.(TW|KS|T|HK|L|TO|AX)$/i.test(instrument.symbol) &&
     !instrument.symbol.startsWith("^") &&
     !instrument.symbol.includes("=");
+  // Use 1d quote window for latest session price — never range=1y for the live quote.
+  // With range=1y, chartPreviousClose is ~1 year ago and must not be treated as previous close.
   const params = new URLSearchParams({
-    range: "1y",
-    interval: "1d",
+    range: "1d",
+    interval: "1m",
     includePrePost: "true",
     lang: isUsListed ? "en-US" : "zh-TW",
     region: isUsListed ? "US" : "TW",
@@ -428,14 +430,13 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const meta = (chart.meta || {}) as Record<string, unknown>;
   const quote = (chart.indicators?.quote?.[0] || {}) as Record<string, unknown>;
   const closes = toNumberList(quote.close).filter((value) => value > 0);
-  const highs = toNumberList(quote.high).filter((value) => value > 0);
-  const lows = toNumberList(quote.low).filter((value) => value > 0);
-  const regularPrice = pickNumber(meta, ["regularMarketPrice"]) ?? closes.at(-1) ?? null;
-  const previousClose =
-    pickNumber(meta, ["regularMarketPreviousClose", "previousClose", "chartPreviousClose"]) ??
-    (closes.length > 1 ? closes[closes.length - 2] : null);
-  const high52 = pickNumber(meta, ["fiftyTwoWeekHigh"]) ?? (closes.length ? Math.max(...closes) : null);
-  const low52 = pickNumber(meta, ["fiftyTwoWeekLow"]) ?? (closes.length ? Math.min(...closes) : null);
+
+  // Latest regular-session price from quote meta only (not 1y history series).
+  const regularPrice = pickNumber(meta, ["regularMarketPrice"]);
+  // Session previous close only — never chartPreviousClose from multi-month ranges.
+  const previousClose = pickNumber(meta, ["regularMarketPreviousClose", "previousClose"]);
+  const high52 = pickNumber(meta, ["fiftyTwoWeekHigh"]);
+  const low52 = pickNumber(meta, ["fiftyTwoWeekLow"]);
   const regularChange =
     pickNumber(meta, ["regularMarketChange"]) ??
     (regularPrice != null && previousClose != null ? regularPrice - previousClose : null);
@@ -443,47 +444,63 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     pickNumber(meta, ["regularMarketChangePercent"]) ??
     (regularChange != null && previousClose ? (regularChange / previousClose) * 100 : null);
   const marketState = pickText(meta, ["marketState"]).toUpperCase();
-  const preMarketPrice = pickNumber(meta, ["preMarketPrice"]);
-  const preMarketChange =
-    pickNumber(meta, ["preMarketChange"]) ??
-    (preMarketPrice != null && previousClose != null ? preMarketPrice - previousClose : null);
-  const preMarketChangePercent =
-    pickNumber(meta, ["preMarketChangePercent"]) ??
-    (preMarketChange != null && previousClose ? (preMarketChange / previousClose) * 100 : null);
-  const postMarketPrice = pickNumber(meta, ["postMarketPrice"]);
-  const postMarketChange =
-    pickNumber(meta, ["postMarketChange"]) ??
-    (postMarketPrice != null && regularPrice != null ? postMarketPrice - regularPrice : null);
-  const postMarketChangePercent =
-    pickNumber(meta, ["postMarketChangePercent"]) ??
-    (postMarketChange != null && regularPrice ? (postMarketChange / regularPrice) * 100 : null);
 
-  let price = regularPrice;
-  let change = regularChange;
-  let changePercent = regularChangePercent;
-  let marketTime = pickNumber(meta, ["regularMarketTime"]);
+  let preMarketPrice = pickNumber(meta, ["preMarketPrice"]);
+  let preMarketChange = pickNumber(meta, ["preMarketChange"]);
+  let preMarketChangePercent = pickNumber(meta, ["preMarketChangePercent"]);
+  // When meta omits preMarket* but 1m chart has extended-hours bars, use the last bar during PRE.
+  if (preMarketPrice == null && marketState === "PRE" && closes.length > 0) {
+    const lastBar = closes.at(-1) ?? null;
+    if (lastBar != null && (regularPrice == null || !nearlyEqual(lastBar, regularPrice))) {
+      preMarketPrice = lastBar;
+    }
+  }
+  if (preMarketChange == null && preMarketPrice != null && previousClose != null) {
+    preMarketChange = preMarketPrice - previousClose;
+  }
+  if (preMarketChangePercent == null && preMarketChange != null && previousClose) {
+    preMarketChangePercent = (preMarketChange / previousClose) * 100;
+  }
+
+  let postMarketPrice = pickNumber(meta, ["postMarketPrice"]);
+  let postMarketChange = pickNumber(meta, ["postMarketChange"]);
+  let postMarketChangePercent = pickNumber(meta, ["postMarketChangePercent"]);
+  if (
+    postMarketPrice == null &&
+    (marketState === "POST" || marketState === "POSTPOST") &&
+    closes.length > 0
+  ) {
+    const lastBar = closes.at(-1) ?? null;
+    if (lastBar != null && (regularPrice == null || !nearlyEqual(lastBar, regularPrice))) {
+      postMarketPrice = lastBar;
+    }
+  }
+  if (postMarketChange == null && postMarketPrice != null && regularPrice != null) {
+    postMarketChange = postMarketPrice - regularPrice;
+  }
+  if (postMarketChangePercent == null && postMarketChange != null && regularPrice) {
+    postMarketChangePercent = (postMarketChange / regularPrice) * 100;
+  }
+
+  // Primary "最新價" is always regular-session latest, separate from pre/post.
+  const price = regularPrice;
+  const change = regularChange;
+  const changePercent = regularChangePercent;
+  const marketTime = pickNumber(meta, ["regularMarketTime"]);
   let marketSession: "pre" | "regular" | "post" | "closed" | "" = "";
 
-  if (marketState === "PRE" && preMarketPrice != null) {
-    price = preMarketPrice;
-    change = preMarketChange;
-    changePercent = preMarketChangePercent;
-    marketTime = pickNumber(meta, ["preMarketTime"]) ?? marketTime;
+  if (marketState === "PRE") {
     marketSession = "pre";
-  } else if ((marketState === "POST" || marketState === "POSTPOST") && postMarketPrice != null) {
-    price = postMarketPrice;
-    change = postMarketChange;
-    changePercent = postMarketChangePercent;
-    marketTime = pickNumber(meta, ["postMarketTime"]) ?? marketTime;
+  } else if (marketState === "POST" || marketState === "POSTPOST") {
     marketSession = "post";
   } else if (marketState === "REGULAR") {
     marketSession = "regular";
-  } else if (marketState === "CLOSED" || marketState === "PREPRE") {
-    marketSession = marketState === "CLOSED" ? "closed" : "";
+  } else if (marketState === "CLOSED") {
+    marketSession = "closed";
   }
 
-  const dayHigh = pickNumber(meta, ["regularMarketDayHigh"]) ?? highs.at(-1) ?? null;
-  const dayLow = pickNumber(meta, ["regularMarketDayLow"]) ?? lows.at(-1) ?? null;
+  const dayHigh = pickNumber(meta, ["regularMarketDayHigh"]);
+  const dayLow = pickNumber(meta, ["regularMarketDayLow"]);
 
   let currency = pickText(meta, ["currency"]);
   if (!currency) {
@@ -510,6 +527,9 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     postMarketChange,
     postMarketChangePercent,
     regularMarketPrice: regularPrice,
+    regularMarketChange: regularChange,
+    regularMarketChangePercent: regularChangePercent,
+    previousClose,
     lastUpdated: marketTime ? new Date(marketTime * 1000).toISOString() : "",
     recordTag: getRecordTag(price, high52, low52),
   };

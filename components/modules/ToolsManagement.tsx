@@ -2258,20 +2258,50 @@ function FengbroFinanceSection({
                                 aspectClass="aspect-[4/3]"
                                 objectClass="object-contain"
                               />
-                              <div className="flex items-end justify-between gap-2">
-                                <div>
+                              <div className={`grid gap-2 ${quote.preMarketPrice != null || quote.postMarketPrice != null ? "grid-cols-2" : "grid-cols-1"}`}>
+                                <div className="rounded-xl border border-slate-100 bg-white/70 px-3 py-2">
                                   <p className="text-xs text-muted-foreground">最新價</p>
-                                  <p className="mt-0.5 text-3xl font-bold text-foreground tabular-nums">
-                                    {formatFinanceNumber(quote.price, 2)}
-                                    {quote.currency && (
-                                      <span className="ml-1 text-sm font-medium text-muted-foreground">{quote.currency}</span>
-                                    )}
-                                  </p>
+                                  <div className="mt-0.5 flex items-end justify-between gap-2">
+                                    <p className="text-2xl font-bold text-foreground tabular-nums">
+                                      {formatFinanceNumber(quote.price, 2)}
+                                      {quote.currency && (
+                                        <span className="ml-1 text-xs font-medium text-muted-foreground">{quote.currency}</span>
+                                      )}
+                                    </p>
+                                    <div className={`text-right text-xs font-semibold tabular-nums ${isUp ? "text-emerald-700" : "text-red-600"}`}>
+                                      <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.change, 2)}</p>
+                                      <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.changePercent, 2)}%</p>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className={`text-right text-sm font-semibold tabular-nums ${isUp ? "text-emerald-700" : "text-red-600"}`}>
-                                  <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.change, 2)}</p>
-                                  <p className="text-base">{isUp ? "+" : ""}{formatFinanceNumber(quote.changePercent, 2)}%</p>
-                                </div>
+                                {quote.preMarketPrice != null && (
+                                  <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2">
+                                    <p className="text-xs font-medium text-amber-800">盤前價</p>
+                                    <div className="mt-0.5 flex items-end justify-between gap-2">
+                                      <p className="text-2xl font-bold text-amber-950 tabular-nums">
+                                        {formatFinanceNumber(quote.preMarketPrice, 2)}
+                                      </p>
+                                      <div className={`text-right text-xs font-semibold tabular-nums ${(quote.preMarketChange || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                        <p>{(quote.preMarketChange || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.preMarketChange, 2)}</p>
+                                        <p>{(quote.preMarketChangePercent || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.preMarketChangePercent, 2)}%</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                {quote.preMarketPrice == null && quote.postMarketPrice != null && (
+                                  <div className="rounded-xl border border-violet-100 bg-violet-50/80 px-3 py-2">
+                                    <p className="text-xs font-medium text-violet-800">盤後價</p>
+                                    <div className="mt-0.5 flex items-end justify-between gap-2">
+                                      <p className="text-2xl font-bold text-violet-950 tabular-nums">
+                                        {formatFinanceNumber(quote.postMarketPrice, 2)}
+                                      </p>
+                                      <div className={`text-right text-xs font-semibold tabular-nums ${(quote.postMarketChange || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                        <p>{(quote.postMarketChange || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.postMarketChange, 2)}</p>
+                                        <p>{(quote.postMarketChangePercent || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.postMarketChangePercent, 2)}%</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
 
                               {/* 52W High / Low */}
@@ -2524,18 +2554,48 @@ function FengbroFinanceSection({
                           <p className="mt-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{quote.error}</p>
                         ) : (
                           <>
-                            <div className="mt-4 flex items-end justify-between gap-3">
-                              <div>
+                            <div className={`mt-4 grid gap-2 ${quote.preMarketPrice != null || quote.postMarketPrice != null ? "grid-cols-2" : "grid-cols-1"}`}>
+                              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
                                 <p className="text-xs text-muted-foreground">最新價</p>
-                                <p className="mt-1 text-2xl font-semibold text-foreground">
-                                  {formatFinanceNumber(quote.price, group === "rates" ? 3 : 2)}
-                                  {quote.currency ? <span className="ml-1 text-xs font-medium text-muted-foreground">{quote.currency}</span> : null}
-                                </p>
+                                <div className="mt-1 flex items-end justify-between gap-2">
+                                  <p className="text-2xl font-semibold text-foreground tabular-nums">
+                                    {formatFinanceNumber(quote.price, group === "rates" ? 3 : 2)}
+                                    {quote.currency ? <span className="ml-1 text-xs font-medium text-muted-foreground">{quote.currency}</span> : null}
+                                  </p>
+                                  <div className={`text-right text-xs font-semibold tabular-nums ${isUp ? "text-emerald-700" : "text-red-600"}`}>
+                                    <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.change, 2)}</p>
+                                    <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.changePercent, 2)}%</p>
+                                  </div>
+                                </div>
                               </div>
-                              <div className={`text-right text-sm font-semibold ${isUp ? "text-emerald-700" : "text-red-600"}`}>
-                                <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.change, 2)}</p>
-                                <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.changePercent, 2)}%</p>
-                              </div>
+                              {quote.preMarketPrice != null && (
+                                <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2">
+                                  <p className="text-xs font-medium text-amber-800">盤前價</p>
+                                  <div className="mt-1 flex items-end justify-between gap-2">
+                                    <p className="text-2xl font-semibold text-amber-950 tabular-nums">
+                                      {formatFinanceNumber(quote.preMarketPrice, 2)}
+                                    </p>
+                                    <div className={`text-right text-xs font-semibold tabular-nums ${(quote.preMarketChange || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                      <p>{(quote.preMarketChange || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.preMarketChange, 2)}</p>
+                                      <p>{(quote.preMarketChangePercent || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.preMarketChangePercent, 2)}%</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              {quote.preMarketPrice == null && quote.postMarketPrice != null && (
+                                <div className="rounded-xl border border-violet-100 bg-violet-50/80 px-3 py-2">
+                                  <p className="text-xs font-medium text-violet-800">盤後價</p>
+                                  <div className="mt-1 flex items-end justify-between gap-2">
+                                    <p className="text-2xl font-semibold text-violet-950 tabular-nums">
+                                      {formatFinanceNumber(quote.postMarketPrice, 2)}
+                                    </p>
+                                    <div className={`text-right text-xs font-semibold tabular-nums ${(quote.postMarketChange || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                      <p>{(quote.postMarketChange || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.postMarketChange, 2)}</p>
+                                      <p>{(quote.postMarketChangePercent || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.postMarketChangePercent, 2)}%</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                               <div className="rounded-xl bg-slate-50 px-3 py-2">
