@@ -184,6 +184,7 @@ function filterArticlesByMaxAge(articles: NewsArticle[], now = Date.now()): News
   const cutoff = getNewsCutoffMs(now);
   const kept: NewsArticle[] = [];
   for (const article of articles) {
+    if (isJunkNewsTitle(article.title) || isJunkNewsUrl(article.url)) continue;
     const date = inferArticleDate(article);
     if (date) {
       if (date.getTime() < cutoff) continue;
@@ -432,6 +433,100 @@ function hostMatchesDomain(url: string, domain: string) {
   }
 }
 
+/** Strip scripts/styles/comments so ad JS (DFP/prebid) never becomes a fake title. */
+function stripNoiseHtml(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, " ");
+}
+
+function isJunkNewsTitle(title: string): boolean {
+  const t = normalizeSpace(title);
+  if (!t || t.length < 6 || t.length > 160) return true;
+  // Navigation / UI chrome
+  if (/^(上一頁|下一頁|最新|看板|所有文章|搜尋|首頁|回目錄|更多|看更多|分享|訂閱|登入|註冊)$/i.test(t)) {
+    return true;
+  }
+  // Ad / tracker / DFP / prebid noise (UDN etc.)
+  if (
+    /DFP|prebid|googletag|gpt-ad|ads-|bidder|openx|rubicon|taboola|bridgewell|criteo|pbjs|pubads|defineSlot|sizeMapping|adUnits|clientId|eruId|stickyAds|billboard|superBanner/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  // Looks like JavaScript / code, not a headline
+  if (/[{};=]|function\s*\(|console\.log|var\s+\w+|const\s+\w+|=>/.test(t)) return true;
+  if ((t.match(/[a-zA-Z]{3,}/g) || []).length >= 8 && !/[\u4e00-\u9fff]{4,}/.test(t)) return true;
+  // Must contain some CJK or enough letters for a real title
+  const cjk = (t.match(/[\u4e00-\u9fff]/g) || []).length;
+  const letters = (t.match(/[A-Za-z0-9\u4e00-\u9fff]/g) || []).length;
+  if (cjk < 2 && letters < 12) return true;
+  if (letters / Math.max(t.length, 1) < 0.35) return true;
+  return false;
+}
+
+function isJunkNewsUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.toLowerCase();
+    const full = url.toLowerCase();
+    if (u.protocol === "javascript:" || u.protocol === "data:") return true;
+    if (!path || path === "/") return true;
+    if (
+      /\/(ads?|advert|banner|track|pixel|click|logout|login|register|search\/tagging)\b/i.test(path) ||
+      /doubleclick|googlesyndication|scorecardresearch|facebook\.com\/tr|analytics/i.test(full)
+    ) {
+      return true;
+    }
+    // UDN: only real story-like paths (never menu / ads / static)
+    if (u.hostname.includes("udn.com")) {
+      if (/\/(static|upf|css|js|img|font|ads?)\//i.test(path)) return true;
+      if (/\/news\/story\//i.test(path)) return false;
+      if (/\/news\/breaknews\//i.test(path) && /\d/.test(path)) return false;
+      if (/\/news\/paper\//i.test(path)) return false;
+      // Category / channel indexes are not articles
+      return true;
+    }
+    // LTN story paths usually /news/ or /category/
+    if (u.hostname.includes("ltn.com.tw")) {
+      if (!/\/(news|article|politics|society|world|business|sports|life|local|entertainment)\//i.test(path) && !/search\.ltn/.test(u.hostname)) {
+        // keep search.ltn result pages that link to news
+        if (!/\d{5,}/.test(path)) return true;
+      }
+    }
+    // China Times articles
+    if (u.hostname.includes("chinatimes.com")) {
+      if (!/\/(realtimenews|newspapers|opinion|life|money|sports|star|society|world|chinese|news)\//i.test(path) && !/\/search\//i.test(path)) {
+        if (!/\d{6,}/.test(path)) return true;
+      }
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function isLikelyArticleUrl(url: string, domain: string): boolean {
+  if (isJunkNewsUrl(url)) return false;
+  try {
+    const u = new URL(url);
+    const path = u.pathname;
+    // PTT posts
+    if (domain.includes("ptt.cc")) return /\/bbs\/[^/]+\/M\.\d+\.A\./i.test(path);
+    // Generic: avoid pure category indexes without article id
+    if (/\/(index|home|default)(\.(html?|aspx|php))?$/i.test(path) && !/\d{5,}/.test(path)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function extractArticlesFromText(
   text: string,
   baseUrl: string,
@@ -441,30 +536,28 @@ function extractArticlesFromText(
 ): NewsArticle[] {
   const articles: NewsArticle[] = [];
   const domain = normalizeDomain(site.domain);
+  const cleaned = stripNoiseHtml(text);
 
-  // HTML anchors (href before or after text)
-  const htmlRe =
-    /<a\b[^>]*href="(https?:\/\/[^"]+|\/[^"]+)"[^>]*>([\s\S]*?)<\/a>|<a\b[^>]*>([\s\S]*?)<\/a>/gi;
+  // HTML anchors (href before text only — avoid loose broken tags swallowing scripts)
+  const htmlRe = /<a\b[^>]*\bhref\s*=\s*["'](https?:\/\/[^"']+|\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let m: RegExpExecArray | null;
-  while ((m = htmlRe.exec(text))) {
-    let href = m[1] || "";
-    let rawTitle = m[2] || m[3] || "";
-    if (!href) {
-      const innerHref = /href="(https?:\/\/[^"]+|\/[^"]+)"/i.exec(m[0]);
-      href = innerHref?.[1] || "";
-    }
-    if (!href) continue;
-    // PTT: title is often plain text inside r-ent blocks
+  while ((m = htmlRe.exec(cleaned))) {
+    const href = m[1] || "";
+    const rawTitle = m[2] || "";
+    if (!href || href.startsWith("#") || href.toLowerCase().startsWith("javascript:")) continue;
+    // Skip anchors whose body still looks like nested markup-heavy chrome
+    if (/<script|<style|googletag|prebid/i.test(rawTitle)) continue;
+
     const title = stripTags(rawTitle);
-    if (!title || title.length < 4 || !titleMatches(title, query)) continue;
-    // Skip pure navigation chrome
-    if (/^(上一頁|下一頁|最新|看板|所有文章|搜尋|首頁|回目錄)$/i.test(title)) continue;
+    if (!title || !titleMatches(title, query) || isJunkNewsTitle(title)) continue;
+
     const url = canonicalizeUrl(absoluteUrl(baseUrl, href));
     if (!hostMatchesDomain(url, domain)) continue;
+    if (!isLikelyArticleUrl(url, domain)) continue;
     if (seen.has(url)) continue;
     seen.add(url);
     articles.push({
-      title,
+      title: title.slice(0, 160),
       url,
       siteId: site.id,
       siteName: site.name,
@@ -475,14 +568,15 @@ function extractArticlesFromText(
   // PTT list rows: <div class="title"><a href="...">title</a>
   if (domain.includes("ptt.cc")) {
     const pttRe = /class="title"[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-    while ((m = pttRe.exec(text))) {
+    while ((m = pttRe.exec(cleaned))) {
       const title = stripTags(m[2]);
-      if (!title || !titleMatches(title, query)) continue;
+      if (!title || !titleMatches(title, query) || isJunkNewsTitle(title)) continue;
       const url = canonicalizeUrl(absoluteUrl(baseUrl, m[1]));
+      if (!isLikelyArticleUrl(url, domain)) continue;
       if (seen.has(url)) continue;
       seen.add(url);
       articles.push({
-        title,
+        title: title.slice(0, 160),
         url,
         siteId: site.id,
         siteName: site.name,
@@ -491,17 +585,38 @@ function extractArticlesFromText(
     }
   }
 
-  // Markdown links from reader
-  const mdRe = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi;
-  while ((m = mdRe.exec(text))) {
+  // UDN story links often use story paths with title in nearby markup
+  if (domain.includes("udn.com")) {
+    const udnRe =
+      /href="((?:https?:\/\/(?:[^"']+\.)?udn\.com)?\/news\/story\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    while ((m = udnRe.exec(cleaned))) {
+      const title = stripTags(m[2]);
+      if (!title || !titleMatches(title, query) || isJunkNewsTitle(title)) continue;
+      const url = canonicalizeUrl(absoluteUrl(baseUrl, m[1]));
+      if (seen.has(url)) continue;
+      seen.add(url);
+      articles.push({
+        title: title.slice(0, 160),
+        url,
+        siteId: site.id,
+        siteName: site.name,
+        domain: site.domain,
+      });
+    }
+  }
+
+  // Markdown links from reader (already text, still filter junk)
+  const mdRe = /\[([^\]]{4,160})\]\((https?:\/\/[^)\s]+)\)/gi;
+  while ((m = mdRe.exec(cleaned))) {
     const title = normalizeSpace(m[1]);
-    if (!title || title.length < 4 || !titleMatches(title, query)) continue;
+    if (!title || !titleMatches(title, query) || isJunkNewsTitle(title)) continue;
     const url = canonicalizeUrl(m[2]);
     if (!hostMatchesDomain(url, domain)) continue;
+    if (!isLikelyArticleUrl(url, domain)) continue;
     if (seen.has(url)) continue;
     seen.add(url);
     articles.push({
-      title,
+      title: title.slice(0, 160),
       url,
       siteId: site.id,
       siteName: site.name,
