@@ -641,10 +641,13 @@ export function GlobalVoiceCommandPanel({
   currentModule,
   menuItems,
   onNavigate,
+  docked = false,
 }: {
   currentModule: string;
   menuItems: MenuItem[];
   onNavigate: (moduleId: string) => void;
+  /** When true, parent left dock handles fixed positioning (voice sits above scroll-up). */
+  docked?: boolean;
 }) {
   const [feedback, setFeedback] = useState(HELP_HINT);
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
@@ -1018,9 +1021,15 @@ export function GlobalVoiceCommandPanel({
     pendingCommand?.risk === "review" ? "需確認後執行" :
     "安全操作";
 
-  // Keep on bottom-left so it never covers right-side scroll / queue docks.
+  // Docked: parent left stack (above up-arrow). Standalone: bottom-left fixed FAB.
   return (
-    <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-start gap-2 md:bottom-6 md:left-6">
+    <div
+      className={
+        docked
+          ? "relative z-[var(--z-voice)] flex w-full max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-start gap-2"
+          : "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-start gap-2 md:bottom-6 md:left-6"
+      }
+    >
       {open && (
         <div className="w-full rounded-[24px] border border-[var(--line-strong)] bg-white/92 p-4 shadow-[0_24px_80px_rgba(17,24,39,0.18)] backdrop-blur-xl dark:bg-gray-950/92">
           <div className="flex items-start justify-between gap-3">

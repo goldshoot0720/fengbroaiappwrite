@@ -150,12 +150,16 @@ export default function DashboardLayout({
         <MusicQueuePanel />
         <PodcastQueuePanel />
         <VideoQueuePanel />
-        <GlobalVoiceCommandPanel
-          currentModule={currentModule}
-          menuItems={menuItems}
-          onNavigate={onModuleChange}
-        />
-        <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} />
+        {/* 左側浮動列：全域語音在向上箭頭上方一點 */}
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-start gap-2 sm:bottom-6 sm:left-4">
+          <GlobalVoiceCommandPanel
+            currentModule={currentModule}
+            menuItems={menuItems}
+            onNavigate={onModuleChange}
+            docked
+          />
+          <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} docked />
+        </div>
       </div>
     </div>
   );
@@ -222,7 +226,7 @@ function DesktopTopNav({
   return (
     <header
       id="desktop-top-nav"
-      className="sticky top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 px-3 py-3 backdrop-blur-xl md:block md:px-4 xl:px-5"
+      className="relative z-10 hidden shrink-0 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 px-3 py-3 backdrop-blur-xl md:block md:px-4 xl:px-5"
     >
       <div className="mx-auto w-full max-w-[1680px] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
