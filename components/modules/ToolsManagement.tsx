@@ -2244,6 +2244,80 @@ function FengbroTwMarketBoardCard({
   );
 }
 
+/**
+ * Mount TW index only after 鋒兄金融 has settled and the browser is idle,
+ * so CNBC quotes paint / fetch first and the heavy TWSE/TPEx recompute does not contend.
+ */
+function DeferredFengbroTwIndexPanel({ financeReady }: { financeReady: boolean }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (!financeReady || mounted) return;
+
+    let cancelled = false;
+    let idleId: number | undefined;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+
+    const mount = () => {
+      if (!cancelled) setMounted(true);
+    };
+
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    if (typeof win.requestIdleCallback === "function") {
+      idleId = win.requestIdleCallback(mount, { timeout: 1500 });
+    } else {
+      // Fallback: short defer after finance paint.
+      timerId = setTimeout(mount, 400);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId != null && typeof win.cancelIdleCallback === "function") {
+        win.cancelIdleCallback(idleId);
+      }
+      if (timerId != null) clearTimeout(timerId);
+    };
+  }, [financeReady, mounted]);
+
+  if (!mounted) {
+    return (
+      <div
+        id="fengbro-finance-tw-market-avg"
+        className="scroll-mt-28 border-t border-emerald-100 bg-white/90 p-4 sm:p-6"
+        aria-busy="true"
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/80">FengBro TW Index</p>
+        <h4 className="mt-1 text-lg font-semibold text-foreground">鋒兄台股上市／上櫃指數</h4>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {financeReady ? "鋒兄金融已就緒，正在排程載入台股指數…" : "等待鋒兄金融報價載入後再顯示…"}
+        </p>
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          {["上市", "上櫃"].map((label) => (
+            <div key={label} className="animate-pulse rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5">
+              <div className="h-4 w-40 rounded bg-emerald-100" />
+              <div className="mt-3 h-3 w-64 rounded bg-emerald-100/80" />
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                {["今天", "本周", "本月"].map((item) => (
+                  <div key={item} className="rounded-2xl border border-emerald-100 bg-white/60 p-4">
+                    <div className="h-3 w-16 rounded bg-emerald-100" />
+                    <div className="mt-4 h-8 w-24 rounded bg-emerald-100" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return <FengbroTwIndexPanel />;
+}
+
 function FengbroTwIndexPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -2267,33 +2341,87 @@ function FengbroTwIndexPanel() {
 
     setLoading(true);
     setError("");
-    try {
-      const qs = force ? "?refresh=1" : "";
-      // cache: "no-store" + bypass SW for API (see sw.js /api/ network-only).
-      // Full recompute can take 10–30s while TWSE/TPEx history is pulled.
-      const response = await fetch(`/api/fengbro-finance/tw-market-avg${qs}`, {
-        cache: "no-store",
-        headers: { accept: "application/json" },
-      });
-      let payload: FengbroTwIndexResult;
-      try {
-        payload = (await response.json()) as FengbroTwIndexResult;
-      } catch {
+
+    const parseTwIndexResponse = async (response: Response): Promise<FengbroTwIndexResult> => {
+      const contentType = response.headers.get("content-type") || "";
+      const raw = await response.text();
+      const text = raw.replace(/^\uFEFF/, "").trim();
+
+      if (!text) {
         throw new Error(
           response.ok
-            ? "鋒兄台股上市／上櫃指數回傳格式異常"
+            ? "鋒兄台股上市／上櫃指數回傳空白（可能計算逾時或連線中斷，請再試一次）"
+            : `鋒兄台股上市／上櫃指數讀取失敗（HTTP ${response.status}，空白回應）`
+        );
+      }
+
+      if (text.startsWith("<") || contentType.includes("text/html")) {
+        throw new Error(
+          `鋒兄台股上市／上櫃指數回傳了 HTML 而非 JSON（HTTP ${response.status}）。請硬重新整理後再試。`
+        );
+      }
+
+      let payload: FengbroTwIndexResult;
+      try {
+        payload = JSON.parse(text) as FengbroTwIndexResult;
+      } catch {
+        const preview = text.slice(0, 80).replace(/\s+/g, " ");
+        throw new Error(
+          response.ok
+            ? `鋒兄台股上市／上櫃指數回傳格式異常（無法解析 JSON，長度 ${text.length}）：${preview}`
             : `鋒兄台股上市／上櫃指數讀取失敗（HTTP ${response.status}）`
         );
       }
-      if (!response.ok) throw new Error(payload.error || "鋒兄台股上市／上櫃指數讀取失敗");
-      if (!twIndexPayloadIsValid(payload)) {
-        throw new Error(payload.error || "鋒兄台股上市／上櫃指數資料不完整");
+      return payload;
+    };
+
+    const fetchTwIndex = async (attempt: number): Promise<FengbroTwIndexResult> => {
+      const qs = force ? "?refresh=1" : "";
+      // Full recompute can take 10–30s while TWSE/TPEx history is pulled.
+      const controller = new AbortController();
+      const timeoutMs = 90_000;
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(`/api/fengbro-finance/tw-market-avg${qs}`, {
+          cache: "no-store",
+          headers: { accept: "application/json" },
+          signal: controller.signal,
+        });
+        const payload = await parseTwIndexResponse(response);
+        if (!response.ok) {
+          throw new Error(payload.error || `鋒兄台股上市／上櫃指數讀取失敗（HTTP ${response.status}）`);
+        }
+        if (!twIndexPayloadIsValid(payload)) {
+          throw new Error(payload.error || "鋒兄台股上市／上櫃指數資料不完整");
+        }
+        return payload;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const retriable =
+          attempt < 1 &&
+          (/回傳空白|回傳格式異常|HTML 而非 JSON|aborted|AbortError|NetworkError|Failed to fetch|Load failed/i.test(
+            message
+          ) ||
+            err instanceof TypeError);
+        if (retriable) {
+          await new Promise((resolve) => window.setTimeout(resolve, 800));
+          return fetchTwIndex(attempt + 1);
+        }
+        throw err;
+      } finally {
+        window.clearTimeout(timeoutId);
       }
+    };
+
+    try {
+      const payload = await fetchTwIndex(0);
       setData(payload);
       writeTwIndexDayCache(payload);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("鋒兄台股上市／上櫃指數計算逾時（超過 90 秒）。請稍後再按「重新計算」。");
+      } else if (
         err instanceof TypeError ||
         /NetworkError|Failed to fetch|Load failed|network/i.test(message)
       ) {
@@ -2451,6 +2579,8 @@ function FengbroFinanceSection({
 }) {
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // 鋒兄金融報價已就緒（有資料或載入結束且失敗）後才允許延遲掛載台股指數。
+  const financeReadyForTwIndex = Boolean(result) || (!loading && Boolean(error));
   const groupedQuotes = useMemo(() => {
     // 精選焦點 → 亞洲指數 → 韓股 → 亞股 → 美股指數 → 美股 → 台股指數 → 台股 → 估值指標 → 匯率 → 利率 → 商品 → 加密貨幣
     const order: FengbroFinanceQuote["group"][] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "valuation", "fx", "rates", "commodities", "crypto"];
@@ -3201,7 +3331,7 @@ function FengbroFinanceSection({
           </div>
         )}
 
-        <FengbroTwIndexPanel />
+        <DeferredFengbroTwIndexPanel financeReady={financeReadyForTwIndex} />
       </DataCard>
     </div>
   );

@@ -231,13 +231,23 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Bound upstream TWSE/TPEx latency so the route always finishes with JSON (not a hung/truncated body). */
+const UPSTREAM_FETCH_MS = 12_000;
+
 async function fetchJson(url: string) {
-  const response = await fetch(url, {
-    headers: FETCH_HEADERS,
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_FETCH_MS);
+  try {
+    const response = await fetch(url, {
+      headers: FETCH_HEADERS,
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function buildMarketDailyIndex(
@@ -281,10 +291,12 @@ function marketFromPair(pair: DayPair | null, market: MarketKey): DailyIndex | n
 }
 
 async function fetchLatestDayPair(): Promise<DayPair | null> {
-  const [twsePayload, tpexPayload] = await Promise.all([
+  const [twseResult, tpexResult] = await Promise.allSettled([
     fetchJson(TWSE_DAY_ALL_URL),
     fetchJson(TPEX_DAY_ALL_URL),
   ]);
+  const twsePayload = twseResult.status === "fulfilled" ? twseResult.value : null;
+  const tpexPayload = tpexResult.status === "fulfilled" ? tpexResult.value : null;
 
   const twseCloses: number[] = [];
   const tpexCloses: number[] = [];
