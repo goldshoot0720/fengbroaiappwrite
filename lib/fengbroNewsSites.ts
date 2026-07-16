@@ -374,6 +374,9 @@ export const DEFAULT_FENGBRO_NEWS_SITES: FengbroNewsSiteConfig[] = [
 export const FENGBRO_NEWS_SITES_KEY = "fengbro.tools.news.sites";
 export const FENGBRO_NEWS_QUERY_KEY = "fengbro.tools.news.query";
 
+/** Built-in default source count (keep in sync with DEFAULT_FENGBRO_NEWS_SITES). */
+export const DEFAULT_FENGBRO_NEWS_SITES_COUNT = DEFAULT_FENGBRO_NEWS_SITES.length;
+
 export function normalizeDomain(input: string): string {
   const raw = (input || "").trim().toLowerCase();
   if (!raw) return "";

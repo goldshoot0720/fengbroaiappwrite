@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import {
   DEFAULT_FENGBRO_NEWS_SITES,
+  DEFAULT_FENGBRO_NEWS_SITES_COUNT,
   FENGBRO_NEWS_QUERY_KEY,
   FENGBRO_NEWS_SITES_KEY,
   fengbroNewsSiteKey,
@@ -352,7 +353,10 @@ export default function FengbroNewsTool() {
               </span>
             )}
             <span className="rounded-full border border-sky-100 bg-white px-3 py-1 text-xs text-muted-foreground">
-              來源：{sites.length} · 鎖定 {lockedCount}
+              來源總數 {sites.length} · 鎖定 {lockedCount}
+              {sites.length !== DEFAULT_FENGBRO_NEWS_SITES_COUNT
+                ? ` · 預設 ${DEFAULT_FENGBRO_NEWS_SITES_COUNT}`
+                : ""}
             </span>
             <Button
               type="button"
@@ -380,14 +384,18 @@ export default function FengbroNewsTool() {
                   <h4 className="flex items-center gap-2 font-semibold text-foreground">
                     <Focus size={16} className="text-sky-600" />
                     新聞來源網站
+                    <span className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-800">
+                      共 {sites.length} 個
+                    </span>
                   </h4>
                   <p className="mt-1 text-sm text-muted-foreground">
                     可新增任意新聞／公部門網站。鎖定後才會納入標題關鍵字搜尋；設定存在本機瀏覽器。
+                    目前 {sites.length} 個來源（鎖定 {lockedCount}），內建預設 {DEFAULT_FENGBRO_NEWS_SITES_COUNT} 個。
                   </p>
                 </div>
                 <Button type="button" variant="outline" onClick={handleResetSites} className="gap-2 rounded-xl">
                   <RotateCcw size={16} />
-                  還原預設
+                  還原預設（{DEFAULT_FENGBRO_NEWS_SITES_COUNT}）
                 </Button>
               </div>
 
