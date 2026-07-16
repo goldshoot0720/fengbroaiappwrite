@@ -19,16 +19,18 @@ const topLevelMenus = [
   /鋒兄關於/,
 ];
 
-// 鋒兄工具子選單
+// 鋒兄工具子選單（上方選單改為直接平鋪顯示）
 const toolsChildren = [/鋒兄比價/, /手機比價/, /鋒兄Tube/, /鋒兄金融/, /鋒兄新聞/, /圖片語音影片/];
 
-async function getDesktopSidebar(page) {
-  const sidebar = page.locator("aside").filter({ has: page.getByText("Design Mode") }).first();
-  await expect(sidebar).toBeVisible({ timeout: 20000 });
-  return sidebar;
+async function getDesktopTopNav(page) {
+  const nav = page.locator("#desktop-top-nav");
+  await expect(nav).toBeVisible({ timeout: 20000 });
+  return nav;
 }
 
-test("sidebar menu smoke test", async ({ page }) => {
+test.use({ viewport: { width: 1440, height: 900 } });
+
+test("desktop top menu smoke test", async ({ page }) => {
   const pageErrors = [];
   const apiFailures = [];
 
@@ -47,10 +49,11 @@ test("sidebar menu smoke test", async ({ page }) => {
   await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(1200);
 
-  const sidebar = await getDesktopSidebar(page);
+  const topNav = await getDesktopTopNav(page);
+  await expect(topNav.getByText("Design Mode")).toBeVisible();
 
   for (const label of topLevelMenus) {
-    const button = sidebar.getByRole("button", { name: label }).first();
+    const button = topNav.getByRole("button", { name: label }).first();
     await expect(button, `選單應可見: ${label}`).toBeVisible({ timeout: 10000 });
     await button.scrollIntoViewIfNeeded();
     await button.click();
@@ -58,17 +61,9 @@ test("sidebar menu smoke test", async ({ page }) => {
     await expect(page.locator("main")).toBeVisible();
   }
 
-  // 展開「鋒兄工具」後點子項目（避免已展開時再點會收合）
-  const toolsButton = sidebar.getByRole("button", { name: /鋒兄工具/ }).first();
-  await toolsButton.scrollIntoViewIfNeeded();
-  const firstChild = sidebar.getByRole("button", { name: toolsChildren[0] }).first();
-  if (!(await firstChild.isVisible().catch(() => false))) {
-    await toolsButton.click();
-    await page.waitForTimeout(400);
-  }
-
+  // 工具子項目在上方選單直接顯示（無需再展開）
   for (const label of toolsChildren) {
-    const button = sidebar.getByRole("button", { name: label }).first();
+    const button = topNav.getByRole("button", { name: label }).first();
     await expect(button, `工具子選單應可見: ${label}`).toBeVisible({ timeout: 10000 });
     await button.scrollIntoViewIfNeeded();
     await button.click();
@@ -85,8 +80,8 @@ test("subscription currency dropdown", async ({ page }) => {
   await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(1200);
 
-  const sidebar = await getDesktopSidebar(page);
-  await sidebar.getByRole("button", { name: /鋒兄訂閱/ }).click();
+  const topNav = await getDesktopTopNav(page);
+  await topNav.getByRole("button", { name: /鋒兄訂閱/ }).click();
   await page.waitForTimeout(1000);
 
   // 開啟新增表單
