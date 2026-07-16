@@ -3,7 +3,7 @@ import { DATE_THRESHOLDS } from "@/lib/constants";
 /** Shared notification policy — channel thresholds match pre-refactor behavior. */
 export const NOTIFICATION_POLICY = {
   timezone: "Asia/Taipei",
-  swVersion: "v11",
+  swVersion: "v12",
   dashboardOs: {
     subscriptionMaxDays: 3,
     foodMaxDays: 3,

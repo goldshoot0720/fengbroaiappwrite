@@ -2269,8 +2269,22 @@ function FengbroTwIndexPanel() {
     setError("");
     try {
       const qs = force ? "?refresh=1" : "";
-      const response = await fetch(`/api/fengbro-finance/tw-market-avg${qs}`);
-      const payload = (await response.json()) as FengbroTwIndexResult;
+      // cache: "no-store" + bypass SW for API (see sw.js /api/ network-only).
+      // Full recompute can take 10–30s while TWSE/TPEx history is pulled.
+      const response = await fetch(`/api/fengbro-finance/tw-market-avg${qs}`, {
+        cache: "no-store",
+        headers: { accept: "application/json" },
+      });
+      let payload: FengbroTwIndexResult;
+      try {
+        payload = (await response.json()) as FengbroTwIndexResult;
+      } catch {
+        throw new Error(
+          response.ok
+            ? "鋒兄台股上市／上櫃指數回傳格式異常"
+            : `鋒兄台股上市／上櫃指數讀取失敗（HTTP ${response.status}）`
+        );
+      }
       if (!response.ok) throw new Error(payload.error || "鋒兄台股上市／上櫃指數讀取失敗");
       if (!twIndexPayloadIsValid(payload)) {
         throw new Error(payload.error || "鋒兄台股上市／上櫃指數資料不完整");
@@ -2278,7 +2292,17 @@ function FengbroTwIndexPanel() {
       setData(payload);
       writeTwIndexDayCache(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "鋒兄台股上市／上櫃指數讀取失敗");
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        err instanceof TypeError ||
+        /NetworkError|Failed to fetch|Load failed|network/i.test(message)
+      ) {
+        setError(
+          "無法連線到指數計算 API（NetworkError）。請確認本機 / 部署站點已啟動，完整重算約需 10–30 秒，可稍後再按「重新計算」。"
+        );
+      } else {
+        setError(message || "鋒兄台股上市／上櫃指數讀取失敗");
+      }
     } finally {
       setLoading(false);
     }

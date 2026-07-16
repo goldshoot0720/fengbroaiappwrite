@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v11';
+const CACHE_NAME = 'fengbro-ai-v12';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -189,6 +189,15 @@ self.addEventListener('fetch', (event) => {
   if (!request.url.startsWith(self.location.origin)) return;
 
   const requestUrl = new URL(request.url);
+
+  // API routes must never go through Cache Storage. Intercepting them (especially
+  // long-running finance recalcs) can surface Firefox "NetworkError when attempting
+  // to fetch resource" when the network fetch fails and cache.match returns undefined.
+  if (requestUrl.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   const isRangeRequest = request.headers.has('range');
   const acceptHeader = request.headers.get('accept') || '';
   const isStreamingRequest =
@@ -196,10 +205,7 @@ self.addEventListener('fetch', (event) => {
     request.destination === 'video' ||
     request.destination === 'audio' ||
     acceptHeader.includes('video/') ||
-    acceptHeader.includes('audio/') ||
-    requestUrl.pathname.startsWith('/api/media-proxy') ||
-    requestUrl.pathname.startsWith('/api/multipart-video') ||
-    requestUrl.pathname.startsWith('/api/videos/');
+    acceptHeader.includes('audio/');
 
   // Media playback uses byte-range responses (206). Cache Storage rejects those
   // responses, and caching them can make video/audio playback fail intermittently.
