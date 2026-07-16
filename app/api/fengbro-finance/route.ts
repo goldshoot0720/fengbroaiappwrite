@@ -37,9 +37,11 @@ type FinanceHistoryPoint = {
 };
 
 type FinanceHistoryRange = {
-  key: "1y" | "5y" | "10y" | "20y" | "30y";
+  key: "1y" | "3y";
   range: string;
   interval: string;
+  /** Keep only the most recent N years after fetch (Yahoo has no native 3y range). */
+  keepYears?: number;
 };
 
 const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
@@ -47,10 +49,8 @@ const SHILLER_PE_RECORD_HIGH = 44.19;
 const SHILLER_PE_RECORD_DATE = "Dec 1999";
 const FINANCE_HISTORY_RANGES: FinanceHistoryRange[] = [
   { key: "1y", range: "1y", interval: "1wk" },
-  { key: "5y", range: "5y", interval: "1mo" },
-  { key: "10y", range: "10y", interval: "1mo" },
-  { key: "20y", range: "20y", interval: "3mo" },
-  { key: "30y", range: "30y", interval: "3mo" },
+  // Yahoo chart API has no native "3y"; fetch 5y weekly then trim to 3 years.
+  { key: "3y", range: "5y", interval: "1wk", keepYears: 3 },
 ];
 const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   "nikkei-225": "^N225",
@@ -320,7 +320,7 @@ async function fetchYahooHistory(instrument: FinanceInstrument, historyRange: Fi
   const closes = chart?.indicators?.quote?.[0]?.close;
   if (!Array.isArray(timestamps) || !Array.isArray(closes)) return [];
 
-  return timestamps
+  const points = timestamps
     .map((timestamp: unknown, index: number) => {
       const time = asNumber(timestamp);
       const price = asNumber(closes[index]);
@@ -331,6 +331,15 @@ async function fetchYahooHistory(instrument: FinanceInstrument, historyRange: Fi
       };
     })
     .filter((point): point is FinanceHistoryPoint => point != null);
+
+  if (historyRange.keepYears == null || historyRange.keepYears <= 0 || points.length === 0) {
+    return points;
+  }
+
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - historyRange.keepYears);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+  return points.filter((point) => point.date >= cutoffIso);
 }
 
 async function fetchYahooHistoryRanges(instrument: FinanceInstrument) {

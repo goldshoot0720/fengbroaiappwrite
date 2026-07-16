@@ -851,10 +851,7 @@ function getFinanceQuoteSortValue(quote: FengbroFinanceQuote) {
 
 const FINANCE_HISTORY_RANGE_ITEMS = [
   { key: "1y", label: "最近一年走勢" },
-  { key: "5y", label: "最近五年走勢" },
-  { key: "10y", label: "最近十年走勢" },
-  { key: "20y", label: "最近二十年走勢" },
-  { key: "30y", label: "最近三十年走勢" },
+  { key: "3y", label: "最近三年走勢" },
 ];
 
 function FinanceHistoryChart({
