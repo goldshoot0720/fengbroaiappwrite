@@ -218,8 +218,6 @@ type FengbroTwIndexSnapshot = {
   key: string;
   index: number | null;
   stockCount: number;
-  twseCount: number;
-  tpexCount: number;
   asOfDate: string | null;
   method: string;
   dayCount?: number;
@@ -232,9 +230,25 @@ type FengbroTwIndexSeriesPoint = {
   month?: number;
   index: number | null;
   stockCount: number;
-  twseCount: number;
-  tpexCount: number;
   asOfDate: string | null;
+};
+
+type FengbroTwMarketBoard = {
+  market: "twse" | "tpex";
+  name: string;
+  formula: string;
+  note?: string;
+  today: FengbroTwIndexSnapshot;
+  week: FengbroTwIndexSnapshot;
+  month: FengbroTwIndexSnapshot;
+  snapshots: FengbroTwIndexSnapshot[];
+  monthly: FengbroTwIndexSeriesPoint[];
+  yearly: FengbroTwIndexSeriesPoint[];
+  universe: {
+    asOfDate: string;
+    stockCount: number;
+    priceSum: number;
+  };
 };
 
 type FengbroTwIndexResult = {
@@ -243,12 +257,7 @@ type FengbroTwIndexResult = {
   formula: string;
   source: string;
   note?: string;
-  today: FengbroTwIndexSnapshot;
-  week: FengbroTwIndexSnapshot;
-  month: FengbroTwIndexSnapshot;
-  snapshots: FengbroTwIndexSnapshot[];
-  monthly: FengbroTwIndexSeriesPoint[];
-  yearly: FengbroTwIndexSeriesPoint[];
+  asOfDate?: string;
   ranges?: {
     monthlyStart: string;
     monthlyEnd: string;
@@ -257,15 +266,103 @@ type FengbroTwIndexResult = {
     yearlyEnd: number;
     yearlyLookback?: number;
   };
-  universe: {
-    asOfDate: string;
-    stockCount: number;
-    twseCount: number;
-    tpexCount: number;
-    priceSum: number;
-  };
+  twse: FengbroTwMarketBoard;
+  tpex: FengbroTwMarketBoard;
+  boards?: FengbroTwMarketBoard[];
+  /** Server day-cache hit after market close. */
+  cached?: boolean;
+  cacheNote?: string;
   error?: string;
 };
+
+const TW_INDEX_DAY_CACHE_KEY = "fengbro-tw-index-day-v2";
+/** TWSE/TPEx regular session ends 13:30 Asia/Taipei. */
+const TW_MARKET_CLOSE_MINUTES = 13 * 60 + 30;
+
+function getTaipeiMarketClock(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || "";
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+  const hour = Number(get("hour"));
+  const minute = Number(get("minute"));
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const weekday = weekdayMap[get("weekday")] ?? 0;
+  const isWeekday = weekday >= 1 && weekday <= 5;
+  const minutesOfDay = (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0);
+  const isAfterClose = !isWeekday || minutesOfDay > TW_MARKET_CLOSE_MINUTES;
+  const dayKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return { year, month, day, weekday, isWeekday, minutesOfDay, isAfterClose, dayKey };
+}
+
+type TwIndexDayCache = {
+  taipeiDay: string;
+  asOfDate: string;
+  payload: FengbroTwIndexResult;
+};
+
+function twIndexPayloadIsValid(payload: FengbroTwIndexResult | null | undefined): boolean {
+  if (!payload?.twse || !payload?.tpex) return false;
+  const twseOk = (payload.twse.universe?.stockCount ?? 0) >= 100;
+  const tpexOk = (payload.tpex.universe?.stockCount ?? 0) >= 50;
+  return twseOk || tpexOk;
+}
+
+function readTwIndexDayCache(): TwIndexDayCache | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(TW_INDEX_DAY_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as TwIndexDayCache;
+    if (!parsed?.taipeiDay || !parsed?.asOfDate || !twIndexPayloadIsValid(parsed.payload)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeTwIndexDayCache(payload: FengbroTwIndexResult) {
+  if (typeof window === "undefined") return;
+  if (!twIndexPayloadIsValid(payload)) return;
+  const clock = getTaipeiMarketClock();
+  // 僅在收盤後寫入當日快取，避免盤中鎖住尚未定稿的結果。
+  if (!clock.isAfterClose) return;
+  try {
+    const entry: TwIndexDayCache = {
+      taipeiDay: clock.dayKey,
+      asOfDate: payload.asOfDate || payload.twse.universe.asOfDate || payload.tpex.universe.asOfDate,
+      payload: { ...payload, cached: true },
+    };
+    window.localStorage.setItem(TW_INDEX_DAY_CACHE_KEY, JSON.stringify(entry));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+/** 收盤後同一台北日若已有完整結果，可直接沿用、不必再打 API。 */
+function getReusableTwIndexDayCache(): FengbroTwIndexResult | null {
+  const cached = readTwIndexDayCache();
+  if (!cached) return null;
+  const clock = getTaipeiMarketClock();
+  if (!clock.isAfterClose) return null;
+  if (cached.taipeiDay !== clock.dayKey) return null;
+  if (!twIndexPayloadIsValid(cached.payload)) return null;
+  return {
+    ...cached.payload,
+    cached: true,
+    cacheNote: cached.payload.cacheNote || `收盤後同一日沿用本地結果（基準 ${cached.asOfDate}）`,
+  };
+}
 
 type CustomFinanceInstrument = {
   name: string;
@@ -1957,23 +2054,231 @@ function FengbroTwIndexSparkline({
   );
 }
 
+function FengbroTwMarketBoardCard({
+  board,
+  ranges,
+  accent,
+}: {
+  board: FengbroTwMarketBoard;
+  ranges?: FengbroTwIndexResult["ranges"];
+  accent: "sky" | "violet";
+}) {
+  const snapshots = board.snapshots || [];
+  const monthly = board.monthly || [];
+  const yearly = board.yearly || [];
+  const monthlyChronological = useMemo(() => [...monthly].reverse(), [monthly]);
+  const yearlyChronological = useMemo(() => [...yearly].reverse(), [yearly]);
+  const monthlyWithValue = monthly.filter((p) => p.index != null);
+  const yearlyWithValue = yearly.filter((p) => p.index != null);
+  const monthlyRangeLabel = ranges
+    ? `${ranges.monthlyStart}–${ranges.monthlyEnd}`
+    : monthly.length
+      ? `${monthly[monthly.length - 1]?.key}–${monthly[0]?.key}`
+      : "";
+  const yearlyRangeLabel = ranges
+    ? `${ranges.yearlyStart}–${ranges.yearlyEnd}`
+    : yearly.length
+      ? `${yearly[yearly.length - 1]?.key}–${yearly[0]?.key}`
+      : "";
+
+  const shell =
+    accent === "sky"
+      ? {
+          wrap: "border-sky-200 bg-gradient-to-br from-sky-50/80 via-white to-cyan-50/40",
+          badge: "bg-sky-100 text-sky-800",
+          card: "border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50",
+          title: "text-sky-800/80",
+          value: "text-sky-800",
+          chip: "bg-sky-100 text-sky-800",
+          formula: "text-sky-900/70",
+        }
+      : {
+          wrap: "border-violet-200 bg-gradient-to-br from-violet-50/80 via-white to-fuchsia-50/40",
+          badge: "bg-violet-100 text-violet-800",
+          card: "border-violet-200 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50",
+          title: "text-violet-800/80",
+          value: "text-violet-800",
+          chip: "bg-violet-100 text-violet-800",
+          formula: "text-violet-900/70",
+        };
+
+  return (
+    <section className={`rounded-3xl border p-4 shadow-sm sm:p-5 ${shell.wrap}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${shell.formula}`}>
+            {board.market === "twse" ? "TWSE Listed" : "TPEx OTC"}
+          </p>
+          <h5 className="mt-1 text-lg font-semibold text-foreground">{board.name}</h5>
+          <p className={`mt-1 text-xs ${shell.formula}`}>{board.formula}</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${shell.badge}`}>
+          {board.market === "twse" ? "上市" : "上櫃"}
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-slate-700">
+          股票數 {formatFinanceNumber(board.universe.stockCount, 0)}
+        </span>
+        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
+          基準日 {board.universe.asOfDate || "--"}
+        </span>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-900">
+          股價加總 {formatFinanceNumber(board.universe.priceSum, 0)}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {snapshots.map((item) => (
+          <div key={item.key} className={`rounded-2xl border p-4 shadow-sm ${shell.card}`}>
+            <div className="flex items-start justify-between gap-2">
+              <p className={`text-xs font-semibold tracking-wide ${shell.title}`}>{item.label}</p>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${shell.chip}`}>
+                {item.key === "today" ? "1D" : item.key === "week" ? "1W" : "1M"}
+              </span>
+            </div>
+            <p className={`mt-2 text-3xl font-bold tabular-nums ${shell.value}`}>
+              {item.index == null ? "--" : formatFinanceNumber(item.index, 2)}
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {item.asOfDate ? `基準 ${item.asOfDate}` : "尚無資料"}
+              {item.dayCount && item.dayCount > 1 ? ` · 平均 ${item.dayCount} 個交易日` : ""}
+            </p>
+            <div className="mt-3 rounded-xl bg-white/80 px-2.5 py-2 text-xs">
+              <p className="text-muted-foreground">股票數</p>
+              <p className="mt-0.5 font-semibold tabular-nums">{formatFinanceNumber(item.stockCount, 0)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h6 className="text-sm font-semibold text-foreground">
+                每月指數{monthlyRangeLabel ? ` ${monthlyRangeLabel}` : ""}
+              </h6>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                各月最後交易日等權均價 · 新到舊 · 往前 {ranges?.monthlyLookback ?? 24} 個月滾動
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground">{monthlyWithValue.length} 筆</span>
+          </div>
+          <div className="mt-3">
+            <FengbroTwIndexSparkline points={monthlyChronological} />
+          </div>
+          <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-100">
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 bg-slate-50 text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">月份</th>
+                  <th className="px-3 py-2 font-medium">指數</th>
+                  <th className="px-3 py-2 font-medium">股票數</th>
+                  <th className="px-3 py-2 font-medium">基準日</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthly.map((row) => (
+                  <tr key={row.key} className="border-t border-slate-100">
+                    <td className="px-3 py-2 font-medium tabular-nums">{row.label}</td>
+                    <td className={`px-3 py-2 font-semibold tabular-nums ${shell.value}`}>
+                      {row.index == null ? "--" : formatFinanceNumber(row.index, 2)}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">
+                      {row.stockCount ? formatFinanceNumber(row.stockCount, 0) : "--"}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{row.asOfDate || "--"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h6 className="text-sm font-semibold text-foreground">
+                每年指數{yearlyRangeLabel ? ` ${yearlyRangeLabel}` : ""}
+              </h6>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                各年最後交易日等權均價 · 新到舊 · 往前 {ranges?.yearlyLookback ?? 24} 年滾動（當年為最新）
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground">{yearlyWithValue.length} 筆</span>
+          </div>
+          <div className="mt-3">
+            <FengbroTwIndexSparkline points={yearlyChronological} />
+          </div>
+          <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-100">
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 bg-slate-50 text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">年份</th>
+                  <th className="px-3 py-2 font-medium">指數</th>
+                  <th className="px-3 py-2 font-medium">股票數</th>
+                  <th className="px-3 py-2 font-medium">基準日</th>
+                </tr>
+              </thead>
+              <tbody>
+                {yearly.map((row) => (
+                  <tr key={row.key} className="border-t border-slate-100">
+                    <td className="px-3 py-2 font-medium tabular-nums">{row.label}</td>
+                    <td className={`px-3 py-2 font-semibold tabular-nums ${shell.value}`}>
+                      {row.index == null ? "--" : formatFinanceNumber(row.index, 2)}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">
+                      {row.stockCount ? formatFinanceNumber(row.stockCount, 0) : "--"}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{row.asOfDate || "--"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FengbroTwIndexPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<FengbroTwIndexResult | null>(null);
   const [loadedOnce, setLoadedOnce] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { force?: boolean }) => {
+    const force = options?.force === true;
     setLoadedOnce(true);
+
+    // 收盤後同一日：優先沿用瀏覽器當日快取，避免重複打完整計算 API。
+    if (!force) {
+      const local = getReusableTwIndexDayCache();
+      if (local) {
+        setData(local);
+        setError("");
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/fengbro-finance/tw-market-avg");
+      const qs = force ? "?refresh=1" : "";
+      const response = await fetch(`/api/fengbro-finance/tw-market-avg${qs}`);
       const payload = (await response.json()) as FengbroTwIndexResult;
-      if (!response.ok) throw new Error(payload.error || "鋒兄台股指數讀取失敗");
+      if (!response.ok) throw new Error(payload.error || "鋒兄台股上市／上櫃指數讀取失敗");
+      if (!twIndexPayloadIsValid(payload)) {
+        throw new Error(payload.error || "鋒兄台股上市／上櫃指數資料不完整");
+      }
       setData(payload);
+      writeTwIndexDayCache(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "鋒兄台股指數讀取失敗");
+      setError(err instanceof Error ? err.message : "鋒兄台股上市／上櫃指數讀取失敗");
     } finally {
       setLoading(false);
     }
@@ -1985,33 +2290,23 @@ function FengbroTwIndexPanel() {
     }
   }, [load, loadedOnce, loading]);
 
-  const snapshots = data?.snapshots || [];
-  const monthly = data?.monthly || [];
-  const yearly = data?.yearly || [];
-  // API returns newest-first; sparkline reads left→right chronologically.
-  const monthlyChronological = useMemo(() => [...monthly].reverse(), [monthly]);
-  const yearlyChronological = useMemo(() => [...yearly].reverse(), [yearly]);
-  const monthlyWithValue = monthly.filter((p) => p.index != null);
-  const yearlyWithValue = yearly.filter((p) => p.index != null);
-  const monthlyRangeLabel = data?.ranges
-    ? `${data.ranges.monthlyStart}–${data.ranges.monthlyEnd}`
-    : monthly.length
-      ? `${monthly[monthly.length - 1]?.key}–${monthly[0]?.key}`
-      : "";
-  const yearlyRangeLabel = data?.ranges
-    ? `${data.ranges.yearlyStart}–${data.ranges.yearlyEnd}`
-    : yearly.length
-      ? `${yearly[yearly.length - 1]?.key}–${yearly[0]?.key}`
-      : "";
+  const afterCloseSameDay = useMemo(() => {
+    if (!data || !twIndexPayloadIsValid(data)) return false;
+    const clock = getTaipeiMarketClock();
+    return clock.isAfterClose && Boolean(data.cached || readTwIndexDayCache()?.taipeiDay === clock.dayKey);
+  }, [data]);
+
+  const asOfDate =
+    data?.asOfDate || data?.twse?.universe?.asOfDate || data?.tpex?.universe?.asOfDate || "";
 
   return (
     <div id="fengbro-finance-tw-market-avg" className="scroll-mt-28 border-t border-emerald-100 bg-white/90 p-4 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/80">FengBro TW Index</p>
-          <h4 className="mt-1 text-lg font-semibold text-foreground">鋒兄台股指數</h4>
+          <h4 className="mt-1 text-lg font-semibold text-foreground">鋒兄台股上市／上櫃指數</h4>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            公式：所有上市上櫃股票股價加總 ÷ 股票數（等權均價指數，含 4 碼 ETF）
+            分成兩支等權均價指數：上市（TWSE）與上櫃（TPEx），各自為該市場全部 4 碼證券收盤價加總 ÷ 股票數（含 ETF）
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -2020,175 +2315,65 @@ function FengbroTwIndexPanel() {
               更新：{new Date(data.fetchedAt).toLocaleString("zh-TW")}
             </span>
           )}
+          {asOfDate ? (
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-800">
+              基準日 {asOfDate}
+            </span>
+          ) : null}
+          {(data?.cached || afterCloseSameDay) && (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+              收盤後當日已計算，不重複重算
+            </span>
+          )}
           <Button
             type="button"
             variant="outline"
-            onClick={() => void load()}
+            onClick={() => void load({ force: true })}
             disabled={loading}
+            title={
+              afterCloseSameDay
+                ? "收盤後同一日預設不重算；仍可強制重新計算"
+                : "重新計算鋒兄台股上市／上櫃指數"
+            }
             className="h-9 gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            {loading ? "計算中" : "重新計算"}
+            {loading ? "計算中" : afterCloseSameDay ? "強制重算" : "重新計算"}
           </Button>
         </div>
       </div>
 
-      {data?.universe && (
-        <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">
-            股票數 {formatFinanceNumber(data.universe.stockCount, 0)}
-          </span>
-          <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-800">
-            上市 {formatFinanceNumber(data.universe.twseCount, 0)}
-          </span>
-          <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-violet-800">
-            上櫃 {formatFinanceNumber(data.universe.tpexCount, 0)}
-          </span>
-          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
-            基準日 {data.universe.asOfDate}
-          </span>
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-900">
-            股價加總 {formatFinanceNumber(data.universe.priceSum, 0)}
-          </span>
-        </div>
-      )}
+      {data?.cacheNote ? (
+        <p className="mt-2 text-xs text-muted-foreground">{data.cacheNote}</p>
+      ) : null}
 
       {error ? (
         <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
       ) : null}
 
       {loading && !data ? (
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {["今天", "本周", "本月"].map((label) => (
-            <div key={label} className="animate-pulse rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
-              <div className="h-3 w-20 rounded bg-emerald-100" />
-              <div className="mt-4 h-9 w-32 rounded bg-emerald-100" />
-              <div className="mt-3 h-3 w-full rounded bg-emerald-100/80" />
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          {["上市", "上櫃"].map((label) => (
+            <div key={label} className="animate-pulse rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5">
+              <div className="h-4 w-40 rounded bg-emerald-100" />
+              <div className="mt-3 h-3 w-64 rounded bg-emerald-100/80" />
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                {["今天", "本周", "本月"].map((item) => (
+                  <div key={item} className="rounded-2xl border border-emerald-100 bg-white/60 p-4">
+                    <div className="h-3 w-16 rounded bg-emerald-100" />
+                    <div className="mt-4 h-8 w-24 rounded bg-emerald-100" />
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
-      ) : (
-        <>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            {snapshots.map((item) => (
-              <div
-                key={item.key}
-                className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-xs font-semibold tracking-wide text-emerald-800/80">{item.label}</p>
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                    {item.key === "today" ? "1D" : item.key === "week" ? "1W" : "1M"}
-                  </span>
-                </div>
-                <p className="mt-2 text-3xl font-bold tabular-nums text-emerald-800">
-                  {item.index == null ? "--" : formatFinanceNumber(item.index, 2)}
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {item.asOfDate ? `基準 ${item.asOfDate}` : "尚無資料"}
-                  {item.dayCount && item.dayCount > 1 ? ` · 平均 ${item.dayCount} 個交易日` : ""}
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-xl bg-white/80 px-2.5 py-2">
-                    <p className="text-muted-foreground">股票數</p>
-                    <p className="mt-0.5 font-semibold tabular-nums">{formatFinanceNumber(item.stockCount, 0)}</p>
-                  </div>
-                  <div className="rounded-xl bg-white/80 px-2.5 py-2">
-                    <p className="text-muted-foreground">上市 / 上櫃</p>
-                    <p className="mt-0.5 font-semibold tabular-nums">
-                      {formatFinanceNumber(item.twseCount, 0)} / {formatFinanceNumber(item.tpexCount, 0)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 grid gap-4 xl:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h5 className="text-sm font-semibold text-foreground">
-                    每月指數{monthlyRangeLabel ? ` ${monthlyRangeLabel}` : ""}
-                  </h5>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    各月最後交易日等權均價 · 新到舊 · 往前 {data?.ranges?.monthlyLookback ?? 24} 個月滾動
-                  </p>
-                </div>
-                <span className="text-xs text-muted-foreground">{monthlyWithValue.length} 筆</span>
-              </div>
-              <div className="mt-3">
-                <FengbroTwIndexSparkline points={monthlyChronological} />
-              </div>
-              <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-100">
-                <table className="w-full text-left text-xs">
-                  <thead className="sticky top-0 bg-slate-50 text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">月份</th>
-                      <th className="px-3 py-2 font-medium">指數</th>
-                      <th className="px-3 py-2 font-medium">股票數</th>
-                      <th className="px-3 py-2 font-medium">基準日</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthly.map((row) => (
-                      <tr key={row.key} className="border-t border-slate-100">
-                        <td className="px-3 py-2 font-medium tabular-nums">{row.label}</td>
-                        <td className="px-3 py-2 font-semibold tabular-nums text-emerald-800">
-                          {row.index == null ? "--" : formatFinanceNumber(row.index, 2)}
-                        </td>
-                        <td className="px-3 py-2 tabular-nums">{row.stockCount ? formatFinanceNumber(row.stockCount, 0) : "--"}</td>
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground">{row.asOfDate || "--"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h5 className="text-sm font-semibold text-foreground">
-                    每年指數{yearlyRangeLabel ? ` ${yearlyRangeLabel}` : ""}
-                  </h5>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    各年最後交易日等權均價 · 新到舊 · 往前 {data?.ranges?.yearlyLookback ?? 24} 年滾動（當年為最新）
-                  </p>
-                </div>
-                <span className="text-xs text-muted-foreground">{yearlyWithValue.length} 筆</span>
-              </div>
-              <div className="mt-3">
-                <FengbroTwIndexSparkline points={yearlyChronological} />
-              </div>
-              <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-100">
-                <table className="w-full text-left text-xs">
-                  <thead className="sticky top-0 bg-slate-50 text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">年份</th>
-                      <th className="px-3 py-2 font-medium">指數</th>
-                      <th className="px-3 py-2 font-medium">股票數</th>
-                      <th className="px-3 py-2 font-medium">基準日</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {yearly.map((row) => (
-                      <tr key={row.key} className="border-t border-slate-100">
-                        <td className="px-3 py-2 font-medium tabular-nums">{row.label}</td>
-                        <td className="px-3 py-2 font-semibold tabular-nums text-emerald-800">
-                          {row.index == null ? "--" : formatFinanceNumber(row.index, 2)}
-                        </td>
-                        <td className="px-3 py-2 tabular-nums">{row.stockCount ? formatFinanceNumber(row.stockCount, 0) : "--"}</td>
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground">{row.asOfDate || "--"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      ) : data ? (
+        <div className="mt-4 grid gap-5 xl:grid-cols-2">
+          <FengbroTwMarketBoardCard board={data.twse} ranges={data.ranges} accent="sky" />
+          <FengbroTwMarketBoardCard board={data.tpex} ranges={data.ranges} accent="violet" />
+        </div>
+      ) : null}
 
       {data?.note ? (
         <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
@@ -2489,7 +2674,7 @@ function FengbroFinanceSection({
                     href="#fengbro-finance-tw-market-avg"
                     className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 shadow-sm transition hover:border-teal-300 hover:bg-teal-100"
                   >
-                    鋒兄台股指數
+                    鋒兄台股上市／上櫃指數
                   </a>
                 </div>
               </div>

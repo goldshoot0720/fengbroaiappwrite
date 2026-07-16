@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * 鋒兄台股指數
- * 定義：當日所有上市＋上櫃 4 碼證券收盤價加總 ÷ 股票數（等權均價指數）
+ * 鋒兄台股指數（分市場）
+ * - 鋒兄台股上市指數：當日全部上市 4 碼證券收盤價等權平均
+ * - 鋒兄台股上櫃指數：當日全部上櫃 4 碼證券收盤價等權平均
+ *
+ * 台股收盤後同一台北日只完整計算一次，後續請求直接回傳當日快取。
  */
 
 const TWSE_DAY_ALL_URL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
@@ -21,16 +24,31 @@ const FETCH_HEADERS = {
 };
 
 /** Inclusive lookback windows ending at Taipei "now". */
-const MONTHLY_LOOKBACK = 24; // e.g. 2024/08 … 2026/07 when now is 2026/07
-const YEARLY_LOOKBACK = 24; // e.g. 2003 … 2026 when now is 2026
+const MONTHLY_LOOKBACK = 24;
+const YEARLY_LOOKBACK = 24;
+
+/** TWSE/TPEx regular session ends 13:30 Asia/Taipei. */
+const TW_MARKET_CLOSE_MINUTES = 13 * 60 + 30;
+
+/** Minimum sample sizes for a usable board close. */
+const TWSE_MIN_STOCKS = 100;
+const TPEX_MIN_STOCKS = 50;
+
+type MarketKey = "twse" | "tpex";
 
 type DailyIndex = {
   date: string;
+  market: MarketKey;
   index: number;
   stockCount: number;
-  twseCount: number;
-  tpexCount: number;
   priceSum: number;
+};
+
+/** Both markets for one calendar / trading day (one history fetch pair). */
+type DayPair = {
+  date: string;
+  twse: DailyIndex | null;
+  tpex: DailyIndex | null;
 };
 
 type SnapshotIndex = {
@@ -38,12 +56,86 @@ type SnapshotIndex = {
   key: string;
   index: number | null;
   stockCount: number;
-  twseCount: number;
-  tpexCount: number;
   asOfDate: string | null;
   method: string;
   dayCount?: number;
 };
+
+type SeriesPoint = {
+  key: string;
+  label: string;
+  year?: number;
+  month?: number;
+  index: number | null;
+  stockCount: number;
+  asOfDate: string | null;
+};
+
+type MarketBoard = {
+  market: MarketKey;
+  name: string;
+  formula: string;
+  note: string;
+  today: SnapshotIndex;
+  week: SnapshotIndex;
+  month: SnapshotIndex;
+  snapshots: SnapshotIndex[];
+  monthly: SeriesPoint[];
+  yearly: SeriesPoint[];
+  universe: {
+    asOfDate: string;
+    stockCount: number;
+    priceSum: number;
+  };
+};
+
+type TwIndexPayload = {
+  fetchedAt: string;
+  name: string;
+  formula: string;
+  source: string;
+  note: string;
+  asOfDate: string;
+  ranges: {
+    monthlyStart: string;
+    monthlyEnd: string;
+    monthlyLookback: number;
+    yearlyStart: number;
+    yearlyEnd: number;
+    yearlyLookback: number;
+  };
+  twse: MarketBoard;
+  tpex: MarketBoard;
+  boards: MarketBoard[];
+  cached?: boolean;
+  cacheNote?: string;
+};
+
+const MARKET_META: Record<
+  MarketKey,
+  { name: string; formula: string; note: string; minStocks: number }
+> = {
+  twse: {
+    name: "鋒兄台股上市指數",
+    formula: "全部上市 4 碼證券收盤價加總 ÷ 股票數",
+    note: "鋒兄台股上市指數 = 當日全部上市（TWSE）4 碼證券（含 ETF）收盤價的等權平均。",
+    minStocks: TWSE_MIN_STOCKS,
+  },
+  tpex: {
+    name: "鋒兄台股上櫃指數",
+    formula: "全部上櫃 4 碼證券收盤價加總 ÷ 股票數",
+    note: "鋒兄台股上櫃指數 = 當日全部上櫃（TPEx）4 碼證券（含 ETF）收盤價的等權平均。",
+    minStocks: TPEX_MIN_STOCKS,
+  },
+};
+
+/** Process-level day cache: after close, same Taipei calendar day reuses one full compute. */
+let dayResultCache: {
+  taipeiDay: string;
+  asOfDate: string;
+  payload: TwIndexPayload;
+  computedAtMs: number;
+} | null = null;
 
 function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -83,14 +175,43 @@ function taipeiParts(date = new Date()) {
     month: "2-digit",
     day: "2-digit",
     weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
   }).formatToParts(date);
   const get = (type: string) => parts.find((p) => p.type === type)?.value || "";
   const year = Number(get("year"));
   const month = Number(get("month"));
   const day = Number(get("day"));
-  const weekdayToken = get("weekday"); // Mon, Tue, ...
+  const hour = Number(get("hour"));
+  const minute = Number(get("minute"));
+  const weekdayToken = get("weekday");
   const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  return { year, month, day, weekday: weekdayMap[weekdayToken] ?? 0 };
+  const weekday = weekdayMap[weekdayToken] ?? 0;
+  const minutesOfDay = (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0);
+  const isWeekday = weekday >= 1 && weekday <= 5;
+  const isAfterClose = !isWeekday || minutesOfDay > TW_MARKET_CLOSE_MINUTES;
+  return {
+    year,
+    month,
+    day,
+    weekday,
+    hour: Number.isFinite(hour) ? hour : 0,
+    minute: Number.isFinite(minute) ? minute : 0,
+    minutesOfDay,
+    isWeekday,
+    isAfterClose,
+    dayKey: toIso(year, month, day),
+  };
+}
+
+function shouldServeDayCache(
+  cache: typeof dayResultCache,
+  force: boolean,
+  now = taipeiParts()
+): boolean {
+  if (force || !cache) return false;
+  return now.isAfterClose && cache.taipeiDay === now.dayKey;
 }
 
 function addDays(year: number, month: number, day: number, delta: number) {
@@ -119,43 +240,62 @@ async function fetchJson(url: string) {
   return response.json();
 }
 
-function buildDailyIndex(
+function buildMarketDailyIndex(
   dateIso: string,
-  closes: Array<{ market: "twse" | "tpex"; close: number }>
+  market: MarketKey,
+  closes: number[]
 ): DailyIndex | null {
   if (closes.length === 0) return null;
   let sum = 0;
-  let twseCount = 0;
-  let tpexCount = 0;
-  for (const item of closes) {
-    sum += item.close;
-    if (item.market === "twse") twseCount += 1;
-    else tpexCount += 1;
-  }
+  for (const close of closes) sum += close;
   return {
     date: dateIso,
+    market,
     index: round4(sum / closes.length),
     stockCount: closes.length,
-    twseCount,
-    tpexCount,
     priceSum: round4(sum),
   };
 }
 
-async function fetchLatestDailyIndex(): Promise<DailyIndex | null> {
+function buildDayPair(dateIso: string, twseCloses: number[], tpexCloses: number[]): DayPair {
+  return {
+    date: dateIso,
+    twse: buildMarketDailyIndex(dateIso, "twse", twseCloses),
+    tpex: buildMarketDailyIndex(dateIso, "tpex", tpexCloses),
+  };
+}
+
+function dayPairIsUsable(pair: DayPair | null): boolean {
+  if (!pair) return false;
+  const twseOk = (pair.twse?.stockCount ?? 0) >= TWSE_MIN_STOCKS;
+  const tpexOk = (pair.tpex?.stockCount ?? 0) >= TPEX_MIN_STOCKS;
+  return twseOk || tpexOk;
+}
+
+function marketFromPair(pair: DayPair | null, market: MarketKey): DailyIndex | null {
+  if (!pair) return null;
+  const daily = pair[market];
+  if (!daily) return null;
+  if (daily.stockCount < MARKET_META[market].minStocks) return null;
+  return daily;
+}
+
+async function fetchLatestDayPair(): Promise<DayPair | null> {
   const [twsePayload, tpexPayload] = await Promise.all([
     fetchJson(TWSE_DAY_ALL_URL),
     fetchJson(TPEX_DAY_ALL_URL),
   ]);
 
-  const closes: Array<{ market: "twse" | "tpex"; close: number }> = [];
+  const twseCloses: number[] = [];
+  const tpexCloses: number[] = [];
+
   if (Array.isArray(twsePayload)) {
     for (const row of twsePayload) {
       const code = String(row?.Code || "").trim();
       if (!isFourDigitCode(code)) continue;
       const close = asNumber(row?.ClosingPrice);
       if (close == null || close <= 0) continue;
-      closes.push({ market: "twse", close });
+      twseCloses.push(close);
     }
   }
   if (Array.isArray(tpexPayload)) {
@@ -164,12 +304,13 @@ async function fetchLatestDailyIndex(): Promise<DailyIndex | null> {
       if (!isFourDigitCode(code)) continue;
       const close = asNumber(row?.Close);
       if (close == null || close <= 0) continue;
-      closes.push({ market: "tpex", close });
+      tpexCloses.push(close);
     }
   }
 
   const { year, month, day } = taipeiParts();
-  return buildDailyIndex(toIso(year, month, day), closes);
+  const pair = buildDayPair(toIso(year, month, day), twseCloses, tpexCloses);
+  return dayPairIsUsable(pair) ? pair : null;
 }
 
 async function fetchTwseClosesOnDate(year: number, month: number, day: number) {
@@ -228,16 +369,15 @@ async function fetchTpexClosesOnDate(year: number, month: number, day: number) {
   }
 }
 
-async function fetchDailyIndexOnDate(
+async function fetchDayPairOnDate(
   year: number,
   month: number,
   day: number,
-  cache: Map<string, DailyIndex | null>
-): Promise<DailyIndex | null> {
+  cache: Map<string, DayPair | null>
+): Promise<DayPair | null> {
   const iso = toIso(year, month, day);
   if (cache.has(iso)) return cache.get(iso) ?? null;
 
-  // Weekends never trade.
   const probe = new Date(Date.UTC(year, month - 1, day));
   const weekday = probe.getUTCDay();
   if (weekday === 0 || weekday === 6) {
@@ -247,7 +387,6 @@ async function fetchDailyIndexOnDate(
 
   let twse = await fetchTwseClosesOnDate(year, month, day);
   let tpex = await fetchTpexClosesOnDate(year, month, day);
-  // One retry helps when TWSE/TPEx briefly rate-limit concurrent history pulls.
   if (!twse && !tpex) {
     await sleep(200);
     twse = await fetchTwseClosesOnDate(year, month, day);
@@ -259,16 +398,12 @@ async function fetchDailyIndexOnDate(
     return null;
   }
 
-  const closes: Array<{ market: "twse" | "tpex"; close: number }> = [];
-  for (const close of twse || []) closes.push({ market: "twse", close });
-  for (const close of tpex || []) closes.push({ market: "tpex", close });
-
-  const daily = buildDailyIndex(iso, closes);
-  cache.set(iso, daily);
-  return daily;
+  const pair = buildDayPair(iso, twse || [], tpex || []);
+  const usable = dayPairIsUsable(pair) ? pair : null;
+  cache.set(iso, usable);
+  return usable;
 }
 
-/** Candidate calendar days walking backward, skipping weekends. */
 function walkBackWeekdays(year: number, month: number, day: number, maxBack = 12) {
   const days: Array<{ year: number; month: number; day: number }> = [];
   let y = year;
@@ -286,18 +421,36 @@ function walkBackWeekdays(year: number, month: number, day: number, maxBack = 12
   return days;
 }
 
-/** Walk back until a trading day with data is found. */
-async function findNearestTradingIndex(
+async function findNearestDayPair(
   year: number,
   month: number,
   day: number,
-  cache: Map<string, DailyIndex | null>,
+  cache: Map<string, DayPair | null>,
   maxBack = 10
+): Promise<DayPair | null> {
+  const candidates = walkBackWeekdays(year, month, day, maxBack);
+  for (const c of candidates) {
+    const found = await fetchDayPairOnDate(c.year, c.month, c.day, cache);
+    if (found) return found;
+    await sleep(40);
+  }
+  return null;
+}
+
+/** Prefer a day where the specific market has enough samples. */
+async function findNearestMarketIndex(
+  year: number,
+  month: number,
+  day: number,
+  market: MarketKey,
+  cache: Map<string, DayPair | null>,
+  maxBack = 14
 ): Promise<DailyIndex | null> {
   const candidates = walkBackWeekdays(year, month, day, maxBack);
   for (const c of candidates) {
-    const found = await fetchDailyIndexOnDate(c.year, c.month, c.day, cache);
-    if (found) return found;
+    const pair = await fetchDayPairOnDate(c.year, c.month, c.day, cache);
+    const daily = marketFromPair(pair, market);
+    if (daily) return daily;
     await sleep(40);
   }
   return null;
@@ -329,8 +482,6 @@ function averageDailyIndices(days: DailyIndex[]): SnapshotIndex | null {
     key: "",
     index,
     stockCount: last.stockCount,
-    twseCount: last.twseCount,
-    tpexCount: last.tpexCount,
     asOfDate: last.date,
     method: "period-average",
     dayCount: days.length,
@@ -352,7 +503,6 @@ function listMonthKeys(start: { year: number; month: number }, end: { year: numb
   return keys;
 }
 
-/** Shift a year/month by delta months (negative = look back). */
 function shiftMonth(year: number, month: number, delta: number) {
   const zeroBased = year * 12 + (month - 1) + delta;
   const y = Math.floor(zeroBased / 12);
@@ -361,13 +511,11 @@ function shiftMonth(year: number, month: number, delta: number) {
 }
 
 function listWeekTradingDays(today: { year: number; month: number; day: number; weekday: number }) {
-  // Monday = 1 ... Sunday = 0. Offset back to Monday.
   const offsetToMonday = today.weekday === 0 ? 6 : today.weekday - 1;
   const monday = addDays(today.year, today.month, today.day, -offsetToMonday);
   const days: Array<{ year: number; month: number; day: number }> = [];
   for (let i = 0; i < 7; i += 1) {
     const d = addDays(monday.year, monday.month, monday.day, i);
-    // Only up to today
     const afterToday =
       d.year > today.year ||
       (d.year === today.year && d.month > today.month) ||
@@ -391,177 +539,259 @@ function listMonthTradingDaysSoFar(today: { year: number; month: number; day: nu
   return days;
 }
 
-export async function GET() {
-  try {
-    const cache = new Map<string, DailyIndex | null>();
-    const todayParts = taipeiParts();
+function sampleMonthDays(monthDays: Array<{ year: number; month: number; day: number }>) {
+  if (monthDays.length <= 14) return monthDays;
+  const picked = new Map<string, { year: number; month: number; day: number }>();
+  const first = monthDays[0];
+  const last = monthDays[monthDays.length - 1];
+  picked.set(toIso(first.year, first.month, first.day), first);
+  picked.set(toIso(last.year, last.month, last.day), last);
+  const step = Math.ceil(monthDays.length / 12);
+  for (let i = 0; i < monthDays.length; i += step) {
+    const item = monthDays[i];
+    picked.set(toIso(item.year, item.month, item.day), item);
+  }
+  return Array.from(picked.values()).sort((a, b) =>
+    toIso(a.year, a.month, a.day).localeCompare(toIso(b.year, b.month, b.day))
+  );
+}
 
-    // 1) Latest index (prefer openapi latest full board)
-    const latest = await fetchLatestDailyIndex();
-    if (latest) {
-      cache.set(latest.date, latest);
-    }
+function emptySnapshot(label: string, key: string, method: string): SnapshotIndex {
+  return {
+    label,
+    key,
+    index: null,
+    stockCount: 0,
+    asOfDate: null,
+    method,
+    dayCount: 0,
+  };
+}
 
-    // If openapi date is calendar today but market not closed yet / holiday empty, walk back.
-    let todayIndex = latest;
-    if (!todayIndex || todayIndex.stockCount < 200) {
-      todayIndex = await findNearestTradingIndex(
-        todayParts.year,
-        todayParts.month,
-        todayParts.day,
-        cache
-      );
-    }
+async function buildMarketBoard(
+  market: MarketKey,
+  todayIndex: DailyIndex | null,
+  todayParts: ReturnType<typeof taipeiParts>,
+  pairCache: Map<string, DayPair | null>,
+  weekDays: Array<{ year: number; month: number; day: number }>,
+  monthDaySample: Array<{ year: number; month: number; day: number }>,
+  monthKeys: Array<{ year: number; month: number; key: string }>,
+  yearlyYears: number[]
+): Promise<MarketBoard> {
+  const meta = MARKET_META[market];
 
-    if (!todayIndex) {
-      return NextResponse.json({ error: "無法計算鋒兄台股指數（無收盤行情）" }, { status: 502 });
-    }
+  const weekDaily = (
+    await mapPool(weekDays, 3, async (d) => {
+      if (todayIndex && toIso(d.year, d.month, d.day) === todayIndex.date) return todayIndex;
+      const pair = await fetchDayPairOnDate(d.year, d.month, d.day, pairCache);
+      return marketFromPair(pair, market);
+    })
+  ).filter((d): d is DailyIndex => d != null);
 
-    // 2) This week: average of daily indices Mon → latest trading day this week
-    const weekDays = listWeekTradingDays(todayParts);
-    const weekDaily = (
-      await mapPool(weekDays, 3, async (d) => {
-        // Reuse cache / latest for today
-        if (toIso(d.year, d.month, d.day) === todayIndex!.date) return todayIndex;
-        return fetchDailyIndexOnDate(d.year, d.month, d.day, cache);
-      })
-    ).filter((d): d is DailyIndex => d != null);
+  const weekSnapshot = averageDailyIndices(weekDaily.length ? weekDaily : todayIndex ? [todayIndex] : []);
 
-    const weekSnapshot = averageDailyIndices(weekDaily.length ? weekDaily : [todayIndex]);
+  const monthDaily = (
+    await mapPool(monthDaySample, 3, async (d) => {
+      if (todayIndex && toIso(d.year, d.month, d.day) === todayIndex.date) return todayIndex;
+      const pair = await fetchDayPairOnDate(d.year, d.month, d.day, pairCache);
+      return marketFromPair(pair, market);
+    })
+  ).filter((d): d is DailyIndex => d != null);
 
-    // 3) This month: average of daily indices month-to-date (Mon–Fri so far)
-    const monthDays = listMonthTradingDaysSoFar(todayParts);
-    // Cap to avoid timeout: if many days, sample evenly including first & last.
-    const monthDaySample =
-      monthDays.length <= 14
-        ? monthDays
-        : (() => {
-            const picked = new Map<string, { year: number; month: number; day: number }>();
-            const first = monthDays[0];
-            const last = monthDays[monthDays.length - 1];
-            picked.set(toIso(first.year, first.month, first.day), first);
-            picked.set(toIso(last.year, last.month, last.day), last);
-            const step = Math.ceil(monthDays.length / 12);
-            for (let i = 0; i < monthDays.length; i += step) {
-              const item = monthDays[i];
-              picked.set(toIso(item.year, item.month, item.day), item);
-            }
-            return Array.from(picked.values()).sort((a, b) =>
-              toIso(a.year, a.month, a.day).localeCompare(toIso(b.year, b.month, b.day))
-            );
-          })();
+  const monthSnapshot = averageDailyIndices(monthDaily.length ? monthDaily : todayIndex ? [todayIndex] : []);
 
-    const monthDaily = (
-      await mapPool(monthDaySample, 3, async (d) => {
-        if (toIso(d.year, d.month, d.day) === todayIndex!.date) return todayIndex;
-        return fetchDailyIndexOnDate(d.year, d.month, d.day, cache);
-      })
-    ).filter((d): d is DailyIndex => d != null);
+  const monthlySeriesRaw = await mapPool(monthKeys, 2, async ({ year, month, key }) => {
+    const endDay = daysInMonth(year, month);
+    const targetDay = year === todayParts.year && month === todayParts.month ? todayParts.day : endDay;
+    const found = await findNearestMarketIndex(year, month, targetDay, market, pairCache, 14);
+    return {
+      key,
+      label: `${year}/${pad2(month)}`,
+      year,
+      month,
+      index: found?.index ?? null,
+      stockCount: found?.stockCount ?? 0,
+      asOfDate: found?.date ?? null,
+    };
+  });
+  const monthly = [...monthlySeriesRaw].reverse();
 
-    const monthSnapshot = averageDailyIndices(monthDaily.length ? monthDaily : [todayIndex]);
+  const yearlySeriesRaw = await mapPool(yearlyYears, 2, async (year) => {
+    const target =
+      year === todayParts.year
+        ? { year: todayParts.year, month: todayParts.month, day: todayParts.day }
+        : { year, month: 12, day: 31 };
+    const found = await findNearestMarketIndex(target.year, target.month, target.day, market, pairCache, 14);
+    return {
+      key: String(year),
+      label: String(year),
+      year,
+      index: found?.index ?? null,
+      stockCount: found?.stockCount ?? 0,
+      asOfDate: found?.date ?? null,
+    };
+  });
+  const yearly = [...yearlySeriesRaw].reverse();
 
-    // 4) Monthly series: last MONTHLY_LOOKBACK months through current Taipei month (auto-extends)
-    //    Returned newest-first so current month sits on top.
-    const monthlyEnd = { year: todayParts.year, month: todayParts.month };
-    const monthlyStart = shiftMonth(monthlyEnd.year, monthlyEnd.month, -(MONTHLY_LOOKBACK - 1));
-    const monthKeys = listMonthKeys(monthlyStart, monthlyEnd);
-    const monthlySeriesRaw = await mapPool(monthKeys, 2, async ({ year, month, key }) => {
-      const endDay = daysInMonth(year, month);
-      const targetDay =
-        year === todayParts.year && month === todayParts.month ? todayParts.day : endDay;
-
-      const found = await findNearestTradingIndex(year, month, targetDay, cache, 14);
-      return {
-        key,
-        label: `${year}/${pad2(month)}`,
-        year,
-        month,
-        index: found?.index ?? null,
-        stockCount: found?.stockCount ?? 0,
-        twseCount: found?.twseCount ?? 0,
-        tpexCount: found?.tpexCount ?? 0,
-        asOfDate: found?.date ?? null,
-      };
-    });
-    const monthlySeries = [...monthlySeriesRaw].reverse();
-
-    // 5) Yearly series: last YEARLY_LOOKBACK years through current Taipei year (auto-extends)
-    //    Returned newest-first so current year sits on top.
-    const yearlyEnd = todayParts.year;
-    const yearlyStart = yearlyEnd - (YEARLY_LOOKBACK - 1);
-    const yearlySeriesRaw = await mapPool(
-      Array.from({ length: YEARLY_LOOKBACK }, (_, i) => yearlyStart + i),
-      2,
-      async (year) => {
-        const target =
-          year === todayParts.year
-            ? { year: todayParts.year, month: todayParts.month, day: todayParts.day }
-            : { year, month: 12, day: 31 };
-
-        const found = await findNearestTradingIndex(target.year, target.month, target.day, cache, 14);
-        return {
-          key: String(year),
-          label: String(year),
-          year,
-          index: found?.index ?? null,
-          stockCount: found?.stockCount ?? 0,
-          twseCount: found?.twseCount ?? 0,
-          tpexCount: found?.tpexCount ?? 0,
-          asOfDate: found?.date ?? null,
-        };
-      }
-    );
-    const yearlySeries = [...yearlySeriesRaw].reverse();
-
-    const snapshots: SnapshotIndex[] = [
-      {
+  const todaySnap: SnapshotIndex = todayIndex
+    ? {
         label: "今天指數",
         key: "today",
         index: todayIndex.index,
         stockCount: todayIndex.stockCount,
-        twseCount: todayIndex.twseCount,
-        tpexCount: todayIndex.tpexCount,
         asOfDate: todayIndex.date,
         method: "latest-close-average",
         dayCount: 1,
-      },
-      {
+      }
+    : emptySnapshot("今天指數", "today", "latest-close-average");
+
+  const weekSnap: SnapshotIndex = weekSnapshot
+    ? {
         label: "本周指數",
         key: "week",
-        index: weekSnapshot?.index ?? todayIndex.index,
-        stockCount: weekSnapshot?.stockCount ?? todayIndex.stockCount,
-        twseCount: weekSnapshot?.twseCount ?? todayIndex.twseCount,
-        tpexCount: weekSnapshot?.tpexCount ?? todayIndex.tpexCount,
-        asOfDate: weekSnapshot?.asOfDate ?? todayIndex.date,
+        index: weekSnapshot.index,
+        stockCount: weekSnapshot.stockCount,
+        asOfDate: weekSnapshot.asOfDate,
         method: "week-to-date-daily-average",
-        dayCount: weekSnapshot?.dayCount ?? 1,
-      },
-      {
+        dayCount: weekSnapshot.dayCount ?? 1,
+      }
+    : emptySnapshot("本周指數", "week", "week-to-date-daily-average");
+
+  const monthSnap: SnapshotIndex = monthSnapshot
+    ? {
         label: "本月指數",
         key: "month",
-        index: monthSnapshot?.index ?? todayIndex.index,
-        stockCount: monthSnapshot?.stockCount ?? todayIndex.stockCount,
-        twseCount: monthSnapshot?.twseCount ?? todayIndex.twseCount,
-        tpexCount: monthSnapshot?.tpexCount ?? todayIndex.tpexCount,
-        asOfDate: monthSnapshot?.asOfDate ?? todayIndex.date,
+        index: monthSnapshot.index,
+        stockCount: monthSnapshot.stockCount,
+        asOfDate: monthSnapshot.asOfDate,
         method: "month-to-date-daily-average",
-        dayCount: monthSnapshot?.dayCount ?? 1,
-      },
-    ];
+        dayCount: monthSnapshot.dayCount ?? 1,
+      }
+    : emptySnapshot("本月指數", "month", "month-to-date-daily-average");
 
-    return NextResponse.json({
+  return {
+    market,
+    name: meta.name,
+    formula: meta.formula,
+    note: `${meta.note}今天＝最新交易日；本周＝本周一至最新交易日每日指數平均；本月＝本月迄今交易日每日指數平均（樣本較多時均勻抽樣）；每月＝最近 ${MONTHLY_LOOKBACK} 個月各月最後交易日；每年＝最近 ${YEARLY_LOOKBACK} 年各年最後交易日。`,
+    today: todaySnap,
+    week: weekSnap,
+    month: monthSnap,
+    snapshots: [todaySnap, weekSnap, monthSnap],
+    monthly,
+    yearly,
+    universe: {
+      asOfDate: todayIndex?.date ?? "",
+      stockCount: todayIndex?.stockCount ?? 0,
+      priceSum: todayIndex?.priceSum ?? 0,
+    },
+  };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const force =
+      request.nextUrl.searchParams.get("refresh") === "1" ||
+      request.nextUrl.searchParams.get("force") === "1";
+    const todayParts = taipeiParts();
+
+    const existingDayCache = dayResultCache;
+    if (existingDayCache && shouldServeDayCache(existingDayCache, force, todayParts)) {
+      return NextResponse.json({
+        ...existingDayCache.payload,
+        cached: true,
+        cacheNote: `收盤後同一日不重複計算（基準 ${existingDayCache.asOfDate}，首次計算時間 ${new Date(existingDayCache.computedAtMs).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}）`,
+      });
+    }
+
+    const pairCache = new Map<string, DayPair | null>();
+
+    // 1) Latest boards (prefer openapi full board)
+    const latest = await fetchLatestDayPair();
+    if (latest) {
+      pairCache.set(latest.date, latest);
+    }
+
+    let todayPair = latest;
+    if (!dayPairIsUsable(todayPair)) {
+      todayPair = await findNearestDayPair(todayParts.year, todayParts.month, todayParts.day, pairCache);
+    }
+
+    if (!dayPairIsUsable(todayPair) || !todayPair) {
+      return NextResponse.json({ error: "無法計算鋒兄台股上市／上櫃指數（無收盤行情）" }, { status: 502 });
+    }
+
+    const asOfDate = todayPair.twse?.date || todayPair.tpex?.date || todayPair.date;
+
+    // 收盤後且已有相同基準日完整結果：略過重算。
+    if (
+      !force &&
+      todayParts.isAfterClose &&
+      existingDayCache &&
+      existingDayCache.asOfDate === asOfDate &&
+      ((existingDayCache.payload.twse?.universe?.stockCount ?? 0) >= TWSE_MIN_STOCKS ||
+        (existingDayCache.payload.tpex?.universe?.stockCount ?? 0) >= TPEX_MIN_STOCKS)
+    ) {
+      const reused = {
+        ...existingDayCache,
+        taipeiDay: todayParts.dayKey,
+      };
+      dayResultCache = reused;
+      return NextResponse.json({
+        ...reused.payload,
+        cached: true,
+        cacheNote: `收盤後基準日 ${asOfDate} 已計算過，略過重複計算`,
+      });
+    }
+
+    const weekDays = listWeekTradingDays(todayParts);
+    const monthDaySample = sampleMonthDays(listMonthTradingDaysSoFar(todayParts));
+
+    const monthlyEnd = { year: todayParts.year, month: todayParts.month };
+    const monthlyStart = shiftMonth(monthlyEnd.year, monthlyEnd.month, -(MONTHLY_LOOKBACK - 1));
+    const monthKeys = listMonthKeys(monthlyStart, monthlyEnd);
+
+    const yearlyEnd = todayParts.year;
+    const yearlyStart = yearlyEnd - (YEARLY_LOOKBACK - 1);
+    const yearlyYears = Array.from({ length: YEARLY_LOOKBACK }, (_, i) => yearlyStart + i);
+
+    // Sequential boards: second market reuses pairCache from the first (same calendar days).
+    const twseBoard = await buildMarketBoard(
+      "twse",
+      marketFromPair(todayPair, "twse"),
+      todayParts,
+      pairCache,
+      weekDays,
+      monthDaySample,
+      monthKeys,
+      yearlyYears
+    );
+    const tpexBoard = await buildMarketBoard(
+      "tpex",
+      marketFromPair(todayPair, "tpex"),
+      todayParts,
+      pairCache,
+      weekDays,
+      monthDaySample,
+      monthKeys,
+      yearlyYears
+    );
+
+    if (
+      twseBoard.universe.stockCount < TWSE_MIN_STOCKS &&
+      tpexBoard.universe.stockCount < TPEX_MIN_STOCKS
+    ) {
+      return NextResponse.json({ error: "無法計算鋒兄台股上市／上櫃指數（樣本不足）" }, { status: 502 });
+    }
+
+    const payload: TwIndexPayload = {
       fetchedAt: new Date().toISOString(),
       name: "鋒兄台股指數",
-      formula: "所有上市上櫃 4 碼證券收盤價加總 ÷ 股票數",
+      formula: "上市／上櫃各自：該市場全部 4 碼證券收盤價加總 ÷ 股票數",
       source: "TWSE OpenAPI / TPEx OpenAPI / TWSE MI_INDEX / TPEx daily close",
       note:
-        "鋒兄台股指數 = 當日全部上市＋上櫃 4 碼證券（含 ETF）收盤價的等權平均。今天＝最新交易日；本周＝本周一至最新交易日每日指數平均；本月＝本月迄今交易日每日指數平均（樣本較多時均勻抽樣）；每月＝最近 24 個月各月最後交易日指數（新到舊，隨台北時間滾動）；每年＝最近 24 年各年最後交易日指數（新到舊，隨台北時間滾動；當年為最新交易日）。",
-      today: snapshots[0],
-      week: snapshots[1],
-      month: snapshots[2],
-      snapshots,
-      monthly: monthlySeries,
-      yearly: yearlySeries,
+        "鋒兄台股上市指數與鋒兄台股上櫃指數分開計算，皆為等權均價（含 4 碼 ETF）。今天＝最新交易日；本周／本月為期間每日指數平均；每月／每年為期末交易日指數（新到舊，隨台北時間滾動）。收盤後同一台北日只完整計算一次。",
+      asOfDate,
       ranges: {
         monthlyStart: `${monthlyStart.year}${pad2(monthlyStart.month)}`,
         monthlyEnd: `${monthlyEnd.year}${pad2(monthlyEnd.month)}`,
@@ -570,18 +800,30 @@ export async function GET() {
         yearlyEnd,
         yearlyLookback: YEARLY_LOOKBACK,
       },
-      universe: {
-        asOfDate: todayIndex.date,
-        stockCount: todayIndex.stockCount,
-        twseCount: todayIndex.twseCount,
-        tpexCount: todayIndex.tpexCount,
-        priceSum: todayIndex.priceSum,
-      },
-    });
+      twse: twseBoard,
+      tpex: tpexBoard,
+      boards: [twseBoard, tpexBoard],
+      cached: false,
+    };
+
+    if (
+      todayParts.isAfterClose &&
+      (twseBoard.universe.stockCount >= TWSE_MIN_STOCKS ||
+        tpexBoard.universe.stockCount >= TPEX_MIN_STOCKS)
+    ) {
+      dayResultCache = {
+        taipeiDay: todayParts.dayKey,
+        asOfDate,
+        payload,
+        computedAtMs: Date.now(),
+      };
+    }
+
+    return NextResponse.json(payload);
   } catch (error) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "鋒兄台股指數計算失敗",
+        error: error instanceof Error ? error.message : "鋒兄台股上市／上櫃指數計算失敗",
       },
       { status: 500 }
     );
