@@ -248,6 +248,8 @@ type FengbroTwMarketBoard = {
     asOfDate: string;
     stockCount: number;
     priceSum: number;
+    /** Total market cap in TWD (sum of close × shares). */
+    marketCapSum?: number;
   };
 };
 
@@ -275,7 +277,8 @@ type FengbroTwIndexResult = {
   error?: string;
 };
 
-const TW_INDEX_DAY_CACHE_KEY = "fengbro-tw-index-day-v2";
+/** v3: market-cap weighted (invalidates equal-weight browser cache). */
+const TW_INDEX_DAY_CACHE_KEY = "fengbro-tw-index-day-v3";
 /** TWSE/TPEx regular session ends 13:30 Asia/Taipei. */
 const TW_MARKET_CLOSE_MINUTES = 13 * 60 + 30;
 
@@ -2125,7 +2128,10 @@ function FengbroTwMarketBoardCard({
           基準日 {board.universe.asOfDate || "--"}
         </span>
         <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-900">
-          股價加總 {formatFinanceNumber(board.universe.priceSum, 0)}
+          總市值{" "}
+          {board.universe.marketCapSum != null && board.universe.marketCapSum > 0
+            ? `${formatFinanceNumber(board.universe.marketCapSum / 1e8, 0)} 億`
+            : "--"}
         </span>
       </div>
 
@@ -2161,7 +2167,7 @@ function FengbroTwMarketBoardCard({
                 每月指數{monthlyRangeLabel ? ` ${monthlyRangeLabel}` : ""}
               </h6>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                各月最後交易日等權均價 · 新到舊 · 往前 {ranges?.monthlyLookback ?? 24} 個月滾動
+                各月最後交易日市值加權均價 · 新到舊 · 往前 {ranges?.monthlyLookback ?? 24} 個月滾動
               </p>
             </div>
             <span className="text-xs text-muted-foreground">{monthlyWithValue.length} 筆</span>
@@ -2204,7 +2210,7 @@ function FengbroTwMarketBoardCard({
                 每年指數{yearlyRangeLabel ? ` ${yearlyRangeLabel}` : ""}
               </h6>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                各年最後交易日等權均價 · 新到舊 · 往前 {ranges?.yearlyLookback ?? 24} 年滾動（當年為最新）
+                各年最後交易日市值加權均價 · 新到舊 · 往前 {ranges?.yearlyLookback ?? 24} 年滾動（當年為最新）
               </p>
             </div>
             <span className="text-xs text-muted-foreground">{yearlyWithValue.length} 筆</span>
@@ -2492,7 +2498,8 @@ function FengbroTwIndexPanel() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/80">FengBro TW Index</p>
           <h4 className="mt-1 text-lg font-semibold text-foreground">鋒兄台股上市／上櫃指數</h4>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            分成兩支等權均價指數：上市（TWSE）與上櫃（TPEx），各自為該市場全部 4 碼證券收盤價加總 ÷ 股票數（含 ETF）
+            分成兩支市值加權指數：上市（TWSE）與上櫃（TPEx）。指數 = Σ(收盤價 × 市值) ÷ Σ市值，市值 = 收盤價 ×
+            已發行股數（僅公司股，不含 ETF）
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
