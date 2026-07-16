@@ -65,6 +65,7 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   bitcoin: "BTC-USD",
   ether: "ETH-USD",
   nvidia: "NVDA",
+  tsm: "TSM",
   koru: "KORU",
   soxl: "SOXL",
 };
@@ -104,6 +105,16 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333, localLabel: "科技泡沫" },
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫", bilibiliUrl: "https://search.bilibili.com/all?keyword=%E5%8D%8A%E5%B0%8E%E9%AB%94&from_source=web_search&spm_id_from=333.788&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399", imageUrl: "/finance/sox-cats.jpg" },
   { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", sourceUrl: "https://www.cnbc.com/quotes/SOXL", group: "us-stocks", localLabel: "NYSEARCA: SOXL" },
+  {
+    id: "tsm",
+    name: "台積電 ADR",
+    symbol: "TSM",
+    sourceUrl: "https://www.investing.com/equities/taiwan-semicond.manufacturing-co",
+    group: "us-stocks",
+    provider: "yahoo",
+    localLabel: "NYSE: TSM · Pre/After Market",
+    imageUrl: "/finance/tsmc-featured.jpg",
+  },
   { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", sourceUrl: "https://www.cnbc.com/quotes/NVDA", group: "us-stocks", localLabel: "重零開始" },
   { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us-stocks", localLabel: "AI泡沫" },
   { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "valuation", provider: "multpl", alertThreshold: 45 },
@@ -388,11 +399,16 @@ async function fetchInstrument(instrument: FinanceInstrument) {
 }
 
 async function fetchYahooInstrument(instrument: FinanceInstrument) {
+  const isUsListed =
+    !/\.(TW|KS|T|HK|L|TO|AX)$/i.test(instrument.symbol) &&
+    !instrument.symbol.startsWith("^") &&
+    !instrument.symbol.includes("=");
   const params = new URLSearchParams({
     range: "1y",
     interval: "1d",
-    lang: "zh-TW",
-    region: "TW",
+    includePrePost: "true",
+    lang: isUsListed ? "en-US" : "zh-TW",
+    region: isUsListed ? "US" : "TW",
   });
 
   const response = await fetch(`${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(instrument.symbol)}?${params.toString()}`, {
@@ -414,19 +430,58 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const closes = toNumberList(quote.close).filter((value) => value > 0);
   const highs = toNumberList(quote.high).filter((value) => value > 0);
   const lows = toNumberList(quote.low).filter((value) => value > 0);
-  const price = pickNumber(meta, ["regularMarketPrice"]) ?? closes.at(-1) ?? null;
+  const regularPrice = pickNumber(meta, ["regularMarketPrice"]) ?? closes.at(-1) ?? null;
   const previousClose =
-    pickNumber(meta, ["regularMarketPreviousClose", "previousClose"]) ??
+    pickNumber(meta, ["regularMarketPreviousClose", "previousClose", "chartPreviousClose"]) ??
     (closes.length > 1 ? closes[closes.length - 2] : null);
   const high52 = pickNumber(meta, ["fiftyTwoWeekHigh"]) ?? (closes.length ? Math.max(...closes) : null);
   const low52 = pickNumber(meta, ["fiftyTwoWeekLow"]) ?? (closes.length ? Math.min(...closes) : null);
-  const change =
+  const regularChange =
     pickNumber(meta, ["regularMarketChange"]) ??
-    (price != null && previousClose != null ? price - previousClose : null);
-  const changePercent =
+    (regularPrice != null && previousClose != null ? regularPrice - previousClose : null);
+  const regularChangePercent =
     pickNumber(meta, ["regularMarketChangePercent"]) ??
-    (change != null && previousClose ? (change / previousClose) * 100 : null);
-  const marketTime = pickNumber(meta, ["regularMarketTime"]);
+    (regularChange != null && previousClose ? (regularChange / previousClose) * 100 : null);
+  const marketState = pickText(meta, ["marketState"]).toUpperCase();
+  const preMarketPrice = pickNumber(meta, ["preMarketPrice"]);
+  const preMarketChange =
+    pickNumber(meta, ["preMarketChange"]) ??
+    (preMarketPrice != null && previousClose != null ? preMarketPrice - previousClose : null);
+  const preMarketChangePercent =
+    pickNumber(meta, ["preMarketChangePercent"]) ??
+    (preMarketChange != null && previousClose ? (preMarketChange / previousClose) * 100 : null);
+  const postMarketPrice = pickNumber(meta, ["postMarketPrice"]);
+  const postMarketChange =
+    pickNumber(meta, ["postMarketChange"]) ??
+    (postMarketPrice != null && regularPrice != null ? postMarketPrice - regularPrice : null);
+  const postMarketChangePercent =
+    pickNumber(meta, ["postMarketChangePercent"]) ??
+    (postMarketChange != null && regularPrice ? (postMarketChange / regularPrice) * 100 : null);
+
+  let price = regularPrice;
+  let change = regularChange;
+  let changePercent = regularChangePercent;
+  let marketTime = pickNumber(meta, ["regularMarketTime"]);
+  let marketSession: "pre" | "regular" | "post" | "closed" | "" = "";
+
+  if (marketState === "PRE" && preMarketPrice != null) {
+    price = preMarketPrice;
+    change = preMarketChange;
+    changePercent = preMarketChangePercent;
+    marketTime = pickNumber(meta, ["preMarketTime"]) ?? marketTime;
+    marketSession = "pre";
+  } else if ((marketState === "POST" || marketState === "POSTPOST") && postMarketPrice != null) {
+    price = postMarketPrice;
+    change = postMarketChange;
+    changePercent = postMarketChangePercent;
+    marketTime = pickNumber(meta, ["postMarketTime"]) ?? marketTime;
+    marketSession = "post";
+  } else if (marketState === "REGULAR") {
+    marketSession = "regular";
+  } else if (marketState === "CLOSED" || marketState === "PREPRE") {
+    marketSession = marketState === "CLOSED" ? "closed" : "";
+  }
+
   const dayHigh = pickNumber(meta, ["regularMarketDayHigh"]) ?? highs.at(-1) ?? null;
   const dayLow = pickNumber(meta, ["regularMarketDayLow"]) ?? lows.at(-1) ?? null;
 
@@ -446,6 +501,15 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     low52,
     dayHigh,
     dayLow,
+    marketState: marketState || "",
+    marketSession,
+    preMarketPrice,
+    preMarketChange,
+    preMarketChangePercent,
+    postMarketPrice,
+    postMarketChange,
+    postMarketChangePercent,
+    regularMarketPrice: regularPrice,
     lastUpdated: marketTime ? new Date(marketTime * 1000).toISOString() : "",
     recordTag: getRecordTag(price, high52, low52),
   };

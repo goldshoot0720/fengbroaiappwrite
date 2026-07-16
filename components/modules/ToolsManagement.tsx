@@ -157,6 +157,15 @@ type FengbroFinanceQuote = {
   low52: number | null;
   dayHigh: number | null;
   dayLow: number | null;
+  marketState?: string;
+  marketSession?: "pre" | "regular" | "post" | "closed" | "";
+  preMarketPrice?: number | null;
+  preMarketChange?: number | null;
+  preMarketChangePercent?: number | null;
+  postMarketPrice?: number | null;
+  postMarketChange?: number | null;
+  postMarketChangePercent?: number | null;
+  regularMarketPrice?: number | null;
   lastUpdated: string;
   recordTag: FinanceRecordTag;
   recordNote?: string;
@@ -168,6 +177,22 @@ type FengbroFinanceQuote = {
   alertThreshold?: number;
   error?: string;
 };
+
+function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "sourceUrl" | "id">) {
+  const source = (quote.sourceUrl || "").toLowerCase();
+  if (source.includes("investing.com")) return "Investing";
+  if (source.includes("multpl.com") || quote.provider === "multpl" || quote.id === "shiller-pe") return "Multpl";
+  if (source.includes("yahoo") || quote.provider === "yahoo") return "Yahoo";
+  return "CNBC";
+}
+
+function getFinanceSessionLabel(quote: Pick<FengbroFinanceQuote, "marketSession" | "marketState">) {
+  if (quote.marketSession === "pre") return "盤前 Pre-Market";
+  if (quote.marketSession === "post") return "盤後 After-Hours";
+  if (quote.marketSession === "regular") return "盤中";
+  if (quote.marketSession === "closed" || quote.marketState === "CLOSED") return "收盤";
+  return "";
+}
 
 type ShillerPeRatio = {
   id: string;
@@ -2303,7 +2328,7 @@ function FengbroFinanceSection({
                                   </a>
                                 ))}
                                 <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50">
-                                  {quote.provider === "yahoo" ? "Yahoo" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
+                                  {getFinanceSourceLabel(quote)} <ExternalLink className="inline h-3 w-3" />
                                 </a>
                               </div>
 
@@ -2422,6 +2447,19 @@ function FengbroFinanceSection({
                                   {quote.localLabel}
                                 </span>
                               )}
+                              {getFinanceSessionLabel(quote) && (
+                                <span
+                                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                                    quote.marketSession === "pre"
+                                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                                      : quote.marketSession === "post"
+                                        ? "border-violet-200 bg-violet-50 text-violet-800"
+                                        : "border-slate-200 bg-slate-50 text-slate-700"
+                                  }`}
+                                >
+                                  {getFinanceSessionLabel(quote)}
+                                </span>
+                              )}
                               {quote.periodLabel && (
                                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                                   {quote.periodLabel}
@@ -2470,7 +2508,7 @@ function FengbroFinanceSection({
                               </a>
                             ))}
                             <a href={quote.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100">
-                              {quote.provider === "yahoo" ? "Yahoo" : quote.provider === "multpl" || quote.id === "shiller-pe" ? "Multpl" : "CNBC"} <ExternalLink className="inline h-3 w-3" />
+                              {getFinanceSourceLabel(quote)} <ExternalLink className="inline h-3 w-3" />
                             </a>
                           </div>
                         </div>

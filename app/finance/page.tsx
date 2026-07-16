@@ -23,6 +23,11 @@ interface FinanceQuote {
   periodLabel?: string;
   imageUrl?: string;
   imageUrls?: string[];
+  marketSession?: "pre" | "regular" | "post" | "closed" | "";
+  marketState?: string;
+  preMarketPrice?: number | null;
+  preMarketChange?: number | null;
+  preMarketChangePercent?: number | null;
   error?: string;
 }
 
@@ -331,6 +336,15 @@ export default function FinancePage() {
   const kospi = getQuote('kospi');
   const phlxSemi = getQuote('phlx-semiconductor');
   const tsmc = getQuote('tsmc');
+  const tsm = getQuote('tsm');
+
+  const sessionLabel = (quote?: FinanceQuote | null) => {
+    if (quote?.marketSession === 'pre') return '盤前 Pre-Market';
+    if (quote?.marketSession === 'post') return '盤後 After-Hours';
+    if (quote?.marketSession === 'regular') return '盤中';
+    if (quote?.marketSession === 'closed' || quote?.marketState === 'CLOSED') return '收盤';
+    return '';
+  };
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -574,7 +588,7 @@ export default function FinancePage() {
         </Card>
       </section>
 
-      {/* 第三區塊: 台積電 */}
+      {/* 第三區塊: 台積電 2330.TW */}
       <section className="mb-8">
         <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200 dark:border-green-800">
           <CardHeader>
@@ -656,9 +670,119 @@ export default function FinancePage() {
         </Card>
       </section>
 
+      {/* 第四區塊: 台積電 ADR (TSM) — Investing.com */}
+      <section className="mb-8">
+        <Card className="bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30 border-teal-200 dark:border-teal-800">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Activity className="w-6 h-6 text-teal-600" />
+                  台積電 ADR
+                  {sessionLabel(tsm) && (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                      {sessionLabel(tsm)}
+                    </span>
+                  )}
+                </CardTitle>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Taiwan Semiconductor • NYSE: TSM • 含 Pre / After Market
+                </p>
+              </div>
+              {tsm?.sourceUrl && (
+                <a
+                  href={tsm.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-teal-600 hover:text-teal-700 dark:text-teal-400"
+                  title="Investing.com"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                </a>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {tsm?.error ? (
+              <div className="text-red-600 dark:text-red-400">
+                載入失敗: {tsm.error}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-baseline gap-3">
+                  <div className="text-5xl font-bold text-teal-600 dark:text-teal-400">
+                    {formatNumber(tsm?.price, 2)}
+                  </div>
+                  {tsm?.currency && (
+                    <div className="text-lg text-gray-500">{tsm.currency}</div>
+                  )}
+                </div>
+
+                {(tsm?.change !== null || tsm?.changePercent !== null) && (
+                  <div className={`flex items-center gap-2 text-lg font-semibold ${
+                    isPositive(tsm?.change)
+                      ? 'text-green-600 dark:text-green-400'
+                      : isNegative(tsm?.change)
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}>
+                    {isPositive(tsm?.change) ? (
+                      <TrendingUp className="w-5 h-5" />
+                    ) : isNegative(tsm?.change) ? (
+                      <TrendingDown className="w-5 h-5" />
+                    ) : null}
+                    <span>{formatChange(tsm?.change ?? null, tsm?.changePercent ?? null)}</span>
+                  </div>
+                )}
+
+                {tsm?.marketSession !== 'pre' && tsm?.preMarketPrice != null && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+                    <div className="font-semibold text-amber-800 dark:text-amber-300">最近盤前 Pre-Market</div>
+                    <div className="mt-1 flex flex-wrap items-baseline gap-2 text-amber-950 dark:text-amber-100">
+                      <span className="text-xl font-bold tabular-nums">{formatNumber(tsm.preMarketPrice, 2)}</span>
+                      {(tsm.preMarketChange != null || tsm.preMarketChangePercent != null) && (
+                        <span className="font-semibold">
+                          {formatChange(tsm.preMarketChange ?? null, tsm.preMarketChangePercent ?? null)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-teal-200 dark:border-teal-800">
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
+                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                      {formatNumber(tsm?.high52)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
+                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                      {formatNumber(tsm?.low52)}
+                    </div>
+                  </div>
+                </div>
+
+                {tsm?.sourceUrl && (
+                  <a
+                    href={tsm.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-700 hover:underline dark:text-teal-300"
+                  >
+                    Investing.com 報價頁 <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
       {/* 頁尾資訊 */}
       <div className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
-        <p>資料來源: CNBC & Yahoo Finance</p>
+        <p>資料來源: CNBC, Yahoo Finance & Investing.com</p>
         <p className="mt-2">本資訊僅供參考,不構成投資建議</p>
       </div>
     </div>
