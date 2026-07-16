@@ -1,37 +1,37 @@
 {
-  "snapshotDate": "2026-07-13",
-  "totalFiles": 226,
-  "totalLines": 70326,
+  "snapshotDate": "2026-07-16",
+  "totalFiles": 261,
+  "totalLines": 79408,
   "breakdown": [
     {
       "label": "TSX",
-      "files": 67,
-      "lines": 48816
+      "files": 71,
+      "lines": 51655
     },
     {
       "label": "TypeScript",
-      "files": 53,
-      "lines": 9821
+      "files": 78,
+      "lines": 14015
     },
     {
       "label": "JavaScript",
-      "files": 65,
-      "lines": 6944
+      "files": 70,
+      "lines": 7584
     },
     {
       "label": "Markdown",
-      "files": 33,
-      "lines": 4215
+      "files": 34,
+      "lines": 5414
     },
     {
       "label": "CSS",
       "files": 1,
-      "lines": 326
+      "lines": 525
     },
     {
       "label": "JSON",
       "files": 7,
-      "lines": 204
+      "lines": 215
     }
   ]
 }
