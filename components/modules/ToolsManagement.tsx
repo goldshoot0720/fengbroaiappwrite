@@ -249,6 +249,14 @@ type FengbroTwIndexResult = {
   snapshots: FengbroTwIndexSnapshot[];
   monthly: FengbroTwIndexSeriesPoint[];
   yearly: FengbroTwIndexSeriesPoint[];
+  ranges?: {
+    monthlyStart: string;
+    monthlyEnd: string;
+    monthlyLookback?: number;
+    yearlyStart: number;
+    yearlyEnd: number;
+    yearlyLookback?: number;
+  };
   universe: {
     asOfDate: string;
     stockCount: number;
@@ -1980,8 +1988,21 @@ function FengbroTwIndexPanel() {
   const snapshots = data?.snapshots || [];
   const monthly = data?.monthly || [];
   const yearly = data?.yearly || [];
+  // API returns newest-first; sparkline reads left→right chronologically.
+  const monthlyChronological = useMemo(() => [...monthly].reverse(), [monthly]);
+  const yearlyChronological = useMemo(() => [...yearly].reverse(), [yearly]);
   const monthlyWithValue = monthly.filter((p) => p.index != null);
   const yearlyWithValue = yearly.filter((p) => p.index != null);
+  const monthlyRangeLabel = data?.ranges
+    ? `${data.ranges.monthlyStart}–${data.ranges.monthlyEnd}`
+    : monthly.length
+      ? `${monthly[monthly.length - 1]?.key}–${monthly[0]?.key}`
+      : "";
+  const yearlyRangeLabel = data?.ranges
+    ? `${data.ranges.yearlyStart}–${data.ranges.yearlyEnd}`
+    : yearly.length
+      ? `${yearly[yearly.length - 1]?.key}–${yearly[0]?.key}`
+      : "";
 
   return (
     <div id="fengbro-finance-tw-market-avg" className="scroll-mt-28 border-t border-emerald-100 bg-white/90 p-4 sm:p-6">
@@ -2087,13 +2108,17 @@ function FengbroTwIndexPanel() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <h5 className="text-sm font-semibold text-foreground">每月指數 202501–202607</h5>
-                  <p className="mt-0.5 text-xs text-muted-foreground">各月最後交易日等權均價</p>
+                  <h5 className="text-sm font-semibold text-foreground">
+                    每月指數{monthlyRangeLabel ? ` ${monthlyRangeLabel}` : ""}
+                  </h5>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    各月最後交易日等權均價 · 新到舊 · 往前 {data?.ranges?.monthlyLookback ?? 24} 個月滾動
+                  </p>
                 </div>
                 <span className="text-xs text-muted-foreground">{monthlyWithValue.length} 筆</span>
               </div>
               <div className="mt-3">
-                <FengbroTwIndexSparkline points={monthly} />
+                <FengbroTwIndexSparkline points={monthlyChronological} />
               </div>
               <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-100">
                 <table className="w-full text-left text-xs">
@@ -2124,13 +2149,17 @@ function FengbroTwIndexPanel() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <h5 className="text-sm font-semibold text-foreground">每年指數 2021–2027</h5>
-                  <p className="mt-0.5 text-xs text-muted-foreground">各年最後交易日等權均價（當年為最新）</p>
+                  <h5 className="text-sm font-semibold text-foreground">
+                    每年指數{yearlyRangeLabel ? ` ${yearlyRangeLabel}` : ""}
+                  </h5>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    各年最後交易日等權均價 · 新到舊 · 往前 {data?.ranges?.yearlyLookback ?? 24} 年滾動（當年為最新）
+                  </p>
                 </div>
                 <span className="text-xs text-muted-foreground">{yearlyWithValue.length} 筆</span>
               </div>
               <div className="mt-3">
-                <FengbroTwIndexSparkline points={yearly} />
+                <FengbroTwIndexSparkline points={yearlyChronological} />
               </div>
               <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-100">
                 <table className="w-full text-left text-xs">

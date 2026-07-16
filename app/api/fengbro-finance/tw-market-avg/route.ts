@@ -20,10 +20,9 @@ const FETCH_HEADERS = {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
 };
 
-const MONTHLY_START = { year: 2025, month: 1 }; // 202501
-const MONTHLY_END = { year: 2026, month: 7 }; // 202607
-const YEARLY_START = 2021;
-const YEARLY_END = 2027;
+/** Inclusive lookback windows ending at Taipei "now". */
+const MONTHLY_LOOKBACK = 24; // e.g. 2024/08 … 2026/07 when now is 2026/07
+const YEARLY_LOOKBACK = 24; // e.g. 2003 … 2026 when now is 2026
 
 type DailyIndex = {
   date: string;
@@ -353,6 +352,14 @@ function listMonthKeys(start: { year: number; month: number }, end: { year: numb
   return keys;
 }
 
+/** Shift a year/month by delta months (negative = look back). */
+function shiftMonth(year: number, month: number, delta: number) {
+  const zeroBased = year * 12 + (month - 1) + delta;
+  const y = Math.floor(zeroBased / 12);
+  const m = (zeroBased % 12) + 1;
+  return { year: y, month: m };
+}
+
 function listWeekTradingDays(today: { year: number; month: number; day: number; weekday: number }) {
   // Monday = 1 ... Sunday = 0. Offset back to Monday.
   const offsetToMonday = today.weekday === 0 ? 6 : today.weekday - 1;
@@ -453,27 +460,13 @@ export async function GET() {
 
     const monthSnapshot = averageDailyIndices(monthDaily.length ? monthDaily : [todayIndex]);
 
-    // 4) Monthly series 202501–202607: last available trading day of each month
-    const monthKeys = listMonthKeys(MONTHLY_START, MONTHLY_END);
-    const monthlySeries = await mapPool(monthKeys, 2, async ({ year, month, key }) => {
+    // 4) Monthly series: last MONTHLY_LOOKBACK months through current Taipei month (auto-extends)
+    //    Returned newest-first so current month sits on top.
+    const monthlyEnd = { year: todayParts.year, month: todayParts.month };
+    const monthlyStart = shiftMonth(monthlyEnd.year, monthlyEnd.month, -(MONTHLY_LOOKBACK - 1));
+    const monthKeys = listMonthKeys(monthlyStart, monthlyEnd);
+    const monthlySeriesRaw = await mapPool(monthKeys, 2, async ({ year, month, key }) => {
       const endDay = daysInMonth(year, month);
-      // Don't look past today for the current/future month
-      const isFutureMonth =
-        year > todayParts.year || (year === todayParts.year && month > todayParts.month);
-      if (isFutureMonth) {
-        return {
-          key,
-          label: `${year}/${pad2(month)}`,
-          year,
-          month,
-          index: null as number | null,
-          stockCount: 0,
-          twseCount: 0,
-          tpexCount: 0,
-          asOfDate: null as string | null,
-        };
-      }
-
       const targetDay =
         year === todayParts.year && month === todayParts.month ? todayParts.day : endDay;
 
@@ -490,25 +483,16 @@ export async function GET() {
         asOfDate: found?.date ?? null,
       };
     });
+    const monthlySeries = [...monthlySeriesRaw].reverse();
 
-    // 5) Yearly series 2021–2027: last available trading day of each year
-    const yearlySeries = await mapPool(
-      Array.from({ length: YEARLY_END - YEARLY_START + 1 }, (_, i) => YEARLY_START + i),
+    // 5) Yearly series: last YEARLY_LOOKBACK years through current Taipei year (auto-extends)
+    //    Returned newest-first so current year sits on top.
+    const yearlyEnd = todayParts.year;
+    const yearlyStart = yearlyEnd - (YEARLY_LOOKBACK - 1);
+    const yearlySeriesRaw = await mapPool(
+      Array.from({ length: YEARLY_LOOKBACK }, (_, i) => yearlyStart + i),
       2,
       async (year) => {
-        if (year > todayParts.year) {
-          return {
-            key: String(year),
-            label: String(year),
-            year,
-            index: null as number | null,
-            stockCount: 0,
-            twseCount: 0,
-            tpexCount: 0,
-            asOfDate: null as string | null,
-          };
-        }
-
         const target =
           year === todayParts.year
             ? { year: todayParts.year, month: todayParts.month, day: todayParts.day }
@@ -527,6 +511,7 @@ export async function GET() {
         };
       }
     );
+    const yearlySeries = [...yearlySeriesRaw].reverse();
 
     const snapshots: SnapshotIndex[] = [
       {
@@ -570,13 +555,21 @@ export async function GET() {
       formula: "所有上市上櫃 4 碼證券收盤價加總 ÷ 股票數",
       source: "TWSE OpenAPI / TPEx OpenAPI / TWSE MI_INDEX / TPEx daily close",
       note:
-        "鋒兄台股指數 = 當日全部上市＋上櫃 4 碼證券（含 ETF）收盤價的等權平均。今天＝最新交易日；本周＝本周一至最新交易日每日指數平均；本月＝本月迄今交易日每日指數平均（樣本較多時均勻抽樣）；每月＝該月最後交易日指數；每年＝該年最後交易日指數（當年為最新交易日）。未來月份／年份尚無資料時為空。",
+        "鋒兄台股指數 = 當日全部上市＋上櫃 4 碼證券（含 ETF）收盤價的等權平均。今天＝最新交易日；本周＝本周一至最新交易日每日指數平均；本月＝本月迄今交易日每日指數平均（樣本較多時均勻抽樣）；每月＝最近 24 個月各月最後交易日指數（新到舊，隨台北時間滾動）；每年＝最近 24 年各年最後交易日指數（新到舊，隨台北時間滾動；當年為最新交易日）。",
       today: snapshots[0],
       week: snapshots[1],
       month: snapshots[2],
       snapshots,
       monthly: monthlySeries,
       yearly: yearlySeries,
+      ranges: {
+        monthlyStart: `${monthlyStart.year}${pad2(monthlyStart.month)}`,
+        monthlyEnd: `${monthlyEnd.year}${pad2(monthlyEnd.month)}`,
+        monthlyLookback: MONTHLY_LOOKBACK,
+        yearlyStart,
+        yearlyEnd,
+        yearlyLookback: YEARLY_LOOKBACK,
+      },
       universe: {
         asOfDate: todayIndex.date,
         stockCount: todayIndex.stockCount,
