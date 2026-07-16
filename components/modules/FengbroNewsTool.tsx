@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Clock,
   ExternalLink,
@@ -123,6 +123,9 @@ function adapterLabel(adapter: FengbroNewsAdapter) {
   return ADAPTER_OPTIONS.find((a) => a.id === adapter)?.label || adapter;
 }
 
+/** Client hard stop so UI never spins forever if server/network hangs. */
+const CLIENT_SEARCH_TIMEOUT_MS = 55_000;
+
 export default function FengbroNewsTool() {
   const [sites, setSites] = useState<FengbroNewsSiteConfig[]>(loadSites);
   const [query, setQuery] = useState(loadQuery);
@@ -131,6 +134,9 @@ export default function FengbroNewsTool() {
   const [result, setResult] = useState<FengbroNewsResult | null>(null);
   const [managerOpen, setManagerOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [searchElapsedSec, setSearchElapsedSec] = useState(0);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const {
     items: recentTitleQueries,
     addSearch: addRecentTitleQuery,
@@ -264,6 +270,28 @@ export default function FengbroNewsTool() {
     clearDraft();
   };
 
+  const stopSearchTimer = useCallback(() => {
+    if (searchTimerRef.current) {
+      clearInterval(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+  }, []);
+
+  const cancelSearch = useCallback(() => {
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    stopSearchTimer();
+    setLoading(false);
+    setSearchElapsedSec(0);
+  }, [stopSearchTimer]);
+
+  useEffect(() => {
+    return () => {
+      searchAbortRef.current?.abort();
+      stopSearchTimer();
+    };
+  }, [stopSearchTimer]);
+
   const runSearch = useCallback(
     async (overrideQuery?: string) => {
       const q = (overrideQuery ?? query).trim();
@@ -280,17 +308,34 @@ export default function FengbroNewsTool() {
         setQuery(q);
       }
 
+      // Cancel any in-flight search before starting a new one
+      searchAbortRef.current?.abort();
+      stopSearchTimer();
+
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+      const clientTimeout = setTimeout(() => controller.abort(), CLIENT_SEARCH_TIMEOUT_MS);
+
       setLoading(true);
       setError("");
+      setSearchElapsedSec(0);
+      const started = Date.now();
+      searchTimerRef.current = setInterval(() => {
+        setSearchElapsedSec(Math.floor((Date.now() - started) / 1000));
+      }, 500);
+
       try {
+        // Only send locked sites to keep payload and server work smaller
+        const locked = sites.filter((s) => s.locked);
         const response = await fetch("/api/fengbro-news", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             q,
             onlyLocked: true,
-            sites,
+            sites: locked,
           }),
+          signal: controller.signal,
         });
         const data = (await response.json()) as FengbroNewsResult;
         if (!response.ok) {
@@ -299,13 +344,27 @@ export default function FengbroNewsTool() {
         setResult(data);
         addRecentTitleQuery(q);
       } catch (err) {
-        setResult(null);
-        setError(err instanceof Error ? err.message : "鋒兄新聞搜尋失敗");
+        if (err instanceof Error && err.name === "AbortError") {
+          setError(
+            controller.signal.aborted
+              ? `搜尋已中止或逾時（>${Math.round(CLIENT_SEARCH_TIMEOUT_MS / 1000)} 秒）。可減少鎖定來源後再試。`
+              : "搜尋已取消"
+          );
+        } else {
+          setResult(null);
+          setError(err instanceof Error ? err.message : "鋒兄新聞搜尋失敗");
+        }
       } finally {
+        clearTimeout(clientTimeout);
+        if (searchAbortRef.current === controller) {
+          searchAbortRef.current = null;
+        }
+        stopSearchTimer();
         setLoading(false);
+        setSearchElapsedSec(0);
       }
     },
-    [query, lockedCount, sites, addRecentTitleQuery]
+    [query, lockedCount, sites, addRecentTitleQuery, stopSearchTimer]
   );
 
   const loadBentoStores = useCallback(async (focusOnly: boolean) => {
@@ -560,21 +619,28 @@ export default function FengbroNewsTool() {
                 className="gap-2 rounded-xl bg-sky-600 hover:bg-sky-700"
               >
                 <Search size={16} />
-                {loading ? "搜尋中" : "搜尋新聞"}
+                {loading ? `搜尋中${searchElapsedSec > 0 ? ` ${searchElapsedSec}s` : "…"}` : "搜尋新聞"}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void runSearch()}
-                disabled={loading}
-                className="gap-2 rounded-xl"
-              >
-                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-                重新整理
-              </Button>
+              {loading ? (
+                <Button type="button" variant="outline" onClick={cancelSearch} className="gap-2 rounded-xl">
+                  <X size={16} />
+                  取消
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void runSearch()}
+                  className="gap-2 rounded-xl"
+                >
+                  <RefreshCw size={16} />
+                  重新整理
+                </Button>
+              )}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              僅顯示近三年內可判斷日期的新聞；無日期者保留。範例：標題含「中新地下道」。
+              僅顯示近三年內可判斷日期的新聞；無日期者保留。目前鎖定 {lockedCount} 站（並行抓取，單站逾時會略過）。
+              範例：標題含「中新地下道」。
             </p>
 
             <div className="mt-3 rounded-2xl border border-sky-100 bg-white/80 px-3 py-3">

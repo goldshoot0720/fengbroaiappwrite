@@ -7,6 +7,8 @@ import {
 } from "@/lib/fengbroNewsSites";
 
 export const dynamic = "force-dynamic";
+/** Vercel / long server routes: allow multi-site scrape window */
+export const maxDuration = 60;
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -16,6 +18,16 @@ const JINA_PREFIX = "https://r.jina.ai/https://";
 /** Only keep news published within this many years. */
 const MAX_NEWS_AGE_YEARS = 3;
 const MAX_NEWS_AGE_MS = MAX_NEWS_AGE_YEARS * 365.25 * 24 * 60 * 60 * 1000;
+
+/** Per outbound HTTP request (prevents infinite "搜尋中"). */
+const FETCH_TIMEOUT_MS = 8_000;
+const JINA_TIMEOUT_MS = 10_000;
+/** Hard cap per source so one dead site cannot stall the whole search. */
+const SITE_SEARCH_TIMEOUT_MS = 18_000;
+/** How many sources to scrape in parallel. */
+const SITE_CONCURRENCY = 5;
+/** Max list/search URLs tried per generic source (then Google News). */
+const MAX_LIST_URL_TRIES = 2;
 
 type NewsArticle = {
   title: string;
@@ -348,10 +360,31 @@ function defaultFetchHeaders(targetUrl: string): Record<string, string> {
   return headers;
 }
 
+function mergeAbortSignals(a?: AbortSignal | null, b?: AbortSignal | null): AbortSignal | undefined {
+  if (!a && !b) return undefined;
+  if (a && !b) return a;
+  if (b && !a) return b;
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (a!.aborted || b!.aborted) {
+    controller.abort();
+    return controller.signal;
+  }
+  a!.addEventListener("abort", onAbort, { once: true });
+  b!.addEventListener("abort", onAbort, { once: true });
+  return controller.signal;
+}
+
 async function fetchText(
   url: string,
-  init?: RequestInit
+  init?: RequestInit & { timeoutMs?: number }
 ): Promise<{ ok: boolean; status: number; text: string; finalUrl: string; error?: string }> {
+  const timeoutMs = init?.timeoutMs ?? FETCH_TIMEOUT_MS;
+  const timeoutSignal =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(timeoutMs)
+      : undefined;
+  const signal = mergeAbortSignals(init?.signal ?? null, timeoutSignal ?? null);
   try {
     const res = await fetch(url, {
       ...init,
@@ -361,16 +394,23 @@ async function fetchText(
       },
       cache: "no-store",
       redirect: "follow",
+      signal,
     });
     const text = await res.text();
     return { ok: res.ok, status: res.status, text, finalUrl: res.url };
   } catch (error) {
+    const name = error instanceof Error ? error.name : "";
+    const message = error instanceof Error ? error.message : "fetch failed";
+    const timedOut =
+      name === "TimeoutError" ||
+      name === "AbortError" ||
+      /aborted|timeout/i.test(message);
     return {
       ok: false,
       status: 0,
       text: "",
       finalUrl: url,
-      error: error instanceof Error ? error.message : "fetch failed",
+      error: timedOut ? `逾時 ${Math.round(timeoutMs / 1000)}s` : message,
     };
   }
 }
@@ -381,7 +421,36 @@ async function fetchViaJina(targetHttpsUrl: string) {
     : `${JINA_PREFIX}${targetHttpsUrl}`;
   return fetchText(url, {
     headers: { accept: "text/plain" },
+    timeoutMs: JINA_TIMEOUT_MS,
   });
+}
+
+/** Run async work over items with a concurrency limit. */
+async function mapPool<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await worker(items[i], i);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(onTimeout()), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** 桃園市政府交通局 — list.aspx?key= */
@@ -913,7 +982,11 @@ function extractArticlesFromText(
   return articles;
 }
 
-async function fetchPageText(url: string): Promise<{ text: string; source: string; error?: string }> {
+async function fetchPageText(
+  url: string,
+  options?: { allowJina?: boolean }
+): Promise<{ text: string; source: string; error?: string }> {
+  const allowJina = options?.allowJina !== false;
   const direct = await fetchText(url);
   if (
     direct.ok &&
@@ -924,18 +997,26 @@ async function fetchPageText(url: string): Promise<{ text: string; source: strin
     return { text: direct.text, source: url };
   }
 
-  const via = await fetchViaJina(url);
-  if (via.ok && via.text.length >= 200) {
-    return { text: via.text, source: `${url} (via reader)` };
+  // Prefer shorter path when direct already returned usable HTML (even if short)
+  if (direct.ok && direct.text.length >= 400) {
+    return { text: direct.text, source: url };
   }
 
-  const statusPart =
-    direct.error ||
-    `HTTP ${direct.status || 0}${via.ok ? "" : via.error ? `/${via.error}` : via.status ? `/${via.status}` : ""}`;
+  if (allowJina) {
+    const via = await fetchViaJina(url);
+    if (via.ok && via.text.length >= 200) {
+      return { text: via.text, source: `${url} (via reader)` };
+    }
+    const statusPart =
+      direct.error ||
+      `HTTP ${direct.status || 0}${via.ok ? "" : via.error ? `/${via.error}` : via.status ? `/${via.status}` : ""}`;
+    return { text: "", source: url, error: statusPart };
+  }
+
   return {
     text: "",
     source: url,
-    error: statusPart,
+    error: direct.error || `HTTP ${direct.status || 0}`,
   };
 }
 
@@ -1126,15 +1207,18 @@ async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query: strin
     candidates.push(`https://${site.domain}/`);
   }
 
-  const uniqueUrls = [...new Set(candidates.filter(Boolean))];
+  // Prefer search templates first; cap tries so multi-site search stays responsive
+  const uniqueUrls = [...new Set(candidates.filter(Boolean))].slice(0, MAX_LIST_URL_TRIES);
   const articles: NewsArticle[] = [];
   const seen = new Set<string>();
   const sources: string[] = [];
   let lastError = "";
 
-  for (const listUrl of uniqueUrls) {
+  for (let i = 0; i < uniqueUrls.length; i++) {
+    const listUrl = uniqueUrls[i];
     try {
-      const page = await fetchPageText(listUrl);
+      // Only first URL may use jina (slow); rest are direct + Google News fallback
+      const page = await fetchPageText(listUrl, { allowJina: i === 0 });
       if (page.error && !page.text) {
         lastError = page.error;
         continue;
@@ -1142,7 +1226,7 @@ async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query: strin
       sources.push(page.source);
       const found = extractArticlesFromText(page.text, listUrl, site, query, seen);
       articles.push(...found);
-      if (articles.length >= 8) break;
+      if (articles.length >= 6) break;
     } catch (error) {
       lastError = error instanceof Error ? error.message : "抓取失敗";
     }
@@ -1388,8 +1472,8 @@ async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: string):
     }
   }
 
-  // 1) Channel search page (finds older matching videos, not only latest 15)
-  if (hits.length < 3) {
+  // 1) Channel search (skip for shorts once list page already returned items)
+  if (hits.length < 3 && !(tab === "shorts" && hits.length > 0)) {
     const page = await fetchText(searchPageUrl);
     if (page.ok && page.text.length > 5000) {
       if (!html) html = page.text;
@@ -1405,7 +1489,7 @@ async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: string):
     }
   }
 
-  // 2) Recent videos/shorts page + Atom feed (feed only for non-shorts; shorts rarely in Atom)
+  // 2) Recent videos + Atom feed (non-shorts only; keep path short under site timeout)
   if (hits.length < 3 && tab !== "shorts") {
     const page = await fetchText(videosPageUrl);
     if (page.ok) {
@@ -1422,24 +1506,18 @@ async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: string):
     }
   }
 
-  if (channelId && hits.length < 3 && tab !== "shorts") {
+  if (channelId && hits.length === 0 && tab !== "shorts") {
     const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
     const feed = await fetchText(feedUrl, {
       headers: { accept: "application/atom+xml,application/xml,text/xml,*/*" },
     });
     if (feed.ok && feed.text.includes("<entry>")) {
-      const feedHits = parseYouTubeFeedEntries(feed.text);
-      const seenIds = new Set(hits.map((h) => h.videoId));
-      for (const hit of feedHits) {
-        if (seenIds.has(hit.videoId)) continue;
-        hits.push(hit);
-        seenIds.add(hit.videoId);
-      }
+      hits = parseYouTubeFeedEntries(feed.text);
       source = source || feedUrl;
     }
   }
 
-  // 3) jina fallback on shorts list or search page
+  // 3) jina only as last resort when completely empty (slow path)
   if (hits.length === 0) {
     const fallbackUrl = tab === "shorts" ? videosPageUrl : searchPageUrl;
     const via = await fetchViaJina(fallbackUrl);
@@ -1498,25 +1576,36 @@ async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: string):
   };
 }
 
+async function searchSiteInner(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
+  switch (site.adapter) {
+    case "tycg-traffic":
+      return await searchTycgTraffic(site, query);
+    case "rb-nreo":
+      return await searchRbNreo(site, query);
+    case "tycg-zhongli":
+      return await searchTycgZhongli(site, query);
+    case "youtube-channel":
+      return await searchYouTubeChannel(site, query);
+    case "generic-keyword-url":
+    default:
+      // Auto-route YouTube URLs even if adapter was stored as generic
+      if (/youtube\.com|youtu\.be/i.test(site.homeUrl || site.domain)) {
+        return await searchYouTubeChannel(site, query);
+      }
+      return await searchGenericKeywordUrl(site, query);
+  }
+}
+
 async function searchSite(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
   try {
-    switch (site.adapter) {
-      case "tycg-traffic":
-        return await searchTycgTraffic(site, query);
-      case "rb-nreo":
-        return await searchRbNreo(site, query);
-      case "tycg-zhongli":
-        return await searchTycgZhongli(site, query);
-      case "youtube-channel":
-        return await searchYouTubeChannel(site, query);
-      case "generic-keyword-url":
-      default:
-        // Auto-route YouTube URLs even if adapter was stored as generic
-        if (/youtube\.com|youtu\.be/i.test(site.homeUrl || site.domain)) {
-          return await searchYouTubeChannel(site, query);
-        }
-        return await searchGenericKeywordUrl(site, query);
-    }
+    return await withTimeout(searchSiteInner(site, query), SITE_SEARCH_TIMEOUT_MS, () => ({
+      siteId: site.id,
+      siteName: site.name,
+      domain: site.domain,
+      articles: [] as NewsArticle[],
+      error: `此來源搜尋逾時（>${Math.round(SITE_SEARCH_TIMEOUT_MS / 1000)}s）`,
+      source: site.homeUrl,
+    }));
   } catch (error) {
     return {
       siteId: site.id,
@@ -1572,7 +1661,8 @@ async function handleSearch(request: NextRequest, body: unknown = null) {
     );
   }
 
-  const bySiteRaw = await Promise.all(sites.map((site) => searchSite(site, query)));
+  // Bounded concurrency: 30+ locked sources must not open 30+ hanging fetches at once
+  const bySiteRaw = await mapPool(sites, SITE_CONCURRENCY, (site) => searchSite(site, query));
   const bySite = bySiteRaw.map((siteResult) => {
     const before = siteResult.articles.length;
     const articles = filterArticlesByMaxAge(siteResult.articles);
