@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * 鋒兄台股指數（分市場）
+ * 鋒兄台股上市指數、鋒兄台股上櫃指數（兩支獨立指數，沒有合併的「鋒兄台股指數」）
  * - 鋒兄台股上市指數：當日全部上市 4 碼證券收盤價等權平均
  * - 鋒兄台股上櫃指數：當日全部上櫃 4 碼證券收盤價等權平均
  *
@@ -786,11 +786,11 @@ export async function GET(request: NextRequest) {
 
     const payload: TwIndexPayload = {
       fetchedAt: new Date().toISOString(),
-      name: "鋒兄台股指數",
+      name: "鋒兄台股上市／上櫃指數",
       formula: "上市／上櫃各自：該市場全部 4 碼證券收盤價加總 ÷ 股票數",
       source: "TWSE OpenAPI / TPEx OpenAPI / TWSE MI_INDEX / TPEx daily close",
       note:
-        "鋒兄台股上市指數與鋒兄台股上櫃指數分開計算，皆為等權均價（含 4 碼 ETF）。今天＝最新交易日；本周／本月為期間每日指數平均；每月／每年為期末交易日指數（新到舊，隨台北時間滾動）。收盤後同一台北日只完整計算一次。",
+        "僅有鋒兄台股上市指數與鋒兄台股上櫃指數兩支，沒有合併的「鋒兄台股指數」。兩者分開計算，皆為等權均價（含 4 碼 ETF）。今天＝最新交易日；本周／本月為期間每日指數平均；每月／每年為期末交易日指數（新到舊，隨台北時間滾動）。收盤後同一台北日只完整計算一次。",
       asOfDate,
       ranges: {
         monthlyStart: `${monthlyStart.year}${pad2(monthlyStart.month)}`,
