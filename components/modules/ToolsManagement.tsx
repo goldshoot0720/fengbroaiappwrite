@@ -638,7 +638,7 @@ function getTubeChannelAnchor(index: number) {
 }
 
 
-function formatFinanceNumber(value: number | null, maximumFractionDigits = 2) {
+function formatFinanceNumber(value: number | null | undefined, maximumFractionDigits = 2) {
   if (value == null) return "--";
   return new Intl.NumberFormat("zh-TW", {
     maximumFractionDigits,
