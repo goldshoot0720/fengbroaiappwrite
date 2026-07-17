@@ -184,8 +184,8 @@ function MobileHeader({
   onToggle: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/90 px-3 py-3.5 backdrop-blur-xl md:hidden">
-      <div className="mx-auto flex max-w-[1680px] items-start justify-between gap-3">
+    <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/95 px-4 py-4 backdrop-blur-2xl md:hidden shadow-[0_4px_24px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.2)]">
+      <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
             FengBro Console
@@ -261,7 +261,7 @@ function DesktopTopNav({
                   {group.label}
                 </p>
               ) : null}
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-10 2xl:grid-cols-10">
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 2xl:grid-cols-10">
                 {group.items.map((item) => {
                   const isActive = currentModule === item.id;
                   return (
@@ -272,7 +272,7 @@ function DesktopTopNav({
                       onClick={() => onMenuClick(item)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-[18px] border px-1.5 py-2 text-center transition-all duration-200",
+                        "flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-[20px] border px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97]",
                         isActive
                           ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_12px_28px_rgba(199,149,65,0.22)]"
                           : "border-[var(--line-soft)] bg-white/55 text-[var(--muted-foreground)] hover:border-[var(--line-strong)] hover:bg-white/80 hover:text-[var(--foreground)] dark:bg-white/5 dark:hover:bg-white/10"
@@ -336,7 +336,7 @@ function MobileSidebar({
       />
       <aside
         id="mobile-sidebar"
-        className="surface-floating absolute inset-y-0 left-0 flex w-[90vw] max-w-[380px] flex-col rounded-r-[32px] border-l-0 p-4"
+        className="surface-floating absolute inset-y-0 left-0 flex w-[85vw] max-w-[360px] flex-col rounded-r-[32px] border-l-0 p-5 shadow-[24px_0_48px_rgba(0,0,0,0.12)] animate-in slide-in-from-left-full duration-300 ease-out"
       >
         <div className="flex items-center justify-between">
           <BrandBlock />
@@ -604,11 +604,11 @@ function MenuItemComponent({
         onClick={() => onMenuClick(item)}
         aria-current={!hasChildren && isActive ? "page" : undefined}
         className={cn(
-          "nav-item group flex w-full items-center justify-between rounded-[22px] px-3 text-left transition-impeccable",
+          "nav-item group flex w-full items-center justify-between rounded-[22px] px-3 text-left transition-impeccable active:scale-[0.98]",
           isActive || isChildActive
-            ? "nav-item-active"
-            : "bg-transparent text-[var(--muted-foreground)] hover:bg-white/60 hover:text-[var(--foreground)] dark:hover:bg-white/5",
-          isMobile && "min-h-12"
+            ? "nav-item-active shadow-sm"
+            : "bg-transparent text-[var(--muted-foreground)] hover:bg-black/5 hover:text-[var(--foreground)] dark:hover:bg-white/10",
+          isMobile && "min-h-14 mb-1"
         )}
       >
         <span className="flex min-w-0 items-center gap-3">
