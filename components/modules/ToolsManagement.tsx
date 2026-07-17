@@ -1885,103 +1885,6 @@ function FengbroTubeSection({
   );
 }
 
-/** Static placeholder for 鋒兄台股上市／上櫃指數（不打 API、不計算）。 */
-function FengbroTwIndexPlaceholderPanel() {
-  const boards = [
-    { market: "twse" as const, name: "鋒兄台股上市指數", badge: "上市", accent: "sky" },
-    { market: "tpex" as const, name: "鋒兄台股上櫃指數", badge: "上櫃", accent: "violet" },
-  ];
-  const snapshots = ["今天指數", "本周指數", "本月指數"] as const;
-
-  return (
-    <div id="fengbro-finance-tw-market-avg" className="scroll-mt-28 border-t border-emerald-100 bg-white/90 p-4 sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/80">FengBro TW Index</p>
-          <h4 className="mt-1 text-lg font-semibold text-foreground">鋒兄台股上市／上櫃指數</h4>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            目前以佔位符號顯示（上市／上櫃市值加權指數計算暫未啟用）
-          </p>
-        </div>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-          佔位中
-        </span>
-      </div>
-
-      <div className="mt-4 grid gap-5 xl:grid-cols-2">
-        {boards.map((board) => {
-          const shell =
-            board.accent === "sky"
-              ? {
-                  wrap: "border-sky-100 bg-sky-50/40",
-                  badge: "bg-sky-100 text-sky-800",
-                  value: "text-sky-800",
-                  card: "border-sky-100 bg-white/80",
-                  title: "text-sky-900/80",
-                  formula: "text-sky-900/70",
-                }
-              : {
-                  wrap: "border-violet-100 bg-violet-50/40",
-                  badge: "bg-violet-100 text-violet-800",
-                  value: "text-violet-800",
-                  card: "border-violet-100 bg-white/80",
-                  title: "text-violet-900/80",
-                  formula: "text-violet-900/70",
-                };
-
-          return (
-            <section key={board.market} className={`rounded-3xl border p-4 shadow-sm sm:p-5 ${shell.wrap}`}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${shell.formula}`}>
-                    {board.market === "twse" ? "TWSE Listed" : "TPEx OTC"}
-                  </p>
-                  <h5 className="mt-1 text-lg font-semibold text-foreground">{board.name}</h5>
-                  <p className={`mt-1 text-xs ${shell.formula}`}>Σ(收盤價 × 市值) ÷ Σ市值</p>
-                </div>
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${shell.badge}`}>
-                  {board.badge}
-                </span>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-slate-700">
-                  股票數 —
-                </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
-                  基準日 —
-                </span>
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-900">
-                  總市值 —
-                </span>
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                {snapshots.map((label, idx) => (
-                  <div key={label} className={`rounded-2xl border p-4 shadow-sm ${shell.card}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <p className={`text-xs font-semibold tracking-wide ${shell.title}`}>{label}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${shell.badge}`}>
-                        {idx === 0 ? "1D" : idx === 1 ? "1W" : "1M"}
-                      </span>
-                    </div>
-                    <p className={`mt-2 text-3xl font-bold tabular-nums ${shell.value}`}>—</p>
-                    <p className="mt-2 text-xs text-muted-foreground">基準 —</p>
-                    <div className="mt-3 rounded-xl bg-white/80 px-2.5 py-2 text-xs">
-                      <p className="text-muted-foreground">股票數</p>
-                      <p className="mt-0.5 font-semibold tabular-nums">—</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function FengbroFinanceSection({
   result,
   loading,
@@ -2264,12 +2167,6 @@ function FengbroFinanceSection({
                       <span className="ml-1 text-emerald-500">{quotes.length}</span>
                     </a>
                   ))}
-                  <a
-                    href="#fengbro-finance-tw-market-avg"
-                    className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 shadow-sm transition hover:border-teal-300 hover:bg-teal-100"
-                  >
-                    鋒兄台股上市／上櫃指數
-                  </a>
                 </div>
               </div>
             )}
@@ -2782,8 +2679,6 @@ function FengbroFinanceSection({
             ))}
           </div>
         )}
-
-        <FengbroTwIndexPlaceholderPanel />
       </DataCard>
     </div>
   );

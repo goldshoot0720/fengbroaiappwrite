@@ -630,9 +630,22 @@ async function fetchInstrument(instrument: FinanceInstrument) {
   if (!record || typeof record !== "object") throw new Error("No CNBC quote data");
 
   const quote = record as Record<string, unknown>;
+  // CNBC often nests 52-week high/low under FundamentalData (indices/ETFs), not top-level.
+  const fundamentals =
+    quote.FundamentalData && typeof quote.FundamentalData === "object"
+      ? (quote.FundamentalData as Record<string, unknown>)
+      : null;
   const price = pickNumber(quote, ["last", "last_price", "Last", "price", "yrlast"]);
-  const high52 = pickNumber(quote, ["high_52week", "high52", "yrhiprice", "year_high", "52week_high"]);
-  const low52 = pickNumber(quote, ["low_52week", "low52", "yrloprice", "year_low", "52week_low"]);
+  const high52 =
+    pickNumber(quote, ["high_52week", "high52", "yrhiprice", "year_high", "52week_high"]) ??
+    (fundamentals
+      ? pickNumber(fundamentals, ["high_52week", "high52", "yrhiprice", "year_high", "52week_high"])
+      : null);
+  const low52 =
+    pickNumber(quote, ["low_52week", "low52", "yrloprice", "year_low", "52week_low"]) ??
+    (fundamentals
+      ? pickNumber(fundamentals, ["low_52week", "low52", "yrloprice", "year_low", "52week_low"])
+      : null);
   const dayHigh = pickNumber(quote, ["high", "day_high"]);
   const dayLow = pickNumber(quote, ["low", "day_low"]);
 
@@ -643,8 +656,8 @@ async function fetchInstrument(instrument: FinanceInstrument) {
     change: pickNumber(quote, ["change", "net_change"]),
     changePercent: pickNumber(quote, ["change_pct", "change_percent", "pctchange"]),
     currency: pickText(quote, ["currencyCode", "currency"]) || "",
-    high52: instrument.id === "kospi" ? 9385.59 : high52,
-    low52: instrument.id === "kospi" ? 3079.27 : low52,
+    high52,
+    low52,
     dayHigh,
     dayLow,
     lastUpdated: pickText(quote, ["last_time", "last_time_msec", "time"]) || "",
