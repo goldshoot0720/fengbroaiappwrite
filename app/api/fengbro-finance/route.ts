@@ -70,6 +70,7 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   tsm: "TSM",
   koru: "KORU",
   soxl: "SOXL",
+  snxx: "SNXX",
 };
 
 const INSTRUMENTS: FinanceInstrument[] = [
@@ -106,6 +107,15 @@ const INSTRUMENTS: FinanceInstrument[] = [
     ],
   },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw-stocks", provider: "yahoo", alertThreshold: 3333, imageUrl: "/finance/tsmc-featured.jpg" },
+  {
+    id: "00631l",
+    name: "元大台灣50正2",
+    symbol: "00631L.TW",
+    sourceUrl: "https://tw.stock.yahoo.com/quote/00631L.TW",
+    group: "tw-stocks",
+    provider: "yahoo",
+    localLabel: "00631L · 2X 台灣50",
+  },
   { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000, localLabel: "日経平均株価", imageUrl: "/finance/nikkei-225-featured.jpg", youtubeUrl: "https://www.youtube.com/results?search_query=%E5%A4%A7%E6%9A%B4%E8%90%BD", youtubeLabel: "日経平均株価 大暴落", youtubeLinks: [{ label: "日経平均株価 インフレ", url: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1%20%E3%82%A4%E3%83%B3%E3%83%95%E3%83%AC" }, { label: "朝倉慶 文藝春秋", url: "https://www.youtube.com/@Bungeishunju/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 ASK1", url: "https://www.youtube.com/@info_ask1/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 楽待", url: "https://www.youtube.com/@rakumachi/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 外為どっとコム", url: "https://www.youtube.com/@gaitame_com/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }] },
   { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", sourceUrl: "https://finance.yahoo.com/quote/285A.T", group: "asia-stocks", provider: "yahoo", localLabel: "TYO: 285A" },
   { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia", alertThreshold: 12682, localLabel: "코스피", periodLabel: "2026~2027", youtubeUrl: "https://www.youtube.com/results?search_query=SK+Hynix+stock&sp=CAMSBAgCEAE%253D", bilibiliUrl: "https://search.bilibili.com/all?keyword=%E9%9F%93%E5%9C%8B%E8%82%A1%E5%B8%82&from_source=web_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399", imageUrl: "/finance/kospi-202607141413.png", imageUrls: ["/finance/kospi-202607141413.png", "/finance/kospi-202607141405.png", "/finance/kospi-202607141219.png", "/finance/kospi-202607121235.png", "/finance/kospi-cats.jpg", "/finance/kospi-index.png"] },
@@ -124,6 +134,15 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333, localLabel: "科技泡沫" },
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫", bilibiliUrl: "https://search.bilibili.com/all?keyword=%E5%8D%8A%E5%B0%8E%E9%AB%94&from_source=web_search&spm_id_from=333.788&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399", imageUrl: "/finance/sox-cats.jpg" },
   { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", sourceUrl: "https://www.cnbc.com/quotes/SOXL", group: "us-stocks", localLabel: "NYSEARCA: SOXL" },
+  {
+    id: "snxx",
+    name: "Tradr 2X Long Sndk Daily ETF",
+    symbol: "SNXX",
+    sourceUrl: "https://finance.yahoo.com/quote/SNXX",
+    group: "us-stocks",
+    provider: "yahoo",
+    localLabel: "Cboe: SNXX · 2X SNDK",
+  },
   {
     id: "tsm",
     name: "台積電 ADR",
