@@ -149,7 +149,7 @@ type FengbroFinanceQuote = {
   imageUrl?: string;
   imageUrls?: string[];
   group: "tw" | "tw-stocks" | "asia" | "asia-stocks" | "korea" | "fx" | "commodities" | "rates" | "us" | "us-stocks" | "crypto" | "valuation";
-  provider?: "cnbc" | "yahoo" | "multpl" | "mis";
+  provider?: "cnbc" | "yahoo" | "multpl" | "mis" | "taifex";
   price: number | null;
   change: number | null;
   changePercent: number | null;
@@ -192,6 +192,7 @@ function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "so
     return "櫃買中心 / MIS";
   }
   if (source.includes("yahoo") || quote.provider === "yahoo") return "Yahoo";
+  if (quote.provider === "taifex" || source.includes("taifex.com.tw")) return "期交所";
   return "CNBC";
 }
 
@@ -233,7 +234,7 @@ type DefaultFinanceInstrumentSummary = {
   id: string;
   name: string;
   symbol: string;
-  provider: "cnbc" | "yahoo" | "multpl" | "mis";
+  provider: "cnbc" | "yahoo" | "multpl" | "mis" | "taifex";
   group: FengbroFinanceQuote["group"];
 };
 
@@ -274,6 +275,7 @@ const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDef
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "tw" },
   { id: "otc", name: "上櫃指數", symbol: "otc_o00.tw", provider: "mis", group: "tw" },
+  { id: "txf-night", name: "夜盤台指期", symbol: "TXF", provider: "taifex", group: "tw" },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "tw-stocks" },
   { id: "0050", name: "元大台灣50", symbol: "0050.TW", provider: "yahoo", group: "tw-stocks" },
   { id: "0056", name: "元大高股息", symbol: "0056.TW", provider: "yahoo", group: "tw-stocks" },

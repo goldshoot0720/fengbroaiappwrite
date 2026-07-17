@@ -261,7 +261,7 @@ function DesktopTopNav({
                   {group.label}
                 </p>
               ) : null}
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-10 2xl:grid-cols-10">
                 {group.items.map((item) => {
                   const isActive = currentModule === item.id;
                   return (
