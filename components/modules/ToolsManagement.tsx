@@ -686,6 +686,18 @@ function getFinanceRecordLabel(tag: FinanceRecordTag) {
   return "";
 }
 
+/** 現價相對 52 週高點回檔 ≥ 20% 標註熊市。 */
+function isFinanceBearMarketFrom52WHigh(
+  quote: Pick<FengbroFinanceQuote, "price" | "high52">
+) {
+  if (typeof quote.price !== "number" || typeof quote.high52 !== "number") return false;
+  if (!(quote.high52 > 0) || !Number.isFinite(quote.price) || !Number.isFinite(quote.high52)) {
+    return false;
+  }
+  const drawdownPct = ((quote.high52 - quote.price) / quote.high52) * 100;
+  return drawdownPct >= 20;
+}
+
 const FENGBRO_FINANCE_TOP_ID = "fengbro-finance-top";
 
 function getFinanceImageUrls(quote: Pick<FengbroFinanceQuote, "imageUrl" | "imageUrls">) {
@@ -2308,6 +2320,7 @@ function FengbroFinanceSection({
                       };
                       const isUp = (quote.change || 0) >= 0;
                       const recordLabel = getFinanceRecordLabel(quote.recordTag);
+                      const isBearMarket = isFinanceBearMarketFrom52WHigh(quote);
                       return (
                         <div
                           key={quote.id}
@@ -2324,7 +2337,7 @@ function FengbroFinanceSection({
                               {cfg.subtitle}
                             </p>
                             <h4 className="mt-1 text-lg font-semibold text-foreground leading-tight">{cfg.title}</h4>
-                            {(quote.localLabel || recordLabel || quote.id === "kospi") && (
+                            {(quote.localLabel || recordLabel || quote.id === "kospi" || isBearMarket) && (
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 {quote.localLabel && (
                                   <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
@@ -2349,6 +2362,11 @@ function FengbroFinanceSection({
                                 {recordLabel && (
                                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-sky-50 text-sky-700 border-sky-200"}`}>
                                     {recordLabel}
+                                  </span>
+                                )}
+                                {isBearMarket && (
+                                  <span className="rounded-full border border-stone-300 bg-stone-900 px-2 py-0.5 text-[11px] font-semibold text-stone-50">
+                                    熊市
                                   </span>
                                 )}
                                 {(typeof quote.changePercent === "number") && (
@@ -2582,6 +2600,7 @@ function FengbroFinanceSection({
                   {quotes.map((quote) => {
                     const recordLabel = getFinanceRecordLabel(quote.recordTag);
                     const isUp = (quote.change || 0) >= 0;
+                    const isBearMarket = isFinanceBearMarketFrom52WHigh(quote);
                     return (
                       <div key={quote.id} className="rounded-[24px] border border-border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
                         <div className="flex flex-col gap-3">
@@ -2614,6 +2633,11 @@ function FengbroFinanceSection({
                               {recordLabel && (
                                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-sky-50 text-sky-700 border border-sky-200"}`}>
                                   {recordLabel}
+                                </span>
+                              )}
+                              {isBearMarket && (
+                                <span className="rounded-full border border-stone-300 bg-stone-900 px-2.5 py-1 text-xs font-semibold text-stone-50">
+                                  熊市
                                 </span>
                               )}
                               {quote.isThresholdAlert && (

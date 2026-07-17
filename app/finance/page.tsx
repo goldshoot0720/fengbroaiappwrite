@@ -307,6 +307,22 @@ export default function FinancePage() {
   const isPositive = (value: number | null | undefined) => value != null && value > 0;
   const isNegative = (value: number | null | undefined) => value != null && value < 0;
 
+  /** 現價相對 52 週高點回檔 ≥ 20% 標註熊市。 */
+  const isBearMarketFrom52WHigh = (
+    price: number | null | undefined,
+    high52: number | null | undefined
+  ) => {
+    if (typeof price !== 'number' || typeof high52 !== 'number') return false;
+    if (!(high52 > 0) || !Number.isFinite(price) || !Number.isFinite(high52)) return false;
+    return ((high52 - price) / high52) * 100 >= 20;
+  };
+
+  const bearMarketBadge = (
+    <span className="ml-2 rounded-full border border-stone-300 bg-stone-900 px-2 py-0.5 text-sm font-bold text-stone-50 dark:border-stone-600 dark:bg-stone-100 dark:text-stone-900">
+      熊市
+    </span>
+  );
+
   if (loading) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -451,6 +467,7 @@ export default function FinancePage() {
                       <TrendingDown className="w-5 h-5" />
                     ) : null}
                     <span>{formatChange(kospi?.change ?? null, kospi?.changePercent ?? null)}</span>
+                    {isBearMarketFrom52WHigh(kospi?.price, kospi?.high52) && bearMarketBadge}
                     {typeof kospi?.changePercent === 'number' && Math.abs(kospi.changePercent) > 8 && (
                       <span className="ml-2 rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-sm font-bold text-orange-700 dark:border-orange-900 dark:bg-orange-900/50 dark:text-orange-400">
                         熔斷機制
@@ -471,6 +488,11 @@ export default function FinancePage() {
                         <div className={`text-sm font-semibold mb-0.5 ${kospi.price >= kospi.high52 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                           {kospi.price >= kospi.high52 ? '+' : ''}{((kospi.price - kospi.high52) / kospi.high52 * 100).toFixed(2)}%
                         </div>
+                      )}
+                      {isBearMarketFrom52WHigh(kospi?.price, kospi?.high52) && (
+                        <span className="mb-0.5 rounded-full border border-stone-300 bg-stone-900 px-2 py-0.5 text-[11px] font-bold text-stone-50 dark:border-stone-600 dark:bg-stone-100 dark:text-stone-900">
+                          熊市
+                        </span>
                       )}
                     </div>
                   </div>
@@ -564,6 +586,7 @@ export default function FinancePage() {
                       <TrendingDown className="w-5 h-5" />
                     ) : null}
                     <span>{formatChange(phlxSemi?.change ?? null, phlxSemi?.changePercent ?? null)}</span>
+                    {isBearMarketFrom52WHigh(phlxSemi?.price, phlxSemi?.high52) && bearMarketBadge}
                   </div>
                 )}
 
@@ -646,6 +669,7 @@ export default function FinancePage() {
                       <TrendingDown className="w-5 h-5" />
                     ) : null}
                     <span>{formatChange(tsmc?.change ?? null, tsmc?.changePercent ?? null)}</span>
+                    {isBearMarketFrom52WHigh(tsmc?.price, tsmc?.high52) && bearMarketBadge}
                   </div>
                 )}
 
@@ -735,6 +759,7 @@ export default function FinancePage() {
                           <TrendingDown className="w-4 h-4" />
                         ) : null}
                         <span>{formatChange(tsm?.change ?? null, tsm?.changePercent ?? null)}</span>
+                        {isBearMarketFrom52WHigh(tsm?.price, tsm?.high52) && bearMarketBadge}
                       </div>
                     )}
                   </div>
