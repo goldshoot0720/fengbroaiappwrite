@@ -265,6 +265,7 @@ const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrum
 const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDefaultInstrumentIds";
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "tw" },
+  { id: "otc", name: "上櫃指數", symbol: "^TWOII", provider: "yahoo", group: "tw" },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "tw-stocks" },
   { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "us-stocks" },
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
