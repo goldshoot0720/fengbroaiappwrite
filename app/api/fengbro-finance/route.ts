@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+type FinanceProvider = "cnbc" | "yahoo" | "multpl" | "mis";
+
 type FinanceInstrument = {
   id: string;
   name: string;
   symbol: string;
   sourceUrl: string;
   group: "tw" | "tw-stocks" | "asia" | "asia-stocks" | "korea" | "fx" | "commodities" | "rates" | "us" | "us-stocks" | "crypto" | "valuation";
-  provider?: "cnbc" | "yahoo" | "multpl";
+  provider?: FinanceProvider;
   alertThreshold?: number;
   localLabel?: string;
   youtubeUrl?: string;
@@ -89,16 +91,18 @@ const INSTRUMENTS: FinanceInstrument[] = [
   {
     id: "otc",
     name: "上櫃指數",
-    symbol: "^TWOII",
-    sourceUrl: "https://tw.stock.yahoo.com/quote/%5ETWOII",
+    // Yahoo ^TWOII feed is stale (~2024); live quote uses TWSE MIS otc_o00.tw.
+    symbol: "otc_o00.tw",
+    sourceUrl: "https://www.tpex.org.tw/",
     group: "tw",
-    provider: "yahoo",
+    provider: "mis",
     alertThreshold: 666,
     localLabel: "櫃買指數 · 週一至五 09:00–13:30",
     relatedLinks: [
       { label: "盤中閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E4%B8%AD%E9%96%92%E8%81%8A" },
       { label: "盤後閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E5%BE%8C%E9%96%92%E8%81%8A" },
       { label: "櫃買中心", url: "https://www.tpex.org.tw/" },
+      { label: "MIS 即時", url: "https://mis.twse.com.tw/stock/index?lang=zhHant" },
     ],
   },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw-stocks", provider: "yahoo", alertThreshold: 3333, imageUrl: "/finance/tsmc-featured.jpg" },
@@ -139,8 +143,18 @@ const INSTRUMENTS: FinanceInstrument[] = [
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
 const YAHOO_CHART_ENDPOINT = "https://query1.finance.yahoo.com/v8/finance/chart";
+/** TWSE MIS realtime quote (櫃買指數 = otc_o00.tw). */
+const TWSE_MIS_QUOTE_URL = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp";
+/** TPEx daily trading index history (close at column index 4). */
+const TPEX_DAILY_INDEX_URL =
+  "https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php";
 const CUSTOM_FINANCE_GROUPS: FinanceInstrumentGroup[] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "fx", "rates", "commodities", "crypto"];
 const DEFAULT_INSTRUMENT_IDS = new Set(INSTRUMENTS.map((instrument) => instrument.id));
+const FETCH_BROWSER_HEADERS = {
+  accept: "application/json,text/plain,*/*",
+  "user-agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+};
 
 function slugifyInstrumentId(value: string) {
   return value
@@ -248,6 +262,166 @@ function pickText(record: Record<string, unknown>, keys: string[]) {
 function nearlyEqual(left: number, right: number) {
   const tolerance = Math.max(0.000001, Math.abs(right) * 0.0001);
   return Math.abs(left - right) <= tolerance;
+}
+
+/** Asia/Taipei calendar parts for market session / ROC date windows. */
+function getTaipeiNowParts() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return {
+    year: Number(get("year")),
+    month: Number(get("month")),
+    day: Number(get("day")),
+    hour: Number(get("hour")),
+    minute: Number(get("minute")),
+    weekday: get("weekday"),
+  };
+}
+
+function getTwMarketSessionFromTaipei(): "pre" | "regular" | "closed" {
+  const { hour, minute, weekday } = getTaipeiNowParts();
+  if (weekday === "Sat" || weekday === "Sun") return "closed";
+  const mins = hour * 60 + minute;
+  if (mins < 9 * 60) return "pre";
+  if (mins < 13 * 60 + 30) return "regular";
+  return "closed";
+}
+
+/** Gregorian YYYY-MM-DD → ROC yyy/MM/dd (民國年). */
+function toRocYmd(year: number, month: number, day: number) {
+  return `${year - 1911}/${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
+}
+
+/** ROC "115/07/17" → ISO "2026-07-17". */
+function fromRocYmd(roc: string) {
+  const match = roc.trim().match(/^(\d{2,3})\/(\d{1,2})\/(\d{1,2})$/);
+  if (!match) return null;
+  const year = Number(match[1]) + 1911;
+  const month = String(Number(match[2])).padStart(2, "0");
+  const day = String(Number(match[3])).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function shiftMonth(year: number, month: number, delta: number) {
+  const index = year * 12 + (month - 1) + delta;
+  return { year: Math.floor(index / 12), month: (index % 12) + 1 };
+}
+
+function lastDayOfMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** Keep the last trading point of each ISO week (Mon–Sun) for chart density. */
+function downsampleToWeekly(points: FinanceHistoryPoint[]) {
+  const byWeek = new Map<string, FinanceHistoryPoint>();
+  for (const point of points) {
+    const date = new Date(`${point.date}T00:00:00Z`);
+    if (Number.isNaN(date.getTime())) continue;
+    // ISO week key via Thursday of the same week.
+    const day = date.getUTCDay() || 7;
+    const thursday = new Date(date);
+    thursday.setUTCDate(date.getUTCDate() + 4 - day);
+    const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    const key = `${thursday.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+    byWeek.set(key, point);
+  }
+  return Array.from(byWeek.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function fetchTpexDailyIndexMonth(year: number, month: number): Promise<FinanceHistoryPoint[]> {
+  const start = toRocYmd(year, month, 1);
+  const end = toRocYmd(year, month, lastDayOfMonth(year, month));
+  const params = new URLSearchParams({
+    l: "zh-tw",
+    d: start,
+    e: end,
+    s: "0,asc,0",
+  });
+  const response = await fetch(`${TPEX_DAILY_INDEX_URL}?${params.toString()}`, {
+    headers: FETCH_BROWSER_HEADERS,
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`TPEx daily index ${response.status}`);
+  const payload = await response.json();
+  const rows = payload?.tables?.[0]?.data;
+  if (!Array.isArray(rows)) return [];
+
+  const points: FinanceHistoryPoint[] = [];
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 5) continue;
+    const date = fromRocYmd(String(row[0] ?? ""));
+    const price = asNumber(row[4]);
+    if (!date || price == null || price <= 0) continue;
+    points.push({ date, price });
+  }
+  return points;
+}
+
+/** Fetch TPEx 櫃買指數 daily closes for the last `years` years (month-by-month). */
+async function fetchTpexOtcHistoryPoints(years: number): Promise<FinanceHistoryPoint[]> {
+  const taipei = getTaipeiNowParts();
+  const end = { year: taipei.year, month: taipei.month };
+  const start = shiftMonth(end.year, end.month, -(years * 12 + 1));
+  const months: Array<{ year: number; month: number }> = [];
+  let cursor = { ...start };
+  while (cursor.year < end.year || (cursor.year === end.year && cursor.month <= end.month)) {
+    months.push({ ...cursor });
+    cursor = shiftMonth(cursor.year, cursor.month, 1);
+  }
+
+  const settled = await Promise.allSettled(months.map((item) => fetchTpexDailyIndexMonth(item.year, item.month)));
+  const byDate = new Map<string, number>();
+  for (const item of settled) {
+    if (item.status !== "fulfilled") continue;
+    for (const point of item.value) byDate.set(point.date, point.price);
+  }
+
+  return Array.from(byDate.entries())
+    .map(([date, price]) => ({ date, price }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function sliceHistoryPoints(points: FinanceHistoryPoint[], keepYears: number) {
+  if (keepYears <= 0 || points.length === 0) return points;
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - keepYears);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+  return points.filter((point) => point.date >= cutoffIso);
+}
+
+function highLowFromPoints(points: FinanceHistoryPoint[]) {
+  let high: number | null = null;
+  let low: number | null = null;
+  for (const point of points) {
+    if (high == null || point.price > high) high = point.price;
+    if (low == null || point.price < low) low = point.price;
+  }
+  return { high52: high, low52: low };
+}
+
+async function fetchTpexOtcHistoryRanges() {
+  // One multi-year daily pull, then slice/downsample for chart ranges.
+  const daily = await fetchTpexOtcHistoryPoints(3);
+  const oneYear = sliceHistoryPoints(daily, 1);
+  const threeYear = sliceHistoryPoints(daily, 3);
+  return {
+    historyRanges: {
+      "1y": downsampleToWeekly(oneYear),
+      "3y": downsampleToWeekly(threeYear),
+    } as Record<string, FinanceHistoryPoint[]>,
+    historyErrors: {} as Record<string, string>,
+    highLow1y: highLowFromPoints(oneYear),
+  };
 }
 
 function getRecord(payload: any) {
@@ -422,6 +596,80 @@ async function fetchInstrument(instrument: FinanceInstrument) {
   };
 }
 
+/**
+ * Live quote for Taiwan OTC / 櫃買指數 via TWSE MIS.
+ * Yahoo ^TWOII is stuck around 2024 levels and must not be used.
+ */
+async function fetchMisInstrument(instrument: FinanceInstrument) {
+  const exCh = instrument.symbol.includes("_") ? instrument.symbol : `otc_${instrument.symbol}`;
+  const params = new URLSearchParams({
+    ex_ch: exCh,
+    json: "1",
+    delay: "0",
+  });
+  const response = await fetch(`${TWSE_MIS_QUOTE_URL}?${params.toString()}`, {
+    headers: FETCH_BROWSER_HEADERS,
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`TWSE MIS ${response.status}`);
+  const payload = await response.json();
+  const row = Array.isArray(payload?.msgArray) ? payload.msgArray[0] : null;
+  if (!row || typeof row !== "object") throw new Error("No TWSE MIS quote data");
+
+  const record = row as Record<string, unknown>;
+  const price = pickNumber(record, ["z", "pz"]);
+  const previousClose = pickNumber(record, ["y"]);
+  const dayHigh = pickNumber(record, ["h"]);
+  const dayLow = pickNumber(record, ["l"]);
+  if (price == null || price <= 0) throw new Error("TWSE MIS price unavailable");
+
+  const change =
+    previousClose != null && previousClose > 0 ? price - previousClose : null;
+  const changePercent =
+    change != null && previousClose ? (change / previousClose) * 100 : null;
+
+  const marketSession = getTwMarketSessionFromTaipei();
+  const marketState =
+    marketSession === "regular" ? "REGULAR" : marketSession === "pre" ? "PRE" : "CLOSED";
+
+  const tradeDate = asText(record.d); // YYYYMMDD
+  const tradeTime = asText(record.t); // HH:mm:ss
+  let lastUpdated = "";
+  if (tradeDate.length === 8) {
+    const isoDate = `${tradeDate.slice(0, 4)}-${tradeDate.slice(4, 6)}-${tradeDate.slice(6, 8)}`;
+    lastUpdated = tradeTime
+      ? new Date(`${isoDate}T${tradeTime}+08:00`).toISOString()
+      : `${isoDate}T00:00:00+08:00`;
+  }
+
+  return {
+    ...instrument,
+    displayName: pickText(record, ["n", "nf"]) || instrument.name,
+    price,
+    change,
+    changePercent,
+    currency: "TWD",
+    high52: null as number | null,
+    low52: null as number | null,
+    dayHigh,
+    dayLow,
+    marketState,
+    marketSession,
+    preMarketPrice: null as number | null,
+    preMarketChange: null as number | null,
+    preMarketChangePercent: null as number | null,
+    postMarketPrice: null as number | null,
+    postMarketChange: null as number | null,
+    postMarketChangePercent: null as number | null,
+    regularMarketPrice: price,
+    regularMarketChange: change,
+    regularMarketChangePercent: changePercent,
+    previousClose,
+    lastUpdated,
+    recordTag: null as string | null,
+  };
+}
+
 async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const isUsListed =
     !/\.(TW|KS|T|HK|L|TO|AX)$/i.test(instrument.symbol) &&
@@ -438,11 +686,7 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   });
 
   const response = await fetch(`${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(instrument.symbol)}?${params.toString()}`, {
-    headers: {
-      accept: "application/json,text/plain,*/*",
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-    },
+    headers: FETCH_BROWSER_HEADERS,
     cache: "no-store",
   });
 
@@ -605,14 +849,40 @@ async function fetchMultplInstrument(instrument: FinanceInstrument) {
 
 async function fetchFinanceInstrument(instrument: FinanceInstrument, options?: { skipHistory?: boolean }) {
   const quote =
-    instrument.provider === "yahoo"
-      ? await fetchYahooInstrument(instrument)
-      : instrument.provider === "multpl"
-        ? await fetchMultplInstrument(instrument)
-        : await fetchInstrument(instrument);
+    instrument.provider === "mis"
+      ? await fetchMisInstrument(instrument)
+      : instrument.provider === "yahoo"
+        ? await fetchYahooInstrument(instrument)
+        : instrument.provider === "multpl"
+          ? await fetchMultplInstrument(instrument)
+          : await fetchInstrument(instrument);
 
   if (options?.skipHistory || instrument.provider === "multpl") {
     return { ...quote, historyRanges: {}, historyErrors: {} };
+  }
+
+  if (instrument.provider === "mis") {
+    try {
+      const { historyRanges, historyErrors, highLow1y } = await fetchTpexOtcHistoryRanges();
+      const high52 = highLow1y.high52;
+      const low52 = highLow1y.low52;
+      return {
+        ...quote,
+        high52,
+        low52,
+        recordTag: getRecordTag(quote.price, high52, low52),
+        historyRanges,
+        historyErrors,
+      };
+    } catch (error) {
+      return {
+        ...quote,
+        historyRanges: {},
+        historyErrors: {
+          all: error instanceof Error ? error.message : "Failed to load history",
+        },
+      };
+    }
   }
 
   try {
@@ -688,7 +958,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     fetchedAt: new Date().toISOString(),
-    source: "CNBC / Yahoo Finance / Multpl",
+    source: "CNBC / Yahoo Finance / Multpl / TWSE MIS / TPEx",
     quotes,
     financeAlerts,
     shillerPe: {

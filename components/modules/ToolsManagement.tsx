@@ -149,7 +149,7 @@ type FengbroFinanceQuote = {
   imageUrl?: string;
   imageUrls?: string[];
   group: "tw" | "tw-stocks" | "asia" | "asia-stocks" | "korea" | "fx" | "commodities" | "rates" | "us" | "us-stocks" | "crypto" | "valuation";
-  provider?: "cnbc" | "yahoo" | "multpl";
+  provider?: "cnbc" | "yahoo" | "multpl" | "mis";
   price: number | null;
   change: number | null;
   changePercent: number | null;
@@ -183,6 +183,14 @@ function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "so
   const source = (quote.sourceUrl || "").toLowerCase();
   if (source.includes("investing.com")) return "Investing";
   if (source.includes("multpl.com") || quote.provider === "multpl" || quote.id === "shiller-pe") return "Multpl";
+  if (
+    quote.provider === "mis" ||
+    quote.id === "otc" ||
+    source.includes("tpex.org.tw") ||
+    source.includes("mis.twse.com.tw")
+  ) {
+    return "櫃買中心 / MIS";
+  }
   if (source.includes("yahoo") || quote.provider === "yahoo") return "Yahoo";
   return "CNBC";
 }
@@ -225,7 +233,7 @@ type DefaultFinanceInstrumentSummary = {
   id: string;
   name: string;
   symbol: string;
-  provider: "cnbc" | "yahoo" | "multpl";
+  provider: "cnbc" | "yahoo" | "multpl" | "mis";
   group: FengbroFinanceQuote["group"];
 };
 
@@ -265,7 +273,7 @@ const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrum
 const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDefaultInstrumentIds";
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "tw" },
-  { id: "otc", name: "上櫃指數", symbol: "^TWOII", provider: "yahoo", group: "tw" },
+  { id: "otc", name: "上櫃指數", symbol: "otc_o00.tw", provider: "mis", group: "tw" },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "tw-stocks" },
   { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "us-stocks" },
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
