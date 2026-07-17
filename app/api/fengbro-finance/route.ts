@@ -83,6 +83,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
     provider: "yahoo",
     alertThreshold: 126820,
     localLabel: "週一至五 09:00–13:30",
+    imageUrl: "/finance/taiex-cats.png",
     relatedLinks: [
       { label: "盤中閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E4%B8%AD%E9%96%92%E8%81%8A" },
       { label: "盤後閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E5%BE%8C%E9%96%92%E8%81%8A" },
