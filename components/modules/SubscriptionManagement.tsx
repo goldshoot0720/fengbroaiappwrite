@@ -1659,9 +1659,6 @@ export default function SubscriptionManagement() {
                   {sub.note}
                 </div>
               ) : null}
-              <div className="mt-0.5 truncate text-xs text-gray-400 dark:text-gray-500" title={sub.$id}>
-                {sub.$id}
-              </div>
             </div>
           </div>
         </TableCell>
@@ -1762,7 +1759,7 @@ export default function SubscriptionManagement() {
       <FriendlyAiCrudShell
         title="鋒兄訂閱"
         description="以目前 Appwrite `subscription` 表的真實欄位為準：服務名稱、網站、價格、下次扣款、備註、帳號、幣別、是否續訂。重點是先看出快到期與不續訂項目，再快速新增與批次清理。"
-        searchPlaceholder="搜尋 ID、服務名稱、網站、帳號、備註、幣別..."
+        searchPlaceholder="搜尋服務名稱、網站、帳號、備註、幣別..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchExtras={
@@ -2027,7 +2024,7 @@ export default function SubscriptionManagement() {
                     {group.map((sub) => (
                       <div key={sub.$id} className="flex items-center justify-between gap-3 rounded-xl bg-amber-50/60 px-3 py-2 text-sm dark:bg-amber-950/10">
                         <div className="min-w-0">
-                          <div className="truncate text-gray-900 dark:text-gray-100">{sub.account || sub.site || sub.$id}</div>
+                          <div className="truncate text-gray-900 dark:text-gray-100">{sub.account || sub.site || "無帳號"}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {formatCurrencyWithExchange(sub.price || 0, sub.currency || "TWD")}
                             {sub.nextdate ? ` / ${formatDate(sub.nextdate)}` : " / 未設定日期"}
@@ -2416,7 +2413,6 @@ export default function SubscriptionManagement() {
                           {sub.note}
                         </div>
                       ) : null}
-                      <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">{sub.$id}</div>
                     </div>
                   </div>
                   <div className="mt-4 space-y-2 text-sm">
