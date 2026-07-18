@@ -21,8 +21,10 @@ import {
   createEmptyCustomFinanceDraft,
   draftFromCustomFinanceInstrument,
   getCustomFinanceInstrumentKey,
+  getFinanceProviderDisplayName,
   guessFinanceGroup,
   isFinanceQuoteUrl,
+  isTaiwanYahooStockSource,
   normalizeCustomFinanceInstrument,
   parseFinanceQuoteInput,
   type CustomFinanceDraft,
@@ -204,6 +206,10 @@ function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "so
     source.includes("mis.twse.com.tw")
   ) {
     return "櫃買中心 / MIS";
+  }
+  // Yahoo 奇摩股市（台股來源）優先於一般 Yahoo
+  if (isTaiwanYahooStockSource(quote.sourceUrl) || source.includes("tw.stock.yahoo.com")) {
+    return "Yahoo 奇摩";
   }
   if (source.includes("yahoo") || quote.provider === "yahoo") return "Yahoo";
   if (quote.provider === "taifex" || source.includes("taifex.com.tw")) return "期交所";
@@ -2113,7 +2119,7 @@ function FengbroFinanceSection({
               <p className="mt-1 text-xs text-muted-foreground">
                 {isEditingCustom
                   ? "修改代稱、代號／網址、來源或分類後按「儲存」。也可按「取消編輯」放棄變更。"
-                  : "可貼上 Yahoo / CNBC 報價網址並填代稱；也可直接輸入代號（如 INTC、2330.TW、5274.TWO、.SOX）。網址會自動辨識來源與建議分類。已新增的標的可點「編輯」修改。"}
+                  : "可貼上 Yahoo / Yahoo 奇摩股市 / CNBC 報價網址並填代稱；也可直接輸入代號（如 INTC、2330.TW、5274.TWO、.SOX）。tw.stock.yahoo.com 會自動辨識為台股來源。已新增的標的可點「編輯」修改。"}
               </p>
             </div>
             <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
@@ -2141,15 +2147,21 @@ function FengbroFinanceSection({
                         ...customDraft,
                         urlOrSymbol,
                         provider: parsed.provider,
-                        group: guessFinanceGroup(parsed.symbol),
+                        group: guessFinanceGroup(parsed.symbol, {
+                          sourceUrl: parsed.sourceUrl,
+                          marketHint: parsed.marketHint,
+                        }),
                       });
                       return;
                     }
                     if (parsed && !isFinanceQuoteUrl(urlOrSymbol)) {
+                      const bareGroup = guessFinanceGroup(parsed.symbol);
                       onCustomDraftChange({
                         ...customDraft,
                         urlOrSymbol,
                         provider: parsed.provider,
+                        // 代號含 .TW / .TWO 等明確後綴時建議台股等分類
+                        ...(bareGroup !== "us-stocks" ? { group: bareGroup } : {}),
                       });
                       return;
                     }
@@ -2158,7 +2170,7 @@ function FengbroFinanceSection({
                   onKeyDown={(event) => {
                     if (event.key === "Enter") onSaveCustomInstrument();
                   }}
-                  placeholder="https://finance.yahoo.com/quote/5274.TWO 或 5274.TWO"
+                  placeholder="https://tw.stock.yahoo.com/quote/2412.TW 或 2330.TW"
                   className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
               </label>
@@ -2181,7 +2193,9 @@ function FengbroFinanceSection({
                   className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   <option value="cnbc">CNBC</option>
-                  <option value="yahoo">Yahoo</option>
+                  <option value="yahoo">
+                    {isTaiwanYahooStockSource(customDraft.urlOrSymbol) ? "Yahoo 奇摩（台股）" : "Yahoo"}
+                  </option>
                 </select>
               </label>
               <label className="space-y-1.5 text-sm">
@@ -2218,13 +2232,24 @@ function FengbroFinanceSection({
             {(() => {
               const preview = parseFinanceQuoteInput(customDraft.urlOrSymbol);
               if (!preview) return null;
+              const sourceName = getFinanceProviderDisplayName(preview);
+              const suggestedGroup = guessFinanceGroup(preview.symbol, {
+                sourceUrl: preview.sourceUrl,
+                marketHint: preview.marketHint,
+              });
+              const isTwSource =
+                preview.marketHint === "tw" ||
+                isTaiwanYahooStockSource(preview.sourceUrl) ||
+                suggestedGroup === "tw" ||
+                suggestedGroup === "tw-stocks";
               return (
                 <p className="mt-2 text-xs text-emerald-800/90">
                   {isEditingCustom ? "將更新為：" : "將新增："}
                   <span className="font-semibold">{customDraft.name.trim() || preview.symbol}</span>
                   {" · "}
-                  {preview.provider.toUpperCase()}: {preview.symbol}
+                  {sourceName}: {preview.symbol}
                   {preview.fromUrl ? "（由網址辨識）" : ""}
+                  {isTwSource ? " · 台股來源" : ""}
                 </p>
               );
             })()}

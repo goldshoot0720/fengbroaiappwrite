@@ -55,12 +55,45 @@ export type ParsedFinanceQuoteInput = {
   /** True when the original input looked like a URL (provider taken from host). */
   fromUrl: boolean;
   sourceUrl?: string;
+  /**
+   * Host-based market hint when the URL itself implies a market
+   * (e.g. tw.stock.yahoo.com → Taiwan Yahoo 奇摩股市).
+   */
+  marketHint?: "tw";
 };
 
 const BARE_SYMBOL_RE = /^[A-Z0-9.^@=_\-+%]{1,32}$/i;
 
+/** Yahoo 奇摩股市 (Taiwan Yahoo Finance) host. */
+const TAIWAN_YAHOO_STOCK_HOST = "tw.stock.yahoo.com";
+
 function ensureHttps(input: string) {
   return /^https?:\/\//i.test(input) ? input : `https://${input}`;
+}
+
+function hostnameFromInput(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+  try {
+    if (/^https?:\/\//i.test(trimmed) || trimmed.includes("/")) {
+      return new URL(ensureHttps(trimmed)).hostname.replace(/^www\./i, "").toLowerCase();
+    }
+  } catch {
+    // fall through
+  }
+  return trimmed.replace(/^www\./i, "").toLowerCase();
+}
+
+/**
+ * True when the URL/host is Taiwan Yahoo 奇摩股市 (tw.stock.yahoo.com).
+ * Used for 台股來源自動辨識.
+ */
+export function isTaiwanYahooStockSource(input?: string | null): boolean {
+  if (!input) return false;
+  const host = hostnameFromInput(input);
+  if (host === TAIWAN_YAHOO_STOCK_HOST) return true;
+  // Bare hostname fragments / partial paste
+  return /(^|\.)tw\.stock\.yahoo\.com$/i.test(host) || /tw\.stock\.yahoo\.com/i.test(input);
 }
 
 /** True if the string looks like a finance quote page URL (not a bare ticker). */
@@ -111,9 +144,10 @@ export function parseFinanceQuoteInput(input: string): ParsedFinanceQuoteInput |
       const url = new URL(ensureHttps(trimmed));
       const host = url.hostname.replace(/^www\./i, "").toLowerCase();
 
+      const isTaiwanYahoo = host === TAIWAN_YAHOO_STOCK_HOST;
       const isYahoo =
         host === "finance.yahoo.com" ||
-        host === "tw.stock.yahoo.com" ||
+        isTaiwanYahoo ||
         (host.endsWith(".yahoo.com") && /\/quote\//i.test(url.pathname));
       if (isYahoo) {
         const symbol = extractYahooSymbol(url.pathname);
@@ -123,6 +157,8 @@ export function parseFinanceQuoteInput(input: string): ParsedFinanceQuoteInput |
           provider: "yahoo",
           fromUrl: true,
           sourceUrl: url.toString(),
+          // Yahoo 奇摩股市 → 台股來源自動辨識
+          ...(isTaiwanYahoo ? { marketHint: "tw" as const } : {}),
         };
       }
 
@@ -163,10 +199,31 @@ export function getCustomFinanceInstrumentKey(
   return `${instrument.provider}|${instrument.symbol.trim().toUpperCase()}`;
 }
 
-/** Best-effort group guess from ticker shape (user can still override in the form). */
-export function guessFinanceGroup(symbol: string): FinanceCustomGroup {
+export type GuessFinanceGroupOptions = {
+  /** Quote page URL; tw.stock.yahoo.com forces Taiwan market groups. */
+  sourceUrl?: string;
+  /** From parseFinanceQuoteInput when host is Yahoo 奇摩股市. */
+  marketHint?: "tw";
+};
+
+/**
+ * Best-effort group guess from ticker shape and optional source host
+ * (user can still override in the form).
+ *
+ * Taiwan Yahoo 奇摩股市 (`tw.stock.yahoo.com`) is treated as a 台股 source:
+ * index-like tickers → `tw`, otherwise → `tw-stocks`.
+ */
+export function guessFinanceGroup(
+  symbol: string,
+  options?: GuessFinanceGroupOptions
+): FinanceCustomGroup {
   const s = symbol.trim().toUpperCase();
-  if (!s) return "us-stocks";
+  const fromTaiwanYahoo =
+    options?.marketHint === "tw" || isTaiwanYahooStockSource(options?.sourceUrl);
+
+  if (!s) {
+    return fromTaiwanYahoo ? "tw-stocks" : "us-stocks";
+  }
 
   if (s === "^TWII" || s === ".TWII") return "tw";
   // TWSE (.TW) and TPEx / 櫃買 (.TWO) — e.g. 2330.TW, 5274.TWO
@@ -178,8 +235,30 @@ export function guessFinanceGroup(symbol: string): FinanceCustomGroup {
   if (/=X$/i.test(s)) return "fx";
   if (/BTC|ETH|CRYPTO/i.test(s)) return "crypto";
   if (s.startsWith("@") || /=(F)$/i.test(s) || s.endsWith("=F")) return "commodities";
+
+  // Host is Yahoo 奇摩股市 → 台股來源自動辨識 even without .TW/.TWO suffix
+  if (fromTaiwanYahoo) {
+    // Index-style symbols on the TW site (e.g. ^TWII already handled; other ^/. → 台股指數)
+    if (s.startsWith("^") || s.startsWith(".")) return "tw";
+    return "tw-stocks";
+  }
+
   if (s.startsWith(".") || s.startsWith("^")) return "us";
   return "us-stocks";
+}
+
+/** Display name for finance quote source (Yahoo 奇摩 vs global Yahoo, etc.). */
+export function getFinanceProviderDisplayName(
+  input: Pick<ParsedFinanceQuoteInput, "provider" | "sourceUrl" | "marketHint"> & {
+    provider?: string;
+  }
+): string {
+  if (input.marketHint === "tw" || isTaiwanYahooStockSource(input.sourceUrl)) {
+    return "Yahoo 奇摩";
+  }
+  if (input.provider === "yahoo") return "Yahoo";
+  if (input.provider === "cnbc") return "CNBC";
+  return (input.provider || "Unknown").toUpperCase();
 }
 
 /** Load an existing custom instrument into the add/edit draft form. */
@@ -229,7 +308,10 @@ export function buildCustomFinanceInstrumentFromDraft(
 
   const group = FINANCE_CUSTOM_GROUPS.includes(draft.group)
     ? draft.group
-    : guessFinanceGroup(parsed.symbol);
+    : guessFinanceGroup(parsed.symbol, {
+        sourceUrl: parsed.sourceUrl,
+        marketHint: parsed.marketHint,
+      });
 
   return normalizeCustomFinanceInstrument({
     name: draft.name,
