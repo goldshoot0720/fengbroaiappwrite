@@ -6,12 +6,10 @@ const topLevelMenus = [
   /鋒兄儀表/,
   /鋒兄訂閱/,
   /鋒兄食品/,
-  /鋒兄筆記/,
   /鋒兄常用/,
   /鋒兄圖片/,
   /鋒兄影片/,
   /鋒兄音樂/,
-  /鋒兄文件/,
   /鋒兄播客/,
   /鋒兄銀行/,
   /鋒兄例行/,
@@ -19,7 +17,8 @@ const topLevelMenus = [
   /鋒兄關於/,
 ];
 
-// 鋒兄工具子選單（上方選單改為直接平鋪顯示）
+// 鋒兄筆記/文件、鋒兄工具子選單（上方選單改為直接平鋪顯示）
+const notesDocsChildren = [/鋒兄筆記/, /鋒兄文件/];
 const toolsChildren = [/鋒兄比價/, /手機比價/, /鋒兄Tube/, /鋒兄金融/, /鋒兄新聞/, /圖片語音影片/];
 
 async function getDesktopTopNav(page) {
@@ -61,10 +60,10 @@ test("desktop top menu smoke test", async ({ page }) => {
     await expect(page.locator("main")).toBeVisible();
   }
 
-  // 工具子項目在上方選單直接顯示（無需再展開）
-  for (const label of toolsChildren) {
+  // 筆記/文件、工具子項目在上方選單直接顯示（無需再展開）
+  for (const label of [...notesDocsChildren, ...toolsChildren]) {
     const button = topNav.getByRole("button", { name: label }).first();
-    await expect(button, `工具子選單應可見: ${label}`).toBeVisible({ timeout: 10000 });
+    await expect(button, `子選單應可見: ${label}`).toBeVisible({ timeout: 10000 });
     await button.scrollIntoViewIfNeeded();
     await button.click();
     await page.waitForTimeout(450);
