@@ -307,6 +307,36 @@ export function buildYahooQuoteSourceUrl(
   return `https://finance.yahoo.com/quote/${encoded}`;
 }
 
+/**
+ * Parse Yahoo 奇摩股市 HTML `<title>` into short display name.
+ * e.g. "川湖(2059.TW) 走勢圖 - Yahoo股市" → { name: "川湖", symbol: "2059.TW" }
+ *      "加權指數(^TWII) 走勢圖 - Yahoo股市" → { name: "加權指數", symbol: "^TWII" }
+ */
+export function parseTaiwanYahooQuotePageTitle(
+  title: string
+): { name: string; symbol: string } | null {
+  const cleaned = title.replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+
+  const match = cleaned.match(/^(.+?)\(([^)]+)\)/);
+  if (!match?.[1] || !match[2]) return null;
+
+  const name = match[1].trim();
+  let symbol = match[2].trim();
+  try {
+    symbol = decodeURIComponent(symbol);
+  } catch {
+    // keep raw
+  }
+  symbol = symbol.toUpperCase();
+
+  if (!name || !symbol || name.length > 40 || symbol.length > 32) return null;
+  // Ignore generic shell titles
+  if (/^yahoo/i.test(name) || /走勢圖/.test(name)) return null;
+
+  return { name, symbol };
+}
+
 /** Public quote-page URL for a CNBC symbol. */
 export function buildCnbcQuoteSourceUrl(symbol: string): string {
   return `https://www.cnbc.com/quotes/${encodeURIComponent(symbol.trim())}`;

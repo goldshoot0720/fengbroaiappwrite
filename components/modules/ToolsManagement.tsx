@@ -1962,6 +1962,69 @@ function FengbroFinanceSection({
   const isEditingCustom = Boolean(editingCustomKey);
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  /** Last name we auto-filled from resolve-name (so we can replace it when the symbol changes). */
+  const autofilledNameRef = useRef<string>("");
+  const customDraftRef = useRef(customDraft);
+  customDraftRef.current = customDraft;
+
+  // 代稱預設：貼上 tw.stock.yahoo.com/quote/2059.TW 等時自動帶入「川湖」
+  useEffect(() => {
+    const parsed = parseFinanceQuoteInput(customDraft.urlOrSymbol);
+    if (!parsed) return;
+
+    const currentName = customDraft.name.trim();
+    const canAutofill =
+      !currentName ||
+      currentName === parsed.symbol ||
+      currentName === autofilledNameRef.current;
+    if (!canAutofill) return;
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({
+          symbol: parsed.symbol,
+          provider: parsed.provider,
+        });
+        if (parsed.sourceUrl) params.set("url", parsed.sourceUrl);
+        const response = await fetch(`/api/fengbro-finance/resolve-name?${params.toString()}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as { name?: string };
+        const resolved = typeof data.name === "string" ? data.name.trim() : "";
+        if (!resolved || resolved === parsed.symbol) return;
+
+        const latest = customDraftRef.current;
+        const latestParsed = parseFinanceQuoteInput(latest.urlOrSymbol);
+        if (!latestParsed || latestParsed.symbol !== parsed.symbol) return;
+
+        const latestName = latest.name.trim();
+        const stillCanAutofill =
+          !latestName ||
+          latestName === parsed.symbol ||
+          latestName === autofilledNameRef.current;
+        if (!stillCanAutofill) return;
+
+        autofilledNameRef.current = resolved;
+        onCustomDraftChange({
+          ...latest,
+          name: resolved.slice(0, 80),
+        });
+      } catch {
+        // Abort or network — leave 代稱 empty / symbol fallback
+      }
+    }, 350);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+    // Only re-resolve when URL/symbol input changes (not on every name keystroke).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: name gate uses draft snapshot + ref
+  }, [customDraft.urlOrSymbol]);
+
   const groupedQuotes = useMemo(() => {
     // 精選焦點 → 亞洲指數 → 韓股 → 亞股 → 美股指數 → 美股 → 台股指數 → 台股 → 估值指標 → 匯率 → 利率 → 商品 → 加密貨幣
     const order: FengbroFinanceQuote["group"][] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "valuation", "fx", "rates", "commodities", "crypto"];
