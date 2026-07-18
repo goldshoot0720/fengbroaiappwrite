@@ -754,7 +754,7 @@ export default function BankManagement() {
         description="資產總覽、帳戶工作台與異常整理入口都集中在同一頁，先找得到，再快速更新餘額與資訊。"
         intro={
           <SectionHeader
-            title="鋒兄銀行 (+電子票證)"
+            title="鋒兄銀行（＋電子票證）"
             subtitle={`所有資產 ${formatCurrency(allAssetTotal)}，銀行 ${formatCurrency(taiwanBankAssetTotal)}，電子票證 ${formatCurrency(electronicTicketAssetTotal)}`}
             showAccountLabel={true}
             action={

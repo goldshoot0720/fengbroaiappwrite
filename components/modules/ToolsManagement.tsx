@@ -239,14 +239,14 @@ type DefaultFinanceInstrumentSummary = {
 };
 
 /** 上方選單「鋒兄工具」— 僅此分頁群組，不混入子工具 */
-const PRIMARY_TOOL_TABS: { id: ToolsTab; label: string }[] = [
-  { id: "price-compare", label: "鋒兄比價 (+比價紀錄)" },
+const PRIMARY_TOOL_TABS: { id: ToolsTab; label: string; subtitle?: string }[] = [
+  { id: "price-compare", label: "鋒兄比價", subtitle: "(＋比價紀錄)" },
   { id: "landtop", label: "手機比價" },
   { id: "image-voice-video", label: "圖片 + 語音 = 影片" },
 ];
 
 /** 上方選單「鋒兄子工具」— 獨立群組，不出現在鋒兄工具頁分頁列 */
-const SUB_TOOL_TABS: { id: ToolsTab; label: string }[] = [
+const SUB_TOOL_TABS: { id: ToolsTab; label: string; subtitle?: string }[] = [
   { id: "fengbro-tube", label: "鋒兄Tube" },
   { id: "fengbro-finance", label: "\u92d2\u5144\u91d1\u878d" },
   { id: "fengbro-news", label: "鋒兄新聞" },
@@ -3357,17 +3357,34 @@ export default function ToolsManagement({
       <DataCard className="space-y-2 p-2.5 sm:space-y-3 sm:p-4">
         {/* 主工具分頁：手機優先橫向捲動 */}
         <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:thin]">
-          {toolGroup.tabs.map((tab) => (
-            <Button
-              key={tab.id}
-              variant={activeTab === tab.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => selectTab(tab.id)}
-              className="h-8 shrink-0 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm"
-            >
-              {tab.label}
-            </Button>
-          ))}
+          {toolGroup.tabs.map((tab) => {
+            const hasSubtitle = Boolean(tab.subtitle);
+            return (
+              <Button
+                key={tab.id}
+                variant={activeTab === tab.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => selectTab(tab.id)}
+                title={hasSubtitle ? `${tab.label} ${tab.subtitle}` : tab.label}
+                className={
+                  hasSubtitle
+                    ? "h-auto min-h-9 shrink-0 flex-col items-start gap-0 px-2.5 py-1 text-left sm:min-h-10 sm:px-3"
+                    : "h-8 shrink-0 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm"
+                }
+              >
+                {hasSubtitle ? (
+                  <span className="flex flex-col items-start leading-tight">
+                    <span className="text-xs font-medium sm:text-sm">{tab.label}</span>
+                    <span className="text-[10px] font-normal opacity-80 sm:text-[11px]">
+                      {tab.subtitle}
+                    </span>
+                  </span>
+                ) : (
+                  tab.label
+                )}
+              </Button>
+            );
+          })}
         </div>
 
         {/* 鋒兄子工具：盡量小、由左至右，僅在鋒兄工具頁顯示 */}
