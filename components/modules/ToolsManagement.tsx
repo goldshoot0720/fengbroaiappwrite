@@ -238,14 +238,40 @@ type DefaultFinanceInstrumentSummary = {
   group: FengbroFinanceQuote["group"];
 };
 
-const TOOL_TABS: { id: ToolsTab; label: string }[] = [
+/** 上方選單「鋒兄工具」— 僅此分頁群組，不混入子工具 */
+const PRIMARY_TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "price-compare", label: "鋒兄比價" },
   { id: "landtop", label: "手機比價" },
+  { id: "image-voice-video", label: "圖片語音影片" },
+];
+
+/** 上方選單「鋒兄子工具」— 獨立群組，不出現在鋒兄工具頁分頁列 */
+const SUB_TOOL_TABS: { id: ToolsTab; label: string }[] = [
   { id: "fengbro-tube", label: "鋒兄Tube" },
   { id: "fengbro-finance", label: "\u92d2\u5144\u91d1\u878d" },
   { id: "fengbro-news", label: "鋒兄新聞" },
-  { id: "image-voice-video", label: "圖片語音影片" },
 ];
+
+const SUB_TOOL_TAB_IDS = new Set<ToolsTab>(SUB_TOOL_TABS.map((tab) => tab.id));
+
+function isSubToolTab(tab: ToolsTab): boolean {
+  return SUB_TOOL_TAB_IDS.has(tab);
+}
+
+function getToolGroupMeta(tab: ToolsTab) {
+  if (isSubToolTab(tab)) {
+    return {
+      title: "鋒兄子工具",
+      description: "內容與資訊子工具：Tube、金融報價、新聞焦點。請由上方選單切換群組。",
+      tabs: SUB_TOOL_TABS,
+    };
+  }
+  return {
+    title: "鋒兄工具",
+    description: "實用工具：比價、手機比價、圖片語音影片。子工具請由上方選單進入。",
+    tabs: PRIMARY_TOOL_TABS,
+  };
+}
 
 function getPlatformInfo(url?: string, title?: string, source?: string) {
   const combined = `${url} ${title} ${source}`.toLowerCase();
@@ -3309,13 +3335,15 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
     }
   };
 
+  const toolGroup = getToolGroupMeta(activeTab);
+
   return (
     <section className="space-y-6">
-      <PageTitle title="鋒兄工具" description="工具模組集中入口：比價、Tube、金融、新聞、圖片語音影片。" />
+      <PageTitle title={toolGroup.title} description={toolGroup.description} />
 
       <DataCard className="p-4">
         <div className="flex flex-wrap items-center gap-2">
-          {TOOL_TABS.map((tab) => (
+          {toolGroup.tabs.map((tab) => (
             <Button
               key={tab.id}
               variant={activeTab === tab.id ? "default" : "outline"}

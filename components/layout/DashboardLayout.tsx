@@ -366,6 +366,15 @@ function DesktopTopNav({
   onMenuClick: (item: MenuItem) => void;
 }) {
   const groups = useMemo(() => buildTopNavGroups(menuItems), [menuItems]);
+  const mainGroup = groups.find((group) => group.id === "main");
+  const toolsRowGroups = groups.filter((group) =>
+    (TOP_NAV_SECOND_ROW_GROUP_IDS as readonly string[]).includes(group.id)
+  );
+  const otherGroups = groups.filter(
+    (group) =>
+      group.id !== "main" &&
+      !(TOP_NAV_SECOND_ROW_GROUP_IDS as readonly string[]).includes(group.id)
+  );
 
   return (
     <header
@@ -398,62 +407,117 @@ function DesktopTopNav({
         </div>
 
         <nav aria-label="主要選單" className="space-y-2.5">
-          {groups.map((group) => (
-            <div key={group.id} className="space-y-1.5">
-              {group.showLabel ? (
-                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-                  {group.label}
-                </p>
-              ) : null}
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 2xl:grid-cols-10">
-                {group.items.map((item) => {
-                  const isActive = currentModule === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      title={item.label.replace(/\n/g, " ")}
-                      onClick={() => onMenuClick(item)}
-                      aria-current={isActive ? "page" : undefined}
-                      className={cn(
-                        "flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-[20px] border px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97]",
-                        isActive
-                          ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_12px_28px_rgba(199,149,65,0.22)]"
-                          : "border-[var(--line-soft)] bg-white/55 text-[var(--muted-foreground)] hover:border-[var(--line-strong)] hover:bg-white/80 hover:text-[var(--foreground)] dark:bg-white/5 dark:hover:bg-white/10"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex size-8 items-center justify-center rounded-xl border transition-colors",
-                          isActive
-                            ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
-                            : "border-[var(--line-soft)] bg-white/80 text-[var(--foreground)] dark:bg-white/5"
-                        )}
-                      >
-                        {item.icon}
-                      </span>
-                      <span className="line-clamp-2 w-full whitespace-pre-line text-[11px] font-medium leading-4">
-                        {item.label}
-                      </span>
-                      {item.subtitle ? (
-                        <span
-                          className={cn(
-                            "line-clamp-1 w-full text-[9px] leading-3",
-                            isActive ? "text-[var(--accent-foreground)]/75" : "text-[var(--muted-foreground)]/80"
-                          )}
-                        >
-                          {item.subtitle}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
+          {mainGroup ? (
+            <TopNavGroupBlock
+              currentModule={currentModule}
+              group={mainGroup}
+              onMenuClick={onMenuClick}
+            />
+          ) : null}
+
+          {/* 第二列：鋒兄工具 + 鋒兄子工具（獨立上方選單，非工具頁內分頁） */}
+          {toolsRowGroups.length > 0 ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {toolsRowGroups.map((group) => (
+                <div
+                  key={group.id}
+                  className="rounded-2xl border border-[var(--line-soft)] bg-white/40 p-2.5 dark:bg-white/[0.03]"
+                >
+                  <TopNavGroupBlock
+                    compact
+                    currentModule={currentModule}
+                    group={group}
+                    onMenuClick={onMenuClick}
+                  />
+                </div>
+              ))}
             </div>
+          ) : null}
+
+          {otherGroups.map((group) => (
+            <TopNavGroupBlock
+              key={group.id}
+              currentModule={currentModule}
+              group={group}
+              onMenuClick={onMenuClick}
+            />
           ))}
         </nav>
       </div>
     </header>
+  );
+}
+
+function TopNavGroupBlock({
+  compact = false,
+  currentModule,
+  group,
+  onMenuClick,
+}: {
+  compact?: boolean;
+  currentModule: string;
+  group: TopNavGroup;
+  onMenuClick: (item: MenuItem) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      {group.showLabel ? (
+        <p className="px-1 text-[11px] font-semibold tracking-[0.08em] text-[var(--muted-foreground)]">
+          {group.label}
+        </p>
+      ) : null}
+      <div
+        className={cn(
+          "grid gap-1.5",
+          compact
+            ? "grid-cols-3"
+            : "grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 2xl:grid-cols-10"
+        )}
+      >
+        {group.items.map((item) => {
+          const isActive = currentModule === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              title={item.label.replace(/\n/g, " ")}
+              onClick={() => onMenuClick(item)}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-[20px] border px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97]",
+                isActive
+                  ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_12px_28px_rgba(199,149,65,0.22)]"
+                  : "border-[var(--line-soft)] bg-white/55 text-[var(--muted-foreground)] hover:border-[var(--line-strong)] hover:bg-white/80 hover:text-[var(--foreground)] dark:bg-white/5 dark:hover:bg-white/10"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-xl border transition-colors",
+                  isActive
+                    ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
+                    : "border-[var(--line-soft)] bg-white/80 text-[var(--foreground)] dark:bg-white/5"
+                )}
+              >
+                {item.icon}
+              </span>
+              <span className="line-clamp-2 w-full whitespace-pre-line text-[11px] font-medium leading-4">
+                {item.label}
+              </span>
+              {item.subtitle ? (
+                <span
+                  className={cn(
+                    "line-clamp-1 w-full text-[9px] leading-3",
+                    isActive ? "text-[var(--accent-foreground)]/75" : "text-[var(--muted-foreground)]/80"
+                  )}
+                >
+                  {item.subtitle}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
