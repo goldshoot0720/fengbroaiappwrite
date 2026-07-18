@@ -277,7 +277,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
 
         <footer className="mt-10 border-t border-[var(--line-soft)] pt-6 pb-2 text-center">
           <p className="text-sm text-muted-foreground tracking-wide">
-            鋒兄 © 2026-2027 fengbroprinfo
+            鋒兄 © 2026-2027 FengBroAI Appwrite
           </p>
           <p className="mt-2 text-xs text-muted-foreground/80">
             上次更新日期 {codebaseStats.snapshotDate}
