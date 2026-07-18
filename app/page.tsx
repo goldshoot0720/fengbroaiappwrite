@@ -120,10 +120,17 @@ const MENU_ITEMS: MenuItem[] = [
     children: [
       { id: "price-compare", label: "鋒兄比價", icon: <Wrench size={18} /> },
       { id: "landtop", label: "手機比價", icon: <Smartphone size={18} /> },
+      { id: "image-voice-video", label: "圖片語音影片", subtitle: "圖+聲=影", icon: <Clapperboard size={18} /> },
+    ],
+  },
+  {
+    id: "sub-tools",
+    label: "鋒兄子工具",
+    icon: <Newspaper size={18} />,
+    children: [
       { id: "fengbro-tube", label: "鋒兄Tube", icon: <Play size={18} /> },
       { id: "fengbro-finance", label: "鋒兄金融", subtitle: "CNBC 報價", icon: <Landmark size={18} /> },
       { id: "fengbro-news", label: "鋒兄新聞", subtitle: "鎖定網站焦點", icon: <Newspaper size={18} /> },
-      { id: "image-voice-video", label: "圖片語音影片", subtitle: "圖+聲=影", icon: <Clapperboard size={18} /> },
     ],
   },
   { id: "settings", label: "鋒兄設定", icon: <Settings size={18} /> },

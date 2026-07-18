@@ -626,7 +626,10 @@ type TopNavGroup = {
   items: MenuItem[];
 };
 
-/** Build top-nav groups: leaf modules first, then each parent with children as its own multi-row block. */
+/** Preferred second-row tool groups (desktop top nav order after main). */
+const TOP_NAV_SECOND_ROW_GROUP_IDS = ["tools", "sub-tools"] as const;
+
+/** Build top-nav groups: main leaves first, then 鋒兄工具 / 鋒兄子工具, then other nested groups. */
 function buildTopNavGroups(items: MenuItem[]): TopNavGroup[] {
   const rootLeaves: MenuItem[] = [];
   const childGroups: TopNavGroup[] = [];
@@ -644,6 +647,12 @@ function buildTopNavGroups(items: MenuItem[]): TopNavGroup[] {
     }
   }
 
+  const secondRowIds = new Set<string>(TOP_NAV_SECOND_ROW_GROUP_IDS);
+  const secondRowGroups = TOP_NAV_SECOND_ROW_GROUP_IDS.map((id) =>
+    childGroups.find((group) => group.id === id)
+  ).filter(Boolean) as TopNavGroup[];
+  const otherChildGroups = childGroups.filter((group) => !secondRowIds.has(group.id));
+
   const groups: TopNavGroup[] = [];
   if (rootLeaves.length) {
     groups.push({
@@ -653,7 +662,9 @@ function buildTopNavGroups(items: MenuItem[]): TopNavGroup[] {
       items: rootLeaves,
     });
   }
-  groups.push(...childGroups);
+  // Second row block: 鋒兄工具 + 鋒兄子工具
+  groups.push(...secondRowGroups);
+  groups.push(...otherChildGroups);
   return groups;
 }
 
