@@ -9,8 +9,6 @@ const topLevelMenus = [
   /鋒兄常用/,
   /鋒兄圖片/,
   /鋒兄影片/,
-  /鋒兄音樂/,
-  /鋒兄播客/,
   /鋒兄銀行/,
   /鋒兄例行/,
   /鋒兄設定/,
@@ -19,6 +17,7 @@ const topLevelMenus = [
 
 // 分組子選單（上方選單改為直接平鋪顯示）
 const notesDocsChildren = [/鋒兄筆記/, /鋒兄文件/];
+const musicPodcastChildren = [/鋒兄音樂/, /鋒兄播客/];
 // 第二列：鋒兄工具 + 鋒兄子工具
 const toolsChildren = [/鋒兄比價/, /手機比價/, /圖片語音影片/];
 const subToolsChildren = [/鋒兄Tube/, /鋒兄金融/, /鋒兄新聞/];
@@ -62,8 +61,13 @@ test("desktop top menu smoke test", async ({ page }) => {
     await expect(page.locator("main")).toBeVisible();
   }
 
-  // 第二列工具／子工具、筆記/文件 在上方選單直接顯示（無需再展開）
-  for (const label of [...toolsChildren, ...subToolsChildren, ...notesDocsChildren]) {
+  // 分組子項目在上方選單直接顯示（無需再展開）
+  for (const label of [
+    ...toolsChildren,
+    ...subToolsChildren,
+    ...notesDocsChildren,
+    ...musicPodcastChildren,
+  ]) {
     const button = topNav.getByRole("button", { name: label }).first();
     await expect(button, `子選單應可見: ${label}`).toBeVisible({ timeout: 10000 });
     await button.scrollIntoViewIfNeeded();

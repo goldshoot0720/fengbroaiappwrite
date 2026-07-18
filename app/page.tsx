@@ -108,8 +108,15 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "common", label: "鋒兄常用", icon: <Star size={18} /> },
   { id: "images", label: "鋒兄圖片", icon: <ImageIcon size={18} /> },
   { id: "videos", label: "鋒兄影片", icon: <Play size={18} /> },
-  { id: "music", label: "鋒兄音樂", icon: <Music size={18} /> },
-  { id: "podcast", label: "鋒兄播客", icon: <Podcast size={18} /> },
+  {
+    id: "music-podcast",
+    label: "鋒兄音樂/播客",
+    icon: <Music size={18} />,
+    children: [
+      { id: "music", label: "鋒兄音樂", icon: <Music size={18} /> },
+      { id: "podcast", label: "鋒兄播客", icon: <Podcast size={18} /> },
+    ],
+  },
   { id: "bank-stats", label: "鋒兄銀行\n(+電子票證)", icon: <Building2 size={18} /> },
   { id: "routine", label: "鋒兄例行", icon: <CalendarClock size={18} /> },
   {
