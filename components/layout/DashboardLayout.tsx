@@ -191,9 +191,15 @@ export default function DashboardLayout({
         />
       </div>
 
+      {/*
+        Voice FAB stacks above the open mobile drawer (z-voice > z-drawer-open).
+        While the drawer is open: hide + inert so labels like「鋒兄金融」are not covered
+        and docks cannot steal taps (KD-16).
+      */}
       <div
-        className={cn(isSidebarOpen && isMobile && "pointer-events-none")}
+        className={cn(isSidebarOpen && isMobile && "pointer-events-none hidden")}
         {...(isSidebarOpen && isMobile ? { inert: true as unknown as boolean } : {})}
+        aria-hidden={isSidebarOpen && isMobile ? true : undefined}
       >
         <MusicQueuePanel />
         <PodcastQueuePanel />
