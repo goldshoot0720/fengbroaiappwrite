@@ -6,7 +6,6 @@ import {
   Command,
   LayoutGrid,
   Menu,
-  Sparkles,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -396,34 +395,30 @@ function DesktopTopNav({
   return (
     <header
       id="desktop-top-nav"
-      className="relative z-10 hidden shrink-0 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 px-3 py-3 backdrop-blur-xl md:block md:px-4 xl:px-5"
+      className="relative z-10 hidden shrink-0 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 px-2 py-1 backdrop-blur-xl md:block md:px-3 xl:px-4"
     >
-      <div className="mx-auto w-full max-w-[1680px] space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <BrandBlock title={activeLabel} />
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-[18px] border border-[var(--line-strong)] bg-white/60 px-3 py-2 dark:bg-white/5">
-              <div className="flex shrink-0 items-center gap-1">
+      <div className="mx-auto w-full max-w-[1680px] space-y-1">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <BrandBlock compact title={activeLabel} />
+          <div className="flex flex-wrap items-center gap-1">
+            <div className="flex items-center gap-1 rounded-md border border-[var(--line-strong)] bg-white/60 px-1.5 py-0.5 dark:bg-white/5">
+              <div className="flex shrink-0 items-center gap-0.5">
                 <ThemeToggleCompact />
                 <DensityToggleCompact />
               </div>
-              <div className="min-w-0">
-                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+              <div className="min-w-0 leading-none">
+                <p className="whitespace-nowrap text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
                   Design Mode
                 </p>
-                <p className="text-xs font-medium text-[var(--foreground)]">Impeccable 2026~2027</p>
+                <p className="text-[10px] font-medium leading-tight text-[var(--foreground)]">
+                  Impeccable 2026~2027
+                </p>
               </div>
-            </div>
-            <div className="hidden items-center gap-2 rounded-[18px] border border-[var(--line-strong)] bg-[linear-gradient(145deg,rgba(199,149,65,0.14),rgba(199,149,65,0.04))] px-3 py-2 lg:flex dark:bg-[linear-gradient(145deg,rgba(199,149,65,0.12),rgba(255,255,255,0.03))]">
-              <Sparkles size={16} className="shrink-0 text-[var(--accent-strong)]" />
-              <p className="max-w-[220px] text-xs leading-4 text-[var(--muted-foreground)]">
-                Unified Household Workspace
-              </p>
             </div>
           </div>
         </div>
 
-        <nav aria-label="主要選單" className="space-y-2.5">
+        <nav aria-label="主要選單" className="space-y-1">
           {mainGroup ? (
             <TopNavGroupBlock
               currentModule={currentModule}
@@ -434,11 +429,11 @@ function DesktopTopNav({
 
           {/* 第二列：鋒兄工具 + 鋒兄子工具 */}
           {toolsRowGroups.length > 0 ? (
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-1 lg:grid-cols-2">
               {toolsRowGroups.map((group) => (
                 <div
                   key={group.id}
-                  className="rounded-2xl border border-[var(--line-soft)] bg-white/40 p-2.5 dark:bg-white/[0.03]"
+                  className="rounded-md border border-[var(--line-soft)] bg-white/40 px-1 py-0.5 dark:bg-white/[0.03]"
                 >
                   <TopNavGroupBlock
                     compact
@@ -453,11 +448,11 @@ function DesktopTopNav({
 
           {/* 同一列：鋒兄筆記/文件 · 鋒兄音樂/播客 · 鋒兄設定/關於 */}
           {comboRowGroups.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
               {comboRowGroups.map((group) => (
                 <div
                   key={group.id}
-                  className="rounded-2xl border border-[var(--line-soft)] bg-white/40 p-2.5 dark:bg-white/[0.03]"
+                  className="rounded-md border border-[var(--line-soft)] bg-white/40 px-1 py-0.5 dark:bg-white/[0.03]"
                 >
                   <TopNavGroupBlock
                     compact
@@ -500,20 +495,20 @@ function TopNavGroupBlock({
   onMenuClick: (item: MenuItem) => void;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-0.5">
       {group.showLabel ? (
-        <p className="px-1 text-[11px] font-semibold tracking-[0.08em] text-[var(--muted-foreground)]">
+        <p className="px-0.5 text-[9px] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
           {group.label}
         </p>
       ) : null}
       <div
         className={cn(
-          "grid gap-1.5",
+          "grid gap-0.5",
           compact
             ? columns === 2
               ? "grid-cols-2"
               : "grid-cols-3"
-            : "grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 2xl:grid-cols-10"
+            : "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-10"
         )}
       >
         {group.items.map((item) => {
@@ -526,35 +521,25 @@ function TopNavGroupBlock({
               onClick={() => onMenuClick(item)}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-[20px] border px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97]",
+                "flex min-h-7 items-center justify-center gap-1 rounded-md border px-1 py-0.5 text-center transition-colors duration-150 active:scale-[0.98]",
                 isActive
-                  ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_12px_28px_rgba(199,149,65,0.22)]"
+                  ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_2px_8px_rgba(199,149,65,0.18)]"
                   : "border-[var(--line-soft)] bg-white/55 text-[var(--muted-foreground)] hover:border-[var(--line-strong)] hover:bg-white/80 hover:text-[var(--foreground)] dark:bg-white/5 dark:hover:bg-white/10"
               )}
             >
               <span
                 className={cn(
-                  "flex size-8 items-center justify-center rounded-xl border transition-colors",
+                  "flex size-4 shrink-0 items-center justify-center [&_svg]:size-3",
                   isActive
-                    ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
-                    : "border-[var(--line-soft)] bg-white/80 text-[var(--foreground)] dark:bg-white/5"
+                    ? "text-[var(--accent-foreground)]"
+                    : "text-[var(--foreground)]"
                 )}
               >
                 {item.icon}
               </span>
-              <span className="line-clamp-2 w-full whitespace-pre-line text-[11px] font-medium leading-4">
+              <span className="line-clamp-1 min-w-0 flex-1 whitespace-pre-line text-left text-[10px] font-medium leading-3">
                 {item.label}
               </span>
-              {item.subtitle ? (
-                <span
-                  className={cn(
-                    "line-clamp-1 w-full text-[9px] leading-3",
-                    isActive ? "text-[var(--accent-foreground)]/75" : "text-[var(--muted-foreground)]/80"
-                  )}
-                >
-                  {item.subtitle}
-                </span>
-              ) : null}
             </button>
           );
         })}
@@ -677,15 +662,36 @@ function BrandBlock({
   title?: string;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex size-12 shrink-0 items-center justify-center rounded-[18px] bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_40px_rgba(199,149,65,0.22)]">
-        <Command size={compact ? 18 : 20} />
+    <div className="flex min-w-0 items-center gap-1.5">
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-center bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)]",
+          compact
+            ? "size-6 rounded-md shadow-[0_2px_8px_rgba(199,149,65,0.18)]"
+            : "size-12 rounded-[18px] shadow-[0_18px_40px_rgba(199,149,65,0.22)]"
+        )}
+      >
+        <Command size={compact ? 12 : 20} />
       </div>
-      <div className={cn("min-w-0", compact && "hidden")}>
-        <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
+      <div className="min-w-0">
+        <p
+          className={cn(
+            "uppercase text-[var(--muted-foreground)]",
+            compact
+              ? "text-[8px] tracking-[0.16em] leading-none"
+              : "text-[11px] tracking-[0.34em]"
+          )}
+        >
           FengBro
         </p>
-        <h1 className="truncate font-display text-xl font-semibold tracking-tight text-[var(--foreground)]">
+        <h1
+          className={cn(
+            "truncate font-semibold tracking-tight text-[var(--foreground)]",
+            compact
+              ? "text-xs font-medium leading-4"
+              : "font-display text-xl"
+          )}
+        >
           {title}
         </h1>
       </div>
