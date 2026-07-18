@@ -95,7 +95,12 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "home", label: "鋒兄首頁", icon: <Home size={18} /> },
   { id: "dashboard", label: "鋒兄儀表", icon: <BarChart3 size={18} /> },
   { id: "subscription", label: "鋒兄訂閱", icon: <CreditCard size={18} /> },
-  { id: "food", label: "鋒兄食品", subtitle: "（＋商品庫存）", icon: <Package size={18} /> },
+  {
+    id: "food",
+    label: "鋒兄食品",
+    subtitle: "（＋商品庫存）",
+    icon: <Package size={18} />,
+  },
   {
     id: "notes-docs",
     label: "鋒兄筆記/文件",
@@ -117,7 +122,7 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "podcast", label: "鋒兄播客", icon: <Podcast size={18} /> },
     ],
   },
-  { id: "bank-stats", label: "鋒兄銀行\n(+電子票證)", icon: <Building2 size={18} /> },
+  { id: "bank-stats", label: "鋒兄銀行", subtitle: "(+電子票證)", icon: <Building2 size={18} /> },
   { id: "routine", label: "鋒兄例行", icon: <CalendarClock size={18} /> },
   {
     id: "tools",
@@ -125,9 +130,9 @@ const MENU_ITEMS: MenuItem[] = [
     subtitle: "（＋比價）",
     icon: <Wrench size={18} />,
     children: [
-      { id: "price-compare", label: "鋒兄比價\n(比價紀錄)", icon: <Wrench size={18} /> },
+      { id: "price-compare", label: "鋒兄比價", subtitle: "+比價紀錄", icon: <Wrench size={18} /> },
       { id: "landtop", label: "手機比價", icon: <Smartphone size={18} /> },
-      { id: "image-voice-video", label: "圖片語音影片", subtitle: "圖+聲=影", icon: <Clapperboard size={18} /> },
+      { id: "image-voice-video", label: "圖片 + 語音 = 影片", icon: <Clapperboard size={18} /> },
     ],
   },
   {

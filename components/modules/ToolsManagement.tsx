@@ -240,9 +240,9 @@ type DefaultFinanceInstrumentSummary = {
 
 /** 上方選單「鋒兄工具」— 僅此分頁群組，不混入子工具 */
 const PRIMARY_TOOL_TABS: { id: ToolsTab; label: string }[] = [
-  { id: "price-compare", label: "鋒兄比價 (比價紀錄)" },
+  { id: "price-compare", label: "鋒兄比價 (+比價紀錄)" },
   { id: "landtop", label: "手機比價" },
-  { id: "image-voice-video", label: "圖片語音影片" },
+  { id: "image-voice-video", label: "圖片 + 語音 = 影片" },
 ];
 
 /** 上方選單「鋒兄子工具」— 獨立群組，不出現在鋒兄工具頁分頁列 */
@@ -268,7 +268,7 @@ function getToolGroupMeta(tab: ToolsTab) {
   }
   return {
     title: "鋒兄工具",
-    description: "實用工具：比價、手機比價、圖片語音影片。子工具可於本頁精簡列或上方選單進入。",
+    description: "實用工具：比價、手機比價、圖片 + 語音 = 影片。子工具可於本頁精簡列或上方選單進入。",
     tabs: PRIMARY_TOOL_TABS,
   };
 }

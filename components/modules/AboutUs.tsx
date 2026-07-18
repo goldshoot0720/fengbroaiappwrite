@@ -19,7 +19,7 @@ const MODULES = [
   { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與 15 個模組快速入口" },
   { num: 2, name: "鋒兄儀表", category: "總覽", desc: "跨模組統計、異常提醒與摘要卡" },
   { num: 3, name: "鋒兄訂閱", category: "生活", desc: "訂閱、扣款日、CSV 匯入匯出與 AI 整理提醒" },
-  { num: 4, name: "鋒兄食品", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
+  { num: 4, name: "鋒兄食品 （＋商品庫存）", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
   { num: 5, name: "鋒兄筆記", category: "知識", desc: "快速筆記、模板、AI 摘要與釘選工作台" },
   { num: 6, name: "鋒兄常用", category: "入口", desc: "常用站點、複製、置頂與最近使用控制台" },
   { num: 7, name: "鋒兄圖片", category: "媒體", desc: "圖片管理、標籤整理與工作台摘要" },

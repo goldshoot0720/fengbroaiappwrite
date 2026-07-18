@@ -1497,7 +1497,7 @@ export default function FoodManagement() {
       )}
 
       <FriendlyAiCrudShell
-        title="鋒兄食品（＋商品庫存）"
+        title="鋒兄食品 （＋商品庫存）"
         description="以目前 Appwrite `food` 表為準，集中管理食品、商品、有效期限、數量、圖片、商店與價格。上方先看臨期與庫存風險，下方再用同一張 CRUD 表格新增、編輯、複製、刪除。"
         searchPlaceholder="搜尋食品名稱、商店..."
         searchQuery={searchQuery}

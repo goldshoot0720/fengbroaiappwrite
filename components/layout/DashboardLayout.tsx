@@ -70,7 +70,7 @@ export default function DashboardLayout({
     [currentModule, menuItems]
   );
   const activeLabel = useMemo(
-    () => formatActiveModuleLabel(activeItem?.label, "控制台"),
+    () => formatActiveModuleLabel(activeItem, "控制台"),
     [activeItem]
   );
 
@@ -376,7 +376,7 @@ function DesktopTopNav({
   const groups = useMemo(() => buildTopNavGroups(menuItems), [menuItems]);
   const activeLabel = useMemo(() => {
     const item = findMenuItem(menuItems, currentModule);
-    return formatActiveModuleLabel(item?.label, "控制台");
+    return formatActiveModuleLabel(item, "控制台");
   }, [currentModule, menuItems]);
   const mainGroup = groups.find((group) => group.id === "main");
   const toolsRowGroups = groups.filter((group) =>
@@ -513,15 +513,17 @@ function TopNavGroupBlock({
       >
         {group.items.map((item) => {
           const isActive = currentModule === item.id;
+          const { primary, secondary } = splitMenuLabel(item);
           return (
             <button
               key={item.id}
               type="button"
-              title={item.label.replace(/\n/g, " ")}
+              title={formatActiveModuleLabel(item, primary)}
               onClick={() => onMenuClick(item)}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex min-h-7 items-center justify-center gap-1 rounded-md border px-1 py-0.5 text-center transition-colors duration-150 active:scale-[0.98]",
+                "flex items-center justify-center gap-1 rounded-md border px-1 py-0.5 text-center transition-colors duration-150 active:scale-[0.98]",
+                secondary ? "min-h-9" : "min-h-7",
                 isActive
                   ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_2px_8px_rgba(199,149,65,0.18)]"
                   : "border-[var(--line-soft)] bg-white/55 text-[var(--muted-foreground)] hover:border-[var(--line-strong)] hover:bg-white/80 hover:text-[var(--foreground)] dark:bg-white/5 dark:hover:bg-white/10"
@@ -537,8 +539,22 @@ function TopNavGroupBlock({
               >
                 {item.icon}
               </span>
-              <span className="line-clamp-1 min-w-0 flex-1 whitespace-pre-line text-left text-[10px] font-medium leading-3">
-                {item.label}
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block line-clamp-1 text-[10px] font-medium leading-3">
+                  {primary}
+                </span>
+                {secondary ? (
+                  <span
+                    className={cn(
+                      "block line-clamp-1 text-[9px] leading-3",
+                      isActive
+                        ? "text-[var(--accent-foreground)]/80"
+                        : "text-[var(--muted-foreground)]/85"
+                    )}
+                  >
+                    {secondary}
+                  </span>
+                ) : null}
               </span>
             </button>
           );
@@ -699,9 +715,23 @@ function BrandBlock({
   );
 }
 
+/** Primary title + optional second line (subtitle or `\n` in label). */
+function splitMenuLabel(item: MenuItem): { primary: string; secondary?: string } {
+  const lines = item.label
+    .split("\n")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const primary = lines[0] || item.label;
+  const fromLabel = lines.slice(1).join(" ").trim();
+  const secondary = item.subtitle?.trim() || fromLabel || undefined;
+  return { primary, secondary };
+}
+
 /** Single-line module title for shell chrome (top brand, mobile header, document title). */
-function formatActiveModuleLabel(label: string | undefined, fallback = "控制台") {
-  return (label ?? fallback).replace(/\n/g, " ").replace(/\s+/g, " ").trim() || fallback;
+function formatActiveModuleLabel(item: MenuItem | undefined, fallback = "控制台") {
+  if (!item?.label) return fallback;
+  const { primary, secondary } = splitMenuLabel(item);
+  return (secondary ? `${primary} ${secondary}` : primary).replace(/\s+/g, " ").trim() || fallback;
 }
 
 function shortModuleLabel(label: string) {
