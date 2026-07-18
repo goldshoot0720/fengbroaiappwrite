@@ -70,6 +70,15 @@ const DOC_GROUPS = [
 
 const RELEASE_ITEMS = [
   {
+    date: "2026-07-18",
+    title: "首頁與關於頁程式碼行數口徑修正",
+    bullets: [
+      "鋒兄首頁 footer 與鋒兄關於的程式碼行數，改為只統計核心產品原始碼（app / components / hooks / lib / types / scripts / tests）。",
+      "prebuild 掃描排除 skills、agent 工具複本、Markdown 文件與 node_modules，避免行數膨脹到數十萬。",
+      "關於頁統計說明同步更新，與實際 generate-stats 範圍一致。",
+    ],
+  },
+  {
     date: "2026-07-12",
     title: "手機比價介面現代化升級與頻道優化",
     bullets: [
@@ -211,7 +220,7 @@ function AboutBanner() {
         <div className="grid grid-cols-2 gap-3">
           <MetricCard label="模組數" value="15" detail="入口、生活、知識、媒體、財務、維運" />
           <MetricCard label="文件頁" value="18+" detail="模組文件、使用手冊、架構文件" />
-          <MetricCard label="程式碼行數" value={codebaseStats.totalLines.toLocaleString()} detail={`共 ${codebaseStats.totalFiles} 檔，已排除 node_modules / .next`} />
+          <MetricCard label="程式碼行數" value={codebaseStats.totalLines.toLocaleString()} detail={`共 ${codebaseStats.totalFiles} 檔，核心原始碼（app / components / hooks / lib…）`} />
           <MetricCard label="技術骨架" value="AI CRUD" detail="統一摘要卡、搜尋、批次操作與 AI 建議" />
         </div>
       </div>
@@ -312,7 +321,7 @@ function SystemArchitecture() {
           <div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">程式碼行數統計</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              統計時間：{codebaseStats.snapshotDate}。已排除 `node_modules`、`.next`、`.git`、`dist`、`build`、`coverage`、`out`。
+              統計時間：{codebaseStats.snapshotDate}。範圍為核心產品原始碼（`app`、`components`、`hooks`、`lib`、`types`、`scripts`、`tests` 的 `.tsx` / `.ts` / `.js` / `.mjs` / `.css`）。已排除 `node_modules`、`.next`、`.git`、`skills`、agent 工具複本、Markdown 文件與 `public`。
             </p>
           </div>
           <div className="rounded-2xl bg-slate-900 px-4 py-3 text-white dark:bg-slate-100 dark:text-slate-900">
