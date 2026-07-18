@@ -13,6 +13,7 @@ import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatCard } from "@/components/ui/stat-card";
 import { useArticles } from "@/hooks/useArticles";
 import { fetchApi } from "@/hooks/useApi";
+import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { ArticleFormData, Article } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
@@ -27,7 +28,7 @@ import {
   resolveMultipartFileBlob,
   uploadFileInParts,
 } from "@/lib/fileMultipart";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List, X } from "lucide-react";
 import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -263,10 +264,24 @@ export default function NotesManagement() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const {
+    items: recentSearches,
+    addSearch: addRecentSearch,
+    removeSearch: removeRecentSearch,
+    clearAll: clearRecentSearches,
+  } = useRecentSearches("notes-management");
   const [noteFilterMode, setNoteFilterMode] = useState<NoteFilterMode>("all");
   const [noteViewMode, setNoteViewMode] = useState<NoteViewMode>("card");
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [currentTime] = useState(() => Date.now());
+
+  // Debounce: save non-empty search terms as recent searches (same as 鋒兄訂閱)
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) return;
+    const timer = window.setTimeout(() => addRecentSearch(query), 800);
+    return () => window.clearTimeout(timer);
+  }, [addRecentSearch, searchQuery]);
 
   // ZIP/CSV 匯入/匯出功能
   const [importPreview, setImportPreview] = useState<{ data: ArticleFormData[], zipFile?: JSZipType | null, errors: string[] } | null>(null);
@@ -1906,6 +1921,12 @@ export default function NotesManagement() {
                 placeholder="搜尋標題、內容、分類..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const trimmed = searchQuery.trim();
+                    if (trimmed) addRecentSearch(trimmed);
+                  }
+                }}
                 className="pl-10 h-12 rounded-xl"
               />
             </div>
@@ -1953,6 +1974,48 @@ export default function NotesManagement() {
               </Button>
             </div>
           </div>
+          {recentSearches.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-500 dark:text-slate-400">最近搜尋</span>
+              {recentSearches.map((item) => (
+                <span
+                  key={item}
+                  className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-purple-700 dark:hover:bg-purple-950/30"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery(item);
+                      addRecentSearch(item);
+                    }}
+                    className="px-3 py-1"
+                  >
+                    {item}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`移除最近搜尋 ${item}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      removeRecentSearch(item);
+                    }}
+                    className="border-l border-slate-200 px-1.5 py-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:border-slate-700 dark:hover:bg-red-950/30"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={clearRecentSearches}
+                className="rounded-full px-2 py-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800"
+              >
+                清除
+              </button>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400 dark:text-slate-500">最近搜尋會在這裡顯示。</div>
+          )}
           {filteredArticles.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer select-none">

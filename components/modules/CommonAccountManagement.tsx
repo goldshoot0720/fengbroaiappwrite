@@ -12,6 +12,7 @@ import {
   SelectTrigger
 } from "@/components/ui/select";
 import { useCrud, fetchApi } from "@/hooks/useApi";
+import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FaviconImage } from "@/components/ui/favicon-image";
@@ -187,8 +188,22 @@ export default function CommonAccountManagement() {
   const [siteFilter, setSiteFilter] = useState<string | null>(null);
   // Name search state
   const [searchQuery, setSearchQuery] = useState("");
+  const {
+    items: recentSearches,
+    addSearch: addRecentSearch,
+    removeSearch: removeRecentSearch,
+    clearAll: clearRecentSearches,
+  } = useRecentSearches("common-account-management");
   // Sort order state
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Debounce: save non-empty search terms as recent searches (same as 鋒兄訂閱)
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) return;
+    const timer = window.setTimeout(() => addRecentSearch(query), 800);
+    return () => window.clearTimeout(timer);
+  }, [addRecentSearch, searchQuery]);
   // Error state for duplicate name
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   // Copy success message state
@@ -1456,6 +1471,12 @@ export default function CommonAccountManagement() {
               placeholder="搜尋帳號名稱 (例如: activist949...)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const trimmed = searchQuery.trim();
+                  if (trimmed) addRecentSearch(trimmed);
+                }
+              }}
               className="pl-12 h-12 rounded-xl border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-blue-500/20 transition-all text-lg"
             />
             {searchQuery && (
@@ -1495,6 +1516,49 @@ export default function CommonAccountManagement() {
             </Button>
           )}
         </div>
+
+        {recentSearches.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-slate-500 dark:text-slate-400">最近搜尋</span>
+            {recentSearches.map((item) => (
+              <span
+                key={item}
+                className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery(item);
+                    addRecentSearch(item);
+                  }}
+                  className="px-3 py-1"
+                >
+                  {item}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`移除最近搜尋 ${item}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeRecentSearch(item);
+                  }}
+                  className="border-l border-slate-200 px-1.5 py-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:border-slate-700 dark:hover:bg-red-950/30"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={clearRecentSearches}
+              className="rounded-full px-2 py-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800"
+            >
+              清除
+            </button>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-400 dark:text-slate-500">最近搜尋會在這裡顯示。</div>
+        )}
 
         {allSiteNames.length > 0 && (
           <div className="flex flex-wrap gap-2 items-center overflow-x-auto pb-1 scrollbar-hide sm:flex-wrap">

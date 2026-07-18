@@ -1134,6 +1134,7 @@ export default function MusicManagement() {
         searchPlaceholder="搜尋音樂名稱、歌詞..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        recentSearchKey="music-management"
         workspaceCountText={`共 ${music.length} 首音樂`}
         workspaceDescription="整理音樂名稱、音檔、歌詞與封面，優先補齊缺少音檔、封面與歌詞的曲目。"
         activeMode={workbenchMode}
