@@ -370,11 +370,15 @@ function DesktopTopNav({
   const toolsRowGroups = groups.filter((group) =>
     (TOP_NAV_SECOND_ROW_GROUP_IDS as readonly string[]).includes(group.id)
   );
-  const otherGroups = groups.filter(
-    (group) =>
-      group.id !== "main" &&
-      !(TOP_NAV_SECOND_ROW_GROUP_IDS as readonly string[]).includes(group.id)
+  const comboRowGroups = groups.filter((group) =>
+    (TOP_NAV_COMBO_ROW_GROUP_IDS as readonly string[]).includes(group.id)
   );
+  const reservedIds = new Set<string>([
+    "main",
+    ...TOP_NAV_SECOND_ROW_GROUP_IDS,
+    ...TOP_NAV_COMBO_ROW_GROUP_IDS,
+  ]);
+  const otherGroups = groups.filter((group) => !reservedIds.has(group.id));
 
   return (
     <header
@@ -415,7 +419,7 @@ function DesktopTopNav({
             />
           ) : null}
 
-          {/* 第二列：鋒兄工具 + 鋒兄子工具（獨立上方選單，非工具頁內分頁） */}
+          {/* 第二列：鋒兄工具 + 鋒兄子工具 */}
           {toolsRowGroups.length > 0 ? (
             <div className="grid gap-3 lg:grid-cols-2">
               {toolsRowGroups.map((group) => (
@@ -425,6 +429,26 @@ function DesktopTopNav({
                 >
                   <TopNavGroupBlock
                     compact
+                    currentModule={currentModule}
+                    group={group}
+                    onMenuClick={onMenuClick}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {/* 同一列：鋒兄筆記/文件 · 鋒兄音樂/播客 · 鋒兄設定/關於 */}
+          {comboRowGroups.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {comboRowGroups.map((group) => (
+                <div
+                  key={group.id}
+                  className="rounded-2xl border border-[var(--line-soft)] bg-white/40 p-2.5 dark:bg-white/[0.03]"
+                >
+                  <TopNavGroupBlock
+                    compact
+                    columns={2}
                     currentModule={currentModule}
                     group={group}
                     onMenuClick={onMenuClick}
@@ -450,11 +474,14 @@ function DesktopTopNav({
 
 function TopNavGroupBlock({
   compact = false,
+  columns = 3,
   currentModule,
   group,
   onMenuClick,
 }: {
   compact?: boolean;
+  /** Compact grid column count (default 3 for tools; 2 for pair groups). */
+  columns?: 2 | 3;
   currentModule: string;
   group: TopNavGroup;
   onMenuClick: (item: MenuItem) => void;
@@ -470,7 +497,9 @@ function TopNavGroupBlock({
         className={cn(
           "grid gap-1.5",
           compact
-            ? "grid-cols-3"
+            ? columns === 2
+              ? "grid-cols-2"
+              : "grid-cols-3"
             : "grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 2xl:grid-cols-10"
         )}
       >
@@ -693,7 +722,14 @@ type TopNavGroup = {
 /** Preferred second-row tool groups (desktop top nav order after main). */
 const TOP_NAV_SECOND_ROW_GROUP_IDS = ["tools", "sub-tools"] as const;
 
-/** Build top-nav groups: main leaves first, then 鋒兄工具 / 鋒兄子工具, then other nested groups. */
+/** Same-row combo groups: notes/docs · music/podcast · settings/about. */
+const TOP_NAV_COMBO_ROW_GROUP_IDS = [
+  "notes-docs",
+  "music-podcast",
+  "settings-about",
+] as const;
+
+/** Build top-nav groups: main → tools row → combo row → remaining nested groups. */
 function buildTopNavGroups(items: MenuItem[]): TopNavGroup[] {
   const rootLeaves: MenuItem[] = [];
   const childGroups: TopNavGroup[] = [];
@@ -712,10 +748,16 @@ function buildTopNavGroups(items: MenuItem[]): TopNavGroup[] {
   }
 
   const secondRowIds = new Set<string>(TOP_NAV_SECOND_ROW_GROUP_IDS);
+  const comboRowIds = new Set<string>(TOP_NAV_COMBO_ROW_GROUP_IDS);
   const secondRowGroups = TOP_NAV_SECOND_ROW_GROUP_IDS.map((id) =>
     childGroups.find((group) => group.id === id)
   ).filter(Boolean) as TopNavGroup[];
-  const otherChildGroups = childGroups.filter((group) => !secondRowIds.has(group.id));
+  const comboRowGroups = TOP_NAV_COMBO_ROW_GROUP_IDS.map((id) =>
+    childGroups.find((group) => group.id === id)
+  ).filter(Boolean) as TopNavGroup[];
+  const otherChildGroups = childGroups.filter(
+    (group) => !secondRowIds.has(group.id) && !comboRowIds.has(group.id)
+  );
 
   const groups: TopNavGroup[] = [];
   if (rootLeaves.length) {
@@ -726,8 +768,10 @@ function buildTopNavGroups(items: MenuItem[]): TopNavGroup[] {
       items: rootLeaves,
     });
   }
-  // Second row block: 鋒兄工具 + 鋒兄子工具
+  // Second row: 鋒兄工具 + 鋒兄子工具
   groups.push(...secondRowGroups);
+  // Combo row: 筆記/文件 · 音樂/播客 · 設定/關於
+  groups.push(...comboRowGroups);
   groups.push(...otherChildGroups);
   return groups;
 }
