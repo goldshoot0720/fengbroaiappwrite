@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  ChevronDown,
-  ChevronRight,
   Command,
+  LayoutGrid,
   Menu,
   Sparkles,
   X,
@@ -31,6 +30,14 @@ interface DashboardLayoutProps {
   menuItems: MenuItem[];
 }
 
+/** Primary bottom-tab destinations on phone (thumb zone). */
+const MOBILE_PRIMARY_TAB_IDS = [
+  "home",
+  "dashboard",
+  "subscription",
+  "food",
+] as const;
+
 export default function DashboardLayout({
   children,
   currentModule,
@@ -38,7 +45,6 @@ export default function DashboardLayout({
   menuItems,
 }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>(["tools"]);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -51,17 +57,38 @@ export default function DashboardLayout({
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
+  useEffect(() => {
+    if (!(isSidebarOpen && isMobile)) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [isSidebarOpen, isMobile]);
+
   const activeItem = useMemo(
     () => findMenuItem(menuItems, currentModule),
     [currentModule, menuItems]
   );
 
-  useEffect(() => {
-    const parentIds = findMenuParentIds(menuItems, currentModule);
-    if (!parentIds.length) return;
+  const leafItems = useMemo(() => flattenLeafMenuItems(menuItems), [menuItems]);
 
-    setExpandedItems((prev) => Array.from(new Set([...prev, ...parentIds])));
-  }, [currentModule, menuItems]);
+  const primaryTabs = useMemo(() => {
+    return MOBILE_PRIMARY_TAB_IDS.map((id) => {
+      const item = findMenuItem(menuItems, id);
+      return item
+        ? { id, item, shortLabel: shortModuleLabel(item.label) }
+        : null;
+    }).filter(Boolean) as Array<{
+      id: string;
+      item: MenuItem;
+      shortLabel: string;
+    }>;
+  }, [menuItems]);
+
+  const isPrimaryTabActive = MOBILE_PRIMARY_TAB_IDS.includes(
+    currentModule as (typeof MOBILE_PRIMARY_TAB_IDS)[number]
+  );
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev);
@@ -71,18 +98,13 @@ export default function DashboardLayout({
     setIsSidebarOpen(false);
   }, []);
 
-  const toggleExpanded = useCallback((itemId: string) => {
-    setExpandedItems((prev) =>
-      prev.includes(itemId)
-        ? prev.filter((id) => id !== itemId)
-        : [...prev, itemId]
-    );
+  const openSidebar = useCallback(() => {
+    setIsSidebarOpen(true);
   }, []);
 
   const handleMenuClick = useCallback(
     (item: MenuItem) => {
       if (item.children?.length) {
-        toggleExpanded(item.id);
         return;
       }
 
@@ -91,7 +113,15 @@ export default function DashboardLayout({
         closeSidebar();
       }
     },
-    [closeSidebar, isMobile, onModuleChange, toggleExpanded]
+    [closeSidebar, isMobile, onModuleChange]
+  );
+
+  const handlePrimaryTabClick = useCallback(
+    (moduleId: string) => {
+      onModuleChange(moduleId);
+      closeSidebar();
+    },
+    [closeSidebar, onModuleChange]
   );
 
   return (
@@ -106,13 +136,14 @@ export default function DashboardLayout({
         />
 
         {isSidebarOpen && (
-          <MobileSidebar
+          <MobileMenuSheet
             currentModule={currentModule}
-            expandedItems={expandedItems}
-            isMobile={isMobile}
-            menuItems={menuItems}
+            leafItems={leafItems}
             onClose={closeSidebar}
-            onMenuClick={handleMenuClick}
+            onNavigateLeaf={(id) => {
+              onModuleChange(id);
+              closeSidebar();
+            }}
           />
         )}
 
@@ -123,24 +154,33 @@ export default function DashboardLayout({
             onToggle={toggleSidebar}
           />
 
-          <main className="min-w-0 flex-1 px-2 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-4 md:pb-8 md:pt-4 xl:px-4 xl:pb-10 xl:pt-5">
-            <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 md:gap-5 xl:gap-6">
+          <main className="min-w-0 flex-1 px-3 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-4 md:pb-8 md:pt-4 xl:px-4 xl:pb-10 xl:pt-5">
+            <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
               {currentModule === "home" ? <SleepWarningBanner /> : null}
               <TopBar
                 activeLabel={activeItem?.label ?? "首頁"}
                 moduleCount={countNavigableMenuItems(menuItems)}
               />
               {currentModule === "home" && (
-                <div className="relative overflow-hidden rounded-[28px]">
+                <div className="relative overflow-hidden rounded-2xl md:rounded-[28px]">
                   <BirthdayEasterEgg inline />
                 </div>
               )}
-              <div className="surface-panel pad-panel rounded-[24px] md:rounded-[28px] xl:rounded-[32px]">
+              <div className="surface-panel pad-panel rounded-2xl md:rounded-[28px] xl:rounded-[32px]">
                 {children}
               </div>
             </div>
           </main>
         </div>
+
+        <MobileBottomNav
+          currentModule={currentModule}
+          isMenuOpen={isSidebarOpen}
+          isPrimaryTabActive={isPrimaryTabActive}
+          onMoreClick={openSidebar}
+          onTabClick={handlePrimaryTabClick}
+          tabs={primaryTabs}
+        />
       </div>
 
       <div
@@ -150,8 +190,8 @@ export default function DashboardLayout({
         <MusicQueuePanel />
         <PodcastQueuePanel />
         <VideoQueuePanel />
-        {/* 右側浮動列：全域語音在向上箭頭上方一點 */}
-        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4">
+        {/* 右側浮動列：語音在底欄上方一點 */}
+        <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4 md:bottom-6">
           <GlobalVoiceCommandPanel
             currentModule={currentModule}
             menuItems={menuItems}
@@ -184,15 +224,22 @@ function MobileHeader({
   onToggle: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/95 px-4 py-4 backdrop-blur-2xl md:hidden shadow-[0_4px_24px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.2)]">
-      <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
-            FengBro Console
-          </p>
-          <p className="mt-1 truncate font-display text-lg font-semibold">{activeLabel}</p>
+    <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:hidden">
+      <div className="mx-auto flex h-14 max-w-[1680px] items-center justify-between gap-3 px-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_8px_20px_rgba(199,149,65,0.2)]">
+            <Command size={16} />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[10px] font-medium tracking-[0.18em] text-[var(--muted-foreground)] uppercase">
+              FengBro
+            </p>
+            <h1 className="truncate text-base font-semibold leading-5 tracking-tight text-[var(--foreground)]">
+              {activeLabel.replace(/\n/g, " ")}
+            </h1>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <ThemeToggleCompact />
           <Button
             variant="ghost"
@@ -201,13 +248,110 @@ function MobileHeader({
             aria-expanded={isSidebarOpen}
             aria-controls="mobile-sidebar"
             aria-label={isSidebarOpen ? "關閉選單" : "開啟選單"}
-            className="rounded-full border border-[var(--line-strong)] bg-white/60 text-[var(--foreground)] hover:bg-white dark:bg-white/5 dark:hover:bg-white/10"
+            className="size-11 rounded-full border border-[var(--line-strong)] bg-[color:var(--panel-strong)] text-[var(--foreground)] hover:bg-[color:var(--panel-soft)]"
           >
             {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </Button>
         </div>
       </div>
     </header>
+  );
+}
+
+function MobileBottomNav({
+  currentModule,
+  isMenuOpen,
+  isPrimaryTabActive,
+  onMoreClick,
+  onTabClick,
+  tabs,
+}: {
+  currentModule: string;
+  isMenuOpen: boolean;
+  isPrimaryTabActive: boolean;
+  onMoreClick: () => void;
+  onTabClick: (moduleId: string) => void;
+  tabs: Array<{ id: string; item: MenuItem; shortLabel: string }>;
+}) {
+  return (
+    <nav
+      aria-label="手機快捷選單"
+      className="fixed inset-x-0 bottom-0 z-[var(--z-dock)] border-t border-[var(--line-soft)] bg-[color:var(--panel-veil)]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
+    >
+      <div className="mx-auto grid h-[3.75rem] max-w-[1680px] grid-cols-5 items-stretch px-1">
+        {tabs.map(({ id, item, shortLabel }) => {
+          const isActive = currentModule === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onTabClick(id)}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 transition-impeccable active:scale-[0.97]",
+                isActive
+                  ? "text-[var(--accent-strong)]"
+                  : "text-[var(--muted-foreground)]"
+              )}
+            >
+              {isActive ? (
+                <span
+                  aria-hidden
+                  className="absolute inset-x-3 top-1 h-0.5 rounded-full bg-[var(--accent-strong)]"
+                />
+              ) : null}
+              <span
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-xl transition-colors",
+                  isActive
+                    ? "bg-[var(--accent)]/20 text-[var(--accent-strong)]"
+                    : "text-[var(--muted-foreground)]"
+                )}
+              >
+                {item.icon}
+              </span>
+              <span className="max-w-full truncate text-[10px] font-medium leading-3">
+                {shortLabel}
+              </span>
+            </button>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={onMoreClick}
+          aria-expanded={isMenuOpen}
+          aria-controls="mobile-sidebar"
+          aria-label="更多模組"
+          className={cn(
+            "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 transition-impeccable active:scale-[0.97]",
+            !isPrimaryTabActive || isMenuOpen
+              ? "text-[var(--accent-strong)]"
+              : "text-[var(--muted-foreground)]"
+          )}
+        >
+          {!isPrimaryTabActive || isMenuOpen ? (
+            <span
+              aria-hidden
+              className="absolute inset-x-3 top-1 h-0.5 rounded-full bg-[var(--accent-strong)]"
+            />
+          ) : null}
+          <span
+            className={cn(
+              "flex size-8 items-center justify-center rounded-xl transition-colors",
+              !isPrimaryTabActive || isMenuOpen
+                ? "bg-[var(--accent)]/20 text-[var(--accent-strong)]"
+                : "text-[var(--muted-foreground)]"
+            )}
+          >
+            <LayoutGrid size={18} />
+          </span>
+          <span className="max-w-full truncate text-[10px] font-medium leading-3">
+            更多
+          </span>
+        </button>
+      </div>
+    </nav>
   );
 }
 
@@ -313,55 +457,106 @@ function DesktopTopNav({
   );
 }
 
-function MobileSidebar({
+function MobileMenuSheet({
   currentModule,
-  expandedItems,
-  isMobile,
-  menuItems,
+  leafItems,
   onClose,
-  onMenuClick,
+  onNavigateLeaf,
 }: {
   currentModule: string;
-  expandedItems: string[];
-  isMobile: boolean;
-  menuItems: MenuItem[];
+  leafItems: MenuItem[];
   onClose: () => void;
-  onMenuClick: (item: MenuItem) => void;
+  onNavigateLeaf: (moduleId: string) => void;
 }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-[var(--z-drawer-open)] md:hidden">
-      <div
-        className="absolute inset-0 bg-[rgba(17,23,20,0.32)] backdrop-blur-sm"
+      <button
+        type="button"
+        aria-label="關閉選單背景"
+        className="absolute inset-0 bg-[rgba(17,23,20,0.4)] backdrop-blur-[2px]"
         onClick={onClose}
       />
       <aside
         id="mobile-sidebar"
-        className="surface-floating absolute inset-y-0 left-0 flex w-[85vw] max-w-[360px] flex-col rounded-r-[32px] border-l-0 p-5 shadow-[24px_0_48px_rgba(0,0,0,0.12)] animate-in slide-in-from-left-full duration-300 ease-out"
+        role="dialog"
+        aria-modal="true"
+        aria-label="全部模組"
+        className="surface-floating absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,720px)] flex-col rounded-t-2xl border-b-0 p-0 shadow-[0_-16px_48px_rgba(0,0,0,0.16)] animate-in slide-in-from-bottom-8 duration-300 ease-out"
       >
-        <div className="flex items-center justify-between">
-          <BrandBlock />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="rounded-full border border-[var(--line-strong)]"
-          >
-            <X size={18} />
-          </Button>
+        <div className="flex flex-col items-center px-4 pt-3">
+          <span
+            aria-hidden
+            className="mb-3 h-1 w-10 rounded-full bg-[var(--line-strong)]"
+          />
+          <div className="flex w-full items-center justify-between gap-3 pb-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium tracking-[0.2em] text-[var(--muted-foreground)] uppercase">
+                All modules
+              </p>
+              <p className="truncate text-lg font-semibold tracking-tight text-[var(--foreground)]">
+                全部模組
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <DensityToggleCompact />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                aria-label="關閉選單"
+                className="size-11 rounded-full border border-[var(--line-strong)]"
+              >
+                <X size={18} />
+              </Button>
+            </div>
+          </div>
         </div>
 
-        <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
-          {menuItems.map((item) => (
-            <MenuItemComponent
-              key={item.id}
-              currentModule={currentModule}
-              expandedItems={expandedItems}
-              isMobile={isMobile}
-              item={item}
-              onMenuClick={onMenuClick}
-            />
-          ))}
-        </nav>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <section aria-label="快捷網格" className="pb-2">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {leafItems.map((item) => {
+                const isActive = currentModule === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onNavigateLeaf(item.id)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-2xl border px-1.5 py-2.5 text-center transition-impeccable active:scale-[0.97]",
+                      isActive
+                        ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_10px_24px_rgba(199,149,65,0.2)]"
+                        : "border-[var(--line-soft)] bg-[color:var(--panel-soft)] text-[var(--muted-foreground)]"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex size-8 items-center justify-center rounded-xl border",
+                        isActive
+                          ? "border-white/25 bg-white/12"
+                          : "border-[var(--line-soft)] bg-white/70 text-[var(--foreground)] dark:bg-white/5"
+                      )}
+                    >
+                      {item.icon}
+                    </span>
+                    <span className="line-clamp-2 w-full text-[11px] font-medium leading-tight">
+                      {shortModuleLabel(item.label)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
       </aside>
     </div>
   );
@@ -385,6 +580,15 @@ function BrandBlock({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function shortModuleLabel(label: string) {
+  return label
+    .replace(/\n/g, " ")
+    .replace(/^鋒兄/, "")
+    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/\s*\（[^）]*\）/g, "")
+    .trim();
+}
+
 function getTaipeiHour() {
   const hourPart = new Intl.DateTimeFormat("en-US", {
     hour: "2-digit",
@@ -405,18 +609,6 @@ function findMenuItem(items: MenuItem[], targetId: string): MenuItem | undefined
   }
 
   return undefined;
-}
-
-function findMenuParentIds(items: MenuItem[], targetId: string, parents: string[] = []): string[] {
-  for (const item of items) {
-    if (item.id === targetId) return parents;
-    if (item.children?.length) {
-      const childParents = findMenuParentIds(item.children, targetId, [...parents, item.id]);
-      if (childParents.length) return childParents;
-    }
-  }
-
-  return [];
 }
 
 function flattenLeafMenuItems(items: MenuItem[]): MenuItem[] {
@@ -506,7 +698,7 @@ function SleepWarningBanner() {
   if (!warning) return null;
 
   return (
-    <div className={`flex items-center gap-3 rounded-[24px] border px-4 py-3 ${warning.className}`}>
+    <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 md:rounded-[24px] ${warning.className}`}>
       <span className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${warning.iconClassName}`}>
         <AlertTriangle size={20} />
       </span>
@@ -577,86 +769,3 @@ function StatusPill({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MenuItemComponent({
-  currentModule,
-  expandedItems,
-  item,
-  onMenuClick,
-  level = 0,
-  isMobile = false,
-}: {
-  currentModule: string;
-  expandedItems: string[];
-  item: MenuItem;
-  onMenuClick: (item: MenuItem) => void;
-  level?: number;
-  isMobile?: boolean;
-}) {
-  const hasChildren = Boolean(item.children?.length);
-  const isExpanded = expandedItems.includes(item.id);
-  const isChildActive = hasChildren ? Boolean(findMenuItem(item.children || [], currentModule)) : false;
-  const isActive = currentModule === item.id;
-
-  return (
-    <div className={cn(level > 0 && "pl-4")}>
-      <button
-        type="button"
-        onClick={() => onMenuClick(item)}
-        aria-current={!hasChildren && isActive ? "page" : undefined}
-        className={cn(
-          "nav-item group flex w-full items-center justify-between rounded-[22px] px-3 text-left transition-impeccable active:scale-[0.98]",
-          isActive || isChildActive
-            ? "nav-item-active shadow-sm"
-            : "bg-transparent text-[var(--muted-foreground)] hover:bg-black/5 hover:text-[var(--foreground)] dark:hover:bg-white/10",
-          isMobile && "min-h-14 mb-1"
-        )}
-      >
-        <span className="flex min-w-0 items-center gap-3">
-          <span
-            className={cn(
-              "flex size-9 items-center justify-center rounded-2xl border transition-colors",
-              isActive || isChildActive
-                ? "border-white/25 bg-white/12 text-[var(--accent-foreground)]"
-                : "border-[var(--line-soft)] bg-white/70 text-[var(--foreground)] dark:bg-white/5"
-            )}
-          >
-            {item.icon}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block whitespace-pre-line text-sm font-medium tracking-[0.01em]">{item.label}</span>
-            {item.subtitle ? (
-              <span
-                className={cn(
-                  "mt-0.5 block text-[11px] leading-4",
-                  isActive || isChildActive ? "text-[var(--accent-foreground)]/75" : "text-[var(--muted-foreground)]/80"
-                )}
-              >
-                {item.subtitle}
-              </span>
-            ) : null}
-          </span>
-        </span>
-
-        {hasChildren ? (
-          isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-        ) : null}
-      </button>
-
-      {hasChildren && isExpanded ? (
-        <div className="mt-2 space-y-2">
-          {item.children?.map((child) => (
-            <MenuItemComponent
-              key={child.id}
-              currentModule={currentModule}
-              expandedItems={expandedItems}
-              isMobile={isMobile}
-              item={child}
-              level={level + 1}
-              onMenuClick={onMenuClick}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}

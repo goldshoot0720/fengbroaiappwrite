@@ -151,7 +151,7 @@ export function PodcastQueuePanel() {
   }
 
   return (
-    <div className="podcast-queue-panel fixed bottom-20 right-3 z-[var(--z-dock)] md:right-3 md:top-20 md:bottom-auto xl:right-4">
+    <div className="podcast-queue-panel fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-[var(--z-dock)] md:right-3 md:top-20 md:bottom-auto xl:right-4">
       <audio
         ref={audioRef}
         preload="auto"
