@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { Video, X, ListVideo, Trash2, Play, Pause, ChevronUp, ChevronDown, SkipForward } from 'lucide-react';
-import { useVideoQueue, VideoQueueItem } from '@/hooks/useVideoQueue';
-import { setupSinglePlayback } from '@/components/ui/plyr-player';
+import { useState, useEffect, useRef } from "react";
+import { Video, X, ListVideo, Trash2, Play, Pause, ChevronUp, ChevronDown, SkipForward } from "lucide-react";
+import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
+import { setupSinglePlayback } from "@/components/ui/plyr-player";
 
 interface VideoQueuePanelProps {
   onPlayFromQueue?: (item: VideoQueueItem) => void;
@@ -16,15 +16,15 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
   const [duration, setDuration] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastPlayedKeyRef = useRef<string | null>(null);
-  const { 
-    queue, 
-    currentIndex, 
+  const {
+    queue,
+    currentIndex,
     currentItem,
-    removeFromQueue, 
+    removeFromQueue,
     clearQueue,
     moveInQueue,
     skipToNext,
-    queueLength 
+    queueLength,
   } = useVideoQueue();
 
   useEffect(() => {
@@ -48,32 +48,36 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
       video.load();
 
       const handleCanPlay = () => {
-        const resumeTime = typeof currentItem.startTime === 'number' && Number.isFinite(currentItem.startTime)
-          ? currentItem.startTime
-          : currentTime;
+        const resumeTime =
+          typeof currentItem.startTime === "number" && Number.isFinite(currentItem.startTime)
+            ? currentItem.startTime
+            : currentTime;
         if (resumeTime > 0) {
           video.currentTime = resumeTime;
         }
-        if (typeof currentItem.volume === 'number') {
+        if (typeof currentItem.volume === "number") {
           video.volume = currentItem.volume;
         }
-        if (typeof currentItem.playbackRate === 'number') {
+        if (typeof currentItem.playbackRate === "number") {
           video.playbackRate = currentItem.playbackRate;
         }
-        if (typeof currentItem.loop === 'boolean') {
+        if (typeof currentItem.loop === "boolean") {
           video.loop = currentItem.loop;
         }
-        if (typeof currentItem.muted === 'boolean') {
+        if (typeof currentItem.muted === "boolean") {
           video.muted = currentItem.muted;
         }
-        video.play().then(() => {
-          setIsExpanded(!(typeof currentItem.startTime === 'number' && Number.isFinite(currentItem.startTime)));
-        }).catch((err) => {
-          console.error('影片播放失敗:', err.name, err.message);
-        });
-        video.removeEventListener('canplay', handleCanPlay);
+        video
+          .play()
+          .then(() => {
+            setIsExpanded(!(typeof currentItem.startTime === "number" && Number.isFinite(currentItem.startTime)));
+          })
+          .catch((err) => {
+            console.error("影片播放失敗:", err.name, err.message);
+          });
+        video.removeEventListener("canplay", handleCanPlay);
       };
-      video.addEventListener('canplay', handleCanPlay);
+      video.addEventListener("canplay", handleCanPlay);
     }
   }, [currentItem, currentTime]);
 
@@ -87,10 +91,10 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
   };
 
   const formatTime = (time: number) => {
-    if (!isFinite(time)) return '0:00';
+    if (!isFinite(time)) return "0:00";
     const mins = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,10 +108,17 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
     return null;
   }
 
+  const shell =
+    "rounded-xl border border-neutral-200/90 bg-white/95 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-[#141414]/95";
+  const iconBtn =
+    "inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400";
+  const primaryPlay =
+    "inline-flex h-9 w-9 items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100";
+
   return (
-    <div className="video-queue-panel fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-[var(--z-dock)] md:right-3 md:top-20 md:bottom-auto xl:right-4">
-      <video 
-        ref={videoRef} 
+    <div className="video-queue-panel fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-[var(--z-dock)] md:bottom-auto md:right-3 md:top-20 xl:right-4">
+      <video
+        ref={videoRef}
         preload="auto"
         className="hidden"
         onPlay={() => setIsPlaying(true)}
@@ -118,75 +129,76 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
           setIsPlaying(false);
           skipToNext();
         }}
-        onError={(e) => console.error('影片加載錯誤:', e)}
+        onError={(e) => console.error("影片加載錯誤:", e)}
       />
 
       {!isExpanded && (
         <div className="flex flex-col gap-2">
           {currentItem && (
-            <div className="w-[min(calc(100vw-1.5rem),24rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800 md:w-80 xl:w-96">
+            <div className={`w-[min(calc(100vw-1.5rem),24rem)] p-3 md:w-80 xl:w-96 ${shell}`}>
               <div className="flex items-center gap-3">
-                <div className="w-20 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600">
+                <div className="h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-neutral-900">
                   {currentItem.cover ? (
-                    <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-cover" />
+                    <img src={currentItem.cover} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Video className="w-6 h-6 text-white" />
+                    <div className="flex h-full w-full items-center justify-center">
+                      <Video className="h-5 w-5 text-white/70" />
                     </div>
                   )}
                 </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
+
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-neutral-900 dark:text-white">
                     {currentItem.name}
                   </div>
                   {currentItem.category && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                    <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">
                       {currentItem.category}
                     </div>
                   )}
                 </div>
 
-                <button
-                  onClick={togglePlayPause}
-                  className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
-                >
-                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                <button type="button" onClick={togglePlayPause} className={primaryPlay} aria-label={isPlaying ? "暫停" : "播放"}>
+                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
                 </button>
 
                 {currentIndex < queue.length - 1 && (
                   <button
+                    type="button"
                     onClick={skipToNext}
-                    className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400 rounded-full transition-colors"
-                    title="下一個"
+                    className={`${iconBtn} bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-white/10 dark:text-neutral-200 dark:hover:bg-white/15`}
+                    title="下一則"
+                    aria-label="下一則"
                   >
-                    <SkipForward className="w-4 h-4" />
+                    <SkipForward className="h-4 w-4" />
                   </button>
                 )}
               </div>
-              
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-10">{formatTime(currentTime)}</span>
+
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="w-10 text-[11px] tabular-nums text-neutral-500">{formatTime(currentTime)}</span>
                 <input
                   type="range"
                   min="0"
                   max={duration || 100}
                   value={currentTime}
                   onChange={handleSeek}
-                  className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  className="h-1 flex-1 cursor-pointer appearance-none rounded-lg bg-neutral-200 accent-neutral-900 dark:bg-white/15 dark:accent-white"
+                  aria-label="播放進度"
                 />
-                <span className="text-xs text-gray-500 w-10 text-right">{formatTime(duration)}</span>
+                <span className="w-10 text-right text-[11px] tabular-nums text-neutral-500">{formatTime(duration)}</span>
               </div>
             </div>
           )}
-          
+
           <button
+            type="button"
             onClick={() => setIsExpanded(true)}
-            className="flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-all self-end"
+            className="inline-flex items-center gap-2 self-end rounded-full bg-neutral-900 px-4 py-2.5 text-white shadow-lg transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
           >
-            <ListVideo className="w-5 h-5" />
-            <span className="font-medium">播放佇列</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-sm">
+            <ListVideo className="h-4 w-4" />
+            <span className="text-sm font-medium">播放佇列</span>
+            <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold tabular-nums dark:bg-black/10">
               {queueLength}
             </span>
           </button>
@@ -194,105 +206,102 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
       )}
 
       {isExpanded && (
-        <div className="w-[min(calc(100vw-1.5rem),24rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:w-80 xl:w-96">
-          <div className="flex items-center justify-between p-4 bg-blue-600 text-white">
-            <div className="flex items-center gap-2">
-              <ListVideo className="w-5 h-5" />
-              <span className="font-bold">接下來播放</span>
-              <span className="bg-white/20 px-2 py-0.5 rounded-full text-sm">
+        <div className={`w-[min(calc(100vw-1.5rem),24rem)] overflow-hidden md:w-80 xl:w-96 ${shell}`}>
+          <div className="flex items-center justify-between border-b border-neutral-200/80 px-3 py-3 dark:border-white/10">
+            <div className="flex min-w-0 items-center gap-2">
+              <ListVideo className="h-4 w-4 shrink-0 text-neutral-700 dark:text-white" />
+              <span className="truncate text-sm font-semibold text-neutral-900 dark:text-white">接下來播放</span>
+              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium tabular-nums text-neutral-700 dark:bg-white/10 dark:text-neutral-200">
                 {queueLength}
               </span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
+                type="button"
                 onClick={clearQueue}
-                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                className={`${iconBtn} text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-white/10`}
                 title="清空佇列"
+                aria-label="清空佇列"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="h-4 w-4" />
               </button>
               <button
+                type="button"
                 onClick={() => setIsExpanded(false)}
-                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                className={`${iconBtn} text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-white/10`}
                 title="收合"
+                aria-label="收合佇列"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           </div>
 
           {currentItem && (
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
-              <div 
-                className="relative aspect-video rounded-lg overflow-hidden bg-black mb-3 cursor-pointer"
+            <div className="border-b border-neutral-200/80 p-3 dark:border-white/10">
+              <button
+                type="button"
+                className="relative mb-3 aspect-video w-full cursor-pointer overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
                 onClick={togglePlayPause}
+                aria-label={isPlaying ? "暫停" : "播放"}
               >
                 {currentItem.cover ? (
-                  <img src={currentItem.cover} alt={currentItem.name} className="w-full h-full object-contain" />
+                  <img src={currentItem.cover} alt="" className="h-full w-full object-contain" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-600 to-indigo-600">
-                    <Video className="w-16 h-16 text-white/50" />
+                  <div className="flex h-full w-full items-center justify-center bg-neutral-900">
+                    <Video className="h-12 w-12 text-white/40" />
                   </div>
                 )}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  {isPlaying ? (
-                    <div className="w-16 h-16 bg-black/30 rounded-full flex items-center justify-center">
-                      <Pause className="w-8 h-8 text-white" />
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors">
-                      <Play className="w-8 h-8 text-white fill-current" />
-                    </div>
-                  )}
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white">
+                    {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 fill-current" />}
+                  </div>
                 </div>
                 {isPlaying && (
-                  <div className="absolute bottom-2 left-2 flex items-center gap-1">
-                    <div className="w-1 h-3 bg-white rounded animate-pulse" style={{ animationDelay: '0ms' }} />
-                    <div className="w-1 h-4 bg-white rounded animate-pulse" style={{ animationDelay: '150ms' }} />
-                    <div className="w-1 h-2 bg-white rounded animate-pulse" style={{ animationDelay: '300ms' }} />
+                  <div className="absolute bottom-2 left-2 flex items-end gap-0.5" aria-hidden>
+                    <div className="h-2 w-1 animate-pulse rounded bg-white" style={{ animationDelay: "0ms" }} />
+                    <div className="h-3 w-1 animate-pulse rounded bg-white" style={{ animationDelay: "150ms" }} />
+                    <div className="h-1.5 w-1 animate-pulse rounded bg-white" style={{ animationDelay: "300ms" }} />
                   </div>
                 )}
-              </div>
+              </button>
 
               <div className="flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm text-gray-900 dark:text-gray-100 truncate">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-neutral-900 dark:text-white">
                     {currentItem.name}
                   </div>
                   {currentItem.category && (
-                    <div className="text-xs text-blue-600 dark:text-blue-400">
-                      {currentItem.category}
-                    </div>
+                    <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">{currentItem.category}</div>
                   )}
-                  
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-[10px] text-gray-500">{formatTime(currentTime)}</span>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-[10px] tabular-nums text-neutral-500">{formatTime(currentTime)}</span>
                     <input
                       type="range"
                       min="0"
                       max={duration || 100}
                       value={currentTime}
                       onChange={handleSeek}
-                      className="flex-1 h-1 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      className="h-1 flex-1 cursor-pointer appearance-none rounded-lg bg-neutral-200 accent-neutral-900 dark:bg-white/15 dark:accent-white"
+                      aria-label="播放進度"
                     />
-                    <span className="text-[10px] text-gray-500">{formatTime(duration)}</span>
+                    <span className="text-[10px] tabular-nums text-neutral-500">{formatTime(duration)}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={togglePlayPause}
-                    className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
-                  >
-                    {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                <div className="flex shrink-0 items-center gap-1">
+                  <button type="button" onClick={togglePlayPause} className={primaryPlay} aria-label={isPlaying ? "暫停" : "播放"}>
+                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
                   </button>
                   {currentIndex < queue.length - 1 && (
                     <button
+                      type="button"
                       onClick={skipToNext}
-                      className="p-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400 rounded-full transition-colors"
-                      title="下一個"
+                      className={`${iconBtn} bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-white/10 dark:text-neutral-200 dark:hover:bg-white/15`}
+                      title="下一則"
+                      aria-label="下一則"
                     >
-                      <SkipForward className="w-4 h-4" />
+                      <SkipForward className="h-4 w-4" />
                     </button>
                   )}
                 </div>
@@ -304,66 +313,68 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
             {queue.map((item, index) => (
               <div
                 key={item.id}
-                className={`flex items-center gap-3 p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
-                  index === currentIndex 
-                    ? 'bg-blue-50 dark:bg-blue-900/20' 
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                className={`flex items-center gap-2.5 border-b border-neutral-100 px-3 py-2.5 last:border-b-0 dark:border-white/5 ${
+                  index === currentIndex
+                    ? "bg-neutral-100/90 dark:bg-white/10"
+                    : "hover:bg-neutral-50 dark:hover:bg-white/5"
                 }`}
               >
-                <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center">
                   {index === currentIndex ? (
-                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                    <div className="h-2 w-2 animate-pulse rounded-full bg-neutral-900 dark:bg-white" />
                   ) : (
-                    <span className="text-xs text-gray-400">{index + 1}</span>
+                    <span className="text-xs tabular-nums text-neutral-400">{index + 1}</span>
                   )}
                 </div>
 
-                <div className="w-16 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600">
+                <div className="h-10 w-16 shrink-0 overflow-hidden rounded-md bg-neutral-900">
                   {item.cover ? (
-                    <img src={item.cover} alt={item.name} className="w-full h-full object-cover" />
+                    <img src={item.cover} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Video className="w-5 h-5 text-white" />
+                    <div className="flex h-full w-full items-center justify-center">
+                      <Video className="h-4 w-4 text-white/60" />
                     </div>
                   )}
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
-                    {item.name}
-                  </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-neutral-900 dark:text-white">{item.name}</div>
                   {item.category && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {item.category}
-                    </div>
+                    <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">{item.category}</div>
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 flex-shrink-0">
+                <div className="flex shrink-0 items-center gap-0.5">
                   {index > 0 && (
                     <button
+                      type="button"
                       onClick={() => moveInQueue(index, index - 1)}
-                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                      className="rounded p-1 text-neutral-500 transition-colors hover:bg-neutral-200/80 dark:hover:bg-white/10"
                       title="上移"
+                      aria-label="上移"
                     >
-                      <ChevronUp className="w-4 h-4 text-gray-500" />
+                      <ChevronUp className="h-4 w-4" />
                     </button>
                   )}
                   {index < queue.length - 1 && (
                     <button
+                      type="button"
                       onClick={() => moveInQueue(index, index + 1)}
-                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                      className="rounded p-1 text-neutral-500 transition-colors hover:bg-neutral-200/80 dark:hover:bg-white/10"
                       title="下移"
+                      aria-label="下移"
                     >
-                      <ChevronDown className="w-4 h-4 text-gray-500" />
+                      <ChevronDown className="h-4 w-4" />
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={() => removeFromQueue(item.id)}
-                    className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                    className="rounded p-1 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"
                     title="移除"
+                    aria-label="移除"
                   >
-                    <X className="w-4 h-4 text-red-500" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -371,13 +382,14 @@ export function VideoQueuePanel({ onPlayFromQueue }: VideoQueuePanelProps) {
           </div>
 
           {currentIndex >= 0 && currentIndex < queue.length - 1 && (
-            <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+            <div className="border-t border-neutral-200/80 p-3 dark:border-white/10">
               <button
+                type="button"
                 onClick={skipToNext}
-                className="w-full flex items-center justify-center gap-2 py-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-100 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
               >
-                <SkipForward className="w-4 h-4" />
-                <span className="text-sm font-medium">跳到下一個</span>
+                <SkipForward className="h-4 w-4" />
+                跳到下一則
               </button>
             </div>
           )}

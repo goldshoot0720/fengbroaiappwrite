@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Calendar, Search, ListPlus, Camera, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, Share2, Star, ThumbsUp, MoreVertical, Maximize, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Search, ListPlus, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import SimpleVideoPlayer from "@/components/ui/simple-video-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
 import { useVideos, VideoData } from "@/hooks/useVideos";
@@ -21,7 +21,6 @@ import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getMultipartVideoDown
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
-import { VideoScreenshotButton } from "@/components/ui/video-screenshot-button";
 import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
@@ -1680,42 +1679,55 @@ export default function VideoIntroduction() {
                 <SelectItem value="fileSizeDesc">檔案大小 大到小</SelectItem>
               </SelectContent>
             </Select>
-            <div className="flex w-full items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1 sm:w-auto">
+            <div
+              className="flex w-full items-center gap-0.5 rounded-full bg-neutral-100 p-1 sm:w-auto dark:bg-neutral-800/80"
+              role="group"
+              aria-label="列表版型"
+            >
               <button
+                type="button"
                 onClick={() => setViewMode("netflix")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === "netflix"
-                  ? "bg-[#E50914] text-white shadow-sm"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                  }`}
-                title="Netflix 風格"
+                className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 ${
+                  viewMode === "netflix"
+                    ? "bg-[#E50914] text-white shadow-sm"
+                    : "text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                }`}
+                title="Netflix 列表"
+                aria-pressed={viewMode === "netflix"}
               >
-                <Monitor className="w-4 h-4" />
+                <Monitor className="h-4 w-4" />
                 <span className="hidden sm:inline">Netflix</span>
               </button>
               <button
+                type="button"
                 onClick={() => setViewMode("youtube")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === "youtube"
-                  ? "bg-red-500 text-white shadow-sm"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                  }`}
-                title="YouTube 風格"
+                className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${
+                  viewMode === "youtube"
+                    ? "bg-[#ff0000] text-white shadow-sm"
+                    : "text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                }`}
+                title="YouTube 列表"
+                aria-pressed={viewMode === "youtube"}
               >
-                <Tv className="w-4 h-4" />
+                <Tv className="h-4 w-4" />
                 <span className="hidden sm:inline">YouTube</span>
               </button>
               <button
+                type="button"
                 onClick={() => setViewMode("bilibili")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === "bilibili"
-                  ? "bg-[#00a1d6] text-white shadow-sm"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                  }`}
-                title="Bilibili 風格"
+                className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] ${
+                  viewMode === "bilibili"
+                    ? "bg-[#00a1d6] text-white shadow-sm"
+                    : "text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                }`}
+                title="Bilibili 列表"
+                aria-pressed={viewMode === "bilibili"}
               >
-                <Monitor className="w-4 h-4" />
+                <Play className="h-4 w-4 fill-current" />
                 <span className="hidden sm:inline">Bilibili</span>
               </button>
             </div>
-            <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
+            <Button onClick={handleAdd} className="gap-2 rounded-xl bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100">
               <Plus size={16} />
               新增影片
             </Button>
@@ -1730,10 +1742,17 @@ export default function VideoIntroduction() {
         <StatCard title="快取大小" value={formatFileSize(cacheStats.totalSize)} icon={HardDrive} />
       </div>
 
-      {/* 影片播放器 */}
+      {/* 影片播放器 — 三皮對應列表模式 */}
       {showPlayer && currentVideo && currentVideoData && (
-        viewMode === 'bilibili' ? (
+        viewMode === "bilibili" ? (
           <BilibiliPlayerModal
+            video={currentVideoData}
+            videoRef={videoRef}
+            onPersistPlayback={handlePersistVideoPlayback}
+            onClose={() => setShowPlayer(false)}
+          />
+        ) : viewMode === "netflix" ? (
+          <NetflixPlayerModal
             video={currentVideoData}
             videoRef={videoRef}
             onPersistPlayback={handlePersistVideoPlayback}
@@ -1763,176 +1782,261 @@ export default function VideoIntroduction() {
           description={`找不到「${searchQuery}」相關的影片`}
         />
       ) : viewMode === 'netflix' ? (
-        <div className="space-y-10 pb-10 bg-[#141414] text-white -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 mt-4 pt-6 min-h-[50vh] rounded-xl overflow-hidden">
+        <div className="mt-4 min-h-[50vh] space-y-8 overflow-hidden rounded-xl bg-[#141414] px-4 pb-10 pt-6 text-white sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           {filteredVideos[0] && (
-            <div className="relative w-full aspect-[21/9] bg-black -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 mb-10 overflow-hidden group cursor-pointer rounded-b-xl shadow-2xl" onClick={() => playVideo(filteredVideos[0])}>
-              <img src={getProxiedMediaUrl(filteredVideos[0].cover) || '/placeholder-video.jpg'} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-700" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#141414]/95 via-[#141414]/50 to-transparent" />
+            <div
+              className="group relative mb-6 aspect-[21/9] min-h-[200px] cursor-pointer overflow-hidden rounded-xl bg-black shadow-lg ring-1 ring-white/10"
+              onClick={() => playVideo(filteredVideos[0])}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  playVideo(filteredVideos[0]);
+                }
+              }}
+              aria-label={`播放 ${filteredVideos[0].name}`}
+            >
+              <img
+                src={getProxiedMediaUrl(filteredVideos[0].cover) || "/placeholder-video.jpg"}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover opacity-55 transition-opacity duration-300 group-hover:opacity-70"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#141414] via-[#141414]/70 to-transparent" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-transparent to-transparent" />
-              
-              <div className="absolute bottom-[15%] left-[4%] max-w-2xl z-10">
-                 <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white mb-3 sm:mb-4 drop-shadow-xl">{filteredVideos[0].name}</h1>
-                 <p className="text-gray-300 text-sm md:text-base line-clamp-2 sm:line-clamp-3 mb-6 drop-shadow-md">{filteredVideos[0].note || '鋒兄影片最新熱門推薦，點擊觀看詳細內容。'}</p>
-                 <div className="flex items-center gap-3 sm:gap-4">
-                    <button className="flex items-center justify-center gap-2 px-6 sm:px-8 py-2 sm:py-3 bg-white text-black rounded font-bold hover:bg-white/80 transition shadow-lg text-sm sm:text-base">
-                       <Play size={20} fill="currentColor" /> 播放
-                    </button>
-                    <button 
-                       className="flex items-center justify-center gap-2 px-6 sm:px-8 py-2 sm:py-3 bg-gray-600/70 text-white rounded font-bold hover:bg-gray-600/90 transition shadow-lg text-sm sm:text-base backdrop-blur-sm"
-                       onClick={(e) => { e.stopPropagation(); handleAddToQueue(filteredVideos[0]); }}
-                    >
-                       {isInQueue(filteredVideos[0].$id) ? <CheckCircle size={20} /> : <Plus size={20} />} 佇列
-                    </button>
-                 </div>
+              <div className="absolute bottom-[12%] left-[4%] z-10 max-w-2xl pr-6">
+                <p className="mb-2 text-xs font-medium tracking-wide text-white/70">精選</p>
+                <h2 className="mb-3 line-clamp-2 text-2xl font-black text-balance text-white drop-shadow-lg sm:text-4xl md:text-5xl">
+                  {filteredVideos[0].name}
+                </h2>
+                <p className="mb-5 line-clamp-2 text-sm text-neutral-300 sm:line-clamp-3 sm:text-base">
+                  {filteredVideos[0].note || "點擊播放 · 家中影片庫"}
+                </p>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <button
+                    type="button"
+                    className="inline-flex h-10 items-center gap-2 rounded bg-white px-5 text-sm font-bold text-black transition-colors hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:h-11 sm:px-7"
+                  >
+                    <Play size={18} fill="currentColor" /> 播放
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-10 items-center gap-2 rounded bg-white/15 px-5 text-sm font-bold text-white backdrop-blur-sm transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:h-11 sm:px-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddToQueue(filteredVideos[0]);
+                    }}
+                  >
+                    {isInQueue(filteredVideos[0].$id) ? <CheckCircle size={18} /> : <Plus size={18} />} 佇列
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {Array.from(new Set(filteredVideos.map(v => v.category || '未分類'))).map(category => (
-            <div key={category} className="space-y-3 relative z-10 mb-8">
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-100 px-2 drop-shadow-md">{category}</h3>
-              <div className="flex overflow-x-auto gap-4 pb-6 px-2 no-scrollbar scroll-smooth snap-x">
-                {isInlineCreating && category === '未分類' && (
-                  <div className="flex-none w-[280px] sm:w-[320px]">
+          {Array.from(new Set(filteredVideos.map((v) => v.category || "未分類"))).map((category) => (
+            <section key={category} className="relative z-10 space-y-3">
+              <h3 className="px-1 text-lg font-bold text-neutral-100 sm:text-xl">{category}</h3>
+              <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto scroll-smooth pb-4 sm:gap-4">
+                {isInlineCreating && category === "未分類" && (
+                  <div className="w-[260px] flex-none sm:w-[300px]">
                     <InlineCreateVideoCard
                       existingVideos={videos}
-                      compact={true}
+                      compact
                       onCancel={() => setIsInlineCreating(false)}
-                      onSuccess={() => { setIsInlineCreating(false); loadVideos(true); }}
+                      onSuccess={() => {
+                        setIsInlineCreating(false);
+                        loadVideos(true);
+                      }}
                     />
                   </div>
                 )}
-                {filteredVideos.filter(v => (v.category || '未分類') === category).map(video => (
-                  <div 
-                    key={video.$id}
-                    className="group relative flex-none w-[280px] sm:w-[320px] aspect-video bg-gray-800 rounded-md overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:z-20 hover:shadow-2xl shadow-lg snap-start border border-white/5"
-                    onClick={() => playVideo(video)}
-                  >
-                    <img src={getProxiedMediaUrl(video.cover) || '/placeholder-video.jpg'} alt={video.name} className="w-full h-full object-cover transition-opacity duration-300 group-hover:opacity-50" />
-                    <div className="absolute inset-0 flex flex-col justify-end p-4 bg-gradient-to-t from-[#141414] via-[#141414]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <h4 className="text-white font-bold text-sm sm:text-base line-clamp-1 mb-1">{video.name}</h4>
-                      <p className="text-gray-300 text-xs line-clamp-1 mb-3">{video.note || '無詳細描述'}</p>
-                      <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-2">
-                           <button className="bg-white text-black p-1.5 sm:p-2 rounded-full hover:bg-gray-200 transition"><Play size={16} fill="currentColor" /></button>
-                           <button className="border-2 border-white/50 text-white p-1.5 sm:p-2 rounded-full hover:bg-white/20 hover:border-white transition"
-                              onClick={(e) => { e.stopPropagation(); handleAddToQueue(video); }}
-                           >
-                              {isInQueue(video.$id) ? <CheckCircle size={16} /> : <Plus size={16} />}
-                           </button>
-                         </div>
-                         <div className="flex items-center gap-2">
-                            <button className="border border-white/30 text-white p-1.5 rounded-full hover:bg-white/20 transition"
-                               onClick={(e) => { e.stopPropagation(); handleEdit(video); }}
-                               title="編輯"
-                            ><Edit size={14} /></button>
-                            <button className="border border-white/30 text-red-400 p-1.5 rounded-full hover:bg-white/20 transition"
-                               onClick={(e) => { e.stopPropagation(); handleDelete(video); }}
-                               title="刪除"
-                            ><Trash2 size={14} /></button>
-                         </div>
+                {filteredVideos
+                  .filter((v) => (v.category || "未分類") === category)
+                  .map((video) => (
+                    <div
+                      key={video.$id}
+                      className="group relative aspect-video w-[240px] flex-none snap-start overflow-hidden rounded-md border border-white/10 bg-neutral-800 shadow-md transition-transform duration-200 motion-safe:hover:z-20 motion-safe:hover:scale-[1.04] sm:w-[280px]"
+                    >
+                      <button
+                        type="button"
+                        className="absolute inset-0 z-0"
+                        onClick={() => playVideo(video)}
+                        aria-label={`播放 ${video.name}`}
+                      />
+                      <img
+                        src={getProxiedMediaUrl(video.cover) || "/placeholder-video.jpg"}
+                        alt=""
+                        className="h-full w-full object-cover transition-opacity duration-200 group-hover:opacity-55 group-focus-within:opacity-55"
+                      />
+                      <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                        <h4 className="mb-0.5 line-clamp-1 text-sm font-bold text-white">{video.name}</h4>
+                        <p className="mb-2 line-clamp-1 text-xs text-neutral-300">{video.note || "無描述"}</p>
+                        <div className="pointer-events-auto flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="rounded-full bg-white p-1.5 text-black transition-colors hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                              onClick={() => playVideo(video)}
+                              aria-label="播放"
+                            >
+                              <Play size={14} fill="currentColor" />
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-full border border-white/40 p-1.5 text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                              onClick={() => handleAddToQueue(video)}
+                              aria-label={isInQueue(video.$id) ? "已在佇列" : "加入佇列"}
+                            >
+                              {isInQueue(video.$id) ? <CheckCircle size={14} /> : <Plus size={14} />}
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="rounded-full border border-white/30 p-1.5 text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                              onClick={() => handleEdit(video)}
+                              title="編輯"
+                              aria-label="編輯"
+                            >
+                              <Edit size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-full border border-white/30 p-1.5 text-red-300 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                              onClick={() => handleDelete(video)}
+                              title="刪除"
+                              aria-label="刪除"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                      {cacheStatus[video.$id]?.cached && (
+                        <div className="absolute right-2 top-2 rounded-full bg-emerald-500/90 p-1 text-white shadow-md">
+                          <CheckCircle size={12} />
+                        </div>
+                      )}
                     </div>
-                    {cacheStatus[video.$id]?.cached && (
-                      <div className="absolute top-2 right-2 bg-emerald-500/90 text-white rounded-full p-1 sm:p-1.5 shadow-md"><CheckCircle size={12} /></div>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
-            </div>
+            </section>
           ))}
         </div>
       ) : (
-        <div className={viewMode === 'bilibili'
-          ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 lg:gap-4"
-          : "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-6"
-        }>
-          {isInlineCreating && (
-            <div className="relative">
-              <InlineCreateVideoCard
-                existingVideos={videos}
-                compact={viewMode === 'bilibili'}
-                onCancel={() => setIsInlineCreating(false)}
-                onSuccess={() => {
-                  setIsInlineCreating(false);
-                  loadVideos(true);
-                }}
-              />
-            </div>
-          )}
-          {filteredVideos.map((video) => (
-            <div key={video.$id} className="relative">
-              {selectionMode && (
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(video.$id)}
-                  onChange={() => handleToggleSelect(video.$id)}
-                  className="absolute top-2 left-2 z-10 h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer"
+        <div
+          className={
+            viewMode === "bilibili"
+              ? "mt-4 rounded-xl border border-neutral-200/80 bg-[#f4f4f4] p-3 dark:border-[#2c2c2e] dark:bg-[#17181a] sm:p-4"
+              : "mt-4 rounded-xl border border-neutral-200/60 bg-[#f8f8f8] p-3 dark:border-white/10 dark:bg-[#0f0f0f] sm:p-4"
+          }
+        >
+          <div className="mb-3 flex items-center justify-between gap-2 px-0.5">
+            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+              {viewMode === "bilibili" ? "Bilibili 瀏覽" : "YouTube 瀏覽"}
+              <span className="mx-1.5 text-neutral-300 dark:text-neutral-600">·</span>
+              {filteredVideos.length} 部
+            </p>
+            <p className="hidden text-[11px] text-neutral-400 sm:block">
+              懸停或聚焦卡片顯示佇列 / 快取 / 編輯
+            </p>
+          </div>
+          <div
+            className={
+              viewMode === "bilibili"
+                ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 lg:gap-3.5"
+                : "grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+            }
+          >
+            {isInlineCreating && (
+              <div className="relative">
+                <InlineCreateVideoCard
+                  existingVideos={videos}
+                  compact={viewMode === "bilibili"}
+                  onCancel={() => setIsInlineCreating(false)}
+                  onSuccess={() => {
+                    setIsInlineCreating(false);
+                    loadVideos(true);
+                  }}
                 />
-              )}
-              {viewMode === 'bilibili' ? (
-                <BilibiliVideoCard
-                  video={video}
-                  cacheStatus={cacheStatus[video.$id]}
-                  onPlay={() => playVideo(video)}
-                  onEdit={() => handleEdit(video)}
-                  onDelete={() => handleDelete(video)}
-                  onDownload={() => handleDownload(video)}
-                  onDirectDownload={() => handleDirectDownload(video)}
-                  onDeleteCache={() => handleDeleteCache(video.$id)}
-                  onAddToQueue={() => handleAddToQueue(video)}
-                  isInQueue={isInQueue(video.$id)}
-                  isEditing={inlineEditingId === video.$id}
-                  inlineEditForm={inlineEditForm}
-                  setInlineEditForm={setInlineEditForm}
-                  onInlineEdit={handleInlineEdit}
-                  onInlineSave={handleInlineSave}
-                  onInlineCancel={cancelInlineEdit}
-                  inlineVideoFile={inlineVideoFile}
-                  inlineVideoPreviewName={inlineVideoPreviewName}
-                  inlineVideoUploading={inlineVideoUploading}
-                  inlineVideoUploadProgress={inlineVideoUploadProgress}
-                  inlineVideoDuplicateWarning={inlineVideoDuplicateWarning}
-                  onInlineVideoSelect={handleInlineVideoSelect}
-                  inlineCoverFile={inlineCoverFile}
-                  setInlineCoverFile={setInlineCoverFile}
-                  inlineCoverPreview={inlineCoverPreview}
-                  setInlineCoverPreview={setInlineCoverPreview}
-                  inlineCoverUploading={inlineCoverUploading}
-                />
-              ) : (
-                <VideoManagementCard
-                  video={video}
-                  cacheStatus={cacheStatus[video.$id]}
-                  onPlay={() => playVideo(video)}
-                  onEdit={() => handleEdit(video)}
-                  onDelete={() => handleDelete(video)}
-                  onDownload={() => handleDownload(video)}
-                  onDirectDownload={() => handleDirectDownload(video)}
-                  onDeleteCache={() => handleDeleteCache(video.$id)}
-                  onAddToQueue={() => handleAddToQueue(video)}
-                  isInQueue={isInQueue(video.$id)}
-                  isEditing={inlineEditingId === video.$id}
-                  inlineEditForm={inlineEditForm}
-                  setInlineEditForm={setInlineEditForm}
-                  onInlineEdit={handleInlineEdit}
-                  onInlineSave={handleInlineSave}
-                  onInlineCancel={cancelInlineEdit}
-                  inlineVideoFile={inlineVideoFile}
-                  inlineVideoPreviewName={inlineVideoPreviewName}
-                  inlineVideoUploading={inlineVideoUploading}
-                  inlineVideoUploadProgress={inlineVideoUploadProgress}
-                  inlineVideoDuplicateWarning={inlineVideoDuplicateWarning}
-                  onInlineVideoSelect={handleInlineVideoSelect}
-                  inlineCoverFile={inlineCoverFile}
-                  setInlineCoverFile={setInlineCoverFile}
-                  inlineCoverPreview={inlineCoverPreview}
-                  setInlineCoverPreview={setInlineCoverPreview}
-                  inlineCoverUploading={inlineCoverUploading}
-                />
-              )}
-            </div>
-          ))}
+              </div>
+            )}
+            {filteredVideos.map((video) => (
+              <div key={video.$id} className="relative">
+                {selectionMode && (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(video.$id)}
+                    onChange={() => handleToggleSelect(video.$id)}
+                    className="absolute left-2 top-2 z-10 h-4 w-4 cursor-pointer rounded border-neutral-300 text-red-600"
+                    aria-label={`選取 ${video.name}`}
+                  />
+                )}
+                {viewMode === "bilibili" ? (
+                  <BilibiliVideoCard
+                    video={video}
+                    cacheStatus={cacheStatus[video.$id]}
+                    onPlay={() => playVideo(video)}
+                    onEdit={() => handleEdit(video)}
+                    onDelete={() => handleDelete(video)}
+                    onDownload={() => handleDownload(video)}
+                    onDirectDownload={() => handleDirectDownload(video)}
+                    onDeleteCache={() => handleDeleteCache(video.$id)}
+                    onAddToQueue={() => handleAddToQueue(video)}
+                    isInQueue={isInQueue(video.$id)}
+                    isEditing={inlineEditingId === video.$id}
+                    inlineEditForm={inlineEditForm}
+                    setInlineEditForm={setInlineEditForm}
+                    onInlineEdit={handleInlineEdit}
+                    onInlineSave={handleInlineSave}
+                    onInlineCancel={cancelInlineEdit}
+                    inlineVideoFile={inlineVideoFile}
+                    inlineVideoPreviewName={inlineVideoPreviewName}
+                    inlineVideoUploading={inlineVideoUploading}
+                    inlineVideoUploadProgress={inlineVideoUploadProgress}
+                    inlineVideoDuplicateWarning={inlineVideoDuplicateWarning}
+                    onInlineVideoSelect={handleInlineVideoSelect}
+                    inlineCoverFile={inlineCoverFile}
+                    setInlineCoverFile={setInlineCoverFile}
+                    inlineCoverPreview={inlineCoverPreview}
+                    setInlineCoverPreview={setInlineCoverPreview}
+                    inlineCoverUploading={inlineCoverUploading}
+                  />
+                ) : (
+                  <VideoManagementCard
+                    video={video}
+                    cacheStatus={cacheStatus[video.$id]}
+                    onPlay={() => playVideo(video)}
+                    onEdit={() => handleEdit(video)}
+                    onDelete={() => handleDelete(video)}
+                    onDownload={() => handleDownload(video)}
+                    onDirectDownload={() => handleDirectDownload(video)}
+                    onDeleteCache={() => handleDeleteCache(video.$id)}
+                    onAddToQueue={() => handleAddToQueue(video)}
+                    isInQueue={isInQueue(video.$id)}
+                    isEditing={inlineEditingId === video.$id}
+                    inlineEditForm={inlineEditForm}
+                    setInlineEditForm={setInlineEditForm}
+                    onInlineEdit={handleInlineEdit}
+                    onInlineSave={handleInlineSave}
+                    onInlineCancel={cancelInlineEdit}
+                    inlineVideoFile={inlineVideoFile}
+                    inlineVideoPreviewName={inlineVideoPreviewName}
+                    inlineVideoUploading={inlineVideoUploading}
+                    inlineVideoUploadProgress={inlineVideoUploadProgress}
+                    inlineVideoDuplicateWarning={inlineVideoDuplicateWarning}
+                    onInlineVideoSelect={handleInlineVideoSelect}
+                    inlineCoverFile={inlineCoverFile}
+                    setInlineCoverFile={setInlineCoverFile}
+                    inlineCoverPreview={inlineCoverPreview}
+                    setInlineCoverPreview={setInlineCoverPreview}
+                    inlineCoverUploading={inlineCoverUploading}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -2202,65 +2306,452 @@ export default function VideoIntroduction() {
   );
 }
 
-// 影片播放器模態框 - 終極重構版（完全模仿 Sora/YouTube 設計）
-function VideoPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { video: VideoData; videoRef: React.RefObject<HTMLVideoElement | null>; onClose: () => void; onPersistPlayback: (video: VideoData, playback: { src: string; currentTime: number; volume: number; playbackRate: number; loop: boolean; muted: boolean; }) => void; }) {
+// 播放器共用：上一部 / 下一部
+function pickAdjacentVideo(
+  list: VideoData[],
+  currentId: string,
+  direction: "prev" | "next"
+): VideoData | null {
+  if (list.length <= 1) return null;
+  const currentIndex = list.findIndex((v) => v.$id === currentId);
+  if (currentIndex < 0) return list[0] ?? null;
+  const delta = direction === "next" ? 1 : -1;
+  const nextIndex = (currentIndex + delta + list.length) % list.length;
+  return list[nextIndex] ?? null;
+}
+
+function buildRecommendedVideos(
+  allVideosWithFile: VideoData[],
+  currentId: string,
+  playedIds: Set<string>
+): VideoData[] {
+  const currentIndex = allVideosWithFile.findIndex((v) => v.$id === currentId);
+  if (currentIndex < 0) return allVideosWithFile.slice(0, 12);
+  const unplayed: VideoData[] = [];
+  const played: VideoData[] = [];
+  for (let i = 1; i < allVideosWithFile.length; i++) {
+    const nextIndex = (currentIndex + i) % allVideosWithFile.length;
+    const item = allVideosWithFile[nextIndex];
+    if (playedIds.has(item.$id)) played.push(item);
+    else unplayed.push(item);
+  }
+  return [...unplayed, ...played].slice(0, 12);
+}
+
+type VideoPersistPlayback = {
+  src: string;
+  currentTime: number;
+  volume: number;
+  playbackRate: number;
+  loop: boolean;
+  muted: boolean;
+};
+
+function useVideoPlayerSession(
+  video: VideoData,
+  options?: { onEndedRepeatQuery?: string }
+) {
   const { videos } = useVideos();
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
   const [repeatMode, setRepeatMode] = useState(false);
   const [showDescription, setShowDescription] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
-  const [playedIds, setPlayedIds] = useState<Set<string>>(new Set([video.$id]));
-  const modalRef = useRef<HTMLDivElement>(null);
+  const [playedIds, setPlayedIds] = useState<Set<string>>(() => new Set([video.$id]));
   const { resolvedSrc, loadingSource, sourceError } = useResolvedVideoSource(currentVideo);
 
-  // 所有有影片的列表（按順序）
-  const allVideosWithFile = useMemo(() => {
-    return videos.filter(v => v.file);
-  }, [videos]);
+  const allVideosWithFile = useMemo(() => videos.filter((v) => v.file), [videos]);
+  const hasPlaylist = allVideosWithFile.length > 1;
+  const recommendedVideos = useMemo(
+    () => buildRecommendedVideos(allVideosWithFile, currentVideo.$id, playedIds),
+    [allVideosWithFile, currentVideo.$id, playedIds]
+  );
 
-  // 推薦影片列表（排除當前影片，按播放順序排列，未播放的在前面）
-  const recommendedVideos = useMemo(() => {
-    const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-    const result: VideoData[] = [];
+  const goToVideo = useCallback((next: VideoData) => {
+    setPlayedIds((prev) => new Set([...prev, next.$id]));
+    setCurrentVideo(next);
+    setShowDescription(false);
+  }, []);
 
-    // 從當前位置往後排序，未播放的先顯示
-    for (let i = 1; i < allVideosWithFile.length; i++) {
-      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
-      const video = allVideosWithFile[nextIndex];
-      if (!playedIds.has(video.$id)) {
-        result.push(video);
-      }
-    }
-
-    // 已播放的放後面
-    for (let i = 1; i < allVideosWithFile.length; i++) {
-      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
-      const video = allVideosWithFile[nextIndex];
-      if (playedIds.has(video.$id)) {
-        result.push(video);
-      }
-    }
-
-    return result.slice(0, 12);
-  }, [allVideosWithFile, currentVideo.$id, playedIds]);
-
-  const toggleFullscreen = () => setIsFullscreen(!isFullscreen);
+  const goAdjacent = useCallback(
+    (direction: "prev" | "next") => {
+      const next = pickAdjacentVideo(allVideosWithFile, currentVideo.$id, direction);
+      if (next) goToVideo(next);
+    },
+    [allVideosWithFile, currentVideo.$id, goToVideo]
+  );
 
   const handleVideoEnded = useCallback(() => {
     if (repeatMode) {
-      const player = document.querySelector('.plyr video') as HTMLVideoElement | null;
+      const selector = options?.onEndedRepeatQuery || ".plyr video";
+      const player = document.querySelector(selector) as HTMLVideoElement | null;
       if (player) {
         player.currentTime = 0;
         void player.play().catch(() => {});
       }
       return;
     }
+    if (!autoPlay) return;
+    const currentIndex = allVideosWithFile.findIndex((v) => v.$id === currentVideo.$id);
+    let nextVideo: VideoData | null = null;
+    for (let i = 1; i < allVideosWithFile.length; i++) {
+      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
+      const candidate = allVideosWithFile[nextIndex];
+      if (!playedIds.has(candidate.$id)) {
+        nextVideo = candidate;
+        break;
+      }
+    }
+    if (!nextVideo && allVideosWithFile.length > 1) {
+      const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
+      nextVideo = allVideosWithFile[nextIndex];
+      setPlayedIds(new Set([nextVideo.$id]));
+    } else if (nextVideo) {
+      setPlayedIds((prev) => new Set([...prev, nextVideo!.$id]));
+    }
+    if (nextVideo) {
+      setCurrentVideo(nextVideo);
+      setShowDescription(false);
+    }
+  }, [repeatMode, autoPlay, allVideosWithFile, currentVideo.$id, playedIds, options?.onEndedRepeatQuery]);
 
+  return {
+    autoPlay,
+    setAutoPlay,
+    repeatMode,
+    setRepeatMode,
+    showDescription,
+    setShowDescription,
+    currentVideo,
+    resolvedSrc,
+    loadingSource,
+    sourceError,
+    allVideosWithFile,
+    hasPlaylist,
+    recommendedVideos,
+    goToVideo,
+    goAdjacent,
+    handleVideoEnded,
+  };
+}
+
+// Netflix 皮播放器 — 沉浸全黑、橫列 up-next
+function NetflixPlayerModal({
+  video,
+  onClose,
+  onPersistPlayback,
+}: {
+  video: VideoData;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  onClose: () => void;
+  onPersistPlayback: (video: VideoData, playback: VideoPersistPlayback) => void;
+}) {
+  const {
+    autoPlay,
+    setAutoPlay,
+    repeatMode,
+    setRepeatMode,
+    showDescription,
+    setShowDescription,
+    currentVideo,
+    resolvedSrc,
+    loadingSource,
+    sourceError,
+    hasPlaylist,
+    recommendedVideos,
+    goToVideo,
+    goAdjacent,
+    handleVideoEnded,
+  } = useVideoPlayerSession(video);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goAdjacent("prev");
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goAdjacent("next");
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose, goAdjacent]);
+
+  const overlayNavBtn =
+    "absolute top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity duration-200 hover:bg-black/85 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100 group-focus-within:opacity-100";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-[#141414] text-white motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`播放：${currentVideo.name}`}
+    >
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#141414]/95 backdrop-blur-md">
+        <div className="mx-auto flex h-12 max-w-[1600px] items-center justify-between gap-3 px-4 sm:h-14 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="shrink-0 text-xl font-black tracking-tight text-[#E50914]" aria-hidden>
+              F
+            </span>
+            <div className="min-w-0">
+              <span className="block truncate text-sm font-semibold sm:text-base">鋒兄影片</span>
+              <span className="hidden text-[11px] text-white/50 sm:block">Netflix 模式</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            aria-label="關閉播放器"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-[1400px] space-y-5 p-4 sm:p-6 lg:p-8">
+        <div className="group relative aspect-video overflow-hidden rounded-md bg-black shadow-2xl ring-1 ring-white/10 [&_.plyr]:!h-full [&_.plyr]:!w-full">
+          {hasPlaylist && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goAdjacent("prev");
+                }}
+                className={`${overlayNavBtn} left-3`}
+                title="上一則"
+                aria-label="上一則影片"
+              >
+                <ChevronLeft className="h-7 w-7" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goAdjacent("next");
+                }}
+                className={`${overlayNavBtn} right-3`}
+                title="下一則"
+                aria-label="下一則影片"
+              >
+                <ChevronRight className="h-7 w-7" />
+              </button>
+            </>
+          )}
+          {loadingSource ? (
+            <div className="flex h-full w-full items-center justify-center text-sm text-white/70">影片載入中…</div>
+          ) : sourceError ? (
+            <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-red-400">{sourceError}</div>
+          ) : (
+            <PlyrPlayer
+              key={currentVideo.$id}
+              type="video"
+              src={resolvedSrc}
+              poster={currentVideo.cover}
+              autoplay
+              onEnded={handleVideoEnded}
+              persistOnUnmount
+              onPersistPlayback={(playback) => onPersistPlayback(currentVideo, playback)}
+              className="h-full w-full"
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1 space-y-3">
+            <h1 className="line-clamp-2 text-2xl font-black leading-tight text-balance sm:text-3xl">
+              {currentVideo.name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-white/60">
+              <span>{formatLocalDate(currentVideo.$createdAt)}</span>
+              {currentVideo.category && (
+                <span className="rounded border border-white/20 px-2 py-0.5 text-xs text-white/80">
+                  {currentVideo.category}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {hasPlaylist && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => goAdjacent("prev")}
+                    className="inline-flex h-10 items-center gap-1.5 rounded bg-white px-3.5 text-sm font-bold text-black transition-colors hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    上一則
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => goAdjacent("next")}
+                    className="inline-flex h-10 items-center gap-1.5 rounded bg-white/15 px-3.5 text-sm font-bold text-white transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    下一則
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => setAutoPlay((v) => !v)}
+                disabled={repeatMode}
+                aria-pressed={autoPlay && !repeatMode}
+                className={`inline-flex h-10 items-center rounded px-3.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-45 ${
+                  autoPlay && !repeatMode
+                    ? "bg-[#E50914] text-white hover:bg-[#f6121d]"
+                    : "bg-white/10 text-white/80 hover:bg-white/15"
+                }`}
+              >
+                自動播放 {autoPlay && !repeatMode ? "開" : "關"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepeatMode((v) => !v)}
+                aria-pressed={repeatMode}
+                className={`inline-flex h-10 items-center rounded px-3.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                  repeatMode ? "bg-white text-black" : "bg-white/10 text-white/80 hover:bg-white/15"
+                }`}
+              >
+                重複 {repeatMode ? "開" : "關"}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowDescription((v) => !v)}
+              className="w-full rounded-md bg-white/5 p-3 text-left transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              aria-expanded={showDescription}
+            >
+              <div className="flex items-center justify-between gap-2 text-sm font-medium">
+                <span>簡介</span>
+                <span className="text-xs text-white/50">{showDescription ? "顯示較少" : "展開"}</span>
+              </div>
+              {showDescription ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/75">
+                    {currentVideo.note || "暫無詳細描述。"}
+                  </p>
+                  {currentVideo.ref && (
+                    <a
+                      href={currentVideo.ref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="block break-all text-sm text-[#54b9c5] hover:underline"
+                    >
+                      {currentVideo.ref}
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-1 line-clamp-1 text-sm text-white/55">
+                  {currentVideo.note || "暫無詳細描述。"}
+                </p>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {recommendedVideos.length > 0 && (
+          <section className="space-y-3 border-t border-white/10 pt-5">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-bold">接下來播放</h2>
+              <span className="text-xs text-white/45">{recommendedVideos.length} 則</span>
+            </div>
+            <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-2">
+              {recommendedVideos.map((rec) => (
+                <button
+                  key={rec.$id}
+                  type="button"
+                  onClick={() => goToVideo(rec)}
+                  className="group/card w-[160px] shrink-0 snap-start text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:w-[200px]"
+                >
+                  <div className="relative aspect-video overflow-hidden rounded bg-neutral-800 ring-1 ring-white/10 transition-transform duration-200 motion-safe:group-hover/card:scale-[1.03]">
+                    {rec.cover ? (
+                      <img src={rec.cover} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Play className="h-6 w-6 text-white/20" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity group-hover/card:bg-black/35 group-hover/card:opacity-100">
+                      <Play className="h-8 w-8 fill-current text-white" />
+                    </div>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-white/90 group-hover/card:text-white">
+                    {rec.name}
+                  </p>
+                  <p className="mt-0.5 text-xs text-white/45">{formatLocalDate(rec.$createdAt)}</p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+// YouTube 皮播放器 — 極簡控制（上一則 / 下一則 / 自動播放 + 關閉）
+function VideoPlayerModal({
+  video,
+  onClose,
+  onPersistPlayback,
+}: {
+  video: VideoData;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  onClose: () => void;
+  onPersistPlayback: (video: VideoData, playback: VideoPersistPlayback) => void;
+}) {
+  const { videos } = useVideos();
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [repeatMode, setRepeatMode] = useState(false);
+  const [showDescription, setShowDescription] = useState(false);
+  const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
+  const [playedIds, setPlayedIds] = useState<Set<string>>(() => new Set([video.$id]));
+  const { resolvedSrc, loadingSource, sourceError } = useResolvedVideoSource(currentVideo);
+
+  const allVideosWithFile = useMemo(() => videos.filter((v) => v.file), [videos]);
+  const hasPlaylist = allVideosWithFile.length > 1;
+
+  const recommendedVideos = useMemo(
+    () => buildRecommendedVideos(allVideosWithFile, currentVideo.$id, playedIds),
+    [allVideosWithFile, currentVideo.$id, playedIds]
+  );
+
+  const goToVideo = useCallback((next: VideoData) => {
+    setPlayedIds((prev) => new Set([...prev, next.$id]));
+    setCurrentVideo(next);
+    setShowDescription(false);
+  }, []);
+
+  const goAdjacent = useCallback(
+    (direction: "prev" | "next") => {
+      const next = pickAdjacentVideo(allVideosWithFile, currentVideo.$id, direction);
+      if (next) goToVideo(next);
+    },
+    [allVideosWithFile, currentVideo.$id, goToVideo]
+  );
+
+  const handleVideoEnded = useCallback(() => {
+    if (repeatMode) {
+      const player = document.querySelector(".plyr video") as HTMLVideoElement | null;
+      if (player) {
+        player.currentTime = 0;
+        void player.play().catch(() => {});
+      }
+      return;
+    }
     if (!autoPlay) return;
 
-    const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-
+    const currentIndex = allVideosWithFile.findIndex((v) => v.$id === currentVideo.$id);
     let nextVideo: VideoData | null = null;
     for (let i = 1; i < allVideosWithFile.length; i++) {
       const nextIndex = (currentIndex + i) % allVideosWithFile.length;
@@ -2275,254 +2766,241 @@ function VideoPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { vid
       const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
       nextVideo = allVideosWithFile[nextIndex];
       setPlayedIds(new Set([nextVideo.$id]));
-      console.log('所有影片已播放完畢，重新開始:', nextVideo.name);
     } else if (nextVideo) {
-      setPlayedIds(prev => new Set([...prev, nextVideo!.$id]));
-      console.log('自動播放下一個:', nextVideo.name);
+      setPlayedIds((prev) => new Set([...prev, nextVideo!.$id]));
     }
 
     if (nextVideo) {
       setCurrentVideo(nextVideo);
+      setShowDescription(false);
     }
   }, [repeatMode, autoPlay, allVideosWithFile, currentVideo.$id, playedIds]);
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') isFullscreen ? setIsFullscreen(false) : onClose();
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goAdjacent("prev");
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goAdjacent("next");
+      }
     };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [isFullscreen, onClose]);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose, goAdjacent]);
 
-  // 全螢幕模式
-  if (isFullscreen) {
-    return (
-      <div className="fixed inset-0 bg-black z-[100] flex items-center justify-center">
-        <button onClick={toggleFullscreen} className="absolute top-6 right-6 z-10 p-3 bg-black/40 hover:bg-black/60 rounded-full text-white transition-all">
-          <X className="w-6 h-6" />
-        </button>
-        <div className="w-full h-full">
-          {loadingSource ? (
-            <div className="w-full h-full flex items-center justify-center text-white">影片載入中...</div>
-          ) : sourceError ? (
-            <div className="w-full h-full flex items-center justify-center text-red-400 px-6 text-center">{sourceError}</div>
-          ) : (
-            <PlyrPlayer
-              key={currentVideo.$id}
-              type="video"
-              src={resolvedSrc}
-              poster={currentVideo.cover}
-              autoplay={true}
-              onEnded={handleVideoEnded}
-              persistOnUnmount
-              onPersistPlayback={(playback) => onPersistPlayback(currentVideo, playback)}
-              className="w-full h-full"
-            />
-          )}
-        </div>
-      </div>
-    );
-  }
+  const overlayNavBtn =
+    "absolute top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity duration-200 hover:bg-black/80 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 group-hover:opacity-100 group-focus-within:opacity-100";
 
-  // 統一橫式影片布局（YouTube 2024 風格）
   return (
-    <div className="fixed inset-0 bg-[#f1f1f1] dark:bg-[#0f0f0f] z-50 overflow-y-auto animate-in fade-in duration-200">
-      {/* 頂部導航 - YouTube 2024 風格 */}
-      <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10">
-        <div className="max-w-[1800px] mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* YouTube 風格紅色 play icon */}
-            <div className="flex items-center gap-1">
-              <div className="w-8 h-6 bg-red-600 rounded-[4px] flex items-center justify-center">
-                <Play className="w-4 h-4 text-white fill-current" />
-              </div>
-              <span className="font-bold text-lg tracking-tight hidden sm:block dark:text-white">鋒兄影片</span>
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-[#f1f1f1] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200 dark:bg-[#0f0f0f]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`播放：${currentVideo.name}`}
+    >
+      {/* 頂欄：Logo + 關閉（無假搜尋） */}
+      <header className="sticky top-0 z-20 border-b border-black/8 bg-white/95 backdrop-blur-md dark:border-white/10 dark:bg-[#0f0f0f]/95">
+        <div className="mx-auto flex h-12 max-w-[1700px] items-center justify-between gap-3 px-4 sm:h-14 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-6 w-8 shrink-0 items-center justify-center rounded-[4px] bg-[#ff0000]" aria-hidden>
+              <Play className="h-3.5 w-3.5 fill-current text-white" />
+            </div>
+            <div className="min-w-0">
+              <span className="block truncate text-sm font-semibold tracking-tight text-neutral-900 dark:text-white sm:text-base">
+                鋒兄影片
+              </span>
+              <span className="hidden text-[11px] text-neutral-500 dark:text-neutral-400 sm:block">YouTube 模式</span>
             </div>
           </div>
-
-          {/* 中間搜尋列（視覺用） */}
-          <div className="hidden md:flex flex-1 max-w-[540px] mx-8">
-            <div className="flex w-full">
-              <div className="flex-1 flex items-center bg-white dark:bg-[#121212] border border-gray-300 dark:border-[#303030] rounded-l-full px-4 h-10">
-                <span className="text-sm text-gray-400 dark:text-gray-500">搜尋影片</span>
-              </div>
-              <button className="px-5 h-10 bg-gray-100 dark:bg-[#222222] border border-l-0 border-gray-300 dark:border-[#303030] rounded-r-full">
-                <Search className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              </button>
-            </div>
-          </div>
-
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors dark:text-white">
-            <X className="w-6 h-6" />
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-800 transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:text-white dark:hover:bg-white/10"
+            aria-label="關閉播放器"
+          >
+            <X className="h-5 w-5" />
           </button>
         </div>
-      </div>
+      </header>
 
-      <main className="max-w-[1700px] mx-auto p-4 lg:p-6 xl:p-8">
-        <div className="flex flex-col lg:flex-row gap-6">
-
-          {/* 左側：主播放區 + 影片資訊 */}
-          <div className="flex-1 lg:max-w-[calc(100%-426px)] space-y-3">
-            {/* 播放器容器 */}
-            <div className="bg-black rounded-xl overflow-hidden aspect-video relative group [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-xl">
-              {allVideosWithFile.length > 1 && (
+      <main className="mx-auto max-w-[1700px] p-4 sm:p-5 lg:p-6 xl:p-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:gap-6">
+          {/* 主欄 */}
+          <div className="min-w-0 flex-1 space-y-3 lg:max-w-[calc(100%-402px)]">
+            <div className="group relative aspect-video overflow-hidden rounded-xl bg-black shadow-sm ring-1 ring-black/10 dark:ring-white/10 [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-xl">
+              {hasPlaylist && (
                 <>
-                  <button 
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-                      const nextVid = allVideosWithFile[(currentIndex + 1) % allVideosWithFile.length];
-                      setPlayedIds(prev => new Set([...prev, nextVid.$id]));
-                      setCurrentVideo(nextVid);
+                      goAdjacent("prev");
                     }}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
-                    title="下一部影片"
+                    className={`${overlayNavBtn} left-3`}
+                    title="上一則"
+                    aria-label="上一則影片"
                   >
-                    <ChevronLeft className="w-8 h-8" />
+                    <ChevronLeft className="h-7 w-7" />
                   </button>
-                  <button 
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-                      const prevVid = allVideosWithFile[(currentIndex - 1 + allVideosWithFile.length) % allVideosWithFile.length];
-                      setPlayedIds(prev => new Set([...prev, prevVid.$id]));
-                      setCurrentVideo(prevVid);
+                      goAdjacent("next");
                     }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
-                    title="上一部影片"
+                    className={`${overlayNavBtn} right-3`}
+                    title="下一則"
+                    aria-label="下一則影片"
                   >
-                    <ChevronRight className="w-8 h-8" />
+                    <ChevronRight className="h-7 w-7" />
                   </button>
                 </>
               )}
               {loadingSource ? (
-                <div className="w-full h-full flex items-center justify-center text-white">影片載入中...</div>
+                <div className="flex h-full w-full items-center justify-center text-sm text-white/80">影片載入中…</div>
               ) : sourceError ? (
-                <div className="w-full h-full flex items-center justify-center text-red-400 px-6 text-center">{sourceError}</div>
+                <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-red-400">{sourceError}</div>
               ) : (
                 <PlyrPlayer
                   key={currentVideo.$id}
                   type="video"
                   src={resolvedSrc}
                   poster={currentVideo.cover}
-                  autoplay={true}
+                  autoplay
                   onEnded={handleVideoEnded}
                   persistOnUnmount
                   onPersistPlayback={(playback) => onPersistPlayback(currentVideo, playback)}
-                  className="w-full h-full"
+                  className="h-full w-full"
                 />
               )}
             </div>
 
-            {/* 影片標題 */}
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-snug">
+            <h1 className="line-clamp-2 text-lg font-bold leading-snug text-balance text-neutral-900 dark:text-white sm:text-xl">
               {currentVideo.name}
             </h1>
 
-            {/* 作者與互動區 */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
-                  FX
-                </div>
-                <div>
-                  <div className="font-medium text-sm dark:text-white">鋒兄 (Feng Xiong)</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">系統管理員</div>
-                </div>
-                <button className="ml-3 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-full text-sm font-medium hover:opacity-90 transition-opacity">
-                  訂閱
-                </button>
-              </div>
-
-              {/* 互動列 - YouTube 2024 pill 按鈕 */}
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <button className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full text-sm font-medium text-gray-800 dark:text-white transition-colors">
-                  <ThumbsUp className="w-4 h-4" /> 點讚
-                </button>
-                <VideoScreenshotButton videoTitle={currentVideo.name} />
-                <button onClick={toggleFullscreen} className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full text-sm font-medium text-gray-800 dark:text-white transition-colors">
-                  <Maximize className="w-4 h-4" /> 全螢幕
-                </button>
-                <button className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full text-sm font-medium text-gray-800 dark:text-white transition-colors">
-                  <Share2 className="w-4 h-4" /> 分享
-                </button>
-                <button className="flex items-center justify-center w-9 h-9 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full transition-colors">
-                  <MoreVertical className="w-4 h-4 text-gray-800 dark:text-white" />
-                </button>
-              </div>
+            {/* 極簡控制列 */}
+            <div className="flex flex-wrap items-center gap-2">
+              {hasPlaylist && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => goAdjacent("prev")}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-full bg-neutral-200/90 px-3.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    上一則
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => goAdjacent("next")}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-full bg-neutral-200/90 px-3.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                  >
+                    下一則
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => setAutoPlay((v) => !v)}
+                disabled={repeatMode}
+                title={repeatMode ? "重複模式下自動播放已停用" : "自動播放下一則"}
+                aria-pressed={autoPlay && !repeatMode}
+                className={`inline-flex h-10 items-center rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-45 ${
+                  autoPlay && !repeatMode
+                    ? "bg-[#ff0000] text-white hover:bg-[#e60000]"
+                    : "bg-neutral-200/90 text-neutral-700 hover:bg-neutral-300 dark:bg-white/10 dark:text-neutral-300 dark:hover:bg-white/15"
+                }`}
+              >
+                自動播放 {autoPlay && !repeatMode ? "開" : "關"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepeatMode((v) => !v)}
+                title="重複播放同一則"
+                aria-pressed={repeatMode}
+                className={`inline-flex h-10 items-center rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 ${
+                  repeatMode
+                    ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+                    : "bg-neutral-200/90 text-neutral-700 hover:bg-neutral-300 dark:bg-white/10 dark:text-neutral-300 dark:hover:bg-white/15"
+                }`}
+              >
+                重複 {repeatMode ? "開" : "關"}
+              </button>
             </div>
 
-            {/* 影片描述區 (YouTube 2024 樣式) - 可展開收合 */}
-            <div
-              className={`bg-gray-100 dark:bg-white/5 rounded-xl p-3 space-y-1.5 cursor-pointer transition-colors ${showDescription ? '' : 'hover:bg-gray-200 dark:hover:bg-white/10'}`}
-              onClick={() => setShowDescription(!showDescription)}
+            {/* 折疊 meta / 簡介 */}
+            <button
+              type="button"
+              onClick={() => setShowDescription((v) => !v)}
+              className="w-full rounded-xl bg-neutral-200/70 p-3 text-left transition-colors hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:bg-white/5 dark:hover:bg-white/10"
+              aria-expanded={showDescription}
             >
-              <div className="flex items-center gap-2 text-sm font-medium dark:text-white">
+              <div className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-white">
                 <span>{formatLocalDate(currentVideo.$createdAt)}</span>
-                {currentVideo.category && <span className="text-blue-600 dark:text-blue-400">#{currentVideo.category}</span>}
+                {currentVideo.category && (
+                  <span className="text-neutral-600 dark:text-neutral-300">#{currentVideo.category}</span>
+                )}
+                <span className="ml-auto text-xs font-normal text-neutral-500 dark:text-neutral-400">
+                  {showDescription ? "顯示較少" : "簡介"}
+                </span>
               </div>
               {showDescription ? (
-                <>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                <div className="mt-2 space-y-2">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">
                     {currentVideo.note || "暫無詳細描述。"}
                   </p>
                   {currentVideo.ref && (
-                    <div className="pt-1">
-                      <a href={currentVideo.ref} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all">
-                        {currentVideo.ref}
-                      </a>
-                    </div>
+                    <a
+                      href={currentVideo.ref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="block break-all text-sm text-[#065fd4] hover:underline dark:text-[#3ea6ff]"
+                    >
+                      {currentVideo.ref}
+                    </a>
                   )}
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 pt-1">顯示較少</p>
-                </>
+                </div>
               ) : (
-                <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-1">
+                <p className="mt-1 line-clamp-1 text-sm text-neutral-600 dark:text-neutral-400">
                   {currentVideo.note || "暫無詳細描述。"}
                 </p>
               )}
-            </div>
+            </button>
           </div>
 
-          {/* 右側：推薦影片側邊欄 */}
-          <aside className="w-full lg:w-[402px] space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium text-gray-900 dark:text-white text-sm">接下來播放</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setRepeatMode(!repeatMode)}
-                  className={`text-xs font-medium cursor-pointer px-3 py-1 rounded-full transition-colors ${repeatMode
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400'
-                    }`}
-                  title="重複播放同一影片"
-                >
-                  重複 {repeatMode ? '開' : '關'}
-                </button>
-                <button
-                  onClick={() => setAutoPlay(!autoPlay)}
-                  className={`text-xs font-medium cursor-pointer px-3 py-1 rounded-full transition-colors ${autoPlay
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400'
-                    }`}
-                  disabled={repeatMode}
-                  style={{ opacity: repeatMode ? 0.5 : 1 }}
-                  title={repeatMode ? '重複模式下自動播放已停用' : '自動播放下一個影片'}
-                >
-                  自動播放 {autoPlay ? '開' : '關'}
-                </button>
-              </div>
+          {/* 側欄：接下來播放 */}
+          <aside className="w-full shrink-0 space-y-2.5 lg:w-[380px]">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-neutral-900 dark:text-white">接下來播放</h2>
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                {recommendedVideos.length} 則
+              </span>
             </div>
-            <div className="space-y-2">
-              {recommendedVideos.map((recVideo) => (
-                <RecommendedVideoCard
-                  key={recVideo.$id}
-                  video={recVideo}
-                  onClick={() => {
-                    setPlayedIds(prev => new Set([...prev, recVideo.$id]));
-                    setCurrentVideo(recVideo);
-                  }}
-                />
-              ))}
+            <div className="space-y-1">
+              {recommendedVideos.length === 0 ? (
+                <p className="rounded-lg bg-neutral-200/50 px-3 py-6 text-center text-sm text-neutral-500 dark:bg-white/5 dark:text-neutral-400">
+                  沒有其他可播放影片
+                </p>
+              ) : (
+                recommendedVideos.map((recVideo) => (
+                  <RecommendedVideoCard
+                    key={recVideo.$id}
+                    video={recVideo}
+                    active={recVideo.$id === currentVideo.$id}
+                    onClick={() => goToVideo(recVideo)}
+                  />
+                ))
+              )}
             </div>
           </aside>
         </div>
@@ -2531,30 +3009,49 @@ function VideoPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { vid
   );
 }
 
-// 推薦影片卡片 (YouTube 2024 側邊欄橫排風格)
-function RecommendedVideoCard({ video, onClick }: { video: VideoData; onClick: () => void }) {
+// YouTube 側欄推薦卡
+function RecommendedVideoCard({
+  video,
+  onClick,
+  active = false,
+}: {
+  video: VideoData;
+  onClick: () => void;
+  active?: boolean;
+}) {
   return (
-    <button onClick={onClick} className="w-full flex gap-2 group/rec text-left rounded-lg hover:bg-gray-200/60 dark:hover:bg-white/5 p-1 transition-colors">
-      <div className="relative w-[168px] aspect-video flex-shrink-0 bg-gray-200 dark:bg-[#272727] rounded-lg overflow-hidden">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group/rec flex w-full gap-2 rounded-lg p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 ${
+        active
+          ? "bg-neutral-200/80 dark:bg-white/10"
+          : "hover:bg-neutral-200/60 dark:hover:bg-white/5"
+      }`}
+    >
+      <div className="relative aspect-video w-[148px] shrink-0 overflow-hidden rounded-lg bg-neutral-200 dark:bg-[#272727] sm:w-[168px]">
         {video.cover ? (
-          <img src={video.cover} alt={video.name} className="w-full h-full object-cover group-hover/rec:scale-105 transition-transform duration-300" />
+          <img
+            src={video.cover}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-200 motion-safe:group-hover/rec:scale-[1.03]"
+          />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-[#383838] to-[#181818] flex items-center justify-center">
-            <Play className="w-5 h-5 text-white/15" />
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#383838] to-[#181818]">
+            <Play className="h-5 w-5 text-white/20" />
           </div>
         )}
-        {/* 分類標籤 */}
         {video.category && (
-          <div className="absolute bottom-1 left-1 px-1 py-0.5 text-[9px] font-medium bg-black/80 text-white rounded">
+          <span className="absolute bottom-1 left-1 rounded bg-black/80 px-1 py-0.5 text-[9px] font-medium text-white">
             {video.category}
-          </div>
+          </span>
         )}
       </div>
-      <div className="flex-1 min-w-0 py-0.5">
-        <h4 className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 leading-5 group-hover/rec:text-blue-600 dark:group-hover/rec:text-blue-400 transition-colors">
+      <div className="min-w-0 flex-1 py-0.5">
+        <h3 className="line-clamp-2 text-sm font-medium leading-5 text-neutral-900 dark:text-white">
           {video.name}
-        </h4>
-        <div className="mt-1 flex flex-col text-xs text-gray-600 dark:text-gray-400">
+        </h3>
+        <div className="mt-1 flex flex-col text-xs text-neutral-600 dark:text-neutral-400">
           <span>鋒兄影片</span>
           <span>{formatLocalDate(video.$createdAt)}</span>
         </div>
@@ -3175,182 +3672,143 @@ function VideoManagementCard({ video, cacheStatus, onPlay, onEdit, onDelete, onD
     );
   }
 
-  return (
-    <div className="flex flex-col gap-2.5 group animate-in zoom-in-95 duration-300">
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
+  const actionBtn =
+    "inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/75 text-white transition-colors hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white";
 
-      {/* 縮圖容器 - YouTube 2024 rounded-xl */}
+  return (
+    <article className="group flex flex-col gap-2.5">
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+
       <div
-        className={`relative aspect-video bg-gray-100 dark:bg-[#272727] rounded-xl overflow-hidden ${video.file ? 'cursor-pointer' : ''}`}
+        className={`relative aspect-video overflow-hidden rounded-xl bg-neutral-200 dark:bg-[#272727] ${video.file ? "cursor-pointer" : ""}`}
         onClick={video.file ? onPlay : undefined}
         onMouseEnter={() => setShowHoverActions(true)}
         onMouseLeave={() => setShowHoverActions(false)}
       >
-        <img
-          src={video.cover || thumbnailUrl || ''}
-          alt={video.name}
-          className="w-full h-full object-cover"
-        />
+        {(video.cover || thumbnailUrl) && (
+          <img
+            src={video.cover || thumbnailUrl || ""}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        )}
         {!video.cover && !thumbnailUrl && (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#383838] to-[#181818] flex items-center justify-center">
-            <Play className="w-10 h-10 text-white/10" />
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#383838] to-[#181818]">
+            <Play className="h-10 w-10 text-white/15" />
           </div>
         )}
 
-        {/* 無影片遮罩 */}
         {!video.file && (
-          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <div className="text-center space-y-1.5">
-              <Upload className="w-7 h-7 text-white/60 mx-auto" />
-              <p className="text-white/80 text-xs font-medium">尚未上傳影片</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <div className="space-y-1 text-center">
+              <Upload className="mx-auto h-6 w-6 text-white/60" />
+              <p className="text-xs font-medium text-white/85">尚未上傳</p>
             </div>
           </div>
         )}
 
-        {/* 懸停進度條效果 (底部紅色條) */}
-        {video.file && showHoverActions && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-600 animate-in fade-in duration-200" />
+        {video.file && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity duration-200 group-hover:bg-black/15 group-hover:opacity-100 group-focus-within:bg-black/15 group-focus-within:opacity-100">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white">
+              <Play className="h-5 w-5 fill-current" />
+            </div>
+          </div>
         )}
 
-        {/* 快取狀態 - 左上 */}
         {video.file && (
-          <div className="absolute top-2 left-2">
+          <div className="absolute left-2 top-2">
             <CacheStatusIcon status={cacheStatus} />
           </div>
         )}
 
-        {/* 懸停右下角快速操作按鈕 */}
-        {video.file && showHoverActions && (
-          <div className="absolute bottom-2 right-2 flex items-center gap-1 animate-in fade-in slide-in-from-bottom-1 duration-200" onClick={(e) => e.stopPropagation()}>
-            {onAddToQueue && (
-              <button
-                onClick={onAddToQueue}
-                className={`p-1.5 rounded text-white text-[10px] font-medium transition-colors ${isInQueue ? 'bg-green-600/90' : 'bg-black/80 hover:bg-black/95'}`}
-                title={isInQueue ? '已在佇列中' : '加入佇列'}
-              >
-                <ListPlus className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <button
-              onClick={onDirectDownload}
-              className="p-1.5 bg-black/80 hover:bg-black/95 rounded text-white transition-colors"
-              title="下載影片"
-            >
-              <Download className="w-3.5 h-3.5" />
-            </button>
-          </div>
+        {video.category && (
+          <span className="absolute bottom-2 left-2 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            {video.category}
+          </span>
         )}
 
-        {/* 分類標籤 - 左下 */}
-        {video.category && !showHoverActions && (
-          <div className="absolute bottom-2 left-2 px-1.5 py-0.5 text-[11px] font-medium bg-black/80 text-white rounded">
-            {video.category}
-          </div>
+        {/* 真實管理操作：hover / focus 顯示 */}
+        <div
+          className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {video.file && onAddToQueue && (
+            <button
+              type="button"
+              onClick={onAddToQueue}
+              className={`${actionBtn} ${isInQueue ? "!bg-emerald-600 hover:!bg-emerald-500" : ""}`}
+              title={isInQueue ? "已在佇列" : "加入佇列"}
+              aria-label={isInQueue ? "已在佇列" : "加入佇列"}
+            >
+              <ListPlus className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {video.file && (
+            <button type="button" onClick={onDirectDownload} className={actionBtn} title="下載" aria-label="下載">
+              <Download className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {video.file &&
+            (cacheStatus?.cached ? (
+              <button type="button" onClick={onDeleteCache} className={`${actionBtn} !bg-orange-600/90`} title="刪除快取" aria-label="刪除快取">
+                <HardDrive className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onDownload}
+                disabled={cacheStatus?.downloading}
+                className={`${actionBtn} disabled:opacity-50`}
+                title={cacheStatus?.downloading ? "快取中" : "快取"}
+                aria-label="快取到本地"
+              >
+                <HardDrive className="h-3.5 w-3.5" />
+              </button>
+            ))}
+          <button type="button" onClick={() => onInlineEdit(video)} className={actionBtn} title="編輯" aria-label="編輯">
+            <Edit className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={onDelete} className={`${actionBtn} hover:!bg-red-600`} title="刪除" aria-label="刪除">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {video.file && showHoverActions && (
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff0000]" aria-hidden />
         )}
       </div>
 
-      {/* 影片資訊 - YouTube 2024 佈局 */}
       <div className="flex gap-3">
-        {/* 圓形頭像 - gradient 背景 */}
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex-shrink-0 flex items-center justify-center text-white font-bold text-xs mt-0.5">
+        <div
+          className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white dark:bg-white dark:text-neutral-900"
+          aria-hidden
+        >
           FX
         </div>
-        <div className="flex-1 min-w-0">
-          {/* YouTube 2024 正常顯示模式 */}
-          <div className="flex items-start gap-1">
-            <div className="flex-1 min-w-0">
-              <h3
-                className={`text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-5 transition-colors ${video.file ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : ''}`}
-                onClick={video.file ? onPlay : undefined}
-              >
-                {video.name}
-              </h3>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">鋒兄影片</p>
-              <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                <span>{formatLocalDate(video.$createdAt)}</span>
-                <span>•</span>
-                <span>{formatVideoFileSize(video)}</span>
-                <span>•</span>
-                {video.file ? (
-                  <span className="text-gray-600 dark:text-gray-400">已發佈</span>
-                ) : (
-                  <span className="text-orange-600 dark:text-orange-400">尚未上傳</span>
-                )}
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <button
-                  onClick={() => onInlineEdit(video)}
-                  className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-600 transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                  title="編輯影片"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                  編輯
-                </button>
-                {video.file && (
-                  <button
-                    onClick={onDirectDownload}
-                    className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15"
-                    title="下載影片"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    下載
-                  </button>
-                )}
-                {video.file && onAddToQueue && (
-                  <button
-                    onClick={onAddToQueue}
-                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
-                      isInQueue
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                        : 'bg-black/5 text-gray-700 hover:bg-black/10 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15'
-                    }`}
-                    title={isInQueue ? '已在佇列中' : '加入佇列'}
-                  >
-                    <ListPlus className="w-3.5 h-3.5" />
-                    {isInQueue ? '已加入' : '佇列'}
-                  </button>
-                )}
-                {video.file && (
-                  cacheStatus?.cached ? (
-                    <button
-                      onClick={onDeleteCache}
-                      className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 transition-colors hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/50"
-                      title="刪除快取"
-                    >
-                      <HardDrive className="w-3.5 h-3.5" />
-                      刪快取
-                    </button>
-                  ) : (
-                    <button
-                      onClick={onDownload}
-                      disabled={cacheStatus?.downloading}
-                      className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-1 text-[11px] font-medium text-purple-600 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
-                      title="快取到本地"
-                    >
-                      <HardDrive className="w-3.5 h-3.5" />
-                      {cacheStatus?.downloading ? '快取中' : '快取'}
-                    </button>
-                  )
-                )}
-                <button
-                  onClick={onDelete}
-                  className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
-                  title="刪除影片"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  刪除
-                </button>
-                {!video.file && (
-                  <span className="inline-flex items-center rounded-md bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
-                    尚未上傳影片
-                  </span>
-                )}
-              </div>
-            </div>
+        <div className="min-w-0 flex-1">
+          <h3
+            className={`line-clamp-2 text-sm font-medium leading-5 text-neutral-900 dark:text-white ${
+              video.file ? "cursor-pointer hover:text-neutral-600 dark:hover:text-neutral-300" : ""
+            }`}
+            onClick={video.file ? onPlay : undefined}
+          >
+            {video.name}
+          </h3>
+          <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">鋒兄影片</p>
+          <div className="flex flex-wrap items-center gap-x-1 text-xs text-neutral-600 dark:text-neutral-400">
+            <span>{formatLocalDate(video.$createdAt)}</span>
+            <span aria-hidden>•</span>
+            <span>{formatVideoFileSize(video)}</span>
+            {!video.file && (
+              <>
+                <span aria-hidden>•</span>
+                <span className="text-orange-600 dark:text-orange-400">尚未上傳</span>
+              </>
+            )}
           </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -3425,156 +3883,179 @@ function BilibiliVideoCard({ video, cacheStatus, onPlay, onEdit, onDelete, onDow
     );
   }
 
+  const actionBtn =
+    "inline-flex h-7 w-7 items-center justify-center rounded bg-black/70 text-white transition-colors hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6]";
+
   return (
-    <div
-      className="group relative bg-white dark:bg-[#1d1d1d] rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer border dark:border-white/5"
+    <article
+      className="group relative overflow-hidden rounded-lg border border-neutral-200/90 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md dark:border-[#2c2c2e] dark:bg-[#1d1d1d]"
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* 封面圖 */}
       <div
-        className="relative aspect-[16/10] bg-gray-100 dark:bg-[#2b2b2b] overflow-hidden"
+        className={`relative aspect-[16/10] overflow-hidden bg-neutral-100 dark:bg-[#2b2b2b] ${video.file ? "cursor-pointer" : ""}`}
         onClick={video.file ? onPlay : undefined}
       >
         {video.cover ? (
           <img
             src={video.cover}
-            alt={video.name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-[1.04]"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-gray-600 to-gray-900 flex items-center justify-center">
-            <Play className="w-8 h-8 text-white/15" />
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-600 to-neutral-900">
+            <Play className="h-8 w-8 text-white/15" />
           </div>
         )}
 
-        {/* 底部漸變 */}
-        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/75 to-transparent" />
 
-        {/* 分類標籤 - 左下角 */}
         {video.category && (
-          <div className="absolute bottom-2 left-2 px-1.5 py-0.5 text-[10px] font-bold bg-[#00a1d6] text-white rounded">
+          <span className="absolute bottom-2 left-2 rounded bg-[#00a1d6] px-1.5 py-0.5 text-[10px] font-bold text-white">
             {video.category}
-          </div>
+          </span>
         )}
-
-        {/* 日期 - 右下角 */}
-        <div className="absolute bottom-2 right-2 text-[10px] text-white/90 font-medium">
+        <span className="absolute bottom-2 right-2 text-[10px] font-medium text-white/90">
           {formatLocalDate(video.$createdAt)}
-        </div>
+        </span>
 
-        {/* 快取狀態 - 左上角 */}
         {video.file && (
-          <div className="absolute top-2 left-2">
+          <div className="absolute left-2 top-2">
             <CacheStatusIcon status={cacheStatus} />
           </div>
         )}
 
-        {/* 無影片遮罩 */}
         {!video.file && (
-          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <div className="text-center space-y-1">
-              <Upload className="w-6 h-6 text-white/60 mx-auto" />
-              <p className="text-white/80 text-xs font-medium">尚未上傳</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <div className="space-y-1 text-center">
+              <Upload className="mx-auto h-5 w-5 text-white/60" />
+              <p className="text-xs font-medium text-white/80">尚未上傳</p>
             </div>
           </div>
         )}
 
-        {/* 播放按鈕 Overlay */}
         {video.file && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-            <div className="w-10 h-10 bg-white/25 backdrop-blur-sm rounded-full flex items-center justify-center">
-              <Play className="w-5 h-5 text-white fill-current" />
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:bg-black/20 group-hover:opacity-100 group-focus-within:bg-black/20 group-focus-within:opacity-100">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/25 text-white backdrop-blur-sm">
+              <Play className="h-5 w-5 fill-current" />
             </div>
           </div>
         )}
 
-        {/* 操作按鈕 - 右上角懸停顯示 */}
-        {showActions && (
-          <div className="absolute top-2 right-2 flex items-center gap-1 animate-in fade-in duration-150" onClick={(e) => e.stopPropagation()}>
-            {video.file && onAddToQueue && (
-              <button onClick={onAddToQueue} className={`p-1.5 rounded-md backdrop-blur-sm transition-colors ${isInQueue ? 'bg-green-500/80 text-white' : 'bg-black/50 text-white hover:bg-black/70'}`} title={isInQueue ? '已在佇列中' : '接下來播放'}>
-                <ListPlus className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {video.file && (
-              <button onClick={onDirectDownload} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-black/70 transition-colors" title="下載影片">
-                <Download className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <button onClick={() => onInlineEdit(video)} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-black/70 transition-colors" title="編輯">
-              <Edit className="w-3.5 h-3.5" />
+        <div
+          className={`absolute right-2 top-2 flex items-center gap-1 transition-opacity duration-150 ${
+            showActions ? "opacity-100" : "opacity-0 group-focus-within:opacity-100"
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {video.file && onAddToQueue && (
+            <button
+              type="button"
+              onClick={onAddToQueue}
+              className={`${actionBtn} ${isInQueue ? "!bg-emerald-500" : ""}`}
+              title={isInQueue ? "已在佇列" : "加入佇列"}
+              aria-label={isInQueue ? "已在佇列" : "加入佇列"}
+            >
+              <ListPlus className="h-3.5 w-3.5" />
             </button>
-            <button onClick={onDelete} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-red-600/80 transition-colors" title="刪除">
-              <Trash2 className="w-3.5 h-3.5" />
+          )}
+          {video.file && (
+            <button type="button" onClick={onDirectDownload} className={actionBtn} title="下載" aria-label="下載">
+              <Download className="h-3.5 w-3.5" />
             </button>
-            {video.file && (
-              cacheStatus?.cached ? (
-                <button onClick={onDeleteCache} className="p-1.5 bg-orange-500/80 text-white rounded-md backdrop-blur-sm hover:bg-orange-600/80 transition-colors" title="刪除快取">
-                  <HardDrive className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <button onClick={onDownload} disabled={cacheStatus?.downloading} className="p-1.5 bg-black/50 text-white rounded-md backdrop-blur-sm hover:bg-black/70 transition-colors" title="快取到本地">
-                  <HardDrive className="w-3.5 h-3.5" />
-                </button>
-              )
-            )}
-          </div>
-        )}
+          )}
+          {video.file &&
+            (cacheStatus?.cached ? (
+              <button type="button" onClick={onDeleteCache} className={`${actionBtn} !bg-orange-500`} title="刪除快取" aria-label="刪除快取">
+                <HardDrive className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onDownload}
+                disabled={cacheStatus?.downloading}
+                className={`${actionBtn} disabled:opacity-50`}
+                title="快取"
+                aria-label="快取到本地"
+              >
+                <HardDrive className="h-3.5 w-3.5" />
+              </button>
+            ))}
+          <button type="button" onClick={() => onInlineEdit(video)} className={actionBtn} title="編輯" aria-label="編輯">
+            <Edit className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={onDelete} className={`${actionBtn} hover:!bg-red-600`} title="刪除" aria-label="刪除">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
-      {/* 影片資訊 - 底部 */}
-      <div className="p-2.5 space-y-1">
+      <div className="space-y-1 p-2.5">
         <h3
-          className="font-bold text-gray-900 dark:text-white text-sm line-clamp-2 leading-snug group-hover:text-[#00a1d6] transition-colors"
+          className={`line-clamp-2 text-sm font-bold leading-snug text-neutral-900 transition-colors dark:text-white ${
+            video.file ? "cursor-pointer group-hover:text-[#00a1d6]" : ""
+          }`}
           onClick={video.file ? onPlay : undefined}
         >
           {video.name}
         </h3>
-        <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-          <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-[#00a1d6] to-[#00b5e5] flex-shrink-0 flex items-center justify-center text-white text-[8px] font-bold">F</div>
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#00a1d6] text-[8px] font-bold text-white">
+            F
+          </span>
           <span>鋒兄影片</span>
-          <span>•</span>
-          <span>{formatLocalDate(video.$createdAt)}</span>
-          <span>•</span>
+          <span aria-hidden>•</span>
           <span>{formatVideoFileSize(video)}</span>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
-// Bilibili 風格播放器模態框
-function BilibiliPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { video: VideoData; videoRef: React.RefObject<HTMLVideoElement | null>; onClose: () => void; onPersistPlayback: (video: VideoData, playback: { src: string; currentTime: number; volume: number; playbackRate: number; loop: boolean; muted: boolean; }) => void; }) {
+// Bilibili 皮播放器 — 極簡控制、更緊密度
+function BilibiliPlayerModal({
+  video,
+  onClose,
+  onPersistPlayback,
+}: {
+  video: VideoData;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  onClose: () => void;
+  onPersistPlayback: (video: VideoData, playback: VideoPersistPlayback) => void;
+}) {
   const { videos } = useVideos();
   const [autoPlay, setAutoPlay] = useState(true);
   const [repeatMode, setRepeatMode] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
-  const [playedIds, setPlayedIds] = useState<Set<string>>(new Set([video.$id]));
+  const [playedIds, setPlayedIds] = useState<Set<string>>(() => new Set([video.$id]));
   const [showDescription, setShowDescription] = useState(false);
   const { resolvedSrc, loadingSource, sourceError } = useResolvedVideoSource(currentVideo);
 
-  const allVideosWithFile = useMemo(() => videos.filter(v => v.file), [videos]);
+  const allVideosWithFile = useMemo(() => videos.filter((v) => v.file), [videos]);
+  const hasPlaylist = allVideosWithFile.length > 1;
 
-  const recommendedVideos = useMemo(() => {
-    const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-    const result: VideoData[] = [];
-    for (let i = 1; i < allVideosWithFile.length; i++) {
-      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
-      const v = allVideosWithFile[nextIndex];
-      if (!playedIds.has(v.$id)) result.push(v);
-    }
-    for (let i = 1; i < allVideosWithFile.length; i++) {
-      const nextIndex = (currentIndex + i) % allVideosWithFile.length;
-      const v = allVideosWithFile[nextIndex];
-      if (playedIds.has(v.$id)) result.push(v);
-    }
-    return result.slice(0, 12);
-  }, [allVideosWithFile, currentVideo.$id, playedIds]);
+  const recommendedVideos = useMemo(
+    () => buildRecommendedVideos(allVideosWithFile, currentVideo.$id, playedIds),
+    [allVideosWithFile, currentVideo.$id, playedIds]
+  );
+
+  const goToVideo = useCallback((next: VideoData) => {
+    setPlayedIds((prev) => new Set([...prev, next.$id]));
+    setCurrentVideo(next);
+    setShowDescription(false);
+  }, []);
+
+  const goAdjacent = useCallback(
+    (direction: "prev" | "next") => {
+      const next = pickAdjacentVideo(allVideosWithFile, currentVideo.$id, direction);
+      if (next) goToVideo(next);
+    },
+    [allVideosWithFile, currentVideo.$id, goToVideo]
+  );
 
   const handleVideoEnded = useCallback(() => {
     if (repeatMode) {
-      const player = document.querySelector('.plyr video') as HTMLVideoElement | null;
+      const player = document.querySelector(".plyr video") as HTMLVideoElement | null;
       if (player) {
         player.currentTime = 0;
         void player.play().catch(() => {});
@@ -3582,226 +4063,276 @@ function BilibiliPlayerModal({ video, videoRef, onClose, onPersistPlayback }: { 
       return;
     }
     if (!autoPlay) return;
-    const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
+    const currentIndex = allVideosWithFile.findIndex((v) => v.$id === currentVideo.$id);
     let nextVideo: VideoData | null = null;
     for (let i = 1; i < allVideosWithFile.length; i++) {
       const nextIndex = (currentIndex + i) % allVideosWithFile.length;
       const candidate = allVideosWithFile[nextIndex];
-      if (!playedIds.has(candidate.$id)) { nextVideo = candidate; break; }
+      if (!playedIds.has(candidate.$id)) {
+        nextVideo = candidate;
+        break;
+      }
     }
     if (!nextVideo && allVideosWithFile.length > 1) {
       const nextIndex = (currentIndex + 1) % allVideosWithFile.length;
       nextVideo = allVideosWithFile[nextIndex];
       setPlayedIds(new Set([nextVideo.$id]));
     } else if (nextVideo) {
-      setPlayedIds(prev => new Set([...prev, nextVideo!.$id]));
+      setPlayedIds((prev) => new Set([...prev, nextVideo!.$id]));
     }
-    if (nextVideo) setCurrentVideo(nextVideo);
+    if (nextVideo) {
+      setCurrentVideo(nextVideo);
+      setShowDescription(false);
+    }
   }, [repeatMode, autoPlay, allVideosWithFile, currentVideo.$id, playedIds]);
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goAdjacent("prev");
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goAdjacent("next");
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose, goAdjacent]);
+
+  const overlayNavBtn =
+    "absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity duration-200 hover:bg-black/80 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] group-hover:opacity-100 group-focus-within:opacity-100";
 
   return (
-    <div className="fixed inset-0 bg-[#f4f4f4] dark:bg-[#17181a] z-50 overflow-y-auto animate-in fade-in duration-200">
-      {/* 頂部導航 - Bilibili 風格 */}
-      <div className="sticky top-0 z-20 bg-white/90 dark:bg-[#1f2022]/90 backdrop-blur-md border-b border-gray-200 dark:border-[#2c2c2e]">
-        <div className="max-w-[1400px] mx-auto px-4 h-12 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-[#00a1d6] rounded-md flex items-center justify-center">
-              <Play className="w-4 h-4 text-white fill-current" />
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-[#f4f4f4] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200 dark:bg-[#17181a]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`播放：${currentVideo.name}`}
+    >
+      <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white/95 backdrop-blur-md dark:border-[#2c2c2e] dark:bg-[#1f2022]/95">
+        <div className="mx-auto flex h-11 max-w-[1400px] items-center justify-between gap-3 px-4 sm:h-12 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00a1d6]" aria-hidden>
+              <Play className="h-3.5 w-3.5 fill-current text-white" />
             </div>
-            <span className="font-bold text-base hidden sm:block dark:text-white">鋒兄影片</span>
-            <span className="text-xs text-[#00a1d6] hidden sm:block">bilibili</span>
+            <span className="truncate text-sm font-bold text-neutral-900 dark:text-white sm:text-base">鋒兄影片</span>
+            <span className="hidden text-xs font-medium text-[#00a1d6] sm:inline">Bilibili 模式</span>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 dark:hover:bg-[#2c2c2e] rounded-md transition-colors dark:text-white">
-            <X className="w-5 h-5" />
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-neutral-800 transition-colors hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] dark:text-white dark:hover:bg-[#2c2c2e]"
+            aria-label="關閉播放器"
+          >
+            <X className="h-5 w-5" />
           </button>
         </div>
-      </div>
+      </header>
 
-      <main className="max-w-[1400px] mx-auto p-4 lg:p-6">
-        <div className="flex flex-col lg:flex-row gap-4 lg:gap-5">
-          {/* 左側：播放器 + 影片資訊 (70%) */}
-          <div className="flex-1 lg:max-w-[calc(100%-340px)] space-y-3">
-            {/* 播放器 */}
-            <div className="bg-black rounded-lg shadow-lg aspect-video relative group ring-1 ring-black/10 dark:ring-white/5 [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-lg">
-              {allVideosWithFile.length > 1 && (
+      <main className="mx-auto max-w-[1400px] p-3 sm:p-4 lg:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:gap-5">
+          <div className="min-w-0 flex-1 space-y-2.5 lg:max-w-[calc(100%-340px)]">
+            <div className="group relative aspect-video overflow-hidden rounded-lg bg-black shadow-md ring-1 ring-black/10 dark:ring-white/5 [&_.plyr]:!h-full [&_.plyr]:!w-full [&_.plyr]:rounded-lg">
+              {hasPlaylist && (
                 <>
-                  <button 
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-                      const nextVid = allVideosWithFile[(currentIndex + 1) % allVideosWithFile.length];
-                      setPlayedIds(prev => new Set([...prev, nextVid.$id]));
-                      setCurrentVideo(nextVid);
+                      goAdjacent("prev");
                     }}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
-                    title="下一部影片"
+                    className={`${overlayNavBtn} left-3`}
+                    title="上一則"
+                    aria-label="上一則影片"
                   >
-                    <ChevronLeft className="w-8 h-8" />
+                    <ChevronLeft className="h-6 w-6" />
                   </button>
-                  <button 
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const currentIndex = allVideosWithFile.findIndex(v => v.$id === currentVideo.$id);
-                      const prevVid = allVideosWithFile[(currentIndex - 1 + allVideosWithFile.length) % allVideosWithFile.length];
-                      setPlayedIds(prev => new Set([...prev, prevVid.$id]));
-                      setCurrentVideo(prevVid);
+                      goAdjacent("next");
                     }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
-                    title="上一部影片"
+                    className={`${overlayNavBtn} right-3`}
+                    title="下一則"
+                    aria-label="下一則影片"
                   >
-                    <ChevronRight className="w-8 h-8" />
+                    <ChevronRight className="h-6 w-6" />
                   </button>
                 </>
               )}
               {loadingSource ? (
-                <div className="w-full h-full flex items-center justify-center text-white">影片載入中...</div>
+                <div className="flex h-full w-full items-center justify-center text-sm text-white/80">影片載入中…</div>
               ) : sourceError ? (
-                <div className="w-full h-full flex items-center justify-center text-red-400 px-6 text-center">{sourceError}</div>
+                <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-red-400">{sourceError}</div>
               ) : (
                 <PlyrPlayer
                   key={currentVideo.$id}
                   type="video"
                   src={resolvedSrc}
                   poster={currentVideo.cover}
-                  autoplay={true}
+                  autoplay
                   onEnded={handleVideoEnded}
                   persistOnUnmount
                   onPersistPlayback={(playback) => onPersistPlayback(currentVideo, playback)}
-                  className="w-full h-full"
+                  className="h-full w-full"
                 />
               )}
             </div>
 
-            {/* 影片標題 */}
-            <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white leading-tight">
+            <h1 className="line-clamp-2 text-base font-bold leading-snug text-balance text-neutral-900 dark:text-white md:text-lg">
               {currentVideo.name}
             </h1>
 
-            {/* 影片資訊列 */}
-            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
               <span>{formatLocalDate(currentVideo.$createdAt)}</span>
               {currentVideo.category && (
-                <span className="px-2 py-0.5 bg-[#00a1d6]/10 text-[#00a1d6] rounded text-xs font-medium">{currentVideo.category}</span>
+                <span className="rounded bg-[#00a1d6]/12 px-2 py-0.5 text-[11px] font-medium text-[#00a1d6]">
+                  {currentVideo.category}
+                </span>
               )}
             </div>
 
-            {/* UP 主資訊 + 互動按鈕 */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-t border-b border-gray-200 dark:border-[#2c2c2e]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#00a1d6] to-[#00b5e5] flex items-center justify-center text-white font-bold text-sm">
-                  FX
-                </div>
-                <div>
-                  <div className="font-bold text-sm dark:text-white">鋒兄 (Feng Xiong)</div>
-                  <div className="text-xs text-gray-400">系統管理員</div>
-                </div>
-                <button className="ml-2 px-4 py-1.5 bg-[#00a1d6] text-white rounded text-xs font-medium hover:bg-[#0091c2] transition-colors">
-                  + 關注
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2c2c2e] rounded text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#3c3c3e] transition-colors">
-                  <ThumbsUp className="w-3.5 h-3.5" /> 點讚
-                </button>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2c2c2e] rounded text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#3c3c3e] transition-colors">
-                  <Star className="w-3.5 h-3.5" /> 收藏
-                </button>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2c2c2e] rounded text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#3c3c3e] transition-colors">
-                  <Share2 className="w-3.5 h-3.5" /> 分享
-                </button>
-                <VideoScreenshotButton videoTitle={currentVideo.name} />
-              </div>
+            {/* 極簡控制列 */}
+            <div className="flex flex-wrap items-center gap-1.5 border-y border-neutral-200 py-2.5 dark:border-[#2c2c2e]">
+              {hasPlaylist && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => goAdjacent("prev")}
+                    className="inline-flex h-9 items-center gap-1 rounded px-2.5 text-xs font-medium text-neutral-800 transition-colors hover:bg-neutral-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] dark:text-neutral-200 dark:hover:bg-[#2c2c2e]"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    上一則
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => goAdjacent("next")}
+                    className="inline-flex h-9 items-center gap-1 rounded px-2.5 text-xs font-medium text-neutral-800 transition-colors hover:bg-neutral-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] dark:text-neutral-200 dark:hover:bg-[#2c2c2e]"
+                  >
+                    下一則
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => setAutoPlay((v) => !v)}
+                disabled={repeatMode}
+                title={repeatMode ? "重複模式下自動播放已停用" : "自動播放下一則"}
+                aria-pressed={autoPlay && !repeatMode}
+                className={`inline-flex h-9 items-center rounded px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] disabled:cursor-not-allowed disabled:opacity-45 ${
+                  autoPlay && !repeatMode
+                    ? "bg-[#00a1d6] text-white hover:bg-[#0091c2]"
+                    : "bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-[#2c2c2e] dark:text-neutral-300 dark:hover:bg-[#3c3c3e]"
+                }`}
+              >
+                自動播放 {autoPlay && !repeatMode ? "開" : "關"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepeatMode((v) => !v)}
+                title="重複播放同一則"
+                aria-pressed={repeatMode}
+                className={`inline-flex h-9 items-center rounded px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] ${
+                  repeatMode
+                    ? "bg-[#00a1d6] text-white"
+                    : "bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-[#2c2c2e] dark:text-neutral-300 dark:hover:bg-[#3c3c3e]"
+                }`}
+              >
+                重複 {repeatMode ? "開" : "關"}
+              </button>
             </div>
 
-            {/* 描述區 - 可展開收合 */}
-            <div className="bg-white dark:bg-[#1f2022] rounded-lg p-3 border border-gray-200 dark:border-[#2c2c2e]">
+            {/* 折疊簡介 */}
+            <div className="rounded-lg border border-neutral-200 bg-white dark:border-[#2c2c2e] dark:bg-[#1f2022]">
               <button
-                onClick={() => setShowDescription(!showDescription)}
-                className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300"
+                type="button"
+                onClick={() => setShowDescription((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#00a1d6] dark:text-neutral-300 dark:hover:bg-[#252628]"
+                aria-expanded={showDescription}
               >
                 <span>影片簡介</span>
-                {showDescription ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {showDescription ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
               </button>
               {showDescription && (
-                <div className="mt-2 pt-2 border-t border-gray-100 dark:border-[#2c2c2e]">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
+                <div className="space-y-2 border-t border-neutral-100 px-3 py-2.5 dark:border-[#2c2c2e]">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-600 dark:text-neutral-400">
                     {currentVideo.note || "暫無詳細描述。"}
                   </p>
                   {currentVideo.ref && (
-                    <div className="mt-2">
-                      <a href={currentVideo.ref} target="_blank" rel="noopener noreferrer" className="text-sm text-[#00a1d6] hover:underline break-all">
-                        {currentVideo.ref}
-                      </a>
-                    </div>
+                    <a
+                      href={currentVideo.ref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block break-all text-sm text-[#00a1d6] hover:underline"
+                    >
+                      {currentVideo.ref}
+                    </a>
                   )}
                 </div>
               )}
             </div>
-
-            {/* 播放控制 */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setRepeatMode(!repeatMode)}
-                className={`text-xs font-medium px-3 py-1 rounded transition-colors ${repeatMode ? 'bg-[#00a1d6] text-white' : 'bg-gray-200 dark:bg-[#2c2c2e] text-gray-600 dark:text-gray-400'}`}
-              >
-                重複 {repeatMode ? '開' : '關'}
-              </button>
-              <button
-                onClick={() => setAutoPlay(!autoPlay)}
-                className={`text-xs font-medium px-3 py-1 rounded transition-colors ${autoPlay ? 'bg-[#00a1d6] text-white' : 'bg-gray-200 dark:bg-[#2c2c2e] text-gray-600 dark:text-gray-400'}`}
-                disabled={repeatMode}
-                style={{ opacity: repeatMode ? 0.5 : 1 }}
-              >
-                自動播放 {autoPlay ? '開' : '關'}
-              </button>
-            </div>
           </div>
 
-          {/* 右側：推薦影片 (30%) */}
-          <aside className="w-full lg:w-[320px] space-y-3">
-            <h3 className="font-bold text-sm text-gray-900 dark:text-white">推薦影片</h3>
-            <div className="space-y-2">
-              {recommendedVideos.map((recVideo) => (
-                <button
-                  key={recVideo.$id}
-                  onClick={() => { setPlayedIds(prev => new Set([...prev, recVideo.$id])); setCurrentVideo(recVideo); }}
-                  className="w-full flex gap-2 group/rec text-left rounded-md hover:bg-white dark:hover:bg-[#1f2022] p-1.5 transition-colors"
-                >
-                  <div className="relative w-[140px] aspect-[16/10] flex-shrink-0 bg-gray-200 dark:bg-[#2b2b2b] rounded overflow-hidden">
-                    {recVideo.cover ? (
-                      <img src={recVideo.cover} alt={recVideo.name} className="w-full h-full object-cover group-hover/rec:scale-105 transition-transform duration-300" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-gray-600 to-gray-900 flex items-center justify-center">
-                        <Play className="w-4 h-4 text-white/20" />
-                      </div>
-                    )}
-                    {recVideo.category && (
-                      <div className="absolute bottom-1 left-1 px-1 py-0.5 text-[8px] font-bold bg-[#00a1d6] text-white rounded">
-                        {recVideo.category}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 py-0.5">
-                    <h4 className="font-bold text-gray-900 dark:text-white text-xs line-clamp-2 leading-snug group-hover/rec:text-[#00a1d6] transition-colors">
-                      {recVideo.name}
-                    </h4>
-                    <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 space-y-0.5">
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-[#00a1d6] to-[#00b5e5] flex-shrink-0 flex items-center justify-center text-white text-[6px] font-bold">F</div>
-                        <span>鋒兄影片</span>
-                      </div>
-                      <div>{formatLocalDate(recVideo.$createdAt)}</div>
+          {/* 側欄：播放列表 */}
+          <aside className="w-full shrink-0 space-y-2 lg:w-[320px]">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-neutral-900 dark:text-white">播放列表</h2>
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">{recommendedVideos.length} 則</span>
+            </div>
+            <div className="space-y-1">
+              {recommendedVideos.length === 0 ? (
+                <p className="rounded-md border border-neutral-200 bg-white px-3 py-6 text-center text-xs text-neutral-500 dark:border-[#2c2c2e] dark:bg-[#1f2022] dark:text-neutral-400">
+                  沒有其他可播放影片
+                </p>
+              ) : (
+                recommendedVideos.map((recVideo) => (
+                  <button
+                    key={recVideo.$id}
+                    type="button"
+                    onClick={() => goToVideo(recVideo)}
+                    className={`group/rec flex w-full gap-2 rounded-md p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] ${
+                      recVideo.$id === currentVideo.$id
+                        ? "bg-white shadow-sm ring-1 ring-[#00a1d6]/30 dark:bg-[#1f2022]"
+                        : "hover:bg-white dark:hover:bg-[#1f2022]"
+                    }`}
+                  >
+                    <div className="relative aspect-[16/10] w-[132px] shrink-0 overflow-hidden rounded bg-neutral-200 dark:bg-[#2b2b2b] sm:w-[140px]">
+                      {recVideo.cover ? (
+                        <img
+                          src={recVideo.cover}
+                          alt=""
+                          className="h-full w-full object-cover transition-transform duration-200 motion-safe:group-hover/rec:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-600 to-neutral-900">
+                          <Play className="h-4 w-4 text-white/20" />
+                        </div>
+                      )}
+                      {recVideo.category && (
+                        <span className="absolute bottom-1 left-1 rounded bg-[#00a1d6] px-1 py-0.5 text-[8px] font-bold text-white">
+                          {recVideo.category}
+                        </span>
+                      )}
                     </div>
-                  </div>
-                </button>
-              ))}
+                    <div className="min-w-0 flex-1 py-0.5">
+                      <h3 className="line-clamp-2 text-xs font-bold leading-snug text-neutral-900 transition-colors group-hover/rec:text-[#00a1d6] dark:text-white">
+                        {recVideo.name}
+                      </h3>
+                      <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                        {formatLocalDate(recVideo.$createdAt)}
+                      </p>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </aside>
         </div>
