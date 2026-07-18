@@ -1936,8 +1936,8 @@ function FengbroFinanceSection({
   onDeleteDefaultInstrument: (id: string) => void;
   onResetDefaultInstruments: () => void;
   customInstruments: CustomFinanceInstrument[];
-  customDraft: CustomFinanceInstrument;
-  onCustomDraftChange: (draft: CustomFinanceInstrument) => void;
+  customDraft: CustomFinanceDraft;
+  onCustomDraftChange: (draft: CustomFinanceDraft) => void;
   onSaveCustomInstrument: () => void;
   onDeleteCustomInstrument: (instrument: CustomFinanceInstrument) => void;
   onRefresh: () => void;
@@ -2090,54 +2090,118 @@ function FengbroFinanceSection({
             )}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_auto] lg:items-end">
-            <label className="space-y-1.5 text-sm">
-              <span className="font-medium text-foreground">名稱</span>
-              <input
-                value={customDraft.name}
-                onChange={(event) => onCustomDraftChange({ ...customDraft, name: event.target.value })}
-                placeholder="Intel Corp"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </label>
-            <label className="space-y-1.5 text-sm">
-              <span className="font-medium text-foreground">代號</span>
-              <input
-                value={customDraft.symbol}
-                onChange={(event) => onCustomDraftChange({ ...customDraft, symbol: event.target.value })}
-                placeholder="INTC / ^TWII / .IXIC"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm uppercase outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </label>
-            <label className="space-y-1.5 text-sm">
-              <span className="font-medium text-foreground">來源</span>
-              <select
-                value={customDraft.provider}
-                onChange={(event) => onCustomDraftChange({ ...customDraft, provider: event.target.value as CustomFinanceInstrument["provider"] })}
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              >
-                <option value="cnbc">CNBC</option>
-                <option value="yahoo">Yahoo</option>
-              </select>
-            </label>
-            <label className="space-y-1.5 text-sm">
-              <span className="font-medium text-foreground">分類</span>
-              <select
-                value={customDraft.group}
-                onChange={(event) => onCustomDraftChange({ ...customDraft, group: event.target.value as FengbroFinanceQuote["group"] })}
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              >
-                {FINANCE_CUSTOM_GROUPS.map((group) => (
-                  <option key={group} value={group}>
-                    {getFinanceGroupLabel(group)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
-              <Plus size={16} />
-              新增
-            </Button>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+            <div className="mb-3">
+              <p className="text-sm font-semibold text-foreground">新增指數或股票</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                可貼上 Yahoo / CNBC 報價網址並填代稱；也可直接輸入代號（如 INTC、2330.TW、.SOX）。網址會自動辨識來源與建議分類。
+              </p>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">代稱</span>
+                <input
+                  value={customDraft.name}
+                  onChange={(event) => onCustomDraftChange({ ...customDraft, name: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") onSaveCustomInstrument();
+                  }}
+                  placeholder="例如：英特爾、台積電"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">網址或代號</span>
+                <input
+                  value={customDraft.urlOrSymbol}
+                  onChange={(event) => {
+                    const urlOrSymbol = event.target.value;
+                    const parsed = parseFinanceQuoteInput(urlOrSymbol);
+                    if (parsed && isFinanceQuoteUrl(urlOrSymbol)) {
+                      onCustomDraftChange({
+                        ...customDraft,
+                        urlOrSymbol,
+                        provider: parsed.provider,
+                        group: guessFinanceGroup(parsed.symbol),
+                      });
+                      return;
+                    }
+                    if (parsed && !isFinanceQuoteUrl(urlOrSymbol)) {
+                      onCustomDraftChange({
+                        ...customDraft,
+                        urlOrSymbol,
+                        provider: parsed.provider,
+                      });
+                      return;
+                    }
+                    onCustomDraftChange({ ...customDraft, urlOrSymbol });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") onSaveCustomInstrument();
+                  }}
+                  placeholder="https://finance.yahoo.com/quote/INTC 或 INTC"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">來源</span>
+                <select
+                  value={customDraft.provider}
+                  onChange={(event) =>
+                    onCustomDraftChange({
+                      ...customDraft,
+                      provider: event.target.value as CustomFinanceInstrument["provider"],
+                    })
+                  }
+                  disabled={isFinanceQuoteUrl(customDraft.urlOrSymbol)}
+                  title={
+                    isFinanceQuoteUrl(customDraft.urlOrSymbol)
+                      ? "來源已由網址自動辨識"
+                      : "直接輸入代號時可手動選擇來源"
+                  }
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  <option value="cnbc">CNBC</option>
+                  <option value="yahoo">Yahoo</option>
+                </select>
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">分類</span>
+                <select
+                  value={customDraft.group}
+                  onChange={(event) =>
+                    onCustomDraftChange({
+                      ...customDraft,
+                      group: event.target.value as CustomFinanceDraft["group"],
+                    })
+                  }
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                >
+                  {FINANCE_CUSTOM_GROUPS.map((group) => (
+                    <option key={group} value={group}>
+                      {getFinanceGroupLabel(group)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
+                <Plus size={16} />
+                新增
+              </Button>
+            </div>
+            {(() => {
+              const preview = parseFinanceQuoteInput(customDraft.urlOrSymbol);
+              if (!preview) return null;
+              return (
+                <p className="mt-2 text-xs text-emerald-800/90">
+                  將新增：
+                  <span className="font-semibold">{customDraft.name.trim() || preview.symbol}</span>
+                  {" · "}
+                  {preview.provider.toUpperCase()}: {preview.symbol}
+                  {preview.fromUrl ? "（由網址辨識）" : ""}
+                </p>
+              );
+            })()}
           </div>
 
           {customInstruments.length > 0 && (
@@ -2148,7 +2212,10 @@ function FengbroFinanceSection({
                   className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs text-emerald-800"
                 >
                   <span className="font-semibold">{instrument.name}</span>
-                  <span>{instrument.provider.toUpperCase()}: {instrument.symbol}</span>
+                  <span>
+                    {instrument.provider.toUpperCase()}: {instrument.symbol}
+                  </span>
+                  <span className="text-emerald-700/70">{getFinanceGroupLabel(instrument.group)}</span>
                   <button
                     type="button"
                     onClick={() => onDeleteCustomInstrument(instrument)}
