@@ -140,8 +140,15 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "fengbro-news", label: "鋒兄新聞", subtitle: "鎖定網站焦點", icon: <Newspaper size={18} /> },
     ],
   },
-  { id: "settings", label: "鋒兄設定", icon: <Settings size={18} /> },
-  { id: "about", label: "鋒兄關於", icon: <Info size={18} /> },
+  {
+    id: "settings-about",
+    label: "鋒兄設定/關於",
+    icon: <Settings size={18} />,
+    children: [
+      { id: "settings", label: "鋒兄設定", icon: <Settings size={18} /> },
+      { id: "about", label: "鋒兄關於", icon: <Info size={18} /> },
+    ],
+  },
 ];
 
 const APPWRITE_REQUIRED_MODULES = new Set([
