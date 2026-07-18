@@ -19,6 +19,8 @@ import {
   FINANCE_CUSTOM_GROUPS,
   buildCustomFinanceInstrumentFromDraft,
   createEmptyCustomFinanceDraft,
+  draftFromCustomFinanceInstrument,
+  getCustomFinanceInstrumentKey,
   guessFinanceGroup,
   isFinanceQuoteUrl,
   normalizeCustomFinanceInstrument,
@@ -1919,8 +1921,11 @@ function FengbroFinanceSection({
   onResetDefaultInstruments,
   customInstruments,
   customDraft,
+  editingCustomKey,
   onCustomDraftChange,
   onSaveCustomInstrument,
+  onEditCustomInstrument,
+  onCancelEditCustomInstrument,
   onDeleteCustomInstrument,
   onRefresh,
   kospiLiveOpen = false,
@@ -1937,14 +1942,18 @@ function FengbroFinanceSection({
   onResetDefaultInstruments: () => void;
   customInstruments: CustomFinanceInstrument[];
   customDraft: CustomFinanceDraft;
+  editingCustomKey: string | null;
   onCustomDraftChange: (draft: CustomFinanceDraft) => void;
   onSaveCustomInstrument: () => void;
+  onEditCustomInstrument: (instrument: CustomFinanceInstrument) => void;
+  onCancelEditCustomInstrument: () => void;
   onDeleteCustomInstrument: (instrument: CustomFinanceInstrument) => void;
   onRefresh: () => void;
   kospiLiveOpen?: boolean;
   kospiLiveRefreshing?: boolean;
   kospiLiveUpdatedAt?: string | null;
 }) {
+  const isEditingCustom = Boolean(editingCustomKey);
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const groupedQuotes = useMemo(() => {
@@ -2090,11 +2099,21 @@ function FengbroFinanceSection({
             )}
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+          <div
+            className={`rounded-2xl border p-4 ${
+              isEditingCustom
+                ? "border-amber-200 bg-amber-50/70"
+                : "border-slate-200 bg-slate-50/80"
+            }`}
+          >
             <div className="mb-3">
-              <p className="text-sm font-semibold text-foreground">新增指數或股票</p>
+              <p className="text-sm font-semibold text-foreground">
+                {isEditingCustom ? "編輯指數或股票" : "新增指數或股票"}
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                可貼上 Yahoo / CNBC 報價網址並填代稱；也可直接輸入代號（如 INTC、2330.TW、.SOX）。網址會自動辨識來源與建議分類。
+                {isEditingCustom
+                  ? "修改代稱、代號／網址、來源或分類後按「儲存」。也可按「取消編輯」放棄變更。"
+                  : "可貼上 Yahoo / CNBC 報價網址並填代稱；也可直接輸入代號（如 INTC、2330.TW、5274.TWO、.SOX）。網址會自動辨識來源與建議分類。已新增的標的可點「編輯」修改。"}
               </p>
             </div>
             <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
@@ -2139,7 +2158,7 @@ function FengbroFinanceSection({
                   onKeyDown={(event) => {
                     if (event.key === "Enter") onSaveCustomInstrument();
                   }}
-                  placeholder="https://finance.yahoo.com/quote/INTC 或 INTC"
+                  placeholder="https://finance.yahoo.com/quote/5274.TWO 或 5274.TWO"
                   className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
               </label>
@@ -2184,17 +2203,24 @@ function FengbroFinanceSection({
                   ))}
                 </select>
               </label>
-              <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
-                <Plus size={16} />
-                新增
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
+                  <Plus size={16} />
+                  {isEditingCustom ? "儲存" : "新增"}
+                </Button>
+                {isEditingCustom && (
+                  <Button type="button" variant="outline" onClick={onCancelEditCustomInstrument} className="h-10">
+                    取消編輯
+                  </Button>
+                )}
+              </div>
             </div>
             {(() => {
               const preview = parseFinanceQuoteInput(customDraft.urlOrSymbol);
               if (!preview) return null;
               return (
                 <p className="mt-2 text-xs text-emerald-800/90">
-                  將新增：
+                  {isEditingCustom ? "將更新為：" : "將新增："}
                   <span className="font-semibold">{customDraft.name.trim() || preview.symbol}</span>
                   {" · "}
                   {preview.provider.toUpperCase()}: {preview.symbol}
@@ -2206,26 +2232,48 @@ function FengbroFinanceSection({
 
           {customInstruments.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
-              {customInstruments.map((instrument) => (
-                <span
-                  key={`${instrument.provider}-${instrument.symbol}`}
-                  className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs text-emerald-800"
-                >
-                  <span className="font-semibold">{instrument.name}</span>
-                  <span>
-                    {instrument.provider.toUpperCase()}: {instrument.symbol}
-                  </span>
-                  <span className="text-emerald-700/70">{getFinanceGroupLabel(instrument.group)}</span>
-                  <button
-                    type="button"
-                    onClick={() => onDeleteCustomInstrument(instrument)}
-                    className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
-                    aria-label={`刪除 ${instrument.name}`}
+              {customInstruments.map((instrument) => {
+                const key = getCustomFinanceInstrumentKey(instrument);
+                const isActiveEdit = editingCustomKey === key;
+                return (
+                  <span
+                    key={key}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
+                      isActiveEdit
+                        ? "border-amber-300 bg-amber-50 text-amber-900"
+                        : "border-emerald-100 bg-emerald-50 text-emerald-800"
+                    }`}
                   >
-                    <Trash2 size={13} />
-                  </button>
-                </span>
-              ))}
+                    <span className="font-semibold">{instrument.name}</span>
+                    <span>
+                      {instrument.provider.toUpperCase()}: {instrument.symbol}
+                    </span>
+                    <span className={isActiveEdit ? "text-amber-700/80" : "text-emerald-700/70"}>
+                      {getFinanceGroupLabel(instrument.group)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onEditCustomInstrument(instrument)}
+                      className={`rounded-full px-1.5 py-0.5 font-medium transition ${
+                        isActiveEdit
+                          ? "bg-amber-100 text-amber-900"
+                          : "text-emerald-800 hover:bg-white"
+                      }`}
+                      aria-label={`編輯 ${instrument.name}`}
+                    >
+                      編輯
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteCustomInstrument(instrument)}
+                      className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
+                      aria-label={`刪除 ${instrument.name}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </span>
+                );
+              })}
             </div>
           )}
         </div>
@@ -2947,6 +2995,7 @@ export default function ToolsManagement({
   );
   const [customFinanceInstruments, setCustomFinanceInstruments] = useState<CustomFinanceInstrument[]>(getSavedCustomFinanceInstruments);
   const [customFinanceDraft, setCustomFinanceDraft] = useState<CustomFinanceDraft>(createEmptyCustomFinanceDraft);
+  const [editingCustomFinanceKey, setEditingCustomFinanceKey] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -3316,32 +3365,52 @@ export default function ToolsManagement({
     };
   }, [activeTab, selectedDefaultFinanceInstrumentIds, refreshKospiLive]);
 
+  const clearCustomFinanceForm = useCallback(() => {
+    setEditingCustomFinanceKey(null);
+    setCustomFinanceDraft(createEmptyCustomFinanceDraft());
+  }, []);
+
   const handleSaveCustomFinanceInstrument = useCallback(() => {
     const normalizedInstrument = buildCustomFinanceInstrumentFromDraft(customFinanceDraft);
     if (!normalizedInstrument) {
-      setFinanceError("請輸入正確的 CNBC / Yahoo 報價網址，或股票／指數代號（例如 INTC、2330.TW）");
+      setFinanceError(
+        "請輸入正確的 CNBC / Yahoo 報價網址，或股票／指數代號（例如 INTC、2330.TW、5274.TWO）"
+      );
       return;
     }
 
     setFinanceError("");
     setCustomFinanceInstruments((currentInstruments) => {
-      const nextInstruments = currentInstruments.filter(
-        (instrument) =>
-          !(
-            instrument.provider === normalizedInstrument.provider &&
-            instrument.symbol.toUpperCase() === normalizedInstrument.symbol.toUpperCase()
-          )
-      );
+      const nextKey = getCustomFinanceInstrumentKey(normalizedInstrument);
+      const nextInstruments = currentInstruments.filter((instrument) => {
+        const key = getCustomFinanceInstrumentKey(instrument);
+        // Drop the row being edited (symbol/provider may change)
+        if (editingCustomFinanceKey && key === editingCustomFinanceKey) return false;
+        // Drop any existing row that would collide with the saved key
+        if (key === nextKey) return false;
+        return true;
+      });
       return [...nextInstruments, normalizedInstrument].slice(-30);
     });
+    setEditingCustomFinanceKey(null);
     setCustomFinanceDraft(
       createEmptyCustomFinanceDraft({
-        provider: customFinanceDraft.provider,
-        group: customFinanceDraft.group,
+        provider: normalizedInstrument.provider,
+        group: normalizedInstrument.group,
       })
     );
     setFinanceLoadedOnce(false);
-  }, [customFinanceDraft]);
+  }, [customFinanceDraft, editingCustomFinanceKey]);
+
+  const handleEditCustomFinanceInstrument = useCallback((instrument: CustomFinanceInstrument) => {
+    setFinanceError("");
+    setEditingCustomFinanceKey(getCustomFinanceInstrumentKey(instrument));
+    setCustomFinanceDraft(draftFromCustomFinanceInstrument(instrument));
+  }, []);
+
+  const handleCancelEditCustomFinanceInstrument = useCallback(() => {
+    clearCustomFinanceForm();
+  }, [clearCustomFinanceForm]);
 
   const handleAddDefaultFinanceInstrument = useCallback((id: string) => {
     if (!DEFAULT_FINANCE_INSTRUMENT_IDS.includes(id)) return;
@@ -3363,18 +3432,19 @@ export default function ToolsManagement({
     setFinanceLoadedOnce(false);
   }, []);
 
-  const handleDeleteCustomFinanceInstrument = useCallback((targetInstrument: CustomFinanceInstrument) => {
-    setCustomFinanceInstruments((currentInstruments) =>
-      currentInstruments.filter(
-        (instrument) =>
-          !(
-            instrument.provider === targetInstrument.provider &&
-            instrument.symbol.toUpperCase() === targetInstrument.symbol.toUpperCase()
-          )
-      )
-    );
-    setFinanceLoadedOnce(false);
-  }, []);
+  const handleDeleteCustomFinanceInstrument = useCallback(
+    (targetInstrument: CustomFinanceInstrument) => {
+      const targetKey = getCustomFinanceInstrumentKey(targetInstrument);
+      setCustomFinanceInstruments((currentInstruments) =>
+        currentInstruments.filter((instrument) => getCustomFinanceInstrumentKey(instrument) !== targetKey)
+      );
+      if (editingCustomFinanceKey === targetKey) {
+        clearCustomFinanceForm();
+      }
+      setFinanceLoadedOnce(false);
+    },
+    [clearCustomFinanceForm, editingCustomFinanceKey]
+  );
 
   useEffect(() => {
     if (activeTab === "fengbro-finance" && !financeLoadedOnce && !financeLoading) {
@@ -3919,8 +3989,11 @@ export default function ToolsManagement({
           onResetDefaultInstruments={handleResetDefaultFinanceInstruments}
           customInstruments={customFinanceInstruments}
           customDraft={customFinanceDraft}
+          editingCustomKey={editingCustomFinanceKey}
           onCustomDraftChange={setCustomFinanceDraft}
           onSaveCustomInstrument={handleSaveCustomFinanceInstrument}
+          onEditCustomInstrument={handleEditCustomFinanceInstrument}
+          onCancelEditCustomInstrument={handleCancelEditCustomFinanceInstrument}
           onDeleteCustomInstrument={handleDeleteCustomFinanceInstrument}
           onRefresh={() => void loadFinance()}
           kospiLiveOpen={kospiLiveOpen}

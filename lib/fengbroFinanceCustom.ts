@@ -156,13 +156,21 @@ export function parseFinanceQuoteInput(input: string): ParsedFinanceQuoteInput |
   };
 }
 
+/** Stable key for a custom instrument (provider + symbol). */
+export function getCustomFinanceInstrumentKey(
+  instrument: Pick<CustomFinanceInstrument, "provider" | "symbol">
+) {
+  return `${instrument.provider}|${instrument.symbol.trim().toUpperCase()}`;
+}
+
 /** Best-effort group guess from ticker shape (user can still override in the form). */
 export function guessFinanceGroup(symbol: string): FinanceCustomGroup {
   const s = symbol.trim().toUpperCase();
   if (!s) return "us-stocks";
 
   if (s === "^TWII" || s === ".TWII") return "tw";
-  if (/\.TW$/i.test(s)) return "tw-stocks";
+  // TWSE (.TW) and TPEx / 櫃買 (.TWO) — e.g. 2330.TW, 5274.TWO
+  if (/\.TW$/i.test(s) || /\.TWO$/i.test(s)) return "tw-stocks";
   if (/\.KS$/i.test(s) || /\.KQ$/i.test(s)) return "korea";
   if (s === ".KS11" || s === "^KS11") return "asia";
   if (s === ".N225" || s === "^N225") return "asia";
@@ -172,6 +180,18 @@ export function guessFinanceGroup(symbol: string): FinanceCustomGroup {
   if (s.startsWith("@") || /=(F)$/i.test(s) || s.endsWith("=F")) return "commodities";
   if (s.startsWith(".") || s.startsWith("^")) return "us";
   return "us-stocks";
+}
+
+/** Load an existing custom instrument into the add/edit draft form. */
+export function draftFromCustomFinanceInstrument(
+  instrument: CustomFinanceInstrument
+): CustomFinanceDraft {
+  return {
+    name: instrument.name,
+    urlOrSymbol: instrument.symbol,
+    provider: instrument.provider,
+    group: instrument.group,
+  };
 }
 
 export function normalizeCustomFinanceInstrument(
