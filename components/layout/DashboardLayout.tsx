@@ -366,6 +366,10 @@ function DesktopTopNav({
   onMenuClick: (item: MenuItem) => void;
 }) {
   const groups = useMemo(() => buildTopNavGroups(menuItems), [menuItems]);
+  const activeLabel = useMemo(() => {
+    const item = findMenuItem(menuItems, currentModule);
+    return (item?.label ?? "控制台").replace(/\n/g, " ");
+  }, [currentModule, menuItems]);
   const mainGroup = groups.find((group) => group.id === "main");
   const toolsRowGroups = groups.filter((group) =>
     (TOP_NAV_SECOND_ROW_GROUP_IDS as readonly string[]).includes(group.id)
@@ -387,7 +391,7 @@ function DesktopTopNav({
     >
       <div className="mx-auto w-full max-w-[1680px] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <BrandBlock />
+          <BrandBlock title={activeLabel} />
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 rounded-[18px] border border-[var(--line-strong)] bg-white/60 px-3 py-2 dark:bg-white/5">
               <div className="flex shrink-0 items-center gap-1">
@@ -655,7 +659,14 @@ function MobileMenuSheet({
   );
 }
 
-function BrandBlock({ compact = false }: { compact?: boolean }) {
+function BrandBlock({
+  compact = false,
+  title = "控制台",
+}: {
+  compact?: boolean;
+  /** Current module title (e.g. 鋒兄訂閱) — not the product codename. */
+  title?: string;
+}) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex size-12 shrink-0 items-center justify-center rounded-[18px] bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_18px_40px_rgba(199,149,65,0.22)]">
@@ -666,7 +677,7 @@ function BrandBlock({ compact = false }: { compact?: boolean }) {
           FengBro
         </p>
         <h1 className="truncate font-display text-xl font-semibold tracking-tight text-[var(--foreground)]">
-          AI Appwrite Console
+          {title}
         </h1>
       </div>
     </div>
