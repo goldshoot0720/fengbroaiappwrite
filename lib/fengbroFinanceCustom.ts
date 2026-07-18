@@ -261,13 +261,69 @@ export function getFinanceProviderDisplayName(input: {
   return (input.provider || "Unknown").toUpperCase();
 }
 
+export type YahooQuoteSourceUrlOptions = {
+  /** Custom instrument group (tw / tw-stocks → 奇摩). */
+  group?: string;
+  /** Original paste URL; tw.stock.yahoo.com forces 奇摩. */
+  sourceUrl?: string;
+  marketHint?: "tw";
+};
+
+/**
+ * True when a Yahoo quote should open on Yahoo 奇摩股市 (tw.stock.yahoo.com)
+ * rather than global finance.yahoo.com.
+ *
+ * Rules: marketHint/source host, TW groups, .TW/.TWO suffixes, major TW indices.
+ */
+export function isTaiwanYahooQuoteTarget(
+  symbol: string,
+  options?: YahooQuoteSourceUrlOptions
+): boolean {
+  if (options?.marketHint === "tw" || isTaiwanYahooStockSource(options?.sourceUrl)) {
+    return true;
+  }
+  if (options?.group === "tw" || options?.group === "tw-stocks") return true;
+
+  const s = symbol.trim().toUpperCase();
+  if (!s) return false;
+  // TWSE (.TW) and TPEx / 櫃買 (.TWO)
+  if (/\.TWO?$/i.test(s)) return true;
+  if (s === "^TWII" || s === ".TWII" || s === "^TWOII" || s === ".TWOII") return true;
+  return false;
+}
+
+/**
+ * Public quote-page URL for a Yahoo symbol.
+ * Taiwan stocks/indices stay on tw.stock.yahoo.com (not finance.yahoo.com).
+ */
+export function buildYahooQuoteSourceUrl(
+  symbol: string,
+  options?: YahooQuoteSourceUrlOptions
+): string {
+  const encoded = encodeURIComponent(symbol.trim());
+  if (isTaiwanYahooQuoteTarget(symbol, options)) {
+    return `https://tw.stock.yahoo.com/quote/${encoded}`;
+  }
+  return `https://finance.yahoo.com/quote/${encoded}`;
+}
+
+/** Public quote-page URL for a CNBC symbol. */
+export function buildCnbcQuoteSourceUrl(symbol: string): string {
+  return `https://www.cnbc.com/quotes/${encodeURIComponent(symbol.trim())}`;
+}
+
 /** Load an existing custom instrument into the add/edit draft form. */
 export function draftFromCustomFinanceInstrument(
   instrument: CustomFinanceInstrument
 ): CustomFinanceDraft {
+  const urlOrSymbol =
+    instrument.provider === "yahoo"
+      ? buildYahooQuoteSourceUrl(instrument.symbol, { group: instrument.group })
+      : buildCnbcQuoteSourceUrl(instrument.symbol);
+
   return {
     name: instrument.name,
-    urlOrSymbol: instrument.symbol,
+    urlOrSymbol,
     provider: instrument.provider,
     group: instrument.group,
   };

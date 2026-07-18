@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  buildCnbcQuoteSourceUrl,
+  buildYahooQuoteSourceUrl,
+} from "@/lib/fengbroFinanceCustom";
 
 export const dynamic = "force-dynamic";
 
@@ -249,16 +253,16 @@ function normalizeCustomFinanceInstrument(input: CustomFinanceInstrumentInput, i
       ? input.name.trim().slice(0, 80)
       : symbol;
   const idBase = slugifyInstrumentId(`${provider}-${symbol}`) || `custom-${index + 1}`;
-  const encodedSymbol = encodeURIComponent(symbol);
 
   return {
     id: `custom-${idBase}`,
     name,
     symbol,
+    // 台股 (.TW / .TWO / tw 分類) 連到 Yahoo 奇摩，不要改成 finance.yahoo.com
     sourceUrl:
       provider === "yahoo"
-        ? `https://finance.yahoo.com/quote/${encodedSymbol}`
-        : `https://www.cnbc.com/quotes/${encodedSymbol}`,
+        ? buildYahooQuoteSourceUrl(symbol, { group })
+        : buildCnbcQuoteSourceUrl(symbol),
     group,
     provider,
     localLabel: `${provider.toUpperCase()}: ${symbol}`,
