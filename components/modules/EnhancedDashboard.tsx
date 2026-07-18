@@ -20,6 +20,7 @@ import { FoodDetail, SubscriptionDetail } from "@/types";
 import PlumberTycoon from "@/components/modules/PlumberTycoon";
 import CatShowcase from "@/components/modules/CatShowcase";
 import CEOProfile from "@/components/modules/CEOProfile";
+import codebaseStats from "@/config/codebase-stats.json";
 
 type FengbroTubeRecentVideo = {
   videoId: string;
@@ -273,6 +274,19 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         <div className="mt-8">
           <CatShowcase />
         </div>
+
+        <footer className="mt-10 border-t border-[var(--line-soft)] pt-6 pb-2 text-center">
+          <p className="text-sm text-muted-foreground tracking-wide">
+            鋒兄 © 2026-2027 fengbroprinfo
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground/80">
+            上次更新日期 {codebaseStats.snapshotDate}
+            <span className="mx-2 text-[var(--line-strong)]" aria-hidden>
+              ·
+            </span>
+            程式碼行數 {codebaseStats.totalLines.toLocaleString()}
+          </p>
+        </footer>
       </div>
     );
   }

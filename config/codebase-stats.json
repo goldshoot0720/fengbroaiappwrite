@@ -1,27 +1,32 @@
 {
-  "snapshotDate": "2026-07-17",
-  "totalFiles": 275,
-  "totalLines": 85440,
+  "snapshotDate": "2026-07-18",
+  "totalFiles": 3827,
+  "totalLines": 504794,
   "breakdown": [
+    {
+      "label": "Markdown",
+      "files": 3526,
+      "lines": 289220
+    },
+    {
+      "label": "JavaScript",
+      "files": 118,
+      "lines": 142149
+    },
     {
       "label": "TSX",
       "files": 72,
-      "lines": 52689
+      "lines": 53199
     },
     {
       "label": "TypeScript",
       "files": 82,
-      "lines": 17486
+      "lines": 17077
     },
     {
-      "label": "JavaScript",
-      "files": 71,
-      "lines": 7813
-    },
-    {
-      "label": "Markdown",
-      "files": 34,
-      "lines": 5414
+      "label": "JSON",
+      "files": 20,
+      "lines": 1310
     },
     {
       "label": "HTML",
@@ -31,12 +36,7 @@
     {
       "label": "CSS",
       "files": 1,
-      "lines": 525
-    },
-    {
-      "label": "JSON",
-      "files": 7,
-      "lines": 215
+      "lines": 541
     }
   ]
 }
