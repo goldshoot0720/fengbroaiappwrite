@@ -215,19 +215,19 @@ export default function DashboardPage() {
       case "routine":
         return <RoutineManagement />;
       case "tools":
-        return <ToolsManagement />;
+        return <ToolsManagement onNavigate={handleModuleChange} />;
       case "price-compare":
-        return <ToolsManagement initialTab="price-compare" />;
+        return <ToolsManagement initialTab="price-compare" onNavigate={handleModuleChange} />;
       case "landtop":
-        return <ToolsManagement initialTab="landtop" />;
+        return <ToolsManagement initialTab="landtop" onNavigate={handleModuleChange} />;
       case "fengbro-tube":
-        return <ToolsManagement initialTab="fengbro-tube" />;
+        return <ToolsManagement initialTab="fengbro-tube" onNavigate={handleModuleChange} />;
       case "fengbro-finance":
-        return <ToolsManagement initialTab="fengbro-finance" />;
+        return <ToolsManagement initialTab="fengbro-finance" onNavigate={handleModuleChange} />;
       case "fengbro-news":
-        return <ToolsManagement initialTab="fengbro-news" />;
+        return <ToolsManagement initialTab="fengbro-news" onNavigate={handleModuleChange} />;
       case "image-voice-video":
-        return <ToolsManagement initialTab="image-voice-video" />;
+        return <ToolsManagement initialTab="image-voice-video" onNavigate={handleModuleChange} />;
       case "settings":
         return <SettingsManagement />;
       case "about":

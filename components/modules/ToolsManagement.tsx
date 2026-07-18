@@ -262,13 +262,13 @@ function getToolGroupMeta(tab: ToolsTab) {
   if (isSubToolTab(tab)) {
     return {
       title: "鋒兄子工具",
-      description: "內容與資訊子工具：Tube、金融報價、新聞焦點。請由上方選單切換群組。",
+      description: "內容與資訊子工具：Tube、金融報價、新聞焦點。",
       tabs: SUB_TOOL_TABS,
     };
   }
   return {
     title: "鋒兄工具",
-    description: "實用工具：比價、手機比價、圖片語音影片。子工具請由上方選單進入。",
+    description: "實用工具：比價、手機比價、圖片語音影片。子工具可於本頁精簡列或上方選單進入。",
     tabs: PRIMARY_TOOL_TABS,
   };
 }
@@ -2834,8 +2834,20 @@ function LandtopProductSection({
   );
 }
 
-export default function ToolsManagement({ initialTab = "price-compare" }: { initialTab?: ToolsTab }) {
+export default function ToolsManagement({
+  initialTab = "price-compare",
+  onNavigate,
+}: {
+  initialTab?: ToolsTab;
+  /** Optional: keep shell module in sync when switching tool tabs. */
+  onNavigate?: (moduleId: string) => void;
+}) {
   const [activeTab, setActiveTab] = useState<ToolsTab>(initialTab);
+
+  const selectTab = (tab: ToolsTab) => {
+    setActiveTab(tab);
+    onNavigate?.(tab);
+  };
   const [targetUrl, setTargetUrl] = useState("");
   const [priceSource, setPriceSource] = useState<PriceSource>("biggo-api");
   const [loading, setLoading] = useState(false);
@@ -3336,24 +3348,60 @@ export default function ToolsManagement({ initialTab = "price-compare" }: { init
   };
 
   const toolGroup = getToolGroupMeta(activeTab);
+  const showSubToolsStrip = !isSubToolTab(activeTab);
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 sm:space-y-6">
       <PageTitle title={toolGroup.title} description={toolGroup.description} />
 
-      <DataCard className="p-4">
-        <div className="flex flex-wrap items-center gap-2">
+      <DataCard className="space-y-2 p-2.5 sm:space-y-3 sm:p-4">
+        {/* 主工具分頁：手機優先橫向捲動 */}
+        <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:thin]">
           {toolGroup.tabs.map((tab) => (
             <Button
               key={tab.id}
               variant={activeTab === tab.id ? "default" : "outline"}
               size="sm"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
+              className="h-8 shrink-0 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm"
             >
               {tab.label}
             </Button>
           ))}
         </div>
+
+        {/* 鋒兄子工具：盡量小、由左至右，僅在鋒兄工具頁顯示 */}
+        {showSubToolsStrip ? (
+          <div className="flex min-w-0 items-center gap-1.5 border-t border-[var(--line-soft)] pt-2">
+            <span className="shrink-0 text-[10px] font-medium tracking-wide text-[var(--muted-foreground)] sm:text-[11px]">
+              子工具
+            </span>
+            <div
+              role="navigation"
+              aria-label="鋒兄子工具"
+              className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:thin]"
+            >
+              {SUB_TOOL_TABS.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => selectTab(tab.id)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={
+                      isActive
+                        ? "h-7 shrink-0 rounded-full bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] px-2.5 text-[11px] font-medium text-[var(--accent-foreground)] shadow-sm sm:h-8 sm:px-3 sm:text-xs"
+                        : "h-7 shrink-0 rounded-full border border-[var(--line-soft)] bg-[color:var(--panel-soft)] px-2.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-impeccable active:scale-[0.98] sm:h-8 sm:px-3 sm:text-xs"
+                    }
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </DataCard>
 
       {activeTab === "price-compare" ? (
