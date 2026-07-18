@@ -5,28 +5,21 @@ export type FengbroTubeChannelConfig = {
 
 export const FENGBRO_TUBE_TITLE_OVERRIDES: Record<string, string> = {
   henren778: "一个狠人",
-  libertas1984: "Cao Cao's daily observation",
-  sunlao: "政經孫老師",
-  blackwhite_raven: "黑白乌鸦",
-
-  informant510: "线人频道Informant",
-  "ma-siku": "马司库",
-  monsterise: "怪獸崛起 MONSTERISE",
-  tankman2020: "二爷故事",
-  tengumedia: "天狗衛視",
 };
 
-const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS = [
-  "https://www.youtube.com/@libertas1984/videos",
-  "https://www.youtube.com/@sunlao/videos",
-  "https://www.youtube.com/@blackwhite_raven/videos",
+/** Handles previously shipped as defaults; stripped from saved channel lists on load. */
+export const REMOVED_FENGBRO_TUBE_HANDLES = new Set([
+  "libertas1984",
+  "sunlao",
+  "blackwhite_raven",
+  "informant510",
+  "ma-siku",
+  "monsterise",
+  "tankman2020",
+  "tengumedia",
+]);
 
-  "https://www.youtube.com/@informant510/videos",
-  "https://www.youtube.com/@ma-siku/videos",
-  "https://www.youtube.com/@monsterise/videos",
-  "https://www.youtube.com/@Tankman2020/videos",
-  "https://www.youtube.com/@tengumedia/videos",
-];
+const DEFAULT_FENGBRO_TUBE_CHANNEL_URLS: string[] = [];
 
 export function normalizeFengbroTubeSource(input: string) {
   const trimmedInput = input.trim();
@@ -110,6 +103,11 @@ export function normalizeFengbroTubeChannels(inputs: unknown[]) {
   }
 
   return channels;
+}
+
+/** Drop channels that were removed from the product default list. */
+export function stripRemovedFengbroTubeChannels(channels: FengbroTubeChannelConfig[]) {
+  return channels.filter((channel) => !REMOVED_FENGBRO_TUBE_HANDLES.has(getFengbroTubeHandle(channel.sourceUrl)));
 }
 
 export function dedupeFengbroTubeSources(sources: string[]) {

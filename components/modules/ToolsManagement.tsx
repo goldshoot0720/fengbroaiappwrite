@@ -12,8 +12,20 @@ import {
   isBrokenFengbroTubeTitle,
   normalizeFengbroTubeChannels,
   normalizeFengbroTubeSource,
+  stripRemovedFengbroTubeChannels,
 } from "@/lib/fengbroTubeChannels";
 import { isKospiMarketOpen, KOSPI_LIVE_POLL_MS } from "@/lib/kospiMarketHours";
+import {
+  FINANCE_CUSTOM_GROUPS,
+  buildCustomFinanceInstrumentFromDraft,
+  createEmptyCustomFinanceDraft,
+  guessFinanceGroup,
+  isFinanceQuoteUrl,
+  normalizeCustomFinanceInstrument,
+  parseFinanceQuoteInput,
+  type CustomFinanceDraft,
+  type CustomFinanceInstrument,
+} from "@/lib/fengbroFinanceCustom";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
 import ManualPriceTracker from "@/components/modules/ManualPriceTracker";
@@ -223,13 +235,6 @@ type FengbroFinanceResult = {
   shillerPe?: ShillerPeRatio;
 };
 
-type CustomFinanceInstrument = {
-  name: string;
-  symbol: string;
-  provider: "cnbc" | "yahoo";
-  group: FengbroFinanceQuote["group"];
-};
-
 type DefaultFinanceInstrumentSummary = {
   id: string;
   name: string;
@@ -344,26 +349,16 @@ function getSavedTubeChannels() {
     if (!savedTubeChannels) return DEFAULT_FENGBRO_TUBE_CHANNELS;
     const parsedChannels = JSON.parse(savedTubeChannels) as unknown;
     if (!Array.isArray(parsedChannels)) return DEFAULT_FENGBRO_TUBE_CHANNELS;
-    const channels = normalizeFengbroTubeChannels(parsedChannels);
+    const normalized = normalizeFengbroTubeChannels(parsedChannels);
+    const channels = stripRemovedFengbroTubeChannels(normalized);
+    // Persist cleanup so removed defaults do not reappear after refresh.
+    if (channels.length !== normalized.length) {
+      window.localStorage.setItem(TUBE_CHANNELS_KEY, JSON.stringify(channels));
+    }
     return channels.length > 0 ? channels : DEFAULT_FENGBRO_TUBE_CHANNELS;
   } catch {
     return DEFAULT_FENGBRO_TUBE_CHANNELS;
   }
-}
-
-const FINANCE_CUSTOM_GROUPS: FengbroFinanceQuote["group"][] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "fx", "rates", "commodities", "crypto"];
-
-function normalizeCustomFinanceInstrument(input: Partial<CustomFinanceInstrument>): CustomFinanceInstrument | null {
-  const symbol = typeof input.symbol === "string" ? input.symbol.trim().toUpperCase() : "";
-  if (!symbol) return null;
-
-  const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : symbol;
-  const provider = input.provider === "yahoo" ? "yahoo" : "cnbc";
-  const group = FINANCE_CUSTOM_GROUPS.includes(input.group as FengbroFinanceQuote["group"])
-    ? (input.group as FengbroFinanceQuote["group"])
-    : "us";
-
-  return { name, symbol, provider, group };
 }
 
 function getSavedCustomFinanceInstruments() {
@@ -2884,12 +2879,7 @@ export default function ToolsManagement({
     getSavedDefaultFinanceInstrumentIds
   );
   const [customFinanceInstruments, setCustomFinanceInstruments] = useState<CustomFinanceInstrument[]>(getSavedCustomFinanceInstruments);
-  const [customFinanceDraft, setCustomFinanceDraft] = useState<CustomFinanceInstrument>({
-    name: "",
-    symbol: "",
-    provider: "cnbc",
-    group: "us",
-  });
+  const [customFinanceDraft, setCustomFinanceDraft] = useState<CustomFinanceDraft>(createEmptyCustomFinanceDraft);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -3260,9 +3250,9 @@ export default function ToolsManagement({
   }, [activeTab, selectedDefaultFinanceInstrumentIds, refreshKospiLive]);
 
   const handleSaveCustomFinanceInstrument = useCallback(() => {
-    const normalizedInstrument = normalizeCustomFinanceInstrument(customFinanceDraft);
+    const normalizedInstrument = buildCustomFinanceInstrumentFromDraft(customFinanceDraft);
     if (!normalizedInstrument) {
-      setFinanceError("請輸入指數或股票代號");
+      setFinanceError("請輸入正確的 CNBC / Yahoo 報價網址，或股票／指數代號（例如 INTC、2330.TW）");
       return;
     }
 
@@ -3277,7 +3267,12 @@ export default function ToolsManagement({
       );
       return [...nextInstruments, normalizedInstrument].slice(-30);
     });
-    setCustomFinanceDraft({ name: "", symbol: "", provider: customFinanceDraft.provider, group: customFinanceDraft.group });
+    setCustomFinanceDraft(
+      createEmptyCustomFinanceDraft({
+        provider: customFinanceDraft.provider,
+        group: customFinanceDraft.group,
+      })
+    );
     setFinanceLoadedOnce(false);
   }, [customFinanceDraft]);
 
