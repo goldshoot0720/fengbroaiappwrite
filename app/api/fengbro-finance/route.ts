@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import {
   buildCnbcQuoteSourceUrl,
   buildYahooQuoteSourceUrl,
+  isTaiwanYahooQuoteTarget,
+  parseTaiwanYahooQuotePageTitle,
 } from "@/lib/fengbroFinanceCustom";
 
 export const dynamic = "force-dynamic";
@@ -840,6 +842,44 @@ async function fetchTaifexFuturesInstrument(instrument: FinanceInstrument) {
   };
 }
 
+/**
+ * Yahoo chart meta only has English shortName for TW stocks (e.g. KING SLIDE WORKS CO).
+ * Scrape Yahoo 奇摩 page title for Chinese short names (e.g. 川湖).
+ * Used when the stored 代稱 is still just the ticker.
+ */
+async function resolveTaiwanYahooChineseName(symbol: string, sourceUrl?: string): Promise<string | null> {
+  const pageUrl =
+    sourceUrl && /tw\.stock\.yahoo\.com/i.test(sourceUrl)
+      ? sourceUrl
+      : buildYahooQuoteSourceUrl(symbol, { marketHint: "tw" });
+
+  try {
+    const response = await fetch(pageUrl, {
+      headers: FETCH_BROWSER_HEADERS,
+      cache: "no-store",
+      redirect: "follow",
+    });
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    const title = (html.match(/<title[^>]*>([^<]+)/i) || [])[1] || "";
+    const fromTitle = parseTaiwanYahooQuotePageTitle(title);
+    if (fromTitle?.name) return fromTitle.name.slice(0, 80);
+
+    const symbolNameMatch = html.match(/"symbolName"\s*:\s*"([^"]{1,40})"/);
+    if (symbolNameMatch?.[1]?.trim()) return symbolNameMatch[1].trim().slice(0, 80);
+  } catch {
+    // network / parse — fall back to chart English name
+  }
+  return null;
+}
+
+function isTickerLikeName(name: string, symbol: string) {
+  const n = name.trim().toUpperCase();
+  const s = symbol.trim().toUpperCase();
+  return !n || n === s;
+}
+
 async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const isUsListed =
     !/\.(TW|KS|T|HK|L|TO|AX)$/i.test(instrument.symbol) &&
@@ -945,9 +985,26 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     currency = meta.exchangeTimezoneName === "America/New_York" ? "USD" : "TWD";
   }
 
+  // Chart API returns English names for TW listings; prefer 奇摩中文 when 代稱 is still the ticker.
+  const chartName = pickText(meta, ["shortName", "longName"]);
+  let displayName = chartName || instrument.name;
+  let name = instrument.name;
+  const preferTwChinese = isTaiwanYahooQuoteTarget(instrument.symbol, {
+    group: instrument.group,
+    sourceUrl: instrument.sourceUrl,
+  });
+  if (preferTwChinese && isTickerLikeName(instrument.name, instrument.symbol)) {
+    const chineseName = await resolveTaiwanYahooChineseName(instrument.symbol, instrument.sourceUrl);
+    if (chineseName) {
+      displayName = chineseName;
+      name = chineseName;
+    }
+  }
+
   return {
     ...instrument,
-    displayName: pickText(meta, ["shortName", "longName"]) || instrument.name,
+    name,
+    displayName,
     price,
     change,
     changePercent,

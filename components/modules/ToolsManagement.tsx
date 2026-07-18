@@ -216,6 +216,19 @@ function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "so
   return "CNBC";
 }
 
+/** Card title: prefer 代稱; when 代稱 is still the ticker, use API displayName (e.g. 川湖). */
+function getFinanceQuoteTitle(
+  quote: Pick<FengbroFinanceQuote, "name" | "displayName" | "symbol">
+) {
+  const name = (quote.name || "").trim();
+  const displayName = (quote.displayName || "").trim();
+  const symbol = (quote.symbol || "").trim();
+  const nameIsTicker = !name || name.toUpperCase() === symbol.toUpperCase();
+  if (!nameIsTicker) return name;
+  if (displayName && displayName.toUpperCase() !== symbol.toUpperCase()) return displayName;
+  return name || displayName || symbol;
+}
+
 function getFinanceSessionLabel(quote: Pick<FengbroFinanceQuote, "marketSession" | "marketState">) {
   if (quote.marketSession === "pre") return "盤前 Pre-Market";
   if (quote.marketSession === "post") return "盤後 After-Hours";
@@ -2036,8 +2049,11 @@ function FengbroFinanceSection({
           .filter((quote) => quote.group === group)
           .filter((quote) => {
             if (!query) return true;
+            const title = getFinanceQuoteTitle(quote).toLowerCase();
             return (
+              title.includes(query) ||
               quote.name.toLowerCase().includes(query) ||
+              (quote.displayName || "").toLowerCase().includes(query) ||
               quote.symbol.toLowerCase().includes(query) ||
               (quote.localLabel && quote.localLabel.toLowerCase().includes(query))
             );
@@ -2729,7 +2745,7 @@ function FengbroFinanceSection({
                         <div className="flex flex-col gap-3">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h5 className="font-semibold text-foreground">{quote.name}</h5>
+                              <h5 className="font-semibold text-foreground">{getFinanceQuoteTitle(quote)}</h5>
                               {quote.localLabel && (
                                 <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
                                   {quote.localLabel}
@@ -3458,8 +3474,38 @@ export default function ToolsManagement({
     setCustomFinanceDraft(createEmptyCustomFinanceDraft());
   }, []);
 
-  const handleSaveCustomFinanceInstrument = useCallback(() => {
-    const normalizedInstrument = buildCustomFinanceInstrumentFromDraft(customFinanceDraft);
+  const handleSaveCustomFinanceInstrument = useCallback(async () => {
+    // If 代稱 is empty / still the ticker, resolve Chinese default (e.g. 2059.TW → 川湖) before save.
+    let draftToSave = customFinanceDraft;
+    const parsed = parseFinanceQuoteInput(customFinanceDraft.urlOrSymbol);
+    if (parsed) {
+      const currentName = customFinanceDraft.name.trim();
+      const nameIsTicker =
+        !currentName || currentName.toUpperCase() === parsed.symbol.toUpperCase();
+      if (nameIsTicker) {
+        try {
+          const params = new URLSearchParams({
+            symbol: parsed.symbol,
+            provider: parsed.provider,
+          });
+          if (parsed.sourceUrl) params.set("url", parsed.sourceUrl);
+          const response = await fetch(`/api/fengbro-finance/resolve-name?${params.toString()}`, {
+            cache: "no-store",
+          });
+          if (response.ok) {
+            const data = (await response.json()) as { name?: string };
+            const resolved = typeof data.name === "string" ? data.name.trim() : "";
+            if (resolved && resolved.toUpperCase() !== parsed.symbol.toUpperCase()) {
+              draftToSave = { ...customFinanceDraft, name: resolved.slice(0, 80) };
+            }
+          }
+        } catch {
+          // Keep symbol fallback if resolve fails
+        }
+      }
+    }
+
+    const normalizedInstrument = buildCustomFinanceInstrumentFromDraft(draftToSave);
     if (!normalizedInstrument) {
       setFinanceError(
         "請輸入正確的 CNBC / Yahoo 報價網址，或股票／指數代號（例如 INTC、2330.TW、5274.TWO）"
