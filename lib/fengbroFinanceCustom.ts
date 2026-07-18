@@ -248,11 +248,11 @@ export function guessFinanceGroup(
 }
 
 /** Display name for finance quote source (Yahoo 奇摩 vs global Yahoo, etc.). */
-export function getFinanceProviderDisplayName(
-  input: Pick<ParsedFinanceQuoteInput, "provider" | "sourceUrl" | "marketHint"> & {
-    provider?: string;
-  }
-): string {
+export function getFinanceProviderDisplayName(input: {
+  provider?: string;
+  sourceUrl?: string;
+  marketHint?: "tw";
+}): string {
   if (input.marketHint === "tw" || isTaiwanYahooStockSource(input.sourceUrl)) {
     return "Yahoo 奇摩";
   }
