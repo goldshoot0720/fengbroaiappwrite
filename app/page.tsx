@@ -125,7 +125,7 @@ const MENU_ITEMS: MenuItem[] = [
     subtitle: "（＋比價）",
     icon: <Wrench size={18} />,
     children: [
-      { id: "price-compare", label: "鋒兄比價", icon: <Wrench size={18} /> },
+      { id: "price-compare", label: "鋒兄比價\n(比價紀錄)", icon: <Wrench size={18} /> },
       { id: "landtop", label: "手機比價", icon: <Smartphone size={18} /> },
       { id: "image-voice-video", label: "圖片語音影片", subtitle: "圖+聲=影", icon: <Clapperboard size={18} /> },
     ],

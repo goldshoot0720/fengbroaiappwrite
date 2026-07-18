@@ -240,7 +240,7 @@ type DefaultFinanceInstrumentSummary = {
 
 /** 上方選單「鋒兄工具」— 僅此分頁群組，不混入子工具 */
 const PRIMARY_TOOL_TABS: { id: ToolsTab; label: string }[] = [
-  { id: "price-compare", label: "鋒兄比價" },
+  { id: "price-compare", label: "鋒兄比價 (比價紀錄)" },
   { id: "landtop", label: "手機比價" },
   { id: "image-voice-video", label: "圖片語音影片" },
 ];
