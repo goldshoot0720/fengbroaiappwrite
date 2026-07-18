@@ -26,7 +26,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "FengBro AI Appwrite Console",
+  title: {
+    default: "鋒兄控制台 · FengBro",
+    template: "%s · FengBro",
+  },
   description:
     "AI 驅動的家庭數位中控台，整合食材、訂閱、影音、文件與常用帳號管理。",
   keywords: [

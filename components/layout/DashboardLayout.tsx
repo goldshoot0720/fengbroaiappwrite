@@ -70,6 +70,15 @@ export default function DashboardLayout({
     () => findMenuItem(menuItems, currentModule),
     [currentModule, menuItems]
   );
+  const activeLabel = useMemo(
+    () => formatActiveModuleLabel(activeItem?.label, "控制台"),
+    [activeItem]
+  );
+
+  // All modules: browser tab title follows the active menu (not static AI Appwrite Console).
+  useEffect(() => {
+    document.title = `${activeLabel} · FengBro`;
+  }, [activeLabel]);
 
   const leafItems = useMemo(() => flattenLeafMenuItems(menuItems), [menuItems]);
 
@@ -149,7 +158,7 @@ export default function DashboardLayout({
 
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <MobileHeader
-            activeLabel={activeItem?.label ?? "控制台"}
+            activeLabel={activeLabel}
             isSidebarOpen={isSidebarOpen}
             onToggle={toggleSidebar}
           />
@@ -158,7 +167,7 @@ export default function DashboardLayout({
             <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
               {currentModule === "home" ? <SleepWarningBanner /> : null}
               <TopBar
-                activeLabel={activeItem?.label ?? "首頁"}
+                activeLabel={activeLabel}
                 moduleCount={countNavigableMenuItems(menuItems)}
               />
               {currentModule === "home" && (
@@ -235,7 +244,7 @@ function MobileHeader({
               FengBro
             </p>
             <h1 className="truncate text-base font-semibold leading-5 tracking-tight text-[var(--foreground)]">
-              {activeLabel.replace(/\n/g, " ")}
+              {activeLabel}
             </h1>
           </div>
         </div>
@@ -368,7 +377,7 @@ function DesktopTopNav({
   const groups = useMemo(() => buildTopNavGroups(menuItems), [menuItems]);
   const activeLabel = useMemo(() => {
     const item = findMenuItem(menuItems, currentModule);
-    return (item?.label ?? "控制台").replace(/\n/g, " ");
+    return formatActiveModuleLabel(item?.label, "控制台");
   }, [currentModule, menuItems]);
   const mainGroup = groups.find((group) => group.id === "main");
   const toolsRowGroups = groups.filter((group) =>
@@ -684,6 +693,11 @@ function BrandBlock({
   );
 }
 
+/** Single-line module title for shell chrome (top brand, mobile header, document title). */
+function formatActiveModuleLabel(label: string | undefined, fallback = "控制台") {
+  return (label ?? fallback).replace(/\n/g, " ").replace(/\s+/g, " ").trim() || fallback;
+}
+
 function shortModuleLabel(label: string) {
   return label
     .replace(/\n/g, " ")
@@ -872,8 +886,8 @@ function TopBar({
   return (
     <div className="hidden flex-col gap-3 rounded-[24px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-4 py-4 backdrop-blur-xl md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-4 xl:rounded-[30px] xl:px-6">
       <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
-          Active Surface
+        <p className="text-[11px] font-medium tracking-[0.12em] text-[var(--muted-foreground)]">
+          目前模組
         </p>
         <h2 className="truncate font-display text-2xl font-semibold tracking-tight text-[var(--foreground)]">
           {activeLabel}
