@@ -189,6 +189,8 @@ type FengbroFinanceQuote = {
   recordTag: FinanceRecordTag;
   recordNote?: string;
   periodLabel?: string;
+  /** Horizontal reference levels (e.g. 融資平均水平線). */
+  referenceLevels?: Array<{ value: number; label: string }>;
   historyRanges?: Record<string, PriceHistoryEntry[]>;
   historyErrors?: Record<string, string>;
   isThresholdAlert?: boolean;
@@ -941,19 +943,29 @@ function FinanceHistoryChart({
     const prices = priced.map((entry) => entry.price);
     let minPrice = Math.min(...prices);
     let maxPrice = Math.max(...prices);
-    
+
     if (quote.id === "kospi") {
       if (typeof quote.low52 === "number") minPrice = quote.low52;
       if (typeof quote.high52 === "number") maxPrice = quote.high52;
+    }
+
+    // Expand domain so reference levels (e.g. 融資平均 6472) stay visible.
+    for (const level of quote.referenceLevels || []) {
+      if (typeof level.value === "number" && Number.isFinite(level.value)) {
+        minPrice = Math.min(minPrice, level.value);
+        maxPrice = Math.max(maxPrice, level.value);
+      }
     }
 
     const domain = Math.max(maxPrice - minPrice, Math.max(1, maxPrice * 0.02));
     const domainMin = minPrice - domain * 0.1;
     const domainMax = maxPrice + domain * 0.1;
     const adjustedDomain = Math.max(domainMax - domainMin, 1);
+    const yForPrice = (price: number) =>
+      padding.top + ((domainMax - price) / adjustedDomain) * innerHeight;
     const points = priced.map((entry, index) => {
       const x = padding.left + (index / (priced.length - 1)) * innerWidth;
-      const y = padding.top + ((domainMax - entry.price) / adjustedDomain) * innerHeight;
+      const y = yForPrice(entry.price);
       return { ...entry, x, y };
     });
     const linePath = buildChartPath(points);
@@ -961,6 +973,14 @@ function FinanceHistoryChart({
     const earliest = priced[0];
     const latest = priced[priced.length - 1];
     const changePercent = earliest.price ? ((latest.price - earliest.price) / earliest.price) * 100 : null;
+    const referenceLines = (quote.referenceLevels || [])
+      .filter((level) => typeof level.value === "number" && Number.isFinite(level.value))
+      .map((level) => ({
+        ...level,
+        y: yForPrice(level.value),
+        x1: padding.left,
+        x2: padding.left + innerWidth,
+      }));
 
     return {
       width,
@@ -974,8 +994,9 @@ function FinanceHistoryChart({
       changePercent,
       isUp: latest.price >= earliest.price,
       gradientId: `financeHistoryArea-${quote.id}-${rangeKey}`,
+      referenceLines,
     };
-  }, [quote.historyRanges, quote.id, rangeKey]);
+  }, [quote.historyRanges, quote.id, quote.high52, quote.low52, quote.referenceLevels, rangeKey]);
 
   if (!chart) {
     return (
@@ -1009,6 +1030,29 @@ function FinanceHistoryChart({
           </linearGradient>
         </defs>
         <path d={chart.areaPath} fill={`url(#${chart.gradientId})`} />
+        {chart.referenceLines.map((line) => (
+          <g key={`${line.label}-${line.value}`}>
+            <line
+              x1={line.x1}
+              x2={line.x2}
+              y1={line.y}
+              y2={line.y}
+              stroke="rgb(14,165,233)"
+              strokeDasharray="5 4"
+              strokeWidth="1.5"
+              opacity="0.9"
+            />
+            <text
+              x={line.x2}
+              y={Math.max(10, line.y - 4)}
+              textAnchor="end"
+              className="fill-sky-700"
+              style={{ fontSize: 9, fontWeight: 600 }}
+            >
+              {line.label} ≈ {formatFinanceNumber(line.value, 0)}
+            </text>
+          </g>
+        ))}
         <path
           d={chart.linePath}
           fill="none"
@@ -2761,6 +2805,18 @@ function FengbroFinanceSection({
                                   {quote.periodLabel}
                                 </span>
                               )}
+                              {(quote.referenceLevels || []).map((level) => (
+                                <span
+                                  key={`${level.label}-${level.value}`}
+                                  className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800"
+                                  title={level.label}
+                                >
+                                  {level.label} ≈ {formatFinanceNumber(level.value, 0)}
+                                  {typeof quote.price === "number" && level.value > 0
+                                    ? ` · 現價${quote.price >= level.value ? "+" : ""}${(((quote.price - level.value) / level.value) * 100).toFixed(1)}%`
+                                    : ""}
+                                </span>
+                              ))}
                               {recordLabel && (
                                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-sky-50 text-sky-700 border border-sky-200"}`}>
                                   {recordLabel}
@@ -3416,6 +3472,9 @@ export default function ToolsManagement({
                 bilibiliUrl: quote.bilibiliUrl || kospiQuote.bilibiliUrl,
                 periodLabel: quote.periodLabel || kospiQuote.periodLabel,
                 localLabel: quote.localLabel || kospiQuote.localLabel,
+                referenceLevels: quote.referenceLevels?.length
+                  ? quote.referenceLevels
+                  : kospiQuote.referenceLevels,
               };
             })
           : [...previous.quotes, kospiQuote];

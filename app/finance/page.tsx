@@ -22,6 +22,8 @@ interface FinanceQuote {
   sourceUrl: string;
   localLabel?: string;
   periodLabel?: string;
+  /** Horizontal reference levels (e.g. 融資平均水平線). */
+  referenceLevels?: Array<{ value: number; label: string }>;
   imageUrl?: string;
   imageUrls?: string[];
   marketSession?: "pre" | "regular" | "post" | "closed" | "";
@@ -264,6 +266,9 @@ export default function FinancePage() {
                   imageUrls: quote.imageUrls?.length ? quote.imageUrls : kospiQuote.imageUrls,
                   periodLabel: quote.periodLabel || kospiQuote.periodLabel,
                   localLabel: quote.localLabel || kospiQuote.localLabel,
+                  referenceLevels: quote.referenceLevels?.length
+                    ? quote.referenceLevels
+                    : kospiQuote.referenceLevels,
                 }
               : quote
           ),
@@ -608,6 +613,35 @@ export default function FinancePage() {
                     </div>
                   </div>
                 )}
+
+                {(kospi?.referenceLevels || []).map((level) => {
+                  const vsPct =
+                    typeof kospi?.price === "number" && level.value > 0
+                      ? ((kospi.price - level.value) / level.value) * 100
+                      : null;
+                  return (
+                    <div
+                      key={`${level.label}-${level.value}`}
+                      className="rounded-lg border border-sky-200 bg-sky-50 p-3 dark:border-sky-800 dark:bg-sky-950/40"
+                    >
+                      <div className="text-sm font-medium text-sky-900 dark:text-sky-200">
+                        {level.label} ≈ {formatNumber(level.value, 0)} 點
+                      </div>
+                      {vsPct != null && (
+                        <div
+                          className={`mt-1 text-xs font-semibold ${
+                            vsPct >= 0
+                              ? "text-green-600 dark:text-green-400"
+                              : "text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          現價相對水平線 {vsPct >= 0 ? "+" : ""}
+                          {vsPct.toFixed(2)}%
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
 
                 {/* 圖片輪播 */}
                 <FinanceImageCarousel quote={kospi} alt="KOSPI Index Chart" />
