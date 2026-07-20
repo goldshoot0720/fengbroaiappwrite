@@ -370,6 +370,9 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", provider: "cnbc", group: "other" },
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
+/** 精選焦點：固定優先顯示（KOSPI / 日經 / 費城半導體） */
+const FEATURED_FINANCE_INSTRUMENT_IDS = ["kospi", "nikkei-225", "phlx-semiconductor"] as const;
+const FEATURED_FINANCE_INSTRUMENT_ID_SET = new Set<string>(FEATURED_FINANCE_INSTRUMENT_IDS);
 
 function getSavedTubeChannels() {
   if (typeof window === "undefined") return DEFAULT_FENGBRO_TUBE_CHANNELS;
@@ -2102,7 +2105,23 @@ function FengbroFinanceSection({
   }, [result, searchQuery]);
   const selectedDefaultIdSet = useMemo(() => new Set(selectedDefaultInstrumentIds), [selectedDefaultInstrumentIds]);
   const selectedDefaultInstruments = useMemo(
-    () => defaultInstruments.filter((instrument) => selectedDefaultIdSet.has(instrument.id)),
+    () =>
+      defaultInstruments
+        .filter((instrument) => selectedDefaultIdSet.has(instrument.id))
+        // 精選焦點 chips 優先排在追蹤清單最前
+        .sort((left, right) => {
+          const leftFeatured = FEATURED_FINANCE_INSTRUMENT_ID_SET.has(left.id) ? 0 : 1;
+          const rightFeatured = FEATURED_FINANCE_INSTRUMENT_ID_SET.has(right.id) ? 0 : 1;
+          if (leftFeatured !== rightFeatured) return leftFeatured - rightFeatured;
+          const leftIdx = FEATURED_FINANCE_INSTRUMENT_IDS.indexOf(
+            left.id as (typeof FEATURED_FINANCE_INSTRUMENT_IDS)[number]
+          );
+          const rightIdx = FEATURED_FINANCE_INSTRUMENT_IDS.indexOf(
+            right.id as (typeof FEATURED_FINANCE_INSTRUMENT_IDS)[number]
+          );
+          if (leftFeatured === 0 && rightFeatured === 0) return leftIdx - rightIdx;
+          return 0;
+        }),
     [defaultInstruments, selectedDefaultIdSet]
   );
   const deletedDefaultInstruments = useMemo(
@@ -2113,9 +2132,11 @@ function FengbroFinanceSection({
   return (
     <div className="space-y-5">
       <DataCard className="overflow-hidden p-0">
+        {/* order: header → 精選焦點/報價 → 追蹤清單與新增表單（管理區不擋焦點） */}
+        <div className="flex flex-col">
         <div
           id={FENGBRO_FINANCE_TOP_ID}
-          className="flex flex-col gap-4 border-b border-emerald-100 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.96))] p-6 lg:flex-row lg:items-end lg:justify-between"
+          className="order-1 flex flex-col gap-4 border-b border-emerald-100 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.96))] p-6 lg:flex-row lg:items-end lg:justify-between"
         >
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
@@ -2155,7 +2176,7 @@ function FengbroFinanceSection({
           </div>
         </div>
 
-        <div className="border-b border-emerald-100 bg-white/80 p-4 sm:p-6">
+        <div className="order-3 border-b border-emerald-100 bg-white/80 p-4 sm:p-6">
           <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50/70">
             <button
               type="button"
@@ -2200,23 +2221,37 @@ function FengbroFinanceSection({
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {selectedDefaultInstruments.map((instrument) => (
-                    <span
-                      key={instrument.id}
-                      className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-white px-3 py-1 text-xs text-emerald-900 shadow-sm"
-                    >
-                      <span className="font-semibold">{instrument.name}</span>
-                      <span className="text-emerald-700">{instrument.symbol}</span>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteDefaultInstrument(instrument.id)}
-                        className="rounded-full p-0.5 text-emerald-700 hover:bg-emerald-50 hover:text-red-600"
-                        aria-label={`刪除 ${instrument.name}`}
+                  {selectedDefaultInstruments.map((instrument) => {
+                    const isFeatured = FEATURED_FINANCE_INSTRUMENT_ID_SET.has(instrument.id);
+                    return (
+                      <span
+                        key={instrument.id}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
+                          isFeatured
+                            ? "border-amber-200 bg-amber-50 text-amber-950"
+                            : "border-emerald-100 bg-white text-emerald-900"
+                        }`}
                       >
-                        <Trash2 size={13} />
-                      </button>
-                    </span>
-                  ))}
+                        {isFeatured && (
+                          <span className="rounded-full bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                            焦點
+                          </span>
+                        )}
+                        <span className="font-semibold">{instrument.name}</span>
+                        <span className={isFeatured ? "text-amber-800" : "text-emerald-700"}>{instrument.symbol}</span>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteDefaultInstrument(instrument.id)}
+                          className={`rounded-full p-0.5 hover:text-red-600 ${
+                            isFeatured ? "text-amber-800 hover:bg-white" : "text-emerald-700 hover:bg-emerald-50"
+                          }`}
+                          aria-label={`刪除 ${instrument.name}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -2419,14 +2454,16 @@ function FengbroFinanceSection({
           )}
         </div>
 
-        {error && <div className="m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+        {error && (
+          <div className="order-2 m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+        )}
 
         {!error && loading && !result && (
-          <div className="p-8 text-center text-sm text-muted-foreground">正在讀取 CNBC 金融報價...</div>
+          <div className="order-2 p-8 text-center text-sm text-muted-foreground">正在讀取精選焦點與金融報價...</div>
         )}
 
         {!error && result && (
-          <div className="space-y-6 p-4 sm:p-6">
+          <div className="order-2 space-y-6 p-4 sm:p-6">
             {groupedQuotes.length > 0 && (
               <div className="rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-3 shadow-sm">
                 <div className="flex gap-2 overflow-x-auto pb-1">
@@ -2449,11 +2486,10 @@ function FengbroFinanceSection({
                 </div>
               </div>
             )}
-            {/* ── 精選焦點區塊 ─────────────────────────────────────── */}
+            {/* ── 精選焦點區塊（優先顯示） ─────────────────────────── */}
             {(() => {
               // Fixed order, side-by-side grid — no price sort that reorders “who appears first”.
-              const featuredIds = ["kospi", "nikkei-225", "phlx-semiconductor"];
-              const featuredQuotes = featuredIds
+              const featuredQuotes = FEATURED_FINANCE_INSTRUMENT_IDS
                 .map((id) => (result?.quotes || []).find((q) => q.id === id))
                 .filter((q): q is NonNullable<typeof q> => !!q);
               if (featuredQuotes.length === 0) return null;
@@ -2484,7 +2520,7 @@ function FengbroFinanceSection({
               };
               return (
                 <div id="fengbro-finance-featured" className="scroll-mt-28">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">精選焦點 · 同時並排</p>
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/80">精選焦點 · 優先顯示 · 同時並排</p>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {featuredQuotes.map((quote, idx) => {
                       const cfg = featuredLabels[quote.id] ?? {
@@ -3008,6 +3044,7 @@ function FengbroFinanceSection({
             ))}
           </div>
         )}
+        </div>
       </DataCard>
     </div>
   );
@@ -3176,6 +3213,7 @@ export default function ToolsManagement({
   const [financeLoading, setFinanceLoading] = useState(false);
   const [financeError, setFinanceError] = useState("");
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
+  const financeResultRef = useRef<FengbroFinanceResult | null>(null);
   const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
   const [kospiLiveOpen, setKospiLiveOpen] = useState(false);
   const [kospiLiveRefreshing, setKospiLiveRefreshing] = useState(false);
@@ -3451,14 +3489,43 @@ export default function ToolsManagement({
     setFinanceLoading(true);
     setFinanceError("");
     try {
+      // 冷啟動時先拉精選焦點，讓區塊優先上屏，再補齊其餘標的
+      const featuredSelected = FEATURED_FINANCE_INSTRUMENT_IDS.filter((id) =>
+        selectedDefaultFinanceInstrumentIds.includes(id)
+      );
+      const alreadyHasQuotes = (financeResultRef.current?.quotes.length ?? 0) > 0;
+      if (!alreadyHasQuotes && featuredSelected.length > 0) {
+        try {
+          const featuredParams = new URLSearchParams();
+          featuredParams.set("defaults", JSON.stringify(featuredSelected));
+          const featuredResponse = await fetch(`/api/fengbro-finance?${featuredParams.toString()}`);
+          const featuredData = (await featuredResponse.json()) as FengbroFinanceResult & { error?: string };
+          if (featuredResponse.ok) {
+            financeResultRef.current = featuredData;
+            setFinanceResult(featuredData);
+            if (featuredData.quotes.some((quote) => quote.id === "kospi")) {
+              setKospiLiveUpdatedAt(featuredData.fetchedAt);
+            }
+          }
+        } catch {
+          // 精選預載失敗則改等完整請求
+        }
+      }
+
       const params = new URLSearchParams();
-      params.set("defaults", JSON.stringify(selectedDefaultFinanceInstrumentIds));
+      // 精選 id 排前面，方便後續若要做串流優先也能沿用同一順序
+      const orderedDefaults = [
+        ...FEATURED_FINANCE_INSTRUMENT_IDS.filter((id) => selectedDefaultFinanceInstrumentIds.includes(id)),
+        ...selectedDefaultFinanceInstrumentIds.filter((id) => !FEATURED_FINANCE_INSTRUMENT_ID_SET.has(id)),
+      ];
+      params.set("defaults", JSON.stringify(orderedDefaults));
       if (customFinanceInstruments.length > 0) {
         params.set("custom", JSON.stringify(customFinanceInstruments));
       }
       const response = await fetch(`/api/fengbro-finance${params.size ? `?${params.toString()}` : ""}`);
       const data = (await response.json()) as FengbroFinanceResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
+      financeResultRef.current = data;
       setFinanceResult(data);
       if (data.quotes.some((quote) => quote.id === "kospi")) {
         setKospiLiveUpdatedAt(data.fetchedAt);
@@ -3520,11 +3587,13 @@ export default function ToolsManagement({
             })
           : [...previous.quotes, kospiQuote];
 
-        return {
+        const next = {
           ...previous,
           fetchedAt: data.fetchedAt,
           quotes: nextQuotes,
         };
+        financeResultRef.current = next;
+        return next;
       });
       if (applied) setKospiLiveUpdatedAt(data.fetchedAt);
     } catch {
