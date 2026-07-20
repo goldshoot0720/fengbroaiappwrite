@@ -2414,11 +2414,11 @@ function FengbroFinanceSection({
             )}
             {/* ── 精選焦點區塊 ─────────────────────────────────────── */}
             {(() => {
+              // Fixed order, side-by-side grid — no price sort that reorders “who appears first”.
               const featuredIds = ["kospi", "nikkei-225", "phlx-semiconductor"];
               const featuredQuotes = featuredIds
                 .map((id) => (result?.quotes || []).find((q) => q.id === id))
-                .filter((q): q is NonNullable<typeof q> => !!q)
-                .sort((a, b) => (b.price || 0) - (a.price || 0));
+                .filter((q): q is NonNullable<typeof q> => !!q);
               if (featuredQuotes.length === 0) return null;
               const featuredLabels: Record<string, { title: string; subtitle: string; accentClass: string; bgClass: string; borderClass: string }> = {
                 kospi: {
@@ -2447,8 +2447,8 @@ function FengbroFinanceSection({
               };
               return (
                 <div id="fengbro-finance-featured" className="scroll-mt-28">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">精選焦點</p>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6">
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">精選焦點 · 同時並排</p>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {featuredQuotes.map((quote, idx) => {
                       const cfg = featuredLabels[quote.id] ?? {
                         title: quote.name,

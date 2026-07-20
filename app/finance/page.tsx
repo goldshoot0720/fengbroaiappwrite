@@ -210,11 +210,23 @@ export default function FinancePage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/fengbro-finance');
+      // Only the cards shown on this page — parallel quote fetch, no chart history.
+      const params = new URLSearchParams({
+        defaults: JSON.stringify([
+          'kospi',
+          'phlx-semiconductor',
+          'tsmc',
+          'tsm',
+          'txf-night',
+        ]),
+        skipHistory: '1',
+      });
+      const response = await fetch(`/api/fengbro-finance?${params.toString()}`);
       if (!response.ok) throw new Error('載入失敗');
       const result = await response.json() as FinanceData;
       setData(result);
       setKospiLiveUpdatedAt(result.fetchedAt);
+      setTxfNightLiveUpdatedAt(result.fetchedAt);
     } catch (err) {
       setError(err instanceof Error ? err.message : '發生錯誤');
     } finally {
@@ -471,17 +483,19 @@ export default function FinancePage() {
         )}
       </div>
 
-      {/* 第一區塊: KOSPI Index */}
-      <section className="mb-8">
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
+      {/* 精選標的：同時並排同步顯示（不再先 KOSPI 再其他） */}
+      <div className="mb-8 grid grid-cols-1 items-stretch gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {/* KOSPI Index */}
+      <section className="min-w-0">
+        <Card className="h-full bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Activity className="w-6 h-6 text-blue-600" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <CardTitle className="text-xl flex flex-wrap items-center gap-2">
+                  <Activity className="w-5 h-5 shrink-0 text-blue-600" />
                   KOSPI Index
                   <span
-                    className={`ml-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                    className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
                       kospiLiveOpen
                         ? 'border-sky-200 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-900/50 dark:text-sky-300'
                         : 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
@@ -495,7 +509,7 @@ export default function FinancePage() {
                   </span>
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {kospi?.localLabel || '코스피'} • 韓國綜合股價指數 • 週一至週五 09:00–15:30 每分鐘更新 • 6000點以上不再製作AI圖片與AI影片
+                  {kospi?.localLabel || '코스피'} • 韓國綜合股價指數 • 週一至週五 09:00–15:30 每分鐘更新
                 </p>
               </div>
               {kospi?.sourceUrl && (
@@ -503,7 +517,7 @@ export default function FinancePage() {
                   href={kospi.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                  className="shrink-0 text-blue-600 hover:text-blue-700 dark:text-blue-400"
                 >
                   <ExternalLink className="w-5 h-5" />
                 </a>
@@ -519,7 +533,7 @@ export default function FinancePage() {
               <div className="space-y-4">
                 {/* 當前價格 */}
                 <div className="flex items-baseline gap-3">
-                  <div className="text-5xl font-bold text-blue-600 dark:text-blue-400">
+                  <div className="text-4xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
                     {formatNumber(kospi?.price, 2)}
                   </div>
                   {kospi?.currency && (
@@ -529,7 +543,7 @@ export default function FinancePage() {
 
                 {/* 漲跌資訊 */}
                 {(kospi?.change !== null || kospi?.changePercent !== null) && (
-                  <div className={`flex items-center gap-2 text-lg font-semibold ${
+                  <div className={`flex flex-wrap items-center gap-2 text-base font-semibold ${
                     isPositive(kospi?.change) 
                       ? 'text-green-600 dark:text-green-400' 
                       : isNegative(kospi?.change)
@@ -544,7 +558,7 @@ export default function FinancePage() {
                     <span>{formatChange(kospi?.change ?? null, kospi?.changePercent ?? null)}</span>
                     {isBearMarketFrom52WHigh(kospi?.price, kospi?.high52) && bearMarketBadge}
                     {typeof kospi?.changePercent === 'number' && Math.abs(kospi.changePercent) > 8 && (
-                      <span className="ml-2 rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-sm font-bold text-orange-700 dark:border-orange-900 dark:bg-orange-900/50 dark:text-orange-400">
+                      <span className="rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-sm font-bold text-orange-700 dark:border-orange-900 dark:bg-orange-900/50 dark:text-orange-400">
                         熔斷機制
                       </span>
                     )}
@@ -555,8 +569,8 @@ export default function FinancePage() {
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-blue-200 dark:border-blue-800">
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
-                    <div className="flex items-end gap-2">
-                      <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {formatNumber(kospi?.high52)}
                       </div>
                       {typeof kospi?.price === 'number' && typeof kospi?.high52 === 'number' && (
@@ -573,8 +587,8 @@ export default function FinancePage() {
                   </div>
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
-                    <div className="flex items-end gap-2">
-                      <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {formatNumber(kospi?.low52)}
                       </div>
                       {typeof kospi?.price === 'number' && typeof kospi?.low52 === 'number' && kospi.low52 > 0 && (
@@ -603,14 +617,14 @@ export default function FinancePage() {
         </Card>
       </section>
 
-      {/* 第二區塊: 費城半導體指數 */}
-      <section className="mb-8">
-        <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border-purple-200 dark:border-purple-800">
+      {/* 費城半導體指數 */}
+      <section className="min-w-0">
+        <Card className="h-full bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border-purple-200 dark:border-purple-800">
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Activity className="w-6 h-6 text-purple-600" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Activity className="w-5 h-5 shrink-0 text-purple-600" />
                   費城半導體指數
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -622,7 +636,7 @@ export default function FinancePage() {
                   href={phlxSemi.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-600 hover:text-purple-700 dark:text-purple-400"
+                  className="shrink-0 text-purple-600 hover:text-purple-700 dark:text-purple-400"
                 >
                   <ExternalLink className="w-5 h-5" />
                 </a>
@@ -638,7 +652,7 @@ export default function FinancePage() {
               <div className="space-y-4">
                 {/* 當前價格 */}
                 <div className="flex items-baseline gap-3">
-                  <div className="text-5xl font-bold text-purple-600 dark:text-purple-400">
+                  <div className="text-4xl font-bold tabular-nums text-purple-600 dark:text-purple-400">
                     {formatNumber(phlxSemi?.price, 2)}
                   </div>
                   {phlxSemi?.currency && (
@@ -648,7 +662,7 @@ export default function FinancePage() {
 
                 {/* 漲跌資訊 */}
                 {(phlxSemi?.change !== null || phlxSemi?.changePercent !== null) && (
-                  <div className={`flex items-center gap-2 text-lg font-semibold ${
+                  <div className={`flex flex-wrap items-center gap-2 text-base font-semibold ${
                     isPositive(phlxSemi?.change) 
                       ? 'text-green-600 dark:text-green-400' 
                       : isNegative(phlxSemi?.change)
@@ -669,13 +683,13 @@ export default function FinancePage() {
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-purple-200 dark:border-purple-800">
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
-                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                       {formatNumber(phlxSemi?.high52)}
                     </div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
-                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                       {formatNumber(phlxSemi?.low52)}
                     </div>
                   </div>
@@ -686,18 +700,18 @@ export default function FinancePage() {
         </Card>
       </section>
 
-      {/* 第三區塊: 台積電 2330.TW */}
-      <section className="mb-8">
-        <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200 dark:border-green-800">
+      {/* 台積電 2330.TW */}
+      <section className="min-w-0">
+        <Card className="h-full bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200 dark:border-green-800">
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Activity className="w-6 h-6 text-green-600" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Activity className="w-5 h-5 shrink-0 text-green-600" />
                   台積電
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Taiwan Semiconductor Manufacturing Company • 2330.TW
+                  TSMC • 2330.TW
                 </p>
               </div>
               {tsmc?.sourceUrl && (
@@ -705,7 +719,7 @@ export default function FinancePage() {
                   href={tsmc.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-green-600 hover:text-green-700 dark:text-green-400"
+                  className="shrink-0 text-green-600 hover:text-green-700 dark:text-green-400"
                 >
                   <ExternalLink className="w-5 h-5" />
                 </a>
@@ -721,7 +735,7 @@ export default function FinancePage() {
               <div className="space-y-4">
                 {/* 當前價格 */}
                 <div className="flex items-baseline gap-3">
-                  <div className="text-5xl font-bold text-green-600 dark:text-green-400">
+                  <div className="text-4xl font-bold tabular-nums text-green-600 dark:text-green-400">
                     {formatNumber(tsmc?.price, 2)}
                   </div>
                   {tsmc?.currency && (
@@ -731,7 +745,7 @@ export default function FinancePage() {
 
                 {/* 漲跌資訊 */}
                 {(tsmc?.change !== null || tsmc?.changePercent !== null) && (
-                  <div className={`flex items-center gap-2 text-lg font-semibold ${
+                  <div className={`flex flex-wrap items-center gap-2 text-base font-semibold ${
                     isPositive(tsmc?.change) 
                       ? 'text-green-600 dark:text-green-400' 
                       : isNegative(tsmc?.change)
@@ -752,13 +766,13 @@ export default function FinancePage() {
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-green-200 dark:border-green-800">
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
-                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                       {formatNumber(tsmc?.high52)}
                     </div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
-                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                       {formatNumber(tsmc?.low52)}
                     </div>
                   </div>
@@ -769,14 +783,14 @@ export default function FinancePage() {
         </Card>
       </section>
 
-      {/* 第四區塊: 台積電 ADR (TSM) — Investing.com */}
-      <section className="mb-8">
-        <Card className="bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30 border-teal-200 dark:border-teal-800">
+      {/* 台積電 ADR (TSM) */}
+      <section className="min-w-0">
+        <Card className="h-full bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30 border-teal-200 dark:border-teal-800">
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Activity className="w-6 h-6 text-teal-600" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <CardTitle className="text-xl flex flex-wrap items-center gap-2">
+                  <Activity className="w-5 h-5 shrink-0 text-teal-600" />
                   台積電 ADR
                   {sessionLabel(tsm) && (
                     <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
@@ -785,7 +799,7 @@ export default function FinancePage() {
                   )}
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Taiwan Semiconductor • NYSE: TSM • 含 Pre / After Market
+                  NYSE: TSM • 含 Pre / After Market
                 </p>
               </div>
               {tsm?.sourceUrl && (
@@ -793,7 +807,7 @@ export default function FinancePage() {
                   href={tsm.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-teal-600 hover:text-teal-700 dark:text-teal-400"
+                  className="shrink-0 text-teal-600 hover:text-teal-700 dark:text-teal-400"
                   title="Investing.com"
                 >
                   <ExternalLink className="w-5 h-5" />
@@ -813,7 +827,7 @@ export default function FinancePage() {
                   <div className="rounded-2xl border border-teal-200 bg-white/70 px-4 py-4 dark:border-teal-800 dark:bg-teal-950/20">
                     <div className="text-sm font-semibold text-teal-800 dark:text-teal-300">最新價</div>
                     <div className="mt-1 flex items-baseline gap-2">
-                      <div className="text-4xl font-bold tabular-nums text-teal-600 dark:text-teal-400">
+                      <div className="text-3xl font-bold tabular-nums text-teal-600 dark:text-teal-400">
                         {formatNumber(tsm?.price, 2)}
                       </div>
                       {tsm?.currency && (
@@ -821,7 +835,7 @@ export default function FinancePage() {
                       )}
                     </div>
                     {(tsm?.change !== null || tsm?.changePercent !== null) && (
-                      <div className={`mt-2 flex items-center gap-1.5 text-sm font-semibold ${
+                      <div className={`mt-2 flex flex-wrap items-center gap-1.5 text-sm font-semibold ${
                         isPositive(tsm?.change)
                           ? 'text-green-600 dark:text-green-400'
                           : isNegative(tsm?.change)
@@ -844,7 +858,7 @@ export default function FinancePage() {
                     {tsm?.preMarketPrice != null ? (
                       <>
                         <div className="mt-1 flex items-baseline gap-2">
-                          <div className="text-4xl font-bold tabular-nums text-amber-900 dark:text-amber-100">
+                          <div className="text-3xl font-bold tabular-nums text-amber-900 dark:text-amber-100">
                             {formatNumber(tsm.preMarketPrice, 2)}
                           </div>
                           {tsm?.currency && (
@@ -877,13 +891,13 @@ export default function FinancePage() {
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-teal-200 dark:border-teal-800">
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
-                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                       {formatNumber(tsm?.high52)}
                     </div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
-                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                       {formatNumber(tsm?.low52)}
                     </div>
                   </div>
@@ -905,17 +919,17 @@ export default function FinancePage() {
         </Card>
       </section>
 
-      {/* 第五區塊: 夜盤台指期 (TXF=F) */}
-      <section className="mb-8">
-        <Card className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30 border-indigo-200 dark:border-indigo-800">
+      {/* 夜盤台指期 (TXF=F) */}
+      <section className="min-w-0 md:col-span-2 xl:col-span-1">
+        <Card className="h-full bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30 border-indigo-200 dark:border-indigo-800">
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Moon className="w-6 h-6 text-indigo-600" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <CardTitle className="text-xl flex flex-wrap items-center gap-2">
+                  <Moon className="w-5 h-5 shrink-0 text-indigo-600" />
                   夜盤台指期
                   <span
-                    className={`ml-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                    className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
                       txfNightLiveOpen
                         ? 'border-orange-200 bg-orange-100 text-orange-800 dark:border-orange-800 dark:bg-orange-900/50 dark:text-orange-300'
                         : 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
@@ -953,7 +967,7 @@ export default function FinancePage() {
               <div className="space-y-4">
                 {/* 當前價格 */}
                 <div className="flex items-baseline gap-3">
-                  <div className="text-5xl font-bold text-indigo-600 dark:text-indigo-400">
+                  <div className="text-4xl font-bold tabular-nums text-indigo-600 dark:text-indigo-400">
                     {formatNumber(txfNight?.price, 0)}
                   </div>
                   {txfNight?.currency && (
@@ -1022,6 +1036,7 @@ export default function FinancePage() {
           </CardContent>
         </Card>
       </section>
+      </div>
 
       {/* 頁尾資訊 */}
       <div className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
