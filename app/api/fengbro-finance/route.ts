@@ -15,7 +15,8 @@ type FinanceInstrument = {
   name: string;
   symbol: string;
   sourceUrl: string;
-  group: "tw" | "tw-stocks" | "asia" | "asia-stocks" | "korea" | "fx" | "commodities" | "rates" | "us" | "us-stocks" | "crypto" | "valuation";
+  /** Region: 韓國 / 日本 / 台灣 / 美國 / 其他 */
+  group: "korea" | "japan" | "taiwan" | "us" | "other";
   provider?: FinanceProvider;
   alertThreshold?: number;
   localLabel?: string;
@@ -86,7 +87,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
     name: "加權指數",
     symbol: "^TWII",
     sourceUrl: "https://tw.stock.yahoo.com/quote/%5ETWII",
-    group: "tw",
+    group: "taiwan",
     provider: "yahoo",
     alertThreshold: 126820,
     localLabel: "週一至五 09:00–13:30",
@@ -103,7 +104,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
     // Yahoo ^TWOII feed is stale (~2024); live quote uses TWSE MIS otc_o00.tw.
     symbol: "otc_o00.tw",
     sourceUrl: "https://www.tpex.org.tw/",
-    group: "tw",
+    group: "taiwan",
     provider: "mis",
     alertThreshold: 666,
     localLabel: "櫃買指數 · 週一至五 09:00–13:30",
@@ -120,7 +121,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
     /** Commodity code passed to TAIFEX MIS getQuoteList. */
     symbol: "TXF",
     sourceUrl: "https://mis.taifex.com.tw/futures/RealtimeMarket/Futures",
-    group: "tw",
+    group: "taiwan",
     provider: "taifex",
     localLabel: "台指期近月 · 夜盤 15:00–次日05:00",
     relatedLinks: [
@@ -129,13 +130,13 @@ const INSTRUMENTS: FinanceInstrument[] = [
       { label: "夜盤閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E5%A4%9C%E7%9B%A4" },
     ],
   },
-  { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "tw-stocks", provider: "yahoo", alertThreshold: 3333, imageUrl: "/finance/tsmc-featured.jpg" },
+  { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "taiwan", provider: "yahoo", alertThreshold: 3333, imageUrl: "/finance/tsmc-featured.jpg" },
   {
     id: "0050",
     name: "元大台灣50",
     symbol: "0050.TW",
     sourceUrl: "https://tw.stock.yahoo.com/quote/0050.TW",
-    group: "tw-stocks",
+    group: "taiwan",
     provider: "yahoo",
     localLabel: "0050 · 台灣50",
   },
@@ -144,7 +145,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
     name: "元大高股息",
     symbol: "0056.TW",
     sourceUrl: "https://tw.stock.yahoo.com/quote/0056.TW",
-    group: "tw-stocks",
+    group: "taiwan",
     provider: "yahoo",
     localLabel: "0056 · 高股息",
   },
@@ -153,7 +154,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
     name: "國泰永續高股息",
     symbol: "00878.TW",
     sourceUrl: "https://tw.stock.yahoo.com/quote/00878.TW",
-    group: "tw-stocks",
+    group: "taiwan",
     provider: "yahoo",
     localLabel: "00878 · 永續高股息",
   },
@@ -162,43 +163,16 @@ const INSTRUMENTS: FinanceInstrument[] = [
     name: "元大台灣50正2",
     symbol: "00631L.TW",
     sourceUrl: "https://tw.stock.yahoo.com/quote/00631L.TW",
-    group: "tw-stocks",
+    group: "taiwan",
     provider: "yahoo",
     localLabel: "00631L · 2X 台灣50",
-  },
-  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "asia", alertThreshold: 110000, localLabel: "日経平均株価", imageUrl: "/finance/nikkei-225-featured.jpg", youtubeUrl: "https://www.youtube.com/results?search_query=%E5%A4%A7%E6%9A%B4%E8%90%BD", youtubeLabel: "日経平均株価 大暴落", youtubeLinks: [{ label: "日経平均株価 インフレ", url: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1%20%E3%82%A4%E3%83%B3%E3%83%95%E3%83%AC" }, { label: "朝倉慶 文藝春秋", url: "https://www.youtube.com/@Bungeishunju/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 ASK1", url: "https://www.youtube.com/@info_ask1/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 楽待", url: "https://www.youtube.com/@rakumachi/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 外為どっとコム", url: "https://www.youtube.com/@gaitame_com/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }] },
-  { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", sourceUrl: "https://finance.yahoo.com/quote/285A.T", group: "asia-stocks", provider: "yahoo", localLabel: "TYO: 285A" },
-  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "asia", alertThreshold: 12682, localLabel: "코스피", periodLabel: "2026~2027", youtubeUrl: "https://www.youtube.com/results?search_query=SK+Hynix+stock&sp=CAMSBAgCEAE%253D", bilibiliUrl: "https://search.bilibili.com/all?keyword=%E9%9F%93%E5%9C%8B%E8%82%A1%E5%B8%82&from_source=web_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399", imageUrl: "/finance/kospi-202607141413.png", imageUrls: ["/finance/kospi-202607141413.png", "/finance/kospi-202607141405.png", "/finance/kospi-202607141219.png", "/finance/kospi-202607121235.png", "/finance/kospi-cats.jpg", "/finance/kospi-index.png"] },
-  { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", sourceUrl: "https://finance.yahoo.com/quote/005930.KS", group: "korea", provider: "yahoo", alertThreshold: 1110000 },
-  { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
-  { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", sourceUrl: "https://finance.yahoo.com/quote/SKHY", group: "korea", provider: "yahoo" },
-  { id: "kodex-sk-hynix-leverage", name: "SAMSUNG KODEX SK Hynix Single Stock Leverage", symbol: "0193T0.KS", sourceUrl: "https://finance.yahoo.com/quote/0193T0.KS", group: "korea", provider: "yahoo", localLabel: "KRX: 0193T0" },
-  { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", sourceUrl: "https://www.cnbc.com/quotes/KORU", group: "korea", localLabel: "NYSEARCA: KORU" },
-  { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", sourceUrl: "https://finance.yahoo.com/quote/USDTWD=X", group: "fx", provider: "yahoo", alertThreshold: 37 },
-  { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", sourceUrl: "https://finance.yahoo.com/quote/USDJPY=X", group: "fx", provider: "yahoo", alertThreshold: 222, bilibiliUrl: "https://search.bilibili.com/all?keyword=%E6%97%A5%E5%85%83%E8%B4%AC%E5%80%BC&from_source=websuggest_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399" },
-  { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "commodities", alertThreshold: 222 },
-  { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "rates", alertThreshold: 6.66 },
-  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "commodities", alertThreshold: 6666, imageUrl: "/finance/gold-featured.jpg" },
-  { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666, localLabel: "Roaring '20s" },
-  { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", sourceUrl: "https://www.cnbc.com/quotes/.SPX", group: "us", alertThreshold: 11111 },
-  { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333, localLabel: "科技泡沫" },
-  { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫", bilibiliUrl: "https://search.bilibili.com/all?keyword=%E5%8D%8A%E5%B0%8E%E9%AB%94&from_source=web_search&spm_id_from=333.788&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399", imageUrl: "/finance/sox-cats.jpg" },
-  { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", sourceUrl: "https://www.cnbc.com/quotes/SOXL", group: "us-stocks", localLabel: "NYSEARCA: SOXL" },
-  {
-    id: "snxx",
-    name: "Tradr 2X Long Sndk Daily ETF",
-    symbol: "SNXX",
-    sourceUrl: "https://finance.yahoo.com/quote/SNXX",
-    group: "us-stocks",
-    provider: "yahoo",
-    localLabel: "Cboe: SNXX · 2X SNDK",
   },
   {
     id: "tsm",
     name: "台積電 ADR",
     symbol: "TSM",
     sourceUrl: "https://www.investing.com/equities/taiwan-semicond.manufacturing-co",
-    group: "us-stocks",
+    group: "taiwan",
     provider: "yahoo",
     localLabel: "NYSE: TSM · Pre/After Market",
     imageUrl: "/finance/tsmc-featured.jpg",
@@ -208,14 +182,41 @@ const INSTRUMENTS: FinanceInstrument[] = [
     name: "Direxion Daily TSM Bull 2X ETF",
     symbol: "TSMX",
     sourceUrl: "https://www.cnbc.com/quotes/TSMX",
-    group: "us-stocks",
+    group: "taiwan",
     localLabel: "NASDAQ: TSMX · 2X TSM",
   },
-  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", sourceUrl: "https://www.cnbc.com/quotes/NVDA", group: "us-stocks", localLabel: "重零開始" },
-  { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us-stocks", localLabel: "AI泡沫" },
-  { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "valuation", provider: "multpl", alertThreshold: 45 },
-  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "crypto", alertThreshold: 111111, imageUrl: "/finance/bitcoin-cats.jpg" },
-  { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", sourceUrl: "https://www.cnbc.com/quotes/ETH.CM=", group: "crypto", alertThreshold: 2222 },
+  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "japan", alertThreshold: 110000, localLabel: "日経平均株価", imageUrl: "/finance/nikkei-225-featured.jpg", youtubeUrl: "https://www.youtube.com/results?search_query=%E5%A4%A7%E6%9A%B4%E8%90%BD", youtubeLabel: "日経平均株価 大暴落", youtubeLinks: [{ label: "日経平均株価 インフレ", url: "https://www.youtube.com/results?search_query=%E6%97%A5%E7%B5%8C%E5%B9%B3%E5%9D%87%E6%A0%AA%E4%BE%A1%20%E3%82%A4%E3%83%B3%E3%83%95%E3%83%AC" }, { label: "朝倉慶 文藝春秋", url: "https://www.youtube.com/@Bungeishunju/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 ASK1", url: "https://www.youtube.com/@info_ask1/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 楽待", url: "https://www.youtube.com/@rakumachi/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }, { label: "朝倉慶 外為どっとコム", url: "https://www.youtube.com/@gaitame_com/search?query=%E6%9C%9D%E5%80%89%E6%85%B6" }] },
+  { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", sourceUrl: "https://finance.yahoo.com/quote/285A.T", group: "japan", provider: "yahoo", localLabel: "TYO: 285A" },
+  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", sourceUrl: "https://www.cnbc.com/quotes/.KS11?qsearchterm=kospi", group: "korea", alertThreshold: 12682, localLabel: "코스피", periodLabel: "2026~2027", youtubeUrl: "https://www.youtube.com/results?search_query=SK+Hynix+stock&sp=CAMSBAgCEAE%253D", bilibiliUrl: "https://search.bilibili.com/all?keyword=%E9%9F%93%E5%9C%8B%E8%82%A1%E5%B8%82&from_source=web_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399", imageUrl: "/finance/kospi-202607141413.png", imageUrls: ["/finance/kospi-202607141413.png", "/finance/kospi-202607141405.png", "/finance/kospi-202607141219.png", "/finance/kospi-202607121235.png", "/finance/kospi-cats.jpg", "/finance/kospi-index.png"] },
+  { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", sourceUrl: "https://finance.yahoo.com/quote/005930.KS", group: "korea", provider: "yahoo", alertThreshold: 1110000 },
+  { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
+  { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", sourceUrl: "https://finance.yahoo.com/quote/SKHY", group: "korea", provider: "yahoo" },
+  { id: "kodex-sk-hynix-leverage", name: "SAMSUNG KODEX SK Hynix Single Stock Leverage", symbol: "0193T0.KS", sourceUrl: "https://finance.yahoo.com/quote/0193T0.KS", group: "korea", provider: "yahoo", localLabel: "KRX: 0193T0" },
+  { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", sourceUrl: "https://www.cnbc.com/quotes/KORU", group: "korea", localLabel: "NYSEARCA: KORU" },
+  { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", sourceUrl: "https://finance.yahoo.com/quote/USDTWD=X", group: "other", provider: "yahoo", alertThreshold: 37 },
+  { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", sourceUrl: "https://finance.yahoo.com/quote/USDJPY=X", group: "other", provider: "yahoo", alertThreshold: 222, bilibiliUrl: "https://search.bilibili.com/all?keyword=%E6%97%A5%E5%85%83%E8%B4%AC%E5%80%BC&from_source=websuggest_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399" },
+  { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "other", alertThreshold: 222 },
+  { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "other", alertThreshold: 6.66 },
+  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "other", alertThreshold: 6666, imageUrl: "/finance/gold-featured.jpg" },
+  { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666, localLabel: "Roaring '20s" },
+  { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", sourceUrl: "https://www.cnbc.com/quotes/.SPX", group: "us", alertThreshold: 11111 },
+  { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333, localLabel: "科技泡沫" },
+  { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫", bilibiliUrl: "https://search.bilibili.com/all?keyword=%E5%8D%8A%E5%B0%8E%E9%AB%94&from_source=web_search&spm_id_from=333.788&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399", imageUrl: "/finance/sox-cats.jpg" },
+  { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", sourceUrl: "https://www.cnbc.com/quotes/SOXL", group: "us", localLabel: "NYSEARCA: SOXL" },
+  {
+    id: "snxx",
+    name: "Tradr 2X Long Sndk Daily ETF",
+    symbol: "SNXX",
+    sourceUrl: "https://finance.yahoo.com/quote/SNXX",
+    group: "us",
+    provider: "yahoo",
+    localLabel: "Cboe: SNXX · 2X SNDK",
+  },
+  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", sourceUrl: "https://www.cnbc.com/quotes/NVDA", group: "us", localLabel: "重零開始" },
+  { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us", localLabel: "AI泡沫" },
+  { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "other", provider: "multpl", alertThreshold: 45 },
+  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "other", alertThreshold: 111111, imageUrl: "/finance/bitcoin-cats.jpg" },
+  { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", sourceUrl: "https://www.cnbc.com/quotes/ETH.CM=", group: "other", alertThreshold: 2222 },
 ];
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
@@ -225,7 +226,30 @@ const TWSE_MIS_QUOTE_URL = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp";
 /** TPEx daily trading index history (close at column index 4). */
 const TPEX_DAILY_INDEX_URL =
   "https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php";
-const CUSTOM_FINANCE_GROUPS: FinanceInstrumentGroup[] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "fx", "rates", "commodities", "crypto"];
+const CUSTOM_FINANCE_GROUPS: FinanceInstrumentGroup[] = ["korea", "japan", "taiwan", "us", "other"];
+
+/** Map legacy asset-type groups (and unknown) onto region groups. */
+function migrateInstrumentGroup(group: unknown): FinanceInstrumentGroup {
+  if (typeof group === "string" && (CUSTOM_FINANCE_GROUPS as string[]).includes(group)) {
+    return group as FinanceInstrumentGroup;
+  }
+  const legacy: Record<string, FinanceInstrumentGroup> = {
+    asia: "other",
+    "asia-stocks": "japan",
+    korea: "korea",
+    tw: "taiwan",
+    "tw-stocks": "taiwan",
+    us: "us",
+    "us-stocks": "us",
+    fx: "other",
+    rates: "other",
+    commodities: "other",
+    crypto: "other",
+    valuation: "other",
+  };
+  if (typeof group === "string" && legacy[group]) return legacy[group];
+  return "other";
+}
 const DEFAULT_INSTRUMENT_IDS = new Set(INSTRUMENTS.map((instrument) => instrument.id));
 const FETCH_BROWSER_HEADERS = {
   accept: "application/json,text/plain,*/*",
@@ -247,9 +271,7 @@ function normalizeCustomFinanceInstrument(input: CustomFinanceInstrumentInput, i
   if (!symbol || symbol.length > 32) return null;
 
   const provider = input.provider === "yahoo" ? "yahoo" : "cnbc";
-  const group = CUSTOM_FINANCE_GROUPS.includes(input.group as FinanceInstrumentGroup)
-    ? (input.group as FinanceInstrumentGroup)
-    : "us";
+  const group = migrateInstrumentGroup(input.group);
   const name =
     typeof input.name === "string" && input.name.trim()
       ? input.name.trim().slice(0, 80)

@@ -17,6 +17,7 @@ import {
 import { isKospiMarketOpen, KOSPI_LIVE_POLL_MS } from "@/lib/kospiMarketHours";
 import {
   FINANCE_CUSTOM_GROUPS,
+  FINANCE_GROUP_LABELS,
   buildCustomFinanceInstrumentFromDraft,
   createEmptyCustomFinanceDraft,
   draftFromCustomFinanceInstrument,
@@ -29,6 +30,7 @@ import {
   parseFinanceQuoteInput,
   type CustomFinanceDraft,
   type CustomFinanceInstrument,
+  type FinanceCustomGroup,
 } from "@/lib/fengbroFinanceCustom";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
@@ -164,7 +166,7 @@ type FengbroFinanceQuote = {
   relatedLinks?: Array<{ label: string; url: string }>;
   imageUrl?: string;
   imageUrls?: string[];
-  group: "tw" | "tw-stocks" | "asia" | "asia-stocks" | "korea" | "fx" | "commodities" | "rates" | "us" | "us-stocks" | "crypto" | "valuation";
+  group: FinanceCustomGroup;
   provider?: "cnbc" | "yahoo" | "multpl" | "mis" | "taifex";
   price: number | null;
   change: number | null;
@@ -325,40 +327,45 @@ const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrum
 /** Tracks which default instrument ids the client has already seen, so newly shipped defaults auto-appear. */
 const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDefaultInstrumentIds";
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
-  { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "tw" },
-  { id: "otc", name: "上櫃指數", symbol: "otc_o00.tw", provider: "mis", group: "tw" },
-  { id: "txf-night", name: "夜盤台指期", symbol: "TXF", provider: "taifex", group: "tw" },
-  { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "tw-stocks" },
-  { id: "0050", name: "元大台灣50", symbol: "0050.TW", provider: "yahoo", group: "tw-stocks" },
-  { id: "0056", name: "元大高股息", symbol: "0056.TW", provider: "yahoo", group: "tw-stocks" },
-  { id: "00878", name: "國泰永續高股息", symbol: "00878.TW", provider: "yahoo", group: "tw-stocks" },
-  { id: "00631l", name: "元大台灣50正2", symbol: "00631L.TW", provider: "yahoo", group: "tw-stocks" },
-  { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "us-stocks" },
-  { id: "tsmx", name: "Direxion Daily TSM Bull 2X ETF", symbol: "TSMX", provider: "cnbc", group: "us-stocks" },
-  { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
-  { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", provider: "cnbc", group: "us" },
-  { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", provider: "cnbc", group: "us" },
-  { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", provider: "cnbc", group: "us" },
-  { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", provider: "cnbc", group: "us-stocks" },
-  { id: "snxx", name: "Tradr 2X Long Sndk Daily ETF", symbol: "SNXX", provider: "yahoo", group: "us-stocks" },
-  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", provider: "cnbc", group: "us-stocks" },
-  { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us-stocks" },
-  { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", provider: "multpl", group: "valuation" },
-  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", provider: "cnbc", group: "asia" },
-  { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", provider: "yahoo", group: "asia-stocks" },
-  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", provider: "cnbc", group: "asia" },
+  // 韓國
+  { id: "kospi", name: "KOSPI Index", symbol: ".KS11", provider: "cnbc", group: "korea" },
   { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", provider: "yahoo", group: "korea" },
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", provider: "yahoo", group: "korea" },
   { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", provider: "yahoo", group: "korea" },
   { id: "kodex-sk-hynix-leverage", name: "SAMSUNG KODEX SK Hynix Single Stock Leverage", symbol: "0193T0.KS", provider: "yahoo", group: "korea" },
   { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", provider: "cnbc", group: "korea" },
-  { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", provider: "yahoo", group: "fx" },
-  { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", provider: "yahoo", group: "fx" },
-  { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", provider: "cnbc", group: "commodities" },
-  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", provider: "cnbc", group: "commodities" },
-  { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", provider: "cnbc", group: "rates" },
-  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", provider: "cnbc", group: "crypto" },
-  { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", provider: "cnbc", group: "crypto" },
+  // 日本
+  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", provider: "cnbc", group: "japan" },
+  { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", provider: "yahoo", group: "japan" },
+  // 台灣
+  { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "taiwan" },
+  { id: "otc", name: "上櫃指數", symbol: "otc_o00.tw", provider: "mis", group: "taiwan" },
+  { id: "txf-night", name: "夜盤台指期", symbol: "TXF", provider: "taifex", group: "taiwan" },
+  { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "taiwan" },
+  { id: "0050", name: "元大台灣50", symbol: "0050.TW", provider: "yahoo", group: "taiwan" },
+  { id: "0056", name: "元大高股息", symbol: "0056.TW", provider: "yahoo", group: "taiwan" },
+  { id: "00878", name: "國泰永續高股息", symbol: "00878.TW", provider: "yahoo", group: "taiwan" },
+  { id: "00631l", name: "元大台灣50正2", symbol: "00631L.TW", provider: "yahoo", group: "taiwan" },
+  { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "taiwan" },
+  { id: "tsmx", name: "Direxion Daily TSM Bull 2X ETF", symbol: "TSMX", provider: "cnbc", group: "taiwan" },
+  // 美國
+  { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
+  { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", provider: "cnbc", group: "us" },
+  { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", provider: "cnbc", group: "us" },
+  { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", provider: "cnbc", group: "us" },
+  { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", provider: "cnbc", group: "us" },
+  { id: "snxx", name: "Tradr 2X Long Sndk Daily ETF", symbol: "SNXX", provider: "yahoo", group: "us" },
+  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", provider: "cnbc", group: "us" },
+  { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us" },
+  // 其他
+  { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", provider: "multpl", group: "other" },
+  { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", provider: "yahoo", group: "other" },
+  { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", provider: "yahoo", group: "other" },
+  { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", provider: "cnbc", group: "other" },
+  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", provider: "cnbc", group: "other" },
+  { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", provider: "cnbc", group: "other" },
+  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", provider: "cnbc", group: "other" },
+  { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", provider: "cnbc", group: "other" },
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
 
@@ -706,22 +713,8 @@ function formatFinanceNumber(value: number | null | undefined, maximumFractionDi
   }).format(value);
 }
 
-function getFinanceGroupLabel(group: FengbroFinanceQuote["group"]) {
-  const labels: Record<FengbroFinanceQuote["group"], string> = {
-    tw: "台股指數",
-    "tw-stocks": "台股",
-    asia: "亞洲指數",
-    "asia-stocks": "亞股",
-    korea: "韓股",
-    fx: "匯率",
-    commodities: "商品",
-    rates: "利率",
-    us: "美股指數",
-    "us-stocks": "美股",
-    crypto: "加密貨幣",
-    valuation: "估值指標",
-  };
-  return labels[group];
+function getFinanceGroupLabel(group: FengbroFinanceQuote["group"] | FinanceCustomGroup) {
+  return FINANCE_GROUP_LABELS[group] || group;
 }
 
 function getFinanceRecordLabel(tag: FinanceRecordTag) {
@@ -2039,8 +2032,8 @@ function FengbroFinanceSection({
   }, [customDraft.urlOrSymbol]);
 
   const groupedQuotes = useMemo(() => {
-    // 精選焦點 → 亞洲指數 → 韓股 → 亞股 → 美股指數 → 美股 → 台股指數 → 台股 → 估值指標 → 匯率 → 利率 → 商品 → 加密貨幣
-    const order: FengbroFinanceQuote["group"][] = ["asia", "korea", "asia-stocks", "us", "us-stocks", "tw", "tw-stocks", "valuation", "fx", "rates", "commodities", "crypto"];
+    // 精選焦點 → 韓國 → 日本 → 台灣 → 美國 → 其他
+    const order: FengbroFinanceQuote["group"][] = ["korea", "japan", "taiwan", "us", "other"];
     const query = searchQuery.trim().toLowerCase();
     return order
       .map((group) => ({
@@ -2239,8 +2232,8 @@ function FengbroFinanceSection({
                         ...customDraft,
                         urlOrSymbol,
                         provider: parsed.provider,
-                        // 代號含 .TW / .TWO 等明確後綴時建議台股等分類
-                        ...(bareGroup !== "us-stocks" ? { group: bareGroup } : {}),
+                        // 代號含 .TW / .TWO 等明確後綴時建議地區分類
+                        ...(bareGroup !== "us" ? { group: bareGroup } : {}),
                       });
                       return;
                     }
@@ -2319,8 +2312,7 @@ function FengbroFinanceSection({
               const isTwSource =
                 preview.marketHint === "tw" ||
                 isTaiwanYahooStockSource(preview.sourceUrl) ||
-                suggestedGroup === "tw" ||
-                suggestedGroup === "tw-stocks";
+                suggestedGroup === "taiwan";
               return (
                 <p className="mt-2 text-xs text-emerald-800/90">
                   {isEditingCustom ? "將更新為：" : "將新增："}
@@ -2838,7 +2830,7 @@ function FengbroFinanceSection({
                                 <p className="text-xs text-muted-foreground">最新價</p>
                                 <div className="mt-1 flex items-end justify-between gap-2">
                                   <p className="text-2xl font-semibold text-foreground tabular-nums">
-                                    {formatFinanceNumber(quote.price, group === "rates" ? 3 : 2)}
+                                    {formatFinanceNumber(quote.price, quote.id === "us30y" || quote.symbol === "US.30" ? 3 : 2)}
                                     {quote.currency ? <span className="ml-1 text-xs font-medium text-muted-foreground">{quote.currency}</span> : null}
                                   </p>
                                   <div className={`text-right text-xs font-semibold tabular-nums ${isUp ? "text-emerald-700" : "text-red-600"}`}>

@@ -1,23 +1,14 @@
 /**
  * Client-side helpers for custom 鋒兄金融 instruments:
  * parse Yahoo / CNBC quote URLs (or bare tickers) and guess a display group.
+ *
+ * Groups are region-based: 韓國 / 日本 / 台灣 / 美國 / 其他.
  */
 
 export type FinanceCustomProvider = "cnbc" | "yahoo";
 
-export type FinanceCustomGroup =
-  | "tw"
-  | "tw-stocks"
-  | "asia"
-  | "asia-stocks"
-  | "korea"
-  | "fx"
-  | "commodities"
-  | "rates"
-  | "us"
-  | "us-stocks"
-  | "crypto"
-  | "valuation";
+/** Region groups for 鋒兄金融 display & custom instruments. */
+export type FinanceCustomGroup = "korea" | "japan" | "taiwan" | "us" | "other";
 
 export type CustomFinanceInstrument = {
   name: string;
@@ -36,18 +27,48 @@ export type CustomFinanceDraft = {
 };
 
 export const FINANCE_CUSTOM_GROUPS: FinanceCustomGroup[] = [
-  "asia",
   "korea",
-  "asia-stocks",
+  "japan",
+  "taiwan",
   "us",
-  "us-stocks",
-  "tw",
-  "tw-stocks",
-  "fx",
-  "rates",
-  "commodities",
-  "crypto",
+  "other",
 ];
+
+export const FINANCE_GROUP_LABELS: Record<FinanceCustomGroup, string> = {
+  korea: "韓國",
+  japan: "日本",
+  taiwan: "台灣",
+  us: "美國",
+  other: "其他",
+};
+
+/** Legacy asset-type groups → region groups (localStorage / old API payloads). */
+const LEGACY_FINANCE_GROUP_MAP: Record<string, FinanceCustomGroup> = {
+  asia: "other",
+  "asia-stocks": "japan",
+  korea: "korea",
+  tw: "taiwan",
+  "tw-stocks": "taiwan",
+  us: "us",
+  "us-stocks": "us",
+  fx: "other",
+  rates: "other",
+  commodities: "other",
+  crypto: "other",
+  valuation: "other",
+  japan: "japan",
+  taiwan: "taiwan",
+  other: "other",
+};
+
+export function migrateFinanceGroup(group: unknown): FinanceCustomGroup {
+  if (typeof group !== "string" || !group.trim()) return "other";
+  const key = group.trim();
+  if ((FINANCE_CUSTOM_GROUPS as string[]).includes(key)) {
+    return key as FinanceCustomGroup;
+  }
+  return LEGACY_FINANCE_GROUP_MAP[key] ?? "other";
+}
 
 export type ParsedFinanceQuoteInput = {
   symbol: string;
@@ -207,11 +228,10 @@ export type GuessFinanceGroupOptions = {
 };
 
 /**
- * Best-effort group guess from ticker shape and optional source host
+ * Best-effort region group guess from ticker shape and optional source host
  * (user can still override in the form).
  *
- * Taiwan Yahoo 奇摩股市 (`tw.stock.yahoo.com`) is treated as a 台股 source:
- * index-like tickers → `tw`, otherwise → `tw-stocks`.
+ * Taiwan Yahoo 奇摩股市 (`tw.stock.yahoo.com`) → 台灣.
  */
 export function guessFinanceGroup(
   symbol: string,
@@ -222,29 +242,32 @@ export function guessFinanceGroup(
     options?.marketHint === "tw" || isTaiwanYahooStockSource(options?.sourceUrl);
 
   if (!s) {
-    return fromTaiwanYahoo ? "tw-stocks" : "us-stocks";
+    return fromTaiwanYahoo ? "taiwan" : "us";
   }
 
-  if (s === "^TWII" || s === ".TWII") return "tw";
-  // TWSE (.TW) and TPEx / 櫃買 (.TWO) — e.g. 2330.TW, 5274.TWO
-  if (/\.TW$/i.test(s) || /\.TWO$/i.test(s)) return "tw-stocks";
+  // Korea
+  if (s === ".KS11" || s === "^KS11" || s === "KORU") return "korea";
   if (/\.KS$/i.test(s) || /\.KQ$/i.test(s)) return "korea";
-  if (s === ".KS11" || s === "^KS11") return "asia";
-  if (s === ".N225" || s === "^N225") return "asia";
-  if (/\.T$/i.test(s)) return "asia-stocks";
-  if (/=X$/i.test(s)) return "fx";
-  if (/BTC|ETH|CRYPTO/i.test(s)) return "crypto";
-  if (s.startsWith("@") || /=(F)$/i.test(s) || s.endsWith("=F")) return "commodities";
 
-  // Host is Yahoo 奇摩股市 → 台股來源自動辨識 even without .TW/.TWO suffix
-  if (fromTaiwanYahoo) {
-    // Index-style symbols on the TW site (e.g. ^TWII already handled; other ^/. → 台股指數)
-    if (s.startsWith("^") || s.startsWith(".")) return "tw";
-    return "tw-stocks";
-  }
+  // Japan
+  if (s === ".N225" || s === "^N225") return "japan";
+  if (/\.T$/i.test(s)) return "japan";
 
+  // Taiwan
+  if (s === "^TWII" || s === ".TWII" || s === "^TWOII" || s === ".TWOII") return "taiwan";
+  if (/\.TW$/i.test(s) || /\.TWO$/i.test(s)) return "taiwan";
+  if (s === "TSM" || s === "TSMX") return "taiwan";
+  if (fromTaiwanYahoo) return "taiwan";
+
+  // Global / other (FX, crypto, commodities, rates, valuation)
+  if (/=X$/i.test(s)) return "other";
+  if (/BTC|ETH|CRYPTO|CAPE/i.test(s)) return "other";
+  if (s.startsWith("@") || /=(F)$/i.test(s) || s.endsWith("=F")) return "other";
+  if (s === "US.30" || s === "^TYX") return "other";
+
+  // US indices & equities
   if (s.startsWith(".") || s.startsWith("^")) return "us";
-  return "us-stocks";
+  return "us";
 }
 
 /** Display name for finance quote source (Yahoo 奇摩 vs global Yahoo, etc.). */
@@ -262,7 +285,7 @@ export function getFinanceProviderDisplayName(input: {
 }
 
 export type YahooQuoteSourceUrlOptions = {
-  /** Custom instrument group (tw / tw-stocks → 奇摩). */
+  /** Custom instrument group (taiwan → 奇摩 for TW-listed). */
   group?: string;
   /** Original paste URL; tw.stock.yahoo.com forces 奇摩. */
   sourceUrl?: string;
@@ -273,7 +296,8 @@ export type YahooQuoteSourceUrlOptions = {
  * True when a Yahoo quote should open on Yahoo 奇摩股市 (tw.stock.yahoo.com)
  * rather than global finance.yahoo.com.
  *
- * Rules: marketHint/source host, TW groups, .TW/.TWO suffixes, major TW indices.
+ * Rules: marketHint/source host, taiwan/legacy TW groups, .TW/.TWO suffixes, major TW indices.
+ * US-listed Taiwan ADRs (TSM) stay on global Yahoo.
  */
 export function isTaiwanYahooQuoteTarget(
   symbol: string,
@@ -282,10 +306,22 @@ export function isTaiwanYahooQuoteTarget(
   if (options?.marketHint === "tw" || isTaiwanYahooStockSource(options?.sourceUrl)) {
     return true;
   }
-  if (options?.group === "tw" || options?.group === "tw-stocks") return true;
 
   const s = symbol.trim().toUpperCase();
   if (!s) return false;
+  // US-listed ADR / leveraged products — not 奇摩
+  if (s === "TSM" || s === "TSMX") return false;
+
+  const group = options?.group;
+  if (
+    group === "taiwan" ||
+    group === "tw" ||
+    group === "tw-stocks"
+  ) {
+    // taiwan group + TW listing suffix / index → 奇摩
+    if (/\.TWO?$/i.test(s) || s.startsWith("^") || s.startsWith(".")) return true;
+  }
+
   // TWSE (.TW) and TPEx / 櫃買 (.TWO)
   if (/\.TWO?$/i.test(s)) return true;
   if (s === "^TWII" || s === ".TWII" || s === "^TWOII" || s === ".TWOII") return true;
@@ -355,7 +391,7 @@ export function draftFromCustomFinanceInstrument(
     name: instrument.name,
     urlOrSymbol,
     provider: instrument.provider,
-    group: instrument.group,
+    group: migrateFinanceGroup(instrument.group),
   };
 }
 
@@ -370,9 +406,7 @@ export function normalizeCustomFinanceInstrument(
       ? input.name.trim().slice(0, 80)
       : symbol;
   const provider = input.provider === "yahoo" ? "yahoo" : "cnbc";
-  const group = FINANCE_CUSTOM_GROUPS.includes(input.group as FinanceCustomGroup)
-    ? (input.group as FinanceCustomGroup)
-    : "us";
+  const group = migrateFinanceGroup(input.group);
 
   return { name, symbol, provider, group };
 }
