@@ -253,8 +253,11 @@ export default function FinancePage() {
       const kospiQuote = result.quotes.find((quote) => quote.id === 'kospi');
       if (!kospiQuote) return;
 
+      // Never seed the page with a KOSPI-only live payload (would hide other cards).
+      let applied = false;
       setData((previous) => {
-        if (!previous) return result;
+        if (!previous) return previous;
+        applied = true;
         return {
           ...previous,
           fetchedAt: result.fetchedAt,
@@ -274,7 +277,7 @@ export default function FinancePage() {
           ),
         };
       });
-      setKospiLiveUpdatedAt(result.fetchedAt);
+      if (applied) setKospiLiveUpdatedAt(result.fetchedAt);
     } catch {
       // Silent live poll failures.
     } finally {
@@ -300,8 +303,11 @@ export default function FinancePage() {
       const txfQuote = result.quotes.find((quote) => quote.id === 'txf-night');
       if (!txfQuote) return;
 
+      // Never seed the page with a single-instrument live payload.
+      let applied = false;
       setData((previous) => {
-        if (!previous) return result;
+        if (!previous) return previous;
+        applied = true;
         return {
           ...previous,
           fetchedAt: result.fetchedAt,
@@ -310,7 +316,7 @@ export default function FinancePage() {
           ),
         };
       });
-      setTxfNightLiveUpdatedAt(result.fetchedAt);
+      if (applied) setTxfNightLiveUpdatedAt(result.fetchedAt);
     } catch {
       // Silent live poll failures.
     } finally {

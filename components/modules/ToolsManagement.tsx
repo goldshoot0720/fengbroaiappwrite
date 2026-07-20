@@ -3451,10 +3451,12 @@ export default function ToolsManagement({
       const kospiQuote = data.quotes.find((quote) => quote.id === "kospi");
       if (!kospiQuote) return;
 
+      // Live poll must only merge into a completed full load. Seeding state with a
+      // KOSPI-only payload makes 精選焦點 briefly show just KOSPI until the rest arrives.
+      let applied = false;
       setFinanceResult((previous) => {
-        if (!previous) {
-          return data;
-        }
+        if (!previous) return previous;
+        applied = true;
         const hasKospi = previous.quotes.some((quote) => quote.id === "kospi");
         const nextQuotes = hasKospi
           ? previous.quotes.map((quote) => {
@@ -3485,7 +3487,7 @@ export default function ToolsManagement({
           quotes: nextQuotes,
         };
       });
-      setKospiLiveUpdatedAt(data.fetchedAt);
+      if (applied) setKospiLiveUpdatedAt(data.fetchedAt);
     } catch {
       // Silent live poll failures — full refresh still available via button.
     } finally {
