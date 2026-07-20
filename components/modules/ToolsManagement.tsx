@@ -1037,19 +1037,20 @@ function FinanceHistoryChart({
               x2={line.x2}
               y1={line.y}
               y2={line.y}
-              stroke="rgb(14,165,233)"
+              stroke="rgb(217,119,6)"
               strokeDasharray="5 4"
-              strokeWidth="1.5"
-              opacity="0.9"
+              strokeWidth="1.75"
+              opacity="0.95"
             />
             <text
               x={line.x2}
               y={Math.max(10, line.y - 4)}
               textAnchor="end"
-              className="fill-sky-700"
-              style={{ fontSize: 9, fontWeight: 600 }}
+              className="fill-amber-800"
+              style={{ fontSize: 9, fontWeight: 700 }}
             >
-              {line.label} ≈ {formatFinanceNumber(line.value, 0)}
+              {/* Compact chart label: full warning text lives on badges. */}
+              ≈{formatFinanceNumber(line.value, 0)} 絕對不能破
             </text>
           </g>
         ))}
@@ -2512,7 +2513,11 @@ function FengbroFinanceSection({
                               {cfg.subtitle}
                             </p>
                             <h4 className="mt-1 text-lg font-semibold text-foreground leading-tight">{cfg.title}</h4>
-                            {(quote.localLabel || recordLabel || quote.id === "kospi" || isBearMarket) && (
+                            {(quote.localLabel ||
+                              recordLabel ||
+                              quote.id === "kospi" ||
+                              isBearMarket ||
+                              (quote.referenceLevels && quote.referenceLevels.length > 0)) && (
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 {quote.localLabel && (
                                   <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
@@ -2534,6 +2539,29 @@ function FengbroFinanceSection({
                                       : "休市"}
                                   </span>
                                 )}
+                                {(quote.referenceLevels || []).map((level) => {
+                                  const vsPct =
+                                    typeof quote.price === "number" && level.value > 0
+                                      ? ((quote.price - level.value) / level.value) * 100
+                                      : null;
+                                  const broken = vsPct != null && vsPct < 0;
+                                  return (
+                                    <span
+                                      key={`${level.label}-${level.value}`}
+                                      className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                        broken
+                                          ? "border-rose-300 bg-rose-50 text-rose-800"
+                                          : "border-amber-300 bg-amber-50 text-amber-900"
+                                      }`}
+                                      title={level.label}
+                                    >
+                                      {level.label}
+                                      {vsPct != null
+                                        ? ` · 現價${vsPct >= 0 ? "+" : ""}${vsPct.toFixed(1)}%`
+                                        : ""}
+                                    </span>
+                                  );
+                                })}
                                 {recordLabel && (
                                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-sky-50 text-sky-700 border-sky-200"}`}>
                                     {recordLabel}
@@ -2805,18 +2833,29 @@ function FengbroFinanceSection({
                                   {quote.periodLabel}
                                 </span>
                               )}
-                              {(quote.referenceLevels || []).map((level) => (
-                                <span
-                                  key={`${level.label}-${level.value}`}
-                                  className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800"
-                                  title={level.label}
-                                >
-                                  {level.label} ≈ {formatFinanceNumber(level.value, 0)}
-                                  {typeof quote.price === "number" && level.value > 0
-                                    ? ` · 現價${quote.price >= level.value ? "+" : ""}${(((quote.price - level.value) / level.value) * 100).toFixed(1)}%`
-                                    : ""}
-                                </span>
-                              ))}
+                              {(quote.referenceLevels || []).map((level) => {
+                                const vsPct =
+                                  typeof quote.price === "number" && level.value > 0
+                                    ? ((quote.price - level.value) / level.value) * 100
+                                    : null;
+                                const broken = vsPct != null && vsPct < 0;
+                                return (
+                                  <span
+                                    key={`${level.label}-${level.value}`}
+                                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                                      broken
+                                        ? "border-rose-300 bg-rose-50 text-rose-800"
+                                        : "border-amber-300 bg-amber-50 text-amber-900"
+                                    }`}
+                                    title={level.label}
+                                  >
+                                    {level.label}
+                                    {vsPct != null
+                                      ? ` · 現價${vsPct >= 0 ? "+" : ""}${vsPct.toFixed(1)}%`
+                                      : ""}
+                                  </span>
+                                );
+                              })}
                               {recordLabel && (
                                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-sky-50 text-sky-700 border border-sky-200"}`}>
                                   {recordLabel}

@@ -201,8 +201,10 @@ const INSTRUMENTS: FinanceInstrument[] = [
     alertThreshold: 12682,
     localLabel: "코스피",
     periodLabel: "2026~2027",
-    /** 韓國市場融資平均水平線（約） */
-    referenceLevels: [{ value: 6472, label: "韓國市場融資平均水平線" }],
+    /** 韓國市場融資平均水平線約為 6472 點 · 絕對不能破 */
+    referenceLevels: [
+      { value: 6472, label: "韓國市場融資平均水平線約為6472點 · 絕對不能破" },
+    ],
     youtubeUrl: "https://www.youtube.com/results?search_query=SK+Hynix+stock&sp=CAMSBAgCEAE%253D",
     bilibiliUrl:
       "https://search.bilibili.com/all?keyword=%E9%9F%93%E5%9C%8B%E8%82%A1%E5%B8%82&from_source=web_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399",

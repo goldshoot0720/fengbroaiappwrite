@@ -625,23 +625,38 @@ export default function FinancePage() {
                     typeof kospi?.price === "number" && level.value > 0
                       ? ((kospi.price - level.value) / level.value) * 100
                       : null;
+                  const broken = vsPct != null && vsPct < 0;
                   return (
                     <div
                       key={`${level.label}-${level.value}`}
-                      className="rounded-lg border border-sky-200 bg-sky-50 p-3 dark:border-sky-800 dark:bg-sky-950/40"
+                      className={`rounded-lg border p-3 ${
+                        broken
+                          ? "border-rose-300 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/40"
+                          : "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40"
+                      }`}
                     >
-                      <div className="text-sm font-medium text-sky-900 dark:text-sky-200">
-                        {level.label} ≈ {formatNumber(level.value, 0)} 點
+                      <div
+                        className={`text-sm font-bold ${
+                          broken
+                            ? "text-rose-900 dark:text-rose-200"
+                            : "text-amber-950 dark:text-amber-100"
+                        }`}
+                      >
+                        {level.label}
+                      </div>
+                      <div className="mt-1 text-xs font-semibold text-amber-900/80 dark:text-amber-200/90">
+                        水平線 ≈ {formatNumber(level.value, 0)} 點（防守底線）
                       </div>
                       {vsPct != null && (
                         <div
                           className={`mt-1 text-xs font-semibold ${
-                            vsPct >= 0
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-red-600 dark:text-red-400"
+                            broken
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-green-600 dark:text-green-400"
                           }`}
                         >
-                          現價相對水平線 {vsPct >= 0 ? "+" : ""}
+                          {broken ? "⚠ 現價已破水平線 " : "現價相對水平線 "}
+                          {vsPct >= 0 ? "+" : ""}
                           {vsPct.toFixed(2)}%
                         </div>
                       )}
