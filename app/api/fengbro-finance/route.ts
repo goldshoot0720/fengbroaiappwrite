@@ -121,15 +121,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
   },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "taiwan", provider: "yahoo", alertThreshold: 3333, imageUrl: "/finance/tsmc-featured.jpg" },
   {
-    id: "0050",
-    name: "元大台灣50",
-    symbol: "0050.TW",
-    sourceUrl: "https://tw.stock.yahoo.com/quote/0050.TW",
-    group: "taiwan",
-    provider: "yahoo",
-    localLabel: "0050 · 台灣50",
-  },
-  {
     id: "00878",
     name: "國泰永續高股息",
     symbol: "00878.TW",
