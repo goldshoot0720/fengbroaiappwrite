@@ -50,6 +50,23 @@ type FinanceHistoryPoint = {
   price: number;
 };
 
+/** Daily OHLC bar for integer-level hit dates (e.g. USD/JPY 162 / 163). */
+type FinanceDailyBar = {
+  date: string;
+  high: number;
+  low: number;
+  close: number;
+};
+
+/**
+ * Last date price traded at an integer handle within the lookback window.
+ * `lastDate` is YYYY-MM-DD when found inside the window; otherwise null → UI shows「無」.
+ */
+type FinanceIntegerLevelHit = {
+  level: number;
+  lastDate: string | null;
+};
+
 type FinanceHistoryRange = {
   key: "1y" | "3y";
   range: string;
@@ -57,6 +74,9 @@ type FinanceHistoryRange = {
   /** Keep only the most recent N years after fetch (Yahoo has no native 3y range). */
   keepYears?: number;
 };
+
+/** Rolling window for FX integer-level “上次日期” (months). Outside → 無. */
+const INTEGER_LEVEL_LOOKBACK_MONTHS = 3;
 
 const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
 const SHILLER_PE_RECORD_HIGH = 44.19;
@@ -162,7 +182,18 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", sourceUrl: "https://finance.yahoo.com/quote/SKHY", group: "korea", provider: "yahoo" },
   { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", sourceUrl: "https://www.cnbc.com/quotes/KORU", group: "korea", localLabel: "NYSEARCA: KORU" },
   { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", sourceUrl: "https://finance.yahoo.com/quote/USDTWD=X", group: "other", provider: "yahoo", alertThreshold: 37 },
-  { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", sourceUrl: "https://finance.yahoo.com/quote/USDJPY=X", group: "other", provider: "yahoo", alertThreshold: 222, bilibiliUrl: "https://search.bilibili.com/all?keyword=%E6%97%A5%E5%85%83%E8%B4%AC%E5%80%BC&from_source=websuggest_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399" },
+  {
+    id: "usd-jpy",
+    name: "美元對日圓匯率",
+    symbol: "USDJPY=X",
+    sourceUrl: "https://finance.yahoo.com/quote/USDJPY=X",
+    group: "other",
+    provider: "yahoo",
+    alertThreshold: 222,
+    localLabel: "整數關 · 近3個月",
+    bilibiliUrl:
+      "https://search.bilibili.com/all?keyword=%E6%97%A5%E5%85%83%E8%B4%AC%E5%80%BC&from_source=websuggest_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399",
+  },
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "other", alertThreshold: 222 },
   { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "other", alertThreshold: 6.66 },
   { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "other", alertThreshold: 6666, imageUrl: "/finance/gold-featured.jpg" },
@@ -493,6 +524,135 @@ function getRecordTag(price: number | null, high52: number | null, low52: number
 
 function isThresholdAlert(price: number | null, threshold?: number) {
   return typeof price === "number" && typeof threshold === "number" && price > threshold;
+}
+
+/**
+ * Levels to show for current price (e.g. 162.1 → 162 & 163).
+ * Floor handle + next integer resistance.
+ */
+function getIntegerLevelsForPrice(price: number): [number, number] {
+  const base = Math.floor(price);
+  return [base, base + 1];
+}
+
+/** True when the day's range traded the integer handle [level, level+1). */
+function dayTouchesIntegerHandle(high: number, low: number, level: number) {
+  return high >= level && low < level + 1;
+}
+
+function lookbackCutoffIso(months = INTEGER_LEVEL_LOOKBACK_MONTHS) {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  return cutoff.toISOString().slice(0, 10);
+}
+
+/**
+ * Most recent date (within lookback) when price traded at each integer level.
+ * Bars should be newest-last or any order; we scan from newest.
+ */
+function findIntegerLevelHits(
+  levels: number[],
+  bars: FinanceDailyBar[],
+  lookbackMonths = INTEGER_LEVEL_LOOKBACK_MONTHS
+): FinanceIntegerLevelHit[] {
+  const cutoff = lookbackCutoffIso(lookbackMonths);
+  const sorted = [...bars]
+    .filter((bar) => bar.date >= cutoff && bar.high > 0 && bar.low > 0)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  return levels.map((level) => {
+    const hit = sorted.find((bar) => dayTouchesIntegerHandle(bar.high, bar.low, level));
+    return { level, lastDate: hit?.date ?? null };
+  });
+}
+
+/** Yahoo daily OHLC for the last ~3 months (for integer-level dates). */
+async function fetchYahooDailyBars3mo(symbol: string): Promise<FinanceDailyBar[]> {
+  const params = new URLSearchParams({
+    range: "3mo",
+    interval: "1d",
+    lang: "en-US",
+    region: "US",
+  });
+  const response = await fetch(`${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(symbol)}?${params.toString()}`, {
+    headers: FETCH_BROWSER_HEADERS,
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Yahoo Finance daily ${response.status}`);
+  const payload = await response.json();
+  const chart = payload?.chart?.result?.[0];
+  const timestamps = chart?.timestamp;
+  const quote = chart?.indicators?.quote?.[0];
+  if (!Array.isArray(timestamps) || !quote) return [];
+
+  const highArr = Array.isArray(quote.high) ? quote.high : [];
+  const lowArr = Array.isArray(quote.low) ? quote.low : [];
+  const closeArr = Array.isArray(quote.close) ? quote.close : [];
+
+  const bars: FinanceDailyBar[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const time = asNumber(timestamps[i]);
+    const high = asNumber(highArr[i]);
+    const low = asNumber(lowArr[i]);
+    const close = asNumber(closeArr[i]);
+    if (time == null || high == null || low == null || close == null) continue;
+    if (high <= 0 || low <= 0) continue;
+    bars.push({
+      date: new Date(time * 1000).toISOString().slice(0, 10),
+      high,
+      low,
+      close,
+    });
+  }
+  return bars;
+}
+
+/**
+ * Attach integer-level last-hit dates for USD/JPY (and similar FX).
+ * Uses live day high/low so today's break is reflected before the daily bar settles.
+ */
+async function attachIntegerLevelHits<T extends {
+  id: string;
+  symbol: string;
+  price: number | null;
+  dayHigh?: number | null;
+  dayLow?: number | null;
+  lastUpdated?: string;
+}>(quote: T): Promise<T & { integerLevelHits?: FinanceIntegerLevelHit[] }> {
+  if (quote.id !== "usd-jpy" && quote.symbol !== "USDJPY=X") {
+    return quote;
+  }
+  if (typeof quote.price !== "number" || !Number.isFinite(quote.price)) {
+    return { ...quote, integerLevelHits: [] };
+  }
+
+  try {
+    const bars = await fetchYahooDailyBars3mo(quote.symbol);
+    const todayIso =
+      (quote.lastUpdated && quote.lastUpdated.slice(0, 10)) ||
+      new Date().toISOString().slice(0, 10);
+    const dayHigh = typeof quote.dayHigh === "number" ? quote.dayHigh : quote.price;
+    const dayLow = typeof quote.dayLow === "number" ? quote.dayLow : quote.price;
+    // Merge live session into bars (overwrite same date if present).
+    const withoutToday = bars.filter((bar) => bar.date !== todayIso);
+    withoutToday.push({
+      date: todayIso,
+      high: Math.max(dayHigh, quote.price),
+      low: Math.min(dayLow, quote.price),
+      close: quote.price,
+    });
+
+    const levels = getIntegerLevelsForPrice(quote.price);
+    const integerLevelHits = findIntegerLevelHits(levels, withoutToday);
+    return { ...quote, integerLevelHits };
+  } catch {
+    // Still expose the levels so UI can show 無
+    const levels = getIntegerLevelsForPrice(quote.price);
+    return {
+      ...quote,
+      integerLevelHits: levels.map((level) => ({ level, lastDate: null })),
+    };
+  }
 }
 
 function extractFirstNumber(pattern: RegExp, text: string) {
@@ -1033,7 +1193,7 @@ export async function GET(request: Request) {
   const skipHistory = shouldSkipHistory(request);
   const instruments = [...getDefaultFinanceInstruments(request), ...getCustomFinanceInstruments(request)];
   const settled = await Promise.allSettled(instruments.map((instrument) => fetchFinanceInstrument(instrument, { skipHistory })));
-  const quotes = settled.map((item, index) => {
+  const baseQuotes = settled.map((item, index) => {
     if (item.status === "fulfilled") return item.value;
     const instrument = instruments[index];
     return {
@@ -1053,7 +1213,10 @@ export async function GET(request: Request) {
       historyErrors: {},
       error: item.reason instanceof Error ? item.reason.message : "Failed to load quote",
     };
-  }).map((quote) => {
+  });
+  // Enrich USD/JPY (etc.) with integer-level last-hit dates (3-month window → else 無).
+  const enrichedQuotes = await Promise.all(baseQuotes.map((quote) => attachIntegerLevelHits(quote)));
+  const quotes = enrichedQuotes.map((quote) => {
     const thresholdAlert = isThresholdAlert(quote.price, quote.alertThreshold);
     return {
       ...quote,

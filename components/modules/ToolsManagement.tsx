@@ -191,6 +191,11 @@ type FengbroFinanceQuote = {
   periodLabel?: string;
   /** Horizontal reference levels (e.g. 融資平均水平線). */
   referenceLevels?: Array<{ value: number; label: string }>;
+  /**
+   * FX integer handles for current price (e.g. 162.1 → 162 & 163).
+   * lastDate within last 3 months, otherwise null → show「無」.
+   */
+  integerLevelHits?: Array<{ level: number; lastDate: string | null }>;
   historyRanges?: Record<string, PriceHistoryEntry[]>;
   historyErrors?: Record<string, string>;
   isThresholdAlert?: boolean;
@@ -198,6 +203,49 @@ type FengbroFinanceQuote = {
   alertThreshold?: number;
   error?: string;
 };
+
+/** Format integer-level last date for 鋒兄金融 (null / missing → 無). */
+function formatIntegerLevelLastDate(lastDate: string | null | undefined) {
+  if (!lastDate) return "無";
+  // Prefer compact YYYY-MM-DD already from API
+  return lastDate;
+}
+
+function FinanceIntegerLevelHitsPanel({
+  quote,
+}: {
+  quote: Pick<FengbroFinanceQuote, "integerLevelHits" | "id">;
+}) {
+  const hits = quote.integerLevelHits;
+  if (!hits || hits.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-800/80">
+        整數關 · 上次日期（近3個月）
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {hits.map((hit) => (
+          <div
+            key={hit.level}
+            className="rounded-lg border border-cyan-100/80 bg-white/80 px-2.5 py-2"
+          >
+            <p className="text-[11px] text-muted-foreground">上次{hit.level}</p>
+            <p
+              className={`mt-0.5 text-sm font-semibold tabular-nums ${
+                hit.lastDate ? "text-cyan-950" : "text-slate-400"
+              }`}
+            >
+              {formatIntegerLevelLastDate(hit.lastDate)}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[10px] leading-relaxed text-cyan-900/60">
+        依現價顯示當前整數關與上一檔；超過三個月未觸及則為「無」。
+      </p>
+    </div>
+  );
+}
 
 function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "sourceUrl" | "id">) {
   const source = (quote.sourceUrl || "").toLowerCase();
@@ -352,7 +400,7 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   // 其他
   { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", provider: "multpl", group: "other" },
   { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", provider: "yahoo", group: "other" },
-  { id: "usd-jpy", name: "美元對日元匯率", symbol: "USDJPY=X", provider: "yahoo", group: "other" },
+  { id: "usd-jpy", name: "美元對日圓匯率", symbol: "USDJPY=X", provider: "yahoo", group: "other" },
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", provider: "cnbc", group: "other" },
   { id: "gold", name: "Gold COMEX", symbol: "@GC.1", provider: "cnbc", group: "other" },
   { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", provider: "cnbc", group: "other" },
@@ -3013,6 +3061,7 @@ function FengbroFinanceSection({
                               </div>
                             </div>
                             <FinanceHistoryPanels quote={quote} />
+                            <FinanceIntegerLevelHitsPanel quote={quote} />
                             {quote.recordNote ? (
                               <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
                                 {quote.recordNote}
