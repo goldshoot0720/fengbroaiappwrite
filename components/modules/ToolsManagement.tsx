@@ -167,7 +167,7 @@ type FengbroFinanceQuote = {
   imageUrl?: string;
   imageUrls?: string[];
   group: FinanceCustomGroup;
-  provider?: "cnbc" | "yahoo" | "multpl" | "mis" | "taifex";
+  provider?: "cnbc" | "yahoo" | "multpl" | "mis";
   price: number | null;
   change: number | null;
   changePercent: number | null;
@@ -216,7 +216,6 @@ function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "so
     return "Yahoo 奇摩";
   }
   if (source.includes("yahoo") || quote.provider === "yahoo") return "Yahoo";
-  if (quote.provider === "taifex" || source.includes("taifex.com.tw")) return "期交所";
   return "CNBC";
 }
 
@@ -264,7 +263,7 @@ type DefaultFinanceInstrumentSummary = {
   id: string;
   name: string;
   symbol: string;
-  provider: "cnbc" | "yahoo" | "multpl" | "mis" | "taifex";
+  provider: "cnbc" | "yahoo" | "multpl" | "mis";
   group: FengbroFinanceQuote["group"];
 };
 
@@ -341,7 +340,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   // 台灣
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "taiwan" },
   { id: "otc", name: "上櫃指數", symbol: "otc_o00.tw", provider: "mis", group: "taiwan" },
-  { id: "txf-night", name: "夜盤台指期", symbol: "TXF", provider: "taifex", group: "taiwan" },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "taiwan" },
   { id: "0050", name: "元大台灣50", symbol: "0050.TW", provider: "yahoo", group: "taiwan" },
   { id: "0056", name: "元大高股息", symbol: "0056.TW", provider: "yahoo", group: "taiwan" },

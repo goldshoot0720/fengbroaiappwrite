@@ -8,7 +8,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type FinanceProvider = "cnbc" | "yahoo" | "multpl" | "mis" | "taifex";
+type FinanceProvider = "cnbc" | "yahoo" | "multpl" | "mis";
 
 type FinanceInstrument = {
   id: string;
@@ -118,21 +118,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
       { label: "盤後閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E5%BE%8C%E9%96%92%E8%81%8A" },
       { label: "櫃買中心", url: "https://www.tpex.org.tw/" },
       { label: "MIS 即時", url: "https://mis.twse.com.tw/stock/index?lang=zhHant" },
-    ],
-  },
-  {
-    id: "txf-night",
-    name: "夜盤台指期",
-    /** Commodity code passed to TAIFEX MIS getQuoteList. */
-    symbol: "TXF",
-    sourceUrl: "https://mis.taifex.com.tw/futures/RealtimeMarket/Futures",
-    group: "taiwan",
-    provider: "taifex",
-    localLabel: "台指期近月 · 夜盤 15:00–次日05:00",
-    relatedLinks: [
-      { label: "TAIFEX 即時行情", url: "https://mis.taifex.com.tw/futures/RealtimeMarket/Futures" },
-      { label: "期交所", url: "https://www.taifex.com.tw/" },
-      { label: "夜盤閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E5%A4%9C%E7%9B%A4" },
     ],
   },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "taiwan", provider: "yahoo", alertThreshold: 3333, imageUrl: "/finance/tsmc-featured.jpg" },
@@ -813,88 +798,6 @@ async function fetchMisInstrument(instrument: FinanceInstrument) {
   };
 }
 
-const TAIFEX_QUOTE_LIST_URL = "https://mis.taifex.com.tw/futures/api/getQuoteList";
-
-/**
- * Fetch 夜盤台指期 near-month quote from TAIFEX MIS.
- * MarketType=1 → night session. Picks the single-month contract with the
- * highest CTotalVolume (this is always the front month during night trading).
- * instrument.symbol should be the commodity code, e.g. "TXF".
- */
-async function fetchTaifexFuturesInstrument(instrument: FinanceInstrument) {
-  const response = await fetch(TAIFEX_QUOTE_LIST_URL, {
-    method: "POST",
-    headers: {
-      ...FETCH_BROWSER_HEADERS,
-      "content-type": "application/json",
-      referer: "https://mis.taifex.com.tw/",
-    },
-    body: JSON.stringify({ MarketType: "1", commodity_id: instrument.symbol, queryType: "1" }),
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`TAIFEX MIS ${response.status}`);
-  const payload = await response.json();
-  const list: Record<string, unknown>[] = payload?.RtData?.QuoteList ?? [];
-
-  // Keep only single-month contracts (SymbolID suffix "-M", no slash = not spread).
-  const singleMonth = list.filter(
-    (q) =>
-      typeof q.SymbolID === "string" &&
-      (q.SymbolID as string).startsWith(instrument.symbol) &&
-      (q.SymbolID as string).endsWith("-M") &&
-      !(q.SymbolID as string).includes("/")
-  );
-  if (singleMonth.length === 0) throw new Error("TAIFEX MIS: no night-session contracts found");
-
-  // Pick the front month = highest CTotalVolume.
-  singleMonth.sort((a, b) => {
-    const va = asNumber(a.CTotalVolume) ?? 0;
-    const vb = asNumber(b.CTotalVolume) ?? 0;
-    return vb - va;
-  });
-  const row = singleMonth[0];
-
-  const price = asNumber(row.CLastPrice);
-  if (price == null || price <= 0) throw new Error("TAIFEX MIS: price unavailable");
-
-  const refPrice = asNumber(row.CRefPrice); // previous settlement
-  const change = asNumber(row.CDiff) ?? (refPrice != null ? price - refPrice : null);
-  const changePercent = asNumber(row.CDiffRate) ?? (change != null && refPrice ? (change / refPrice) * 100 : null);
-  const dayHigh = asNumber(row.CHighPrice);
-  const dayLow = asNumber(row.CLowPrice);
-
-  // Build lastUpdated from CDate ("20260717") + CTime ("031130") in Taipei time.
-  const cDate = asText(row.CDate);
-  const cTime = asText(row.CTime);
-  let lastUpdated = "";
-  if (cDate.length === 8) {
-    const isoDate = `${cDate.slice(0, 4)}-${cDate.slice(4, 6)}-${cDate.slice(6, 8)}`;
-    lastUpdated = cTime.length === 6
-      ? new Date(`${isoDate}T${cTime.slice(0, 2)}:${cTime.slice(2, 4)}:${cTime.slice(4, 6)}+08:00`).toISOString()
-      : `${isoDate}T00:00:00+08:00`;
-  }
-
-  const contractName = asText(row.DispCName) || instrument.name;
-
-  return {
-    ...instrument,
-    displayName: contractName,
-    price,
-    change,
-    changePercent,
-    currency: "TWD",
-    high52: null as number | null,
-    low52: null as number | null,
-    dayHigh,
-    dayLow,
-    previousClose: refPrice,
-    lastUpdated,
-    recordTag: null as string | null,
-    /** Extra: expose the TAIFEX SymbolID so UI can show it. */
-    taifexSymbolId: asText(row.SymbolID),
-  };
-}
-
 /**
  * Yahoo chart meta only has English shortName for TW stocks (e.g. KING SLIDE WORKS CO).
  * Scrape Yahoo 奇摩 page title for Chinese short names (e.g. 川湖).
@@ -1129,18 +1032,15 @@ async function fetchMultplInstrument(instrument: FinanceInstrument) {
 
 async function fetchFinanceInstrument(instrument: FinanceInstrument, options?: { skipHistory?: boolean }) {
   const quote =
-    instrument.provider === "taifex"
-      ? await fetchTaifexFuturesInstrument(instrument)
-      : instrument.provider === "mis"
-        ? await fetchMisInstrument(instrument)
-        : instrument.provider === "yahoo"
-          ? await fetchYahooInstrument(instrument)
-          : instrument.provider === "multpl"
-            ? await fetchMultplInstrument(instrument)
-            : await fetchInstrument(instrument);
+    instrument.provider === "mis"
+      ? await fetchMisInstrument(instrument)
+      : instrument.provider === "yahoo"
+        ? await fetchYahooInstrument(instrument)
+        : instrument.provider === "multpl"
+          ? await fetchMultplInstrument(instrument)
+          : await fetchInstrument(instrument);
 
-  // taifex provider has no history source; skip immediately.
-  if (options?.skipHistory || instrument.provider === "multpl" || instrument.provider === "taifex") {
+  if (options?.skipHistory || instrument.provider === "multpl") {
     return { ...quote, historyRanges: {}, historyErrors: {} };
   }
 
