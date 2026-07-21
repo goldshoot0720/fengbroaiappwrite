@@ -778,6 +778,196 @@ function formatFinanceNumber(value: number | null | undefined, maximumFractionDi
   }).format(value);
 }
 
+/** Standard Fibonacci retracement ratios (0% low → 100% high). */
+const FIBONACCI_RETRACEMENT_RATIOS = [
+  { ratio: 0, label: "0%" },
+  { ratio: 0.236, label: "23.6%" },
+  { ratio: 0.382, label: "38.2%" },
+  { ratio: 0.5, label: "50%" },
+  { ratio: 0.618, label: "61.8%" },
+  { ratio: 0.786, label: "78.6%" },
+  { ratio: 1, label: "100%" },
+] as const;
+
+type FibonacciRetracementLevel = {
+  ratio: number;
+  label: string;
+  price: number;
+  /** Distance of current price vs this level (% of range). Null if no price. */
+  vsPricePct: number | null;
+  isNearest: boolean;
+};
+
+/**
+ * Fibonacci levels from 52W low (0%) to 52W high (100%).
+ * price = low + (high − low) × ratio
+ */
+function buildFibonacciRetracementLevels(
+  high52: number,
+  low52: number,
+  price: number | null | undefined
+): FibonacciRetracementLevel[] | null {
+  if (
+    !Number.isFinite(high52) ||
+    !Number.isFinite(low52) ||
+    high52 <= low52
+  ) {
+    return null;
+  }
+  const range = high52 - low52;
+  const levels = FIBONACCI_RETRACEMENT_RATIOS.map(({ ratio, label }) => {
+    const levelPrice = low52 + range * ratio;
+    const vsPricePct =
+      typeof price === "number" && Number.isFinite(price) && levelPrice !== 0
+        ? ((price - levelPrice) / levelPrice) * 100
+        : null;
+    return { ratio, label, price: levelPrice, vsPricePct, isNearest: false };
+  });
+
+  if (typeof price === "number" && Number.isFinite(price)) {
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+    levels.forEach((level, index) => {
+      const dist = Math.abs(level.price - price);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestIdx = index;
+      }
+    });
+    levels[nearestIdx] = { ...levels[nearestIdx], isNearest: true };
+  }
+
+  return levels;
+}
+
+function FinanceFibonacciRetracementPanel({
+  quote,
+}: {
+  quote: Pick<FengbroFinanceQuote, "high52" | "low52" | "price" | "currency" | "id" | "symbol">;
+}) {
+  const levels = useMemo(() => {
+    if (typeof quote.high52 !== "number" || typeof quote.low52 !== "number") return null;
+    return buildFibonacciRetracementLevels(quote.high52, quote.low52, quote.price);
+  }, [quote.high52, quote.low52, quote.price]);
+
+  if (!levels) return null;
+
+  const range =
+    typeof quote.high52 === "number" && typeof quote.low52 === "number"
+      ? quote.high52 - quote.low52
+      : null;
+  const digits = quote.id === "us30y" || quote.symbol === "US.30" ? 3 : 2;
+  const positionPct =
+    typeof quote.price === "number" &&
+    typeof quote.high52 === "number" &&
+    typeof quote.low52 === "number" &&
+    range != null &&
+    range > 0
+      ? ((quote.price - quote.low52) / range) * 100
+      : null;
+
+  return (
+    <details className="group mt-3 rounded-2xl border border-violet-100 bg-violet-50/40 shadow-sm open:border-violet-200 open:bg-violet-50/70">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-semibold text-violet-900">
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          <span>Fibonacci Retracement 參考一覽</span>
+          {positionPct != null && (
+            <span className="rounded-full border border-violet-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-violet-700">
+              現價位階 {positionPct.toFixed(1)}%
+            </span>
+          )}
+        </span>
+        <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] text-violet-700 group-open:bg-violet-200">
+          可折疊
+        </span>
+      </summary>
+      <div className="space-y-2 px-3 pb-3">
+        <p className="text-[11px] leading-relaxed text-violet-900/70">
+          以 52W Low 為 0%、52W High 為 100% 計算（Low{" "}
+          <span className="tabular-nums font-medium">{formatFinanceNumber(quote.low52, digits)}</span>
+          {" → "}
+          High{" "}
+          <span className="tabular-nums font-medium">{formatFinanceNumber(quote.high52, digits)}</span>
+          {range != null ? (
+            <>
+              {" · 振幅 "}
+              <span className="tabular-nums font-medium">{formatFinanceNumber(range, digits)}</span>
+            </>
+          ) : null}
+          {quote.currency ? ` ${quote.currency}` : ""}
+          ）。僅供參考，非投資建議。
+        </p>
+        <div className="overflow-hidden rounded-xl border border-violet-100 bg-white/90">
+          <table className="w-full text-left text-[11px]">
+            <thead>
+              <tr className="border-b border-violet-100 bg-violet-50/80 text-violet-800/80">
+                <th className="px-2.5 py-1.5 font-semibold">位階</th>
+                <th className="px-2.5 py-1.5 font-semibold tabular-nums">價位</th>
+                <th className="px-2.5 py-1.5 font-semibold tabular-nums">vs 現價</th>
+              </tr>
+            </thead>
+            <tbody>
+              {levels.map((level) => {
+                const isGolden = level.ratio === 0.618 || level.ratio === 0.382;
+                return (
+                  <tr
+                    key={level.label}
+                    className={`border-b border-violet-50 last:border-0 ${
+                      level.isNearest
+                        ? "bg-violet-100/80 font-semibold text-violet-950"
+                        : isGolden
+                          ? "bg-amber-50/50 text-foreground"
+                          : "text-foreground"
+                    }`}
+                  >
+                    <td className="px-2.5 py-1.5">
+                      <span className="inline-flex items-center gap-1">
+                        {level.label}
+                        {level.ratio === 0 ? (
+                          <span className="text-[10px] font-normal text-muted-foreground">Low</span>
+                        ) : null}
+                        {level.ratio === 1 ? (
+                          <span className="text-[10px] font-normal text-muted-foreground">High</span>
+                        ) : null}
+                        {level.ratio === 0.618 ? (
+                          <span className="text-[10px] font-normal text-amber-700">黃金</span>
+                        ) : null}
+                        {level.isNearest ? (
+                          <span className="rounded bg-violet-600 px-1 py-px text-[9px] font-bold text-white">
+                            最近
+                          </span>
+                        ) : null}
+                      </span>
+                    </td>
+                    <td className="px-2.5 py-1.5 tabular-nums">
+                      {formatFinanceNumber(level.price, digits)}
+                    </td>
+                    <td
+                      className={`px-2.5 py-1.5 tabular-nums ${
+                        level.vsPricePct == null
+                          ? "text-muted-foreground"
+                          : level.vsPricePct > 0
+                            ? "text-emerald-700"
+                            : level.vsPricePct < 0
+                              ? "text-red-600"
+                              : "text-muted-foreground"
+                      }`}
+                    >
+                      {level.vsPricePct == null
+                        ? "--"
+                        : `${level.vsPricePct >= 0 ? "+" : ""}${level.vsPricePct.toFixed(2)}%`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function getFinanceGroupLabel(group: FengbroFinanceQuote["group"] | FinanceCustomGroup) {
   return FINANCE_GROUP_LABELS[group] || group;
 }
@@ -2763,6 +2953,8 @@ function FengbroFinanceSection({
                                 </div>
                               </div>
 
+                              <FinanceFibonacciRetracementPanel quote={quote} />
+
                               {/* 走勢圖（最近一年） */}
                               <div className="mt-3">
                                 <FinanceHistoryChart quote={quote} rangeKey="1y" label="最近一年走勢" />
@@ -3083,6 +3275,7 @@ function FengbroFinanceSection({
                                 </div>
                               </div>
                             </div>
+                            <FinanceFibonacciRetracementPanel quote={quote} />
                             <FinanceHistoryPanels quote={quote} />
                             <FinanceIntegerLevelHitsPanel quote={quote} />
                             {quote.recordNote ? (
