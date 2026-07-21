@@ -19,8 +19,9 @@ const geistMono = Geist_Mono({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Allow pinch/browser zoom when UI still feels small (a11y).
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
   themeColor: "#c79541",
 };

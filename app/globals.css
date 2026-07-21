@@ -18,6 +18,18 @@
   --breakpoint-xs: 375px;
   --breakpoint-3xl: 1920px;
 
+  /* Readable CJK-first type scale (was 12 / 14 / 16 → 13 / 15 / 17) */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.4rem;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.65rem;
+  --text-lg: 1.1875rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.3125rem;
+  --text-xl--line-height: 1.85rem;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans, "Segoe UI Variable Text", "PingFang TC", "Microsoft JhengHei", sans-serif);
@@ -219,14 +231,17 @@ html[data-density="compact"] {
 
   html {
     scroll-behavior: smooth;
+    /* Comfortable default; compact density keeps tighter chrome but same type */
+    font-size: 106.25%; /* 17px when browser default is 16px */
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-base;
     font-family: var(--font-geist-sans, "Segoe UI Variable Text"), "PingFang TC",
       "Microsoft JhengHei", sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
     text-rendering: optimizeLegibility;
+    line-height: 1.65;
     background-image: linear-gradient(
       180deg,
       rgba(255, 255, 255, 0.24),
@@ -314,9 +329,9 @@ html[data-density="compact"] {
   }
 
   .text-micro {
-    font-size: 0.6875rem;
-    line-height: 1rem;
-    letter-spacing: 0.28em;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
   }
 

@@ -37,7 +37,7 @@ export function SectionHeader({
       )}
     >
       <div className="min-w-0 space-y-2">
-        <p className="text-[11px] uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
+        <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
           Workspace Section
         </p>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -47,12 +47,12 @@ export function SectionHeader({
           {titleBadge}
         </div>
         {subtitle ? (
-          <p className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
+          <p className="max-w-3xl text-base leading-7 text-[var(--muted-foreground)] sm:text-lg">
             {subtitle}
           </p>
         ) : null}
         {showAccountLabel && accountLabel ? (
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+          <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--accent-strong)]">
             {accountLabel}
           </p>
         ) : null}
@@ -108,7 +108,7 @@ export function PageTitle({
   return (
     <div className={cn("space-y-3", className)}>
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-[11px] uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
+        <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
           Console View
         </p>
         {badge}
@@ -117,12 +117,12 @@ export function PageTitle({
         {title}
       </h1>
       {description ? (
-        <p className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
+        <p className="max-w-3xl text-base leading-7 text-[var(--muted-foreground)] sm:text-lg">
           {description}
         </p>
       ) : null}
       {showAccountLabel && accountLabel ? (
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+        <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--accent-strong)]">
           {accountLabel}
         </p>
       ) : null}

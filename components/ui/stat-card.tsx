@@ -42,7 +42,7 @@ export function StatCard({
       />
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-[0.26em] text-[var(--muted-foreground)]">
+          <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             {title}
           </p>
           <p className="tabular-nums mt-3 break-words font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">

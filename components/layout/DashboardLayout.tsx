@@ -245,10 +245,10 @@ function MobileHeader({
             <Command size={16} />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-[10px] font-medium tracking-[0.18em] text-[var(--muted-foreground)] uppercase">
+            <p className="truncate text-xs font-medium tracking-[0.16em] text-[var(--muted-foreground)] uppercase">
               FengBro
             </p>
-            <h1 className="truncate text-base font-semibold leading-5 tracking-tight text-[var(--foreground)]">
+            <h1 className="truncate text-lg font-semibold leading-6 tracking-tight text-[var(--foreground)]">
               {activeLabel}
             </h1>
           </div>
@@ -324,7 +324,7 @@ function MobileBottomNav({
               >
                 {item.icon}
               </span>
-              <span className="max-w-full truncate text-[10px] font-medium leading-3">
+              <span className="max-w-full truncate text-xs font-medium leading-4">
                 {shortLabel}
               </span>
             </button>
@@ -360,7 +360,7 @@ function MobileBottomNav({
           >
             <LayoutGrid size={18} />
           </span>
-          <span className="max-w-full truncate text-[10px] font-medium leading-3">
+          <span className="max-w-full truncate text-xs font-medium leading-4">
             更多
           </span>
         </button>
