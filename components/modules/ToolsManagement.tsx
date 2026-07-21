@@ -344,7 +344,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "0050", name: "元大台灣50", symbol: "0050.TW", provider: "yahoo", group: "taiwan" },
   { id: "0056", name: "元大高股息", symbol: "0056.TW", provider: "yahoo", group: "taiwan" },
   { id: "00878", name: "國泰永續高股息", symbol: "00878.TW", provider: "yahoo", group: "taiwan" },
-  { id: "00631l", name: "元大台灣50正2", symbol: "00631L.TW", provider: "yahoo", group: "taiwan" },
   { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "taiwan" },
   // 美國
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },

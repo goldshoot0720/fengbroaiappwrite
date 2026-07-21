@@ -148,15 +148,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
     localLabel: "00878 · 永續高股息",
   },
   {
-    id: "00631l",
-    name: "元大台灣50正2",
-    symbol: "00631L.TW",
-    sourceUrl: "https://tw.stock.yahoo.com/quote/00631L.TW",
-    group: "taiwan",
-    provider: "yahoo",
-    localLabel: "00631L · 2X 台灣50",
-  },
-  {
     id: "tsm",
     name: "台積電 ADR",
     symbol: "TSM",
