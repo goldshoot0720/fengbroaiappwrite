@@ -77,7 +77,6 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   nasdaq: "^IXIC",
   "phlx-semiconductor": "^SOX",
   bitcoin: "BTC-USD",
-  ether: "ETH-USD",
   tsm: "TSM",
   koru: "KORU",
   soxl: "SOXL",
@@ -175,7 +174,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us", localLabel: "AI泡沫" },
   { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "other", provider: "multpl", alertThreshold: 45 },
   { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "other", alertThreshold: 111111, imageUrl: "/finance/bitcoin-cats.jpg" },
-  { id: "ether", name: "Ether/USD Coin Metrics", symbol: "ETH.CM=", sourceUrl: "https://www.cnbc.com/quotes/ETH.CM=", group: "other", alertThreshold: 2222 },
 ];
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
