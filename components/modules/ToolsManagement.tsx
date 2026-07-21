@@ -341,7 +341,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "taiwan" },
   { id: "otc", name: "上櫃指數", symbol: "otc_o00.tw", provider: "mis", group: "taiwan" },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "taiwan" },
-  { id: "00878", name: "國泰永續高股息", symbol: "00878.TW", provider: "yahoo", group: "taiwan" },
   { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "taiwan" },
   // 美國
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
