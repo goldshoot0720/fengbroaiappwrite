@@ -349,7 +349,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", provider: "cnbc", group: "us" },
   { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", provider: "cnbc", group: "us" },
   { id: "snxx", name: "Tradr 2X Long Sndk Daily ETF", symbol: "SNXX", provider: "yahoo", group: "us" },
-  { id: "nvidia", name: "NVIDIA Corp", symbol: "NVDA", provider: "cnbc", group: "us" },
   { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us" },
   // 其他
   { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", provider: "multpl", group: "other" },
