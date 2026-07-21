@@ -130,15 +130,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
     localLabel: "0050 · 台灣50",
   },
   {
-    id: "0056",
-    name: "元大高股息",
-    symbol: "0056.TW",
-    sourceUrl: "https://tw.stock.yahoo.com/quote/0056.TW",
-    group: "taiwan",
-    provider: "yahoo",
-    localLabel: "0056 · 高股息",
-  },
-  {
     id: "00878",
     name: "國泰永續高股息",
     symbol: "00878.TW",
