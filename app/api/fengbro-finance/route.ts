@@ -78,11 +78,12 @@ type FinanceHistoryRange = {
 /** Rolling window for FX integer-level “上次日期” (months). Outside → 無. */
 const INTEGER_LEVEL_LOOKBACK_MONTHS = 3;
 /**
- * How many integer handles to list above today's record high.
- * e.g. record 163 → show 163…168 (record + 5 next targets).
- * Lower handles (162, 161, …) are never listed.
+ * How many *unreached* integer handles to preview above the current record.
+ * Tracking itself is unlimited upward (no fixed end like 168): when record becomes
+ * 168, the list becomes 168, 169, 170… — never caps at a hard max level.
+ * Lower handles (record-1, record-2, …) are never listed.
  */
-const INTEGER_LEVEL_UPWARD_SPAN = 5;
+const INTEGER_LEVEL_NEXT_PREVIEW = 12;
 
 const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
 const SHILLER_PE_RECORD_HIGH = 44.19;
@@ -541,12 +542,14 @@ function getUsdJpyRecordLevel(peak: number) {
 }
 
 /**
- * Levels to list: record … record+span (e.g. 163 → 163,164,165,166,167,168).
- * Never includes handles below the current record.
+ * Levels to list: current record + next unreached previews (unlimited upward, no hard max).
+ * e.g. record 163 → 163…175; when record becomes 170 → 170…182.
+ * Never includes handles below the current record (162↓).
  */
-function getUpwardIntegerLevels(recordLevel: number, span = INTEGER_LEVEL_UPWARD_SPAN) {
+function getUpwardIntegerLevels(recordLevel: number, nextPreview = INTEGER_LEVEL_NEXT_PREVIEW) {
   const levels: number[] = [];
-  for (let i = 0; i <= span; i++) levels.push(recordLevel + i);
+  // record + nextPreview unreached targets (tracking continues forever as record rises)
+  for (let i = 0; i <= nextPreview; i++) levels.push(recordLevel + i);
   return levels;
 }
 
@@ -627,7 +630,8 @@ async function fetchYahooDailyBars3mo(symbol: string): Promise<FinanceDailyBar[]
  *
  * Rules (per product):
  * - Today's record = floor(peak high). e.g. high 163.04 → record 163.
- * - Show record + next targets (163…168). Dates only matter going up.
+ * - Upward is unlimited (no fixed end at 168): as record rises, list slides up.
+ * - Show record + next preview targets; dates only for upward barriers.
  * - Lower handles (162, 161, 160, …) are never listed.
  * - lastDate only if high reached the level within 3 months; else 無.
  */

@@ -192,7 +192,7 @@ type FengbroFinanceQuote = {
   /** Horizontal reference levels (e.g. 融資平均水平線). */
   referenceLevels?: Array<{ value: number; label: string }>;
   /**
-   * USD/JPY upward integer barriers from today's record (e.g. 163…168).
+   * USD/JPY upward integer barriers from today's record (unlimited upward; no hard max).
    * Lower handles (162↓) are omitted. lastDate within 3 months, else null →「無」.
    */
   integerLevelHits?: Array<{ level: number; lastDate: string | null }>;
@@ -221,21 +221,23 @@ function FinanceIntegerLevelHitsPanel({
   const hits = quote.integerLevelHits;
   if (!hits || hits.length === 0) return null;
   const recordLevel = quote.integerRecordLevel ?? hits[0]?.level;
+  const topListed = hits[hits.length - 1]?.level;
   return (
     <div className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-800/80">
-        整數關向上 · 上次日期（近3個月）
+        整數關向上 · 無限追蹤 · 上次日期（近3個月）
       </p>
       {recordLevel != null && (
         <p className="mt-1 text-[11px] font-medium text-cyan-900/80">
           今日紀錄 <span className="tabular-nums font-semibold">{recordLevel}</span>
           <span className="text-cyan-800/50">
             {" "}
-            · 僅往上追 {recordLevel + 1}…{recordLevel + 5}，不記 {recordLevel - 1} 以下
+            · 往上無限（列表預覽至 {topListed ?? recordLevel + 1}，紀錄上升後繼續）· 不記{" "}
+            {recordLevel - 1} 以下
           </span>
         </p>
       )}
-      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="mt-2 grid max-h-56 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
         {hits.map((hit) => {
           const isRecord = hit.level === recordLevel;
           return (
@@ -262,7 +264,7 @@ function FinanceIntegerLevelHitsPanel({
         })}
       </div>
       <p className="mt-2 text-[10px] leading-relaxed text-cyan-900/60">
-        紀錄關與之後更高關（+1…+5）才列日期；回落較低關不顯示。近三個月未觸及為「無」。
+        僅往上：紀錄關與更高關才列日期，無固定上限（168 之後仍繼續 169…）。回落較低關不顯示。近三個月未觸及為「無」。
       </p>
     </div>
   );
