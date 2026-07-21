@@ -192,10 +192,12 @@ type FengbroFinanceQuote = {
   /** Horizontal reference levels (e.g. 融資平均水平線). */
   referenceLevels?: Array<{ value: number; label: string }>;
   /**
-   * FX integer handles for current price (e.g. 162.1 → 162 & 163).
-   * lastDate within last 3 months, otherwise null → show「無」.
+   * USD/JPY upward integer barriers from today's record (e.g. 163…168).
+   * Lower handles (162↓) are omitted. lastDate within 3 months, else null →「無」.
    */
   integerLevelHits?: Array<{ level: number; lastDate: string | null }>;
+  /** Floor of the recent peak high (today's record integer). */
+  integerRecordLevel?: number;
   historyRanges?: Record<string, PriceHistoryEntry[]>;
   historyErrors?: Record<string, string>;
   isThresholdAlert?: boolean;
@@ -214,34 +216,53 @@ function formatIntegerLevelLastDate(lastDate: string | null | undefined) {
 function FinanceIntegerLevelHitsPanel({
   quote,
 }: {
-  quote: Pick<FengbroFinanceQuote, "integerLevelHits" | "id">;
+  quote: Pick<FengbroFinanceQuote, "integerLevelHits" | "integerRecordLevel" | "id">;
 }) {
   const hits = quote.integerLevelHits;
   if (!hits || hits.length === 0) return null;
+  const recordLevel = quote.integerRecordLevel ?? hits[0]?.level;
   return (
     <div className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-800/80">
-        整數關 · 上次日期（近3個月）
+        整數關向上 · 上次日期（近3個月）
       </p>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        {hits.map((hit) => (
-          <div
-            key={hit.level}
-            className="rounded-lg border border-cyan-100/80 bg-white/80 px-2.5 py-2"
-          >
-            <p className="text-[11px] text-muted-foreground">上次{hit.level}</p>
-            <p
-              className={`mt-0.5 text-sm font-semibold tabular-nums ${
-                hit.lastDate ? "text-cyan-950" : "text-slate-400"
+      {recordLevel != null && (
+        <p className="mt-1 text-[11px] font-medium text-cyan-900/80">
+          今日紀錄 <span className="tabular-nums font-semibold">{recordLevel}</span>
+          <span className="text-cyan-800/50">
+            {" "}
+            · 僅往上追 {recordLevel + 1}…{recordLevel + 5}，不記 {recordLevel - 1} 以下
+          </span>
+        </p>
+      )}
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {hits.map((hit) => {
+          const isRecord = hit.level === recordLevel;
+          return (
+            <div
+              key={hit.level}
+              className={`rounded-lg border px-2.5 py-2 ${
+                isRecord
+                  ? "border-cyan-300 bg-white shadow-sm"
+                  : "border-cyan-100/80 bg-white/80"
               }`}
             >
-              {formatIntegerLevelLastDate(hit.lastDate)}
-            </p>
-          </div>
-        ))}
+              <p className="text-[11px] text-muted-foreground">
+                {isRecord ? `紀錄${hit.level}` : `上次${hit.level}`}
+              </p>
+              <p
+                className={`mt-0.5 text-sm font-semibold tabular-nums ${
+                  hit.lastDate ? "text-cyan-950" : "text-slate-400"
+                }`}
+              >
+                {formatIntegerLevelLastDate(hit.lastDate)}
+              </p>
+            </div>
+          );
+        })}
       </div>
       <p className="mt-2 text-[10px] leading-relaxed text-cyan-900/60">
-        依現價顯示當前整數關與上一檔；超過三個月未觸及則為「無」。
+        紀錄關與之後更高關（+1…+5）才列日期；回落較低關不顯示。近三個月未觸及為「無」。
       </p>
     </div>
   );

@@ -77,6 +77,12 @@ type FinanceHistoryRange = {
 
 /** Rolling window for FX integer-level “上次日期” (months). Outside → 無. */
 const INTEGER_LEVEL_LOOKBACK_MONTHS = 3;
+/**
+ * How many integer handles to list above today's record high.
+ * e.g. record 163 → show 163…168 (record + 5 next targets).
+ * Lower handles (162, 161, …) are never listed.
+ */
+const INTEGER_LEVEL_UPWARD_SPAN = 5;
 
 const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
 const SHILLER_PE_RECORD_HIGH = 44.19;
@@ -190,7 +196,7 @@ const INSTRUMENTS: FinanceInstrument[] = [
     group: "other",
     provider: "yahoo",
     alertThreshold: 222,
-    localLabel: "整數關 · 近3個月",
+    localLabel: "整數關向上 · 近3個月",
     bilibiliUrl:
       "https://search.bilibili.com/all?keyword=%E6%97%A5%E5%85%83%E8%B4%AC%E5%80%BC&from_source=websuggest_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399",
   },
@@ -527,17 +533,26 @@ function isThresholdAlert(price: number | null, threshold?: number) {
 }
 
 /**
- * Levels to show for current price (e.g. 162.1 → 162 & 163).
- * Floor handle + next integer resistance.
+ * Today's record integer handle = floor of the peak (day high / price / bar highs).
+ * Only this level and higher targets need dates; lower handles (record-1, …) are ignored.
  */
-function getIntegerLevelsForPrice(price: number): [number, number] {
-  const base = Math.floor(price);
-  return [base, base + 1];
+function getUsdJpyRecordLevel(peak: number) {
+  return Math.floor(peak);
 }
 
-/** True when the day's range traded the integer handle [level, level+1). */
-function dayTouchesIntegerHandle(high: number, low: number, level: number) {
-  return high >= level && low < level + 1;
+/**
+ * Levels to list: record … record+span (e.g. 163 → 163,164,165,166,167,168).
+ * Never includes handles below the current record.
+ */
+function getUpwardIntegerLevels(recordLevel: number, span = INTEGER_LEVEL_UPWARD_SPAN) {
+  const levels: number[] = [];
+  for (let i = 0; i <= span; i++) levels.push(recordLevel + i);
+  return levels;
+}
+
+/** True when the day's high reached the integer barrier (upward milestone). */
+function dayReachedIntegerLevel(high: number, level: number) {
+  return high >= level;
 }
 
 function lookbackCutoffIso(months = INTEGER_LEVEL_LOOKBACK_MONTHS) {
@@ -547,8 +562,8 @@ function lookbackCutoffIso(months = INTEGER_LEVEL_LOOKBACK_MONTHS) {
 }
 
 /**
- * Most recent date (within lookback) when price traded at each integer level.
- * Bars should be newest-last or any order; we scan from newest.
+ * Most recent date (within lookback) when the high reached each integer barrier.
+ * Only used for the current record and higher targets — not for lower dips.
  */
 function findIntegerLevelHits(
   levels: number[],
@@ -561,7 +576,7 @@ function findIntegerLevelHits(
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return levels.map((level) => {
-    const hit = sorted.find((bar) => dayTouchesIntegerHandle(bar.high, bar.low, level));
+    const hit = sorted.find((bar) => dayReachedIntegerLevel(bar.high, level));
     return { level, lastDate: hit?.date ?? null };
   });
 }
@@ -608,8 +623,13 @@ async function fetchYahooDailyBars3mo(symbol: string): Promise<FinanceDailyBar[]
 }
 
 /**
- * Attach integer-level last-hit dates for USD/JPY (and similar FX).
- * Uses live day high/low so today's break is reflected before the daily bar settles.
+ * Attach USD/JPY upward integer-level last-hit dates.
+ *
+ * Rules (per product):
+ * - Today's record = floor(peak high). e.g. high 163.04 → record 163.
+ * - Show record + next targets (163…168). Dates only matter going up.
+ * - Lower handles (162, 161, 160, …) are never listed.
+ * - lastDate only if high reached the level within 3 months; else 無.
  */
 async function attachIntegerLevelHits<T extends {
   id: string;
@@ -617,14 +637,23 @@ async function attachIntegerLevelHits<T extends {
   price: number | null;
   dayHigh?: number | null;
   dayLow?: number | null;
+  high52?: number | null;
   lastUpdated?: string;
-}>(quote: T): Promise<T & { integerLevelHits?: FinanceIntegerLevelHit[] }> {
+}>(quote: T): Promise<T & { integerLevelHits?: FinanceIntegerLevelHit[]; integerRecordLevel?: number }> {
   if (quote.id !== "usd-jpy" && quote.symbol !== "USDJPY=X") {
     return quote;
   }
   if (typeof quote.price !== "number" || !Number.isFinite(quote.price)) {
     return { ...quote, integerLevelHits: [] };
   }
+
+  const fallbackRecord = getUsdJpyRecordLevel(
+    Math.max(
+      quote.price,
+      typeof quote.dayHigh === "number" ? quote.dayHigh : quote.price,
+      typeof quote.high52 === "number" ? quote.high52 : quote.price
+    )
+  );
 
   try {
     const bars = await fetchYahooDailyBars3mo(quote.symbol);
@@ -642,15 +671,31 @@ async function attachIntegerLevelHits<T extends {
       close: quote.price,
     });
 
-    const levels = getIntegerLevelsForPrice(quote.price);
+    // Peak within 3 months (bars already ~3mo) drives the record; ignore lower dips.
+    const cutoff = lookbackCutoffIso();
+    let peak = Math.max(dayHigh, quote.price);
+    for (const bar of withoutToday) {
+      if (bar.date >= cutoff && bar.high > peak) peak = bar.high;
+    }
+    if (typeof quote.high52 === "number" && quote.high52 > peak) {
+      // high52 may be older than 3mo; only raise record if still the live peak today
+      peak = Math.max(peak, dayHigh, quote.price);
+    }
+
+    const recordLevel = getUsdJpyRecordLevel(peak);
+    const levels = getUpwardIntegerLevels(recordLevel);
     const integerLevelHits = findIntegerLevelHits(levels, withoutToday);
-    return { ...quote, integerLevelHits };
+    return { ...quote, integerLevelHits, integerRecordLevel: recordLevel };
   } catch {
-    // Still expose the levels so UI can show 無
-    const levels = getIntegerLevelsForPrice(quote.price);
+    const levels = getUpwardIntegerLevels(fallbackRecord);
     return {
       ...quote,
-      integerLevelHits: levels.map((level) => ({ level, lastDate: null })),
+      integerRecordLevel: fallbackRecord,
+      integerLevelHits: levels.map((level) => ({
+        level,
+        // Only the current record is assumed touched today when history fails
+        lastDate: level === fallbackRecord ? new Date().toISOString().slice(0, 10) : null,
+      })),
     };
   }
 }
