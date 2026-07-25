@@ -10,6 +10,12 @@ export type FinanceCustomProvider = "cnbc" | "yahoo";
 /** Region groups for 鋒兄金融 display & custom instruments. */
 export type FinanceCustomGroup = "korea" | "japan" | "taiwan" | "us" | "other";
 
+/** User-defined external page link (PTT board, official index page, etc.). */
+export type FinanceRelatedLink = {
+  label: string;
+  url: string;
+};
+
 export type CustomFinanceInstrument = {
   name: string;
   symbol: string;
@@ -20,6 +26,11 @@ export type CustomFinanceInstrument = {
   imageUrls?: string[];
   youtubeUrl?: string;
   bilibiliUrl?: string;
+  /**
+   * Optional custom http(s) pages shown as ExternalLink chips on the quote card
+   * (e.g. https://www.ptt.cc/bbs/stock/index.html).
+   */
+  relatedLinks?: FinanceRelatedLink[];
   /** When true, show this instrument in 精選焦點. */
   featured?: boolean;
 };
@@ -35,6 +46,11 @@ export type CustomFinanceDraft = {
   imageUrlsText: string;
   youtubeUrl: string;
   bilibiliUrl: string;
+  /**
+   * Custom page URLs (optional). One per line; optional `標籤|網址` format.
+   * Example: `PTT 股板|https://www.ptt.cc/bbs/stock/index.html`
+   */
+  relatedLinksText: string;
   /** Pin to 精選焦點. */
   featured: boolean;
 };
@@ -58,6 +74,7 @@ export function buildCustomFinanceQuoteId(
 }
 
 const MAX_CUSTOM_IMAGE_URLS = 9;
+const MAX_CUSTOM_RELATED_LINKS = 9;
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -103,6 +120,124 @@ export function normalizeFinanceImageUrls(input: unknown): string[] {
     if (urls.length >= MAX_CUSTOM_IMAGE_URLS) break;
   }
   return urls;
+}
+
+/**
+ * Guess a short chip label from a page URL when the user only pastes the link.
+ * e.g. ptt.cc/bbs/stock → "PTT stock"；investing.com → "Investing".
+ */
+export function guessFinanceRelatedLinkLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+    const path = parsed.pathname || "";
+
+    if (host === "ptt.cc" || host.endsWith(".ptt.cc")) {
+      const board = path.match(/\/bbs\/([^/]+)/i)?.[1];
+      if (board) {
+        const decoded = decodeURIComponent(board);
+        // Common TW boards keep original casing for readability
+        if (/^stock$/i.test(decoded)) return "PTT 股板";
+        if (/^home-sale$/i.test(decoded)) return "PTT 房屋";
+        if (/^railway$/i.test(decoded)) return "PTT 鐵道";
+        return `PTT ${decoded}`.slice(0, 40);
+      }
+      return "PTT";
+    }
+
+    if (host.includes("investing.com")) return "Investing";
+    if (host.includes("twse.com.tw")) return "證交所";
+    if (host.includes("tpex.org.tw")) return "櫃買中心";
+    if (host.includes("cnyes.com")) return "鉅亨網";
+    if (host.includes("moneydj.com")) return "MoneyDJ";
+    if (host.includes("cmoney.tw")) return "CMoney";
+    if (host.includes("wantgoo.com")) return "玩股網";
+    if (host.includes("goodinfo.tw")) return "Goodinfo";
+    if (host.includes("yahoo.com") || host.includes("yahoo.co.jp")) return "Yahoo";
+    if (host.includes("cnbc.com")) return "CNBC";
+    if (host.includes("bloomberg.com")) return "Bloomberg";
+    if (host.includes("reuters.com")) return "Reuters";
+
+    // Hostname without TLD as fallback: "example.com" → "example"
+    const base = host.split(".")[0] || host;
+    return (base.charAt(0).toUpperCase() + base.slice(1)).slice(0, 40);
+  } catch {
+    return "連結";
+  }
+}
+
+/**
+ * Parse draft textarea / stored list into relatedLinks.
+ * Accepts:
+ * - plain URL lines
+ * - `標籤|網址` or `標籤｜網址` (fullwidth pipe)
+ * - objects `{ label, url }`
+ */
+export function normalizeFinanceRelatedLinks(input: unknown): FinanceRelatedLink[] {
+  const rawLines: Array<{ label?: string; url: string }> = [];
+
+  if (typeof input === "string") {
+    for (const line of input.split(/\n+/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      // label|url — only split on first pipe so URLs with | are rare but ok if no label
+      const pipeMatch = trimmed.match(/^(.+?)\s*[|｜]\s*(https?:\/\/\S+|www\.\S+|\S+\.\S+\/\S.*)$/i);
+      if (pipeMatch?.[1] && pipeMatch[2]) {
+        rawLines.push({ label: pipeMatch[1].trim(), url: pipeMatch[2].trim() });
+        continue;
+      }
+      rawLines.push({ url: trimmed });
+    }
+  } else if (Array.isArray(input)) {
+    for (const item of input) {
+      if (typeof item === "string" && item.trim()) {
+        rawLines.push({ url: item.trim() });
+        continue;
+      }
+      if (item && typeof item === "object") {
+        const rec = item as { label?: unknown; url?: unknown; href?: unknown };
+        const url =
+          typeof rec.url === "string"
+            ? rec.url
+            : typeof rec.href === "string"
+              ? rec.href
+              : "";
+        if (!url.trim()) continue;
+        rawLines.push({
+          label: typeof rec.label === "string" ? rec.label : undefined,
+          url: url.trim(),
+        });
+      }
+    }
+  }
+
+  const seen = new Set<string>();
+  const links: FinanceRelatedLink[] = [];
+  for (const raw of rawLines) {
+    const url = normalizeOptionalHttpUrl(raw.url, 800);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const label =
+      typeof raw.label === "string" && raw.label.trim()
+        ? raw.label.trim().slice(0, 40)
+        : guessFinanceRelatedLinkLabel(url);
+    links.push({ label, url });
+    if (links.length >= MAX_CUSTOM_RELATED_LINKS) break;
+  }
+  return links;
+}
+
+/** Serialize related links back to draft textarea format. */
+export function formatFinanceRelatedLinksText(links: FinanceRelatedLink[] | undefined): string {
+  if (!links?.length) return "";
+  return links
+    .map((link) => {
+      const guessed = guessFinanceRelatedLinkLabel(link.url);
+      // Keep compact: only write label when user customized it
+      if (!link.label || link.label === guessed) return link.url;
+      return `${link.label}|${link.url}`;
+    })
+    .join("\n");
 }
 
 export const FINANCE_CUSTOM_GROUPS: FinanceCustomGroup[] = [
@@ -579,12 +714,16 @@ export function draftFromCustomFinanceInstrument(
     imageUrlsText: imageUrls.join("\n"),
     youtubeUrl: instrument.youtubeUrl || "",
     bilibiliUrl: instrument.bilibiliUrl || "",
+    relatedLinksText: formatFinanceRelatedLinksText(instrument.relatedLinks),
     featured: Boolean(instrument.featured),
   };
 }
 
 export function normalizeCustomFinanceInstrument(
-  input: Partial<CustomFinanceInstrument>
+  input: Partial<CustomFinanceInstrument> & {
+    imageUrlsText?: string;
+    relatedLinksText?: string;
+  }
 ): CustomFinanceInstrument | null {
   const symbol = typeof input.symbol === "string" ? input.symbol.trim().toUpperCase() : "";
   if (!symbol || symbol.length > 32) return null;
@@ -601,10 +740,13 @@ export function normalizeCustomFinanceInstrument(
       ? input.imageUrls
       : input.imageUrl
         ? [input.imageUrl]
-        : (input as { imageUrlsText?: string }).imageUrlsText
+        : input.imageUrlsText
   );
   const youtubeUrl = normalizeOptionalHttpUrl(input.youtubeUrl);
   const bilibiliUrl = normalizeOptionalHttpUrl(input.bilibiliUrl);
+  const relatedLinks = normalizeFinanceRelatedLinks(
+    input.relatedLinks?.length ? input.relatedLinks : input.relatedLinksText
+  );
 
   return {
     name,
@@ -615,12 +757,13 @@ export function normalizeCustomFinanceInstrument(
     ...(imageUrls.length > 0 ? { imageUrls } : {}),
     ...(youtubeUrl ? { youtubeUrl } : {}),
     ...(bilibiliUrl ? { bilibiliUrl } : {}),
+    ...(relatedLinks.length > 0 ? { relatedLinks } : {}),
     ...(input.featured ? { featured: true } : {}),
   };
 }
 
 /**
- * Build a custom instrument from the add form (代稱 + 網址/代號 + optional media).
+ * Build a custom instrument from the add form (代稱 + 網址/代號 + optional media / custom links).
  */
 export function buildCustomFinanceInstrumentFromDraft(
   draft: CustomFinanceDraft
@@ -649,6 +792,7 @@ export function buildCustomFinanceInstrumentFromDraft(
     imageUrls: normalizeFinanceImageUrls(draft.imageUrlsText),
     youtubeUrl: draft.youtubeUrl,
     bilibiliUrl: draft.bilibiliUrl,
+    relatedLinks: normalizeFinanceRelatedLinks(draft.relatedLinksText),
     featured: Boolean(draft.featured),
   });
 }
@@ -664,6 +808,7 @@ export function createEmptyCustomFinanceDraft(
     imageUrlsText: "",
     youtubeUrl: "",
     bilibiliUrl: "",
+    relatedLinksText: "",
     featured: false,
     ...overrides,
   };

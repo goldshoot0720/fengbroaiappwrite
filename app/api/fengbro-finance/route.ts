@@ -49,6 +49,9 @@ type CustomFinanceInstrumentInput = {
   imageUrls?: unknown;
   youtubeUrl?: unknown;
   bilibiliUrl?: unknown;
+  /** Custom external pages (PTT board, index site, etc.). */
+  relatedLinks?: unknown;
+  relatedLinksText?: unknown;
 };
 
 function normalizeOptionalHttpUrl(value: unknown, maxLen = 500): string | undefined {
@@ -84,6 +87,83 @@ function normalizeImageUrls(input: unknown): string[] {
     if (urls.length >= 9) break;
   }
   return urls;
+}
+
+function guessRelatedLinkLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+    const path = parsed.pathname || "";
+    if (host === "ptt.cc" || host.endsWith(".ptt.cc")) {
+      const board = path.match(/\/bbs\/([^/]+)/i)?.[1];
+      if (board) {
+        const decoded = decodeURIComponent(board);
+        if (/^stock$/i.test(decoded)) return "PTT 股板";
+        return `PTT ${decoded}`.slice(0, 40);
+      }
+      return "PTT";
+    }
+    if (host.includes("investing.com")) return "Investing";
+    if (host.includes("twse.com.tw")) return "證交所";
+    if (host.includes("tpex.org.tw")) return "櫃買中心";
+    if (host.includes("cnyes.com")) return "鉅亨網";
+    const base = host.split(".")[0] || host;
+    return (base.charAt(0).toUpperCase() + base.slice(1)).slice(0, 40);
+  } catch {
+    return "連結";
+  }
+}
+
+function normalizeRelatedLinks(
+  input: unknown
+): Array<{ label: string; url: string }> {
+  const raw: Array<{ label?: string; url: string }> = [];
+  if (typeof input === "string") {
+    for (const line of input.split(/\n+/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const pipeMatch = trimmed.match(
+        /^(.+?)\s*[|｜]\s*(https?:\/\/\S+|www\.\S+|\S+\.\S+\/\S.*)$/i
+      );
+      if (pipeMatch?.[1] && pipeMatch[2]) {
+        raw.push({ label: pipeMatch[1].trim(), url: pipeMatch[2].trim() });
+        continue;
+      }
+      raw.push({ url: trimmed });
+    }
+  } else if (Array.isArray(input)) {
+    for (const item of input) {
+      if (typeof item === "string" && item.trim()) {
+        raw.push({ url: item.trim() });
+        continue;
+      }
+      if (item && typeof item === "object") {
+        const rec = item as { label?: unknown; url?: unknown; href?: unknown };
+        const urlValue =
+          typeof rec.url === "string" ? rec.url : typeof rec.href === "string" ? rec.href : "";
+        if (!urlValue.trim()) continue;
+        raw.push({
+          label: typeof rec.label === "string" ? rec.label : undefined,
+          url: urlValue.trim(),
+        });
+      }
+    }
+  }
+
+  const seen = new Set<string>();
+  const links: Array<{ label: string; url: string }> = [];
+  for (const item of raw) {
+    const url = normalizeOptionalHttpUrl(item.url, 800);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const label =
+      typeof item.label === "string" && item.label.trim()
+        ? item.label.trim().slice(0, 40)
+        : guessRelatedLinkLabel(url);
+    links.push({ label, url });
+    if (links.length >= 9) break;
+  }
+  return links;
 }
 
 type FinanceHistoryPoint = {
@@ -174,6 +254,11 @@ function normalizeCustomFinanceInstrument(input: CustomFinanceInstrumentInput, i
   );
   const youtubeUrl = normalizeOptionalHttpUrl(input.youtubeUrl);
   const bilibiliUrl = normalizeOptionalHttpUrl(input.bilibiliUrl);
+  const relatedLinks = normalizeRelatedLinks(
+    Array.isArray(input.relatedLinks) && input.relatedLinks.length > 0
+      ? input.relatedLinks
+      : input.relatedLinksText
+  );
 
   return {
     id: `custom-${idBase}`,
@@ -191,6 +276,7 @@ function normalizeCustomFinanceInstrument(input: CustomFinanceInstrumentInput, i
     ...(imageUrls.length > 0 ? { imageUrls } : {}),
     ...(youtubeUrl ? { youtubeUrl } : {}),
     ...(bilibiliUrl ? { bilibiliUrl } : {}),
+    ...(relatedLinks.length > 0 ? { relatedLinks } : {}),
   };
 }
 

@@ -2415,9 +2415,9 @@ function FengbroFinanceSection({
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {isEditingCustom
-                ? "修改代稱、代號／網址、來源、分類，以及圖片／YouTube／Bilibili 後按「儲存」。也可按「取消編輯」放棄變更。"
+                ? "修改代稱、代號／網址、來源、分類，以及圖片／YouTube／Bilibili／自訂網址後按「儲存」。也可按「取消編輯」放棄變更。"
                 : formExpanded
-                  ? "可貼上 Yahoo / Yahoo 奇摩 / Yahoo 日本 (finance.yahoo.co.jp) / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片、YouTube、Bilibili，並可設為精選焦點。"
+                  ? "可貼上 Yahoo / Yahoo 奇摩 / Yahoo 日本 (finance.yahoo.co.jp) / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片、YouTube、Bilibili、自訂網址（如 PTT 股板），並可設為精選焦點。"
                   : "點擊展開以新增指數或股票；已新增的標的仍顯示於下方。"}
             </p>
           </div>
@@ -2580,6 +2580,23 @@ function FengbroFinanceSection({
               className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             />
           </label>
+          <label className="space-y-1.5 text-sm sm:col-span-2 lg:col-span-3">
+            <span className="font-medium text-foreground">自訂網址（可選）</span>
+            <textarea
+              value={customDraft.relatedLinksText || ""}
+              onChange={(event) =>
+                onCustomDraftChange({ ...customDraft, relatedLinksText: event.target.value })
+              }
+              rows={3}
+              placeholder={
+                "每行一個網址，顯示在報價卡片外部連結\nhttps://www.ptt.cc/bbs/stock/index.html\nPTT 股板|https://www.ptt.cc/bbs/stock/index.html"
+              }
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            />
+            <span className="block text-[11px] text-muted-foreground">
+              最多 9 個。可只貼網址（自動命名，如 PTT 股板），或用「標籤|網址」自訂顯示名稱。
+            </span>
+          </label>
           <label className="flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2 text-sm sm:col-span-2 lg:col-span-3">
             <input
               type="checkbox"
@@ -2612,6 +2629,7 @@ function FengbroFinanceSection({
             (customDraft.imageUrlsText || "").trim() ? "圖片" : "",
             (customDraft.youtubeUrl || "").trim() ? "YouTube" : "",
             (customDraft.bilibiliUrl || "").trim() ? "Bilibili" : "",
+            (customDraft.relatedLinksText || "").trim() ? "自訂網址" : "",
             customDraft.featured ? "精選焦點" : "",
           ].filter(Boolean);
           return (
@@ -2638,6 +2656,7 @@ function FengbroFinanceSection({
             const isFeatured = featuredQuoteIdSet.has(quoteId) || Boolean(instrument.featured);
             const isActiveEdit = editingCustomKey === key;
             const hasImage = Boolean(instrument.imageUrl || instrument.imageUrls?.length);
+            const hasRelatedLinks = Boolean(instrument.relatedLinks?.length);
             return (
               <span
                 key={key}
@@ -2674,6 +2693,14 @@ function FengbroFinanceSection({
                 {instrument.bilibiliUrl ? (
                   <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
                     B站
+                  </span>
+                ) : null}
+                {hasRelatedLinks ? (
+                  <span
+                    className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                    title={instrument.relatedLinks?.map((link) => link.label).join("、")}
+                  >
+                    連{instrument.relatedLinks!.length > 1 ? instrument.relatedLinks!.length : ""}
                   </span>
                 ) : null}
                 <button
