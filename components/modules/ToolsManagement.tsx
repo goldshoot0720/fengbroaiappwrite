@@ -1466,76 +1466,6 @@ function PriceTrendChart({
   );
 }
 
-function LandtopPriceChart({ products }: { products: LandtopProduct[] }) {
-  const chartProducts = products.filter((product) => product.landtopPrice || product.jyesPrice).slice(0, 8);
-  const maxPrice = Math.max(
-    1,
-    ...chartProducts.flatMap((product) => [product.landtopPrice || 0, product.jyesPrice || 0])
-  );
-
-  if (chartProducts.length === 0) {
-    return (
-      <div className="rounded-[28px] border border-dashed border-sky-200 bg-sky-50/50 px-5 py-10 text-center text-sm text-muted-foreground">
-        目前查無可比較的價格資料。
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.95),rgba(255,255,255,0.98))] p-5 shadow-[0_24px_80px_rgba(14,116,144,0.08)]">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Landtop Chart</p>
-          <h4 className="mt-1 text-lg font-semibold text-foreground">地標網通 vs 傑昇通信</h4>
-        </div>
-        <BarChart3 className="text-sky-600" size={22} />
-      </div>
-
-      <div className="space-y-4">
-        {chartProducts.map((product) => {
-          const landtopWidth = `${Math.max(4, ((product.landtopPrice || 0) / maxPrice) * 100)}%`;
-          const jyesWidth = `${Math.max(4, ((product.jyesPrice || 0) / maxPrice) * 100)}%`;
-
-          return (
-            <div key={product.id} className="grid gap-2 md:grid-cols-[220px_1fr] md:items-center">
-              <div>
-                <p className="line-clamp-1 text-sm font-semibold text-foreground">{product.name}</p>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{product.brand}</p>
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="w-16 text-xs text-sky-700">地標</span>
-                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-sky-100">
-                    <div
-                      className="h-full rounded-full bg-sky-500"
-                      style={{ width: product.landtopPrice ? landtopWidth : "4%" }}
-                    />
-                  </div>
-                  <span className="w-24 text-right text-xs font-medium text-sky-700">
-                    {product.landtopPrice ? formatCurrency(product.landtopPrice) : "最低價"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-16 text-xs text-violet-700">傑昇</span>
-                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-violet-100">
-                    <div
-                      className="h-full rounded-full bg-violet-500"
-                      style={{ width: product.jyesPrice ? jyesWidth : "4%" }}
-                    />
-                  </div>
-                  <span className="w-24 text-right text-xs font-medium text-violet-700">
-                    {product.jyesPrice ? formatCurrency(product.jyesPrice) : "--"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function LandtopHistoryChart({
   histories,
   historyAvailable,
@@ -4797,8 +4727,6 @@ export default function ToolsManagement({
 
           {!landtopError && landtopResult && (
             <>
-              <LandtopPriceChart products={landtopResult.products} />
-
               <div className="space-y-3">
                 <LandtopProductSection
                   title="蘋果手機區塊"
