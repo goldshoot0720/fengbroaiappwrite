@@ -149,6 +149,8 @@ export function migrateFinanceGroup(group: unknown): FinanceCustomGroup {
   return LEGACY_FINANCE_GROUP_MAP[key] ?? "other";
 }
 
+export type FinanceMarketHint = "tw" | "jp";
+
 export type ParsedFinanceQuoteInput = {
   symbol: string;
   provider: FinanceCustomProvider;
@@ -157,15 +159,18 @@ export type ParsedFinanceQuoteInput = {
   sourceUrl?: string;
   /**
    * Host-based market hint when the URL itself implies a market
-   * (e.g. tw.stock.yahoo.com → Taiwan Yahoo 奇摩股市).
+   * (e.g. tw.stock.yahoo.com → Taiwan Yahoo 奇摩股市,
+   *  finance.yahoo.co.jp → Yahoo 日本ファイナンス).
    */
-  marketHint?: "tw";
+  marketHint?: FinanceMarketHint;
 };
 
 const BARE_SYMBOL_RE = /^[A-Z0-9.^@=_\-+%]{1,32}$/i;
 
 /** Yahoo 奇摩股市 (Taiwan Yahoo Finance) host. */
 const TAIWAN_YAHOO_STOCK_HOST = "tw.stock.yahoo.com";
+/** Yahoo!ファイナンス (Japan Yahoo Finance) host. */
+const JAPAN_YAHOO_FINANCE_HOST = "finance.yahoo.co.jp";
 
 function ensureHttps(input: string) {
   return /^https?:\/\//i.test(input) ? input : `https://${input}`;
@@ -196,12 +201,25 @@ export function isTaiwanYahooStockSource(input?: string | null): boolean {
   return /(^|\.)tw\.stock\.yahoo\.com$/i.test(host) || /tw\.stock\.yahoo\.com/i.test(input);
 }
 
+/**
+ * True when the URL/host is Yahoo!ファイナンス Japan (finance.yahoo.co.jp).
+ * Used for 日股來源自動辨識.
+ */
+export function isJapanYahooFinanceSource(input?: string | null): boolean {
+  if (!input) return false;
+  const host = hostnameFromInput(input);
+  if (host === JAPAN_YAHOO_FINANCE_HOST) return true;
+  return /(^|\.)finance\.yahoo\.co\.jp$/i.test(host) || /finance\.yahoo\.co\.jp/i.test(input);
+}
+
 /** True if the string looks like a finance quote page URL (not a bare ticker). */
 export function isFinanceQuoteUrl(input: string) {
   const trimmed = input.trim();
   if (!trimmed) return false;
   if (/^https?:\/\//i.test(trimmed)) return true;
-  return /^(www\.)?(cnbc\.com|finance\.yahoo\.com|tw\.stock\.yahoo\.com)\b/i.test(trimmed);
+  return /^(www\.)?(cnbc\.com|finance\.yahoo\.com|finance\.yahoo\.co\.jp|tw\.stock\.yahoo\.com)\b/i.test(
+    trimmed
+  );
 }
 
 function extractYahooSymbol(pathname: string) {
@@ -245,9 +263,11 @@ export function parseFinanceQuoteInput(input: string): ParsedFinanceQuoteInput |
       const host = url.hostname.replace(/^www\./i, "").toLowerCase();
 
       const isTaiwanYahoo = host === TAIWAN_YAHOO_STOCK_HOST;
+      const isJapanYahoo = host === JAPAN_YAHOO_FINANCE_HOST || host.endsWith(".yahoo.co.jp");
       const isYahoo =
         host === "finance.yahoo.com" ||
         isTaiwanYahoo ||
+        isJapanYahoo ||
         (host.endsWith(".yahoo.com") && /\/quote\//i.test(url.pathname));
       if (isYahoo) {
         const symbol = extractYahooSymbol(url.pathname);
@@ -257,8 +277,12 @@ export function parseFinanceQuoteInput(input: string): ParsedFinanceQuoteInput |
           provider: "yahoo",
           fromUrl: true,
           sourceUrl: url.toString(),
-          // Yahoo 奇摩股市 → 台股來源自動辨識
-          ...(isTaiwanYahoo ? { marketHint: "tw" as const } : {}),
+          // Yahoo 奇摩股市 → 台股；Yahoo 日本 → 日股
+          ...(isTaiwanYahoo
+            ? { marketHint: "tw" as const }
+            : isJapanYahoo
+              ? { marketHint: "jp" as const }
+              : {}),
         };
       }
 
@@ -300,10 +324,10 @@ export function getCustomFinanceInstrumentKey(
 }
 
 export type GuessFinanceGroupOptions = {
-  /** Quote page URL; tw.stock.yahoo.com forces Taiwan market groups. */
+  /** Quote page URL; tw.stock.yahoo.com / finance.yahoo.co.jp force regional groups. */
   sourceUrl?: string;
-  /** From parseFinanceQuoteInput when host is Yahoo 奇摩股市. */
-  marketHint?: "tw";
+  /** From parseFinanceQuoteInput when host is a regional Yahoo Finance site. */
+  marketHint?: FinanceMarketHint;
 };
 
 /**
@@ -311,6 +335,7 @@ export type GuessFinanceGroupOptions = {
  * (user can still override in the form).
  *
  * Taiwan Yahoo 奇摩股市 (`tw.stock.yahoo.com`) → 台灣.
+ * Yahoo Japan (`finance.yahoo.co.jp`) → 日本.
  */
 export function guessFinanceGroup(
   symbol: string,
@@ -319,9 +344,13 @@ export function guessFinanceGroup(
   const s = symbol.trim().toUpperCase();
   const fromTaiwanYahoo =
     options?.marketHint === "tw" || isTaiwanYahooStockSource(options?.sourceUrl);
+  const fromJapanYahoo =
+    options?.marketHint === "jp" || isJapanYahooFinanceSource(options?.sourceUrl);
 
   if (!s) {
-    return fromTaiwanYahoo ? "taiwan" : "us";
+    if (fromTaiwanYahoo) return "taiwan";
+    if (fromJapanYahoo) return "japan";
+    return "us";
   }
 
   // Korea
@@ -331,6 +360,7 @@ export function guessFinanceGroup(
   // Japan
   if (s === ".N225" || s === "^N225") return "japan";
   if (/\.T$/i.test(s)) return "japan";
+  if (fromJapanYahoo) return "japan";
 
   // Taiwan
   if (s === "^TWII" || s === ".TWII" || s === "^TWOII" || s === ".TWOII") return "taiwan";
@@ -351,10 +381,13 @@ export function guessFinanceGroup(
 export function getFinanceProviderDisplayName(input: {
   provider?: string;
   sourceUrl?: string;
-  marketHint?: "tw";
+  marketHint?: FinanceMarketHint;
 }): string {
   if (input.marketHint === "tw" || isTaiwanYahooStockSource(input.sourceUrl)) {
     return "Yahoo 奇摩";
+  }
+  if (input.marketHint === "jp" || isJapanYahooFinanceSource(input.sourceUrl)) {
+    return "Yahoo 日本";
   }
   if (input.provider === "yahoo") return "Yahoo";
   if (input.provider === "cnbc") return "CNBC";
@@ -362,12 +395,34 @@ export function getFinanceProviderDisplayName(input: {
 }
 
 export type YahooQuoteSourceUrlOptions = {
-  /** Custom instrument group (taiwan → 奇摩 for TW-listed). */
+  /** Custom instrument group (taiwan → 奇摩 for TW-listed; japan → yahoo.co.jp). */
   group?: string;
-  /** Original paste URL; tw.stock.yahoo.com forces 奇摩. */
+  /** Original paste URL; regional Yahoo hosts force regional quote pages. */
   sourceUrl?: string;
-  marketHint?: "tw";
+  marketHint?: FinanceMarketHint;
 };
+
+/**
+ * True when a Yahoo quote should open on finance.yahoo.co.jp (Japan)
+ * rather than global finance.yahoo.com.
+ */
+export function isJapanYahooQuoteTarget(
+  symbol: string,
+  options?: YahooQuoteSourceUrlOptions
+): boolean {
+  if (options?.marketHint === "jp" || isJapanYahooFinanceSource(options?.sourceUrl)) {
+    return true;
+  }
+  const s = symbol.trim().toUpperCase();
+  if (!s) return false;
+  if (options?.group === "japan") {
+    if (/\.T$/i.test(s) || s === ".N225" || s === "^N225") return true;
+  }
+  // Tokyo Stock Exchange common suffix
+  if (/\.T$/i.test(s)) return true;
+  if (s === ".N225" || s === "^N225") return true;
+  return false;
+}
 
 /**
  * True when a Yahoo quote should open on Yahoo 奇摩股市 (tw.stock.yahoo.com)
@@ -407,7 +462,7 @@ export function isTaiwanYahooQuoteTarget(
 
 /**
  * Public quote-page URL for a Yahoo symbol.
- * Taiwan stocks/indices stay on tw.stock.yahoo.com (not finance.yahoo.com).
+ * Taiwan → tw.stock.yahoo.com；Japan → finance.yahoo.co.jp；else global finance.yahoo.com.
  */
 export function buildYahooQuoteSourceUrl(
   symbol: string,
@@ -416,6 +471,9 @@ export function buildYahooQuoteSourceUrl(
   const encoded = encodeURIComponent(symbol.trim());
   if (isTaiwanYahooQuoteTarget(symbol, options)) {
     return `https://tw.stock.yahoo.com/quote/${encoded}`;
+  }
+  if (isJapanYahooQuoteTarget(symbol, options)) {
+    return `https://finance.yahoo.co.jp/quote/${encoded}`;
   }
   return `https://finance.yahoo.com/quote/${encoded}`;
 }

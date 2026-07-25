@@ -2402,7 +2402,7 @@ function FengbroFinanceSection({
           <p className="mt-1 text-xs text-muted-foreground">
             {isEditingCustom
               ? "修改代稱、代號／網址、來源、分類，以及圖片／YouTube／Bilibili 後按「儲存」。也可按「取消編輯」放棄變更。"
-              : "可貼上 Yahoo / Yahoo 奇摩股市 / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片網址、YouTube、Bilibili，會顯示在報價卡片。"}
+              : "可貼上 Yahoo / Yahoo 奇摩 / Yahoo 日本 (finance.yahoo.co.jp) / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片、YouTube、Bilibili，並可設為精選焦點。"}
           </p>
         </div>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
@@ -2453,7 +2453,7 @@ function FengbroFinanceSection({
               onKeyDown={(event) => {
                 if (event.key === "Enter") onSaveCustomInstrument();
               }}
-              placeholder="https://tw.stock.yahoo.com/quote/2412.TW 或 2330.TW"
+              placeholder="https://finance.yahoo.co.jp/quote/285A.T 或 2330.TW"
               className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             />
           </label>
