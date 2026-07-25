@@ -48,6 +48,13 @@ import {
   historiesToLandtopHistoryCsvRows,
   parseLandtopHistoryCsv,
 } from "@/lib/landtopHistoryCsv";
+import {
+  getAppleDefaultLandtopQuery,
+  getDefaultLandtopQuery,
+  getSamsungDefaultLandtopQuery,
+  isAutoAppleLandtopDefaultQuery,
+  isAutoSamsungLandtopDefaultQuery,
+} from "@/lib/landtopDefaults";
 import { getExportFilename } from "@/lib/utils";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
@@ -478,25 +485,23 @@ function hasCustomTubeAlias(alias: string) {
   );
 }
 
-function getSamsungDefaultLandtopQuery(date = new Date()) {
-  const samsungYear = date.getMonth() < 2 ? date.getFullYear() - 1 : date.getFullYear();
-  return `Samsung ${samsungYear.toString().slice(-2)}`;
-}
-
-function getAppleDefaultLandtopQuery(date = new Date()) {
-  const releaseYear = date.getMonth() >= 8 ? date.getFullYear() : date.getFullYear() - 1;
-  const modelNumber = releaseYear - 2008;
-  return `iPhone ${modelNumber}`;
-}
-
-function getDefaultLandtopQuery() {
-  return getSamsungDefaultLandtopQuery();
-}
-
 function normalizeSavedLandtopQuery(value: string) {
   const defaultQuery = getDefaultLandtopQuery();
   const legacyDefaultQuery = `Samsung S${new Date().getFullYear().toString().slice(-2)}`;
-  return value.trim() === legacyDefaultQuery ? defaultQuery : value;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === legacyDefaultQuery) return defaultQuery;
+  // 季節性自動預設（Samsung 26）隨日曆更新
+  if (isAutoSamsungLandtopDefaultQuery(trimmed)) return defaultQuery;
+  return trimmed;
+}
+
+function normalizeSavedAppleLandtopQuery(value: string) {
+  const defaultQuery = getAppleDefaultLandtopQuery();
+  const trimmed = value.trim();
+  if (!trimmed) return defaultQuery;
+  // 純「iPhone 17 / iPhone 18」視為自動預設，依 9 月／10 月規則刷新
+  if (isAutoAppleLandtopDefaultQuery(trimmed)) return defaultQuery;
+  return trimmed;
 }
 
 function formatCurrency(price: number | null) {
@@ -3714,7 +3719,8 @@ export default function ToolsManagement({
       const savedQuery = window.localStorage.getItem(LANDTOP_QUERY_KEY);
       if (savedQuery) setLandtopQuery(normalizeSavedLandtopQuery(savedQuery));
       const savedAppleQuery = window.localStorage.getItem(LANDTOP_APPLE_QUERY_KEY);
-      if (savedAppleQuery) setLandtopAppleQuery(normalizeSavedLandtopQuery(savedAppleQuery));
+      if (savedAppleQuery) setLandtopAppleQuery(normalizeSavedAppleLandtopQuery(savedAppleQuery));
+      else setLandtopAppleQuery(getAppleDefaultLandtopQuery());
       const savedSamsungQuery = window.localStorage.getItem(LANDTOP_SAMSUNG_QUERY_KEY);
       if (savedSamsungQuery) setLandtopSamsungQuery(normalizeSavedLandtopQuery(savedSamsungQuery));
 
