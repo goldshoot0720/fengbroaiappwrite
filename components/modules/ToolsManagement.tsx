@@ -1570,8 +1570,8 @@ function LandtopHistoryChart({
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Weekly History</p>
-          <h4 className="mt-1 text-lg font-semibold text-foreground">地標網通歷史價格</h4>
-          <p className="mt-1 text-sm text-muted-foreground">每 7 天記錄一次，目前保存地標網通的不同容量版本價格走勢。</p>
+          <h4 className="mt-1 text-lg font-semibold text-foreground">歷史價格</h4>
+          <p className="mt-1 text-sm text-muted-foreground">每 7 天記錄一次，顯示不同容量版本的價格走勢。</p>
         </div>
         <div className="grid grid-cols-2 gap-2 text-right text-xs sm:min-w-[220px]">
           <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
