@@ -25,6 +25,7 @@ import {
   Smartphone,
   Star,
   Wrench,
+  Youtube,
 } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -137,6 +138,11 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "image-voice-video", label: "圖片 + 語音 = 影片", icon: <Clapperboard size={18} /> },
       { id: "image-format-convert", label: "PNG / JPEG 轉換", icon: <Images size={18} /> },
       { id: "video-merge", label: "影片合併", icon: <Film size={18} /> },
+      {
+        id: "youtube-bilibili-convert",
+        label: "YT / B站轉 MP3/MP4",
+        icon: <Youtube size={18} />,
+      },
     ],
   },
   {
@@ -243,6 +249,13 @@ export default function DashboardPage() {
         );
       case "video-merge":
         return <ToolsManagement initialTab="video-merge" onNavigate={handleModuleChange} />;
+      case "youtube-bilibili-convert":
+        return (
+          <ToolsManagement
+            initialTab="youtube-bilibili-convert"
+            onNavigate={handleModuleChange}
+          />
+        );
       case "settings":
         return <SettingsManagement />;
       case "about":
