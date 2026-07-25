@@ -43,6 +43,11 @@ import {
   mergeFengbroTubeChannels,
   parseFengbroTubeCsv,
 } from "@/lib/fengbroTubeCsv";
+import {
+  buildLandtopHistoryCsv,
+  historiesToLandtopHistoryCsvRows,
+  parseLandtopHistoryCsv,
+} from "@/lib/landtopHistoryCsv";
 import { getExportFilename } from "@/lib/utils";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
@@ -1498,11 +1503,18 @@ function filterLandtopHistoryShells(histories: LandtopHistorySeries[]) {
 function LandtopHistoryChart({
   histories,
   historyAvailable,
+  onExportCsv,
+  onImportCsv,
+  csvBusy,
 }: {
   histories: LandtopHistorySeries[];
   historyAvailable?: boolean;
+  onExportCsv?: () => void;
+  onImportCsv?: (file: File) => void;
+  csvBusy?: boolean;
 }) {
   const palette = ["#0ea5e9", "#f97316", "#10b981", "#8b5cf6"];
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const chart = useMemo(() => {
     const series = filterLandtopHistoryShells(histories)
@@ -1557,10 +1569,57 @@ function LandtopHistoryChart({
     };
   }, [histories]);
 
+  const csvActions = (onExportCsv || onImportCsv) && (
+    <div className="flex flex-wrap items-center gap-2">
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file && onImportCsv) onImportCsv(file);
+          event.target.value = "";
+        }}
+      />
+      {onExportCsv && (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={csvBusy}
+          onClick={onExportCsv}
+          className="h-9 gap-2 rounded-xl border-sky-200 text-sky-800 hover:bg-sky-50"
+          title="匯出所有型號歷史價格 CSV"
+        >
+          <Download size={15} />
+          {csvBusy ? "處理中" : "輸出 CSV"}
+        </Button>
+      )}
+      {onImportCsv && (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={csvBusy}
+          onClick={() => csvInputRef.current?.click()}
+          className="h-9 gap-2 rounded-xl border-sky-200 text-sky-800 hover:bg-sky-50"
+          title="匯入歷史價格 CSV（合併寫入）"
+        >
+          <Upload size={15} />
+          輸入 CSV
+        </Button>
+      )}
+    </div>
+  );
+
   if (!chart) {
     return (
-      <div className="rounded-[28px] border border-dashed border-sky-200 bg-sky-50/50 px-5 py-10 text-center text-sm text-muted-foreground">
-        {historyAvailable ? "目前還沒有每 7 天價格歷史，重新抓取或等待排程累積資料。" : "尚未設定歷史價格儲存。"}
+      <div className="rounded-[28px] border border-dashed border-sky-200 bg-sky-50/50 px-5 py-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          {historyAvailable
+            ? "目前還沒有每 7 天價格歷史，重新抓取或等待排程累積資料。"
+            : "尚未設定歷史價格儲存。"}
+        </p>
+        {csvActions ? <div className="mt-4 flex justify-center">{csvActions}</div> : null}
       </div>
     );
   }
@@ -1571,16 +1630,21 @@ function LandtopHistoryChart({
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Weekly History</p>
           <h4 className="mt-1 text-lg font-semibold text-foreground">歷史價格</h4>
-          <p className="mt-1 text-sm text-muted-foreground">每 7 天記錄一次，顯示不同容量版本的價格走勢。</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            每 7 天記錄一次，顯示不同容量版本的價格走勢。可輸出／輸入所有型號 CSV。
+          </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-right text-xs sm:min-w-[220px]">
-          <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
-            <p className="text-muted-foreground">歷史最低</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{formatCurrency(chart.minPrice)}</p>
-          </div>
-          <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
-            <p className="text-muted-foreground">歷史最高</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{formatCurrency(chart.maxPrice)}</p>
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          {csvActions}
+          <div className="grid grid-cols-2 gap-2 text-right text-xs sm:min-w-[220px]">
+            <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
+              <p className="text-muted-foreground">歷史最低</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{formatCurrency(chart.minPrice)}</p>
+            </div>
+            <div className="rounded-2xl bg-white/80 px-3 py-2 shadow-sm">
+              <p className="text-muted-foreground">歷史最高</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{formatCurrency(chart.maxPrice)}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -3749,6 +3813,8 @@ export default function ToolsManagement({
     persistRecentLinks([{ url, title, updatedAt: now }, ...existing].slice(0, 12));
   };
 
+  const [landtopHistoryCsvBusy, setLandtopHistoryCsvBusy] = useState(false);
+
   const loadLandtop = useCallback(
     async (refresh = false, overrideQuery?: string) => {
       const query = (overrideQuery ?? landtopQuery).trim();
@@ -3780,6 +3846,124 @@ export default function ToolsManagement({
       void loadLandtop(refresh, query);
     },
     [loadLandtop]
+  );
+
+  const handleExportLandtopHistoryCsv = useCallback(async () => {
+    setLandtopHistoryCsvBusy(true);
+    setLandtopError("");
+    try {
+      // Prefer all models from Appwrite; fall back to current query histories
+      let rows = historiesToLandtopHistoryCsvRows(landtopResult?.histories || []);
+      try {
+        const response = await fetch("/api/landtop/history", { cache: "no-store" });
+        const data = (await response.json()) as {
+          rows?: Array<{
+            productId: string;
+            brand: string;
+            name: string;
+            sourceUrl?: string;
+            landtopPrice?: number | null;
+            suggestedPrice?: number | null;
+            snapshotDate: string;
+          }>;
+          error?: string;
+          available?: boolean;
+        };
+        if (response.ok && Array.isArray(data.rows) && data.rows.length > 0) {
+          rows = data.rows;
+        } else if (!response.ok && data.error && rows.length === 0) {
+          throw new Error(data.error);
+        }
+      } catch (err) {
+        if (rows.length === 0) throw err;
+      }
+
+      if (rows.length === 0) {
+        setLandtopError("目前沒有可輸出的歷史價格資料");
+        return;
+      }
+
+      const csv = buildLandtopHistoryCsv(rows);
+      const BOM = "\uFEFF";
+      const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("landtop-history");
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      setLandtopError(error instanceof Error ? error.message : "輸出歷史價格 CSV 失敗");
+    } finally {
+      setLandtopHistoryCsvBusy(false);
+    }
+  }, [landtopResult?.histories]);
+
+  const handleImportLandtopHistoryCsv = useCallback(
+    (file: File) => {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setLandtopError("請選擇 .csv 檔案");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        setLandtopHistoryCsvBusy(true);
+        setLandtopError("");
+        try {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          const { data, errors } = parseLandtopHistoryCsv(text);
+
+          if (data.length === 0) {
+            setLandtopError(
+              errors.length > 0
+                ? `CSV 匯入失敗：${errors.slice(0, 5).join("；")}`
+                : "CSV 沒有可匯入的歷史價格"
+            );
+            return;
+          }
+
+          const ok = window.confirm(
+            `將合併匯入 ${data.length} 筆歷史價格（相同型號＋日期會覆蓋）。\n` +
+              (errors.length > 0 ? `警告 ${errors.length} 則（部分列可能略過）。\n` : "") +
+              `\n確定匯入？`
+          );
+          if (!ok) return;
+
+          const response = await fetch("/api/landtop/history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rows: data }),
+          });
+          const result = (await response.json()) as {
+            error?: string;
+            imported?: number;
+            created?: number;
+            updated?: number;
+            warning?: string;
+          };
+          if (!response.ok) {
+            throw new Error(result.error || "歷史價格匯入失敗");
+          }
+
+          const warn =
+            result.warning || (errors.length > 0 ? errors.slice(0, 3).join("；") : "");
+          window.alert(
+            `匯入完成！\n寫入 ${result.imported ?? 0} 筆（新增 ${result.created ?? 0}／更新 ${result.updated ?? 0}）` +
+              (warn ? `\n注意：${warn}` : "")
+          );
+
+          // Refresh current query so chart picks up new points
+          await loadLandtop(true, landtopQuery);
+        } catch (error) {
+          setLandtopError(error instanceof Error ? error.message : "輸入歷史價格 CSV 失敗");
+        } finally {
+          setLandtopHistoryCsvBusy(false);
+        }
+      };
+      reader.onerror = () => setLandtopError("讀取 CSV 檔案失敗");
+      reader.readAsText(file, "UTF-8");
+    },
+    [landtopQuery, loadLandtop]
   );
 
   useEffect(() => {
@@ -4776,6 +4960,9 @@ export default function ToolsManagement({
               <LandtopHistoryChart
                 histories={landtopResult.histories || []}
                 historyAvailable={landtopResult.historyAvailable}
+                onExportCsv={() => void handleExportLandtopHistoryCsv()}
+                onImportCsv={handleImportLandtopHistoryCsv}
+                csvBusy={landtopHistoryCsvBusy}
               />
             </>
           )}

@@ -178,6 +178,177 @@ export async function persistLandtopSnapshots({ searchParams, products, snapshot
   }
 }
 
+/**
+ * Load every history snapshot (all models) from Appwrite.
+ * Returns flat rows + grouped series for CSV / charts.
+ */
+export async function loadAllLandtopHistories({ searchParams } = {}) {
+  const appwrite = createAppwrite(searchParams);
+  if (!appwrite) {
+    return { available: false, rows: [], histories: [] };
+  }
+
+  try {
+    const { databases, databaseId } = appwrite;
+    const collection = await getCollection(databases, databaseId);
+    if (!collection) {
+      return { available: true, rows: [], histories: [] };
+    }
+
+    const documents = await listAllDocuments(databases, databaseId, collection.$id, sdk, [
+      sdk.Query.orderAsc("snapshotDate"),
+    ]);
+
+    const rows = [];
+    const grouped = new Map();
+
+    for (const document of documents) {
+      const productId = document.productId || "";
+      const name = document.name || productId;
+      const brand = document.brand || "";
+      const sourceUrl = document.sourceUrl || "";
+      const landtopPrice =
+        typeof document.landtopPrice === "number" ? document.landtopPrice : null;
+      const suggestedPrice =
+        typeof document.suggestedPrice === "number" ? document.suggestedPrice : null;
+      const snapshotDate = document.snapshotDate || "";
+
+      if (!productId || !snapshotDate) continue;
+
+      rows.push({
+        productId,
+        brand,
+        name,
+        sourceUrl: sourceUrl || undefined,
+        landtopPrice,
+        suggestedPrice,
+        snapshotDate,
+      });
+
+      if (!grouped.has(productId)) {
+        grouped.set(productId, {
+          id: productId,
+          brand,
+          name,
+          sourceUrl: sourceUrl || undefined,
+          points: [],
+        });
+      }
+      grouped.get(productId).points.push({
+        date: snapshotDate,
+        landtopPrice,
+        suggestedPrice,
+      });
+    }
+
+    const histories = dropShellProductsWhenVariantsExist(Array.from(grouped.values()));
+    const keepIds = new Set(histories.map((h) => h.id));
+    const filteredRows = rows.filter((r) => keepIds.has(r.productId));
+
+    return {
+      available: true,
+      rows: filteredRows,
+      histories,
+      total: filteredRows.length,
+    };
+  } catch (error) {
+    return {
+      available: true,
+      rows: [],
+      histories: [],
+      error: error instanceof Error ? error.message : "Failed to load all Landtop history",
+    };
+  }
+}
+
+/**
+ * Upsert history rows from CSV import (merge by snapshotKey day::productId).
+ */
+export async function importLandtopHistoryRows({ searchParams, rows }) {
+  const appwrite = createAppwrite(searchParams);
+  const list = Array.isArray(rows) ? rows : [];
+  if (!appwrite) {
+    return { available: false, imported: 0, created: 0, updated: 0, error: "Appwrite 未設定" };
+  }
+  if (!list.length) {
+    return { available: true, imported: 0, created: 0, updated: 0 };
+  }
+
+  try {
+    const { databases, databaseId } = appwrite;
+    const collectionId = await ensureCollection(databases, databaseId);
+    let created = 0;
+    let updated = 0;
+
+    for (const row of list.slice(0, 5000)) {
+      const productId = String(row.productId || "").trim();
+      const name = String(row.name || "").trim();
+      const brand = String(row.brand || "phone").trim().toLowerCase() || "phone";
+      const snapshotDateRaw = String(row.snapshotDate || "").trim();
+      if (!productId || !snapshotDateRaw) continue;
+
+      const snapshotAt = new Date(snapshotDateRaw);
+      if (Number.isNaN(snapshotAt.getTime())) continue;
+
+      const snapshotDate = snapshotAt.toISOString();
+      const snapshotDay = toSnapshotDay(snapshotAt);
+      const landtopPrice =
+        typeof row.landtopPrice === "number" && Number.isFinite(row.landtopPrice)
+          ? Math.round(row.landtopPrice)
+          : undefined;
+      const suggestedPrice =
+        typeof row.suggestedPrice === "number" && Number.isFinite(row.suggestedPrice)
+          ? Math.round(row.suggestedPrice)
+          : undefined;
+
+      const payload = {
+        source: "landtop",
+        snapshotKey: `${snapshotDay}::${productId}`,
+        productId,
+        brand,
+        name: name || productId,
+        sourceUrl: row.sourceUrl || undefined,
+        landtopPrice,
+        suggestedPrice,
+        snapshotDate,
+      };
+
+      // url attribute rejects empty string
+      if (!payload.sourceUrl) delete payload.sourceUrl;
+      if (payload.landtopPrice == null) delete payload.landtopPrice;
+      if (payload.suggestedPrice == null) delete payload.suggestedPrice;
+
+      const existing = await databases.listDocuments(databaseId, collectionId, [
+        sdk.Query.equal("snapshotKey", [payload.snapshotKey]),
+        sdk.Query.limit(1),
+      ]);
+
+      if (existing.documents.length > 0) {
+        await databases.updateDocument(databaseId, collectionId, existing.documents[0].$id, payload);
+        updated += 1;
+      } else {
+        await databases.createDocument(databaseId, collectionId, sdk.ID.unique(), payload);
+        created += 1;
+      }
+    }
+
+    return {
+      available: true,
+      imported: created + updated,
+      created,
+      updated,
+    };
+  } catch (error) {
+    return {
+      available: true,
+      imported: 0,
+      created: 0,
+      updated: 0,
+      error: error instanceof Error ? error.message : "Failed to import Landtop history",
+    };
+  }
+}
+
 export async function loadLandtopHistories({ searchParams, products }) {
   const appwrite = createAppwrite(searchParams);
   // History series only for capacity SKUs when shells would duplicate (e.g. bare Samsung A17)
