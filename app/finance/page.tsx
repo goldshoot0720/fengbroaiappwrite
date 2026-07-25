@@ -211,7 +211,6 @@ export default function FinancePage() {
         defaults: JSON.stringify([
           'kospi',
           'tsmc',
-          'tsm',
         ]),
         skipHistory: '1',
       });
@@ -368,15 +367,6 @@ export default function FinancePage() {
 
   const kospi = getQuote('kospi');
   const tsmc = getQuote('tsmc');
-  const tsm = getQuote('tsm');
-
-  const sessionLabel = (quote?: FinanceQuote | null) => {
-    if (quote?.marketSession === 'pre') return '盤前 Pre-Market';
-    if (quote?.marketSession === 'post') return '盤後 After-Hours';
-    if (quote?.marketSession === 'regular') return '盤中';
-    if (quote?.marketSession === 'closed' || quote?.marketState === 'CLOSED') return '收盤';
-    return '';
-  };
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -667,142 +657,6 @@ export default function FinancePage() {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* 台積電 ADR (TSM) */}
-      <section className="min-w-0">
-        <Card className="h-full bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30 border-teal-200 dark:border-teal-800">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <CardTitle className="text-xl flex flex-wrap items-center gap-2">
-                  <Activity className="w-5 h-5 shrink-0 text-teal-600" />
-                  台積電 ADR
-                  {sessionLabel(tsm) && (
-                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                      {sessionLabel(tsm)}
-                    </span>
-                  )}
-                </CardTitle>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  NYSE: TSM • 含 Pre / After Market
-                </p>
-              </div>
-              {tsm?.sourceUrl && (
-                <a
-                  href={tsm.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-teal-600 hover:text-teal-700 dark:text-teal-400"
-                  title="Investing.com"
-                >
-                  <ExternalLink className="w-5 h-5" />
-                </a>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {tsm?.error ? (
-              <div className="text-red-600 dark:text-red-400">
-                載入失敗: {tsm.error}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* 最新價 / 盤前價 分開顯示（最新價=正規盤最新，不是一年歷史價） */}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-teal-200 bg-white/70 px-4 py-4 dark:border-teal-800 dark:bg-teal-950/20">
-                    <div className="text-sm font-semibold text-teal-800 dark:text-teal-300">最新價</div>
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <div className="text-3xl font-bold tabular-nums text-teal-600 dark:text-teal-400">
-                        {formatNumber(tsm?.price, 2)}
-                      </div>
-                      {tsm?.currency && (
-                        <div className="text-sm text-gray-500">{tsm.currency}</div>
-                      )}
-                    </div>
-                    {(tsm?.change !== null || tsm?.changePercent !== null) && (
-                      <div className={`mt-2 flex flex-wrap items-center gap-1.5 text-sm font-semibold ${
-                        isPositive(tsm?.change)
-                          ? 'text-green-600 dark:text-green-400'
-                          : isNegative(tsm?.change)
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-gray-600 dark:text-gray-400'
-                      }`}>
-                        {isPositive(tsm?.change) ? (
-                          <TrendingUp className="w-4 h-4" />
-                        ) : isNegative(tsm?.change) ? (
-                          <TrendingDown className="w-4 h-4" />
-                        ) : null}
-                        <span>{formatChange(tsm?.change ?? null, tsm?.changePercent ?? null)}</span>
-                        {isBearMarketFrom52WHigh(tsm?.price, tsm?.high52) && bearMarketBadge}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 dark:border-amber-800 dark:bg-amber-950/30">
-                    <div className="text-sm font-semibold text-amber-800 dark:text-amber-300">盤前價 Pre-Market</div>
-                    {tsm?.preMarketPrice != null ? (
-                      <>
-                        <div className="mt-1 flex items-baseline gap-2">
-                          <div className="text-3xl font-bold tabular-nums text-amber-900 dark:text-amber-100">
-                            {formatNumber(tsm.preMarketPrice, 2)}
-                          </div>
-                          {tsm?.currency && (
-                            <div className="text-sm text-amber-700/80 dark:text-amber-300/80">{tsm.currency}</div>
-                          )}
-                        </div>
-                        {(tsm.preMarketChange != null || tsm.preMarketChangePercent != null) && (
-                          <div className={`mt-2 flex items-center gap-1.5 text-sm font-semibold ${
-                            isPositive(tsm.preMarketChange)
-                              ? 'text-green-600 dark:text-green-400'
-                              : isNegative(tsm.preMarketChange)
-                              ? 'text-red-600 dark:text-red-400'
-                              : 'text-amber-800 dark:text-amber-300'
-                          }`}>
-                            {isPositive(tsm.preMarketChange) ? (
-                              <TrendingUp className="w-4 h-4" />
-                            ) : isNegative(tsm.preMarketChange) ? (
-                              <TrendingDown className="w-4 h-4" />
-                            ) : null}
-                            <span>{formatChange(tsm.preMarketChange ?? null, tsm.preMarketChangePercent ?? null)}</span>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="mt-3 text-sm text-amber-800/70 dark:text-amber-300/70">目前無盤前報價</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-teal-200 dark:border-teal-800">
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      {formatNumber(tsm?.high52)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      {formatNumber(tsm?.low52)}
-                    </div>
-                  </div>
-                </div>
-
-                {tsm?.sourceUrl && (
-                  <a
-                    href={tsm.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-700 hover:underline dark:text-teal-300"
-                  >
-                    Investing.com 報價頁 <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
               </div>
             )}
           </CardContent>
