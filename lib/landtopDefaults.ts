@@ -7,8 +7,8 @@
  * 型號數字 = 上市年 − modelYearOffset（2025→17、2026→18）
  *
  * ── 三星旗艦 ─────────────────────────────────────────────
- * - 每年 switchMonth/switchDay **之前** → 上一世代（例：2026/3/31 前 → Samsung Galaxy S25）
- * - **當天起** → 新世代（例：2026/4/1 起 → Samsung Galaxy S26）
+ * - 每年 switchMonth/switchDay **之前** → 上一世代（例：2026/3/31 前 → Samsung S25）
+ * - **當天起** → 新世代（例：2026/4/1 起 → Samsung S26）
  * 型號數字 = 上市年 − modelYearOffset（2025→25、2026→26）
  */
 
@@ -31,8 +31,8 @@ export type AppleLandtopDefaultConfig = {
 };
 
 /**
- * 三星 Galaxy S 旗艦預設切換規則（改這裡即可調整）
- * 三月底前 S25、四月初起 S26。
+ * 三星 S 旗艦預設切換規則（改這裡即可調整）
+ * 三月底前 Samsung S25、四月初起 Samsung S26。
  */
 export const SAMSUNG_LANDTOP_DEFAULT_CONFIG = {
   /** 切換月份（1–12）。4 = 四月初開始用新機。 */
@@ -41,14 +41,14 @@ export const SAMSUNG_LANDTOP_DEFAULT_CONFIG = {
   switchDay: 1,
   /**
    * 型號 = 上市年 − modelYearOffset
-   * 例：2025 − 2000 = 25 →「Samsung Galaxy S25」
+   * 例：2025 − 2000 = 25 →「Samsung S25」
    */
   modelYearOffset: 2000,
   /**
    * 顯示前綴（不含型號數字）
-   * 例：「Samsung Galaxy S」+ 26 →「Samsung Galaxy S26」
+   * 例：「Samsung S」+ 26 →「Samsung S26」
    */
-  namePrefix: "Samsung Galaxy S",
+  namePrefix: "Samsung S",
 } as const;
 
 export type SamsungLandtopDefaultConfig = {
@@ -77,14 +77,14 @@ export function isAutoAppleLandtopDefaultQuery(value: string): boolean {
 }
 
 /**
- * 三星自動預設：Samsung Galaxy S25 / Samsung S25 / Samsung 25 等
- * （含舊版「Samsung 26」短寫法）
+ * 三星自動預設：Samsung S25 / Samsung Galaxy S25 / Samsung 25 等
+ * （含舊版「Samsung 26」「Samsung Galaxy S26」寫法，便於季節刷新）
  */
 export function isAutoSamsungLandtopDefaultQuery(value: string): boolean {
   const v = value.trim();
   return (
-    /^samsung\s+galaxy\s+s\d{2}$/i.test(v) ||
     /^samsung\s+s\d{2}$/i.test(v) ||
+    /^samsung\s+galaxy\s+s\d{2}$/i.test(v) ||
     /^samsung\s+\d{2}$/i.test(v)
   );
 }
@@ -106,7 +106,7 @@ export function getAppleDefaultLandtopQuery(
 
 /**
  * 三星預設搜尋關鍵字。
- * 三月底前 Samsung Galaxy S25、四月初起 Samsung Galaxy S26
+ * 三月底前 Samsung S25、四月初起 Samsung S26
  * （依 SAMSUNG_LANDTOP_DEFAULT_CONFIG）。
  */
 export function getSamsungDefaultLandtopQuery(
@@ -117,8 +117,8 @@ export function getSamsungDefaultLandtopQuery(
   const useNewCycle = isOnOrAfterSwitch(date, config.switchMonth, config.switchDay);
   const cycleYear = useNewCycle ? year : year - 1;
   const modelNumber = Math.max(1, cycleYear - config.modelYearOffset);
-  const prefix = (config.namePrefix || "Samsung Galaxy S").trimEnd();
-  // 前綴若已以 S 結尾則直接接數字（Galaxy S + 26）；否則加空格
+  const prefix = (config.namePrefix || "Samsung S").trimEnd();
+  // 前綴若已以 S 結尾則直接接數字（Samsung S + 26）；否則加空格
   if (/s$/i.test(prefix)) return `${prefix}${modelNumber}`;
   return `${prefix} ${modelNumber}`;
 }

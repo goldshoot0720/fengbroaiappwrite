@@ -488,13 +488,14 @@ function hasCustomTubeAlias(alias: string) {
 function normalizeSavedLandtopQuery(value: string) {
   const defaultQuery = getDefaultLandtopQuery();
   const year2 = new Date().getFullYear().toString().slice(-2);
+  const prev2 = String(Number(year2) - 1).padStart(2, "0");
   const legacyDefaults = [
     `Samsung S${year2}`,
     `Samsung ${year2}`,
     `Samsung Galaxy S${year2}`,
-    // previous year short forms also count as seasonal auto
-    `Samsung S${String(Number(year2) - 1).padStart(2, "0")}`,
-    `Samsung ${String(Number(year2) - 1).padStart(2, "0")}`,
+    `Samsung S${prev2}`,
+    `Samsung ${prev2}`,
+    `Samsung Galaxy S${prev2}`,
   ];
   const trimmed = value.trim();
   if (!trimmed || legacyDefaults.some((q) => q.toLowerCase() === trimmed.toLowerCase())) {
