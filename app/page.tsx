@@ -18,6 +18,7 @@ import {
   Podcast,
   Landmark,
   Clapperboard,
+  Film,
   Images,
   Newspaper,
   Settings,
@@ -135,6 +136,7 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "landtop", label: "手機比價", icon: <Smartphone size={18} /> },
       { id: "image-voice-video", label: "圖片 + 語音 = 影片", icon: <Clapperboard size={18} /> },
       { id: "image-format-convert", label: "PNG / JPG 轉換", icon: <Images size={18} /> },
+      { id: "video-merge", label: "影片合併", icon: <Film size={18} /> },
     ],
   },
   {
@@ -239,6 +241,8 @@ export default function DashboardPage() {
         return (
           <ToolsManagement initialTab="image-format-convert" onNavigate={handleModuleChange} />
         );
+      case "video-merge":
+        return <ToolsManagement initialTab="video-merge" onNavigate={handleModuleChange} />;
       case "settings":
         return <SettingsManagement />;
       case "about":
