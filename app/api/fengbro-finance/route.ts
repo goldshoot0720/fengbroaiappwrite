@@ -87,23 +87,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
       { label: "證交所", url: "https://www.twse.com.tw/" },
     ],
   },
-  {
-    id: "otc",
-    name: "上櫃指數",
-    // Yahoo ^TWOII feed is stale (~2024); live quote uses TWSE MIS otc_o00.tw.
-    symbol: "otc_o00.tw",
-    sourceUrl: "https://www.tpex.org.tw/",
-    group: "taiwan",
-    provider: "mis",
-    alertThreshold: 666,
-    localLabel: "櫃買指數 · 週一至五 09:00–13:30",
-    relatedLinks: [
-      { label: "盤中閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E4%B8%AD%E9%96%92%E8%81%8A" },
-      { label: "盤後閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E5%BE%8C%E9%96%92%E8%81%8A" },
-      { label: "櫃買中心", url: "https://www.tpex.org.tw/" },
-      { label: "MIS 即時", url: "https://mis.twse.com.tw/stock/index?lang=zhHant" },
-    ],
-  },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "taiwan", provider: "yahoo", alertThreshold: 3333, imageUrl: "/finance/tsmc-featured.jpg" },
   {
     id: "tsm",

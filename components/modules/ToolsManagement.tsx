@@ -205,7 +205,6 @@ function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "so
   if (source.includes("multpl.com") || quote.provider === "multpl") return "Multpl";
   if (
     quote.provider === "mis" ||
-    quote.id === "otc" ||
     source.includes("tpex.org.tw") ||
     source.includes("mis.twse.com.tw")
   ) {
@@ -326,7 +325,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", provider: "yahoo", group: "japan" },
   // 台灣
   { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "taiwan" },
-  { id: "otc", name: "上櫃指數", symbol: "otc_o00.tw", provider: "mis", group: "taiwan" },
   { id: "tsmc", name: "台積電", symbol: "2330.TW", provider: "yahoo", group: "taiwan" },
   { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "taiwan" },
   // 美國
