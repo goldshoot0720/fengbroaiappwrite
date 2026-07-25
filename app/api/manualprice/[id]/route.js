@@ -67,7 +67,6 @@ function toClientProduct(doc) {
   return {
     id: doc.$id,
     name: doc.name || "",
-    note: doc.note || undefined,
     currency: normalizeCurrency(doc.currency),
     localId: doc.localId || undefined,
     createdAt: doc.$createdAt ? new Date(doc.$createdAt).getTime() : Date.now(),
@@ -83,13 +82,6 @@ function buildUpdatePayload(body) {
     const name = typeof body.name === "string" ? body.name.trim() : "";
     if (!name) return { error: "商品名稱不可為空" };
     payload.name = name.slice(0, 200);
-  }
-
-  if (body.note !== undefined) {
-    payload.note =
-      typeof body.note === "string" && body.note.trim()
-        ? body.note.trim().slice(0, 500)
-        : "";
   }
 
   if (body.currency !== undefined) {
@@ -144,7 +136,6 @@ export async function PUT(req, context) {
 
     const filteredPayload = filterPayloadByAttributes(built.payload, collection, [
       "name",
-      "note",
       "currency",
       "recordsJson",
       "localId",

@@ -18,7 +18,6 @@ type ManualPriceCurrency = (typeof MANUAL_PRICE_CURRENCIES)[number];
 type ManualPriceProduct = {
   id: string;
   name: string;
-  note?: string;
   currency: ManualPriceCurrency;
   createdAt: number;
   updatedAt: number;
@@ -107,7 +106,6 @@ function normalizeProduct(input: Partial<ManualPriceProduct>): ManualPriceProduc
   return {
     id: typeof input.id === "string" && input.id ? input.id : createId(),
     name,
-    note: typeof input.note === "string" && input.note.trim() ? input.note.trim() : undefined,
     currency: normalizeCurrency(input.currency),
     createdAt: typeof input.createdAt === "number" ? input.createdAt : now,
     updatedAt: typeof input.updatedAt === "number" ? input.updatedAt : now,
@@ -328,7 +326,6 @@ export default function ManualPriceTracker() {
   const [hydrated, setHydrated] = useState(false);
 
   const [productName, setProductName] = useState("");
-  const [productNote, setProductNote] = useState("");
   const [productCurrency, setProductCurrency] = useState<ManualPriceCurrency>("TWD");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
@@ -378,7 +375,6 @@ export default function ManualPriceTracker() {
 
   const resetProductForm = () => {
     setProductName("");
-    setProductNote("");
     setProductCurrency("TWD");
     setEditingProductId(null);
     setFormError("");
@@ -407,7 +403,6 @@ export default function ManualPriceTracker() {
           ? {
               ...product,
               name,
-              note: productNote.trim() || undefined,
               currency: normalizeCurrency(productCurrency),
               updatedAt: now,
             }
@@ -426,7 +421,6 @@ export default function ManualPriceTracker() {
 
     const product = normalizeProduct({
       name,
-      note: productNote,
       currency: productCurrency,
       createdAt: now,
       updatedAt: now,
@@ -445,7 +439,6 @@ export default function ManualPriceTracker() {
   const handleEditProduct = (product: ManualPriceProduct) => {
     setEditingProductId(product.id);
     setProductName(product.name);
-    setProductNote(product.note || "");
     setProductCurrency(normalizeCurrency(product.currency));
     setSelectedProductId(product.id);
     setFormError("");
@@ -592,7 +585,7 @@ export default function ManualPriceTracker() {
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1.5 text-sm sm:col-span-2">
+            <label className="space-y-1.5 text-sm">
               <span className="font-medium">商品名稱 *</span>
               <input
                 value={productName}
@@ -614,15 +607,6 @@ export default function ManualPriceTracker() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="space-y-1.5 text-sm">
-              <span className="font-medium">備註</span>
-              <input
-                value={productNote}
-                onChange={(event) => setProductNote(event.target.value)}
-                placeholder="可選"
-                className="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-violet-400"
-              />
             </label>
           </div>
           <div className="mt-3">
@@ -706,9 +690,6 @@ export default function ManualPriceTracker() {
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h4 className="text-sm font-semibold">紀錄價格 — {selectedProduct.name}</h4>
-                {selectedProduct.note ? (
-                  <p className="text-xs text-muted-foreground">{selectedProduct.note}</p>
-                ) : null}
               </div>
               {editingRecordId && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetRecordForm}>

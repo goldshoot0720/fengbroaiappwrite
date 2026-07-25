@@ -68,7 +68,6 @@ function toClientProduct(doc) {
   return {
     id: doc.$id,
     name: doc.name || "",
-    note: doc.note || undefined,
     currency: normalizeCurrency(doc.currency),
     localId: doc.localId || undefined,
     createdAt: doc.$createdAt ? new Date(doc.$createdAt).getTime() : Date.now(),
@@ -96,10 +95,6 @@ function buildPayload(body) {
 
   const payload = {
     name: name.slice(0, 200),
-    note:
-      typeof body.note === "string" && body.note.trim()
-        ? body.note.trim().slice(0, 500)
-        : "",
     currency: normalizeCurrency(body.currency),
     recordsJson: serializeRecords(recordsSource),
   };
@@ -158,7 +153,6 @@ export async function POST(req) {
 
     const filteredPayload = filterPayloadByAttributes(built.payload, collection, [
       "name",
-      "note",
       "currency",
       "recordsJson",
       "localId",
