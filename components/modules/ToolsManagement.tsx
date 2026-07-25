@@ -2359,10 +2359,210 @@ function FengbroFinanceSection({
     </div>
   );
 
+  const renderCustomInstrumentForm = () => (
+    <div id="fengbro-finance-add-custom" className="scroll-mt-28">
+      <div
+        className={`rounded-2xl border p-4 ${
+          isEditingCustom
+            ? "border-amber-200 bg-amber-50/70"
+            : "border-slate-200 bg-slate-50/80"
+        }`}
+      >
+        <div className="mb-3">
+          <p className="text-sm font-semibold text-foreground">
+            {isEditingCustom ? "編輯指數或股票" : "新增指數或股票"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {isEditingCustom
+              ? "修改代稱、代號／網址、來源或分類後按「儲存」。也可按「取消編輯」放棄變更。"
+              : "可貼上 Yahoo / Yahoo 奇摩股市 / CNBC 報價網址並填代稱；也可直接輸入代號（如 INTC、2330.TW、5274.TWO、.SOX）。tw.stock.yahoo.com 會自動辨識為台股來源。已新增的標的可點「編輯」修改。"}
+          </p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
+          <label className="space-y-1.5 text-sm">
+            <span className="font-medium text-foreground">代稱</span>
+            <input
+              value={customDraft.name}
+              onChange={(event) => onCustomDraftChange({ ...customDraft, name: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") onSaveCustomInstrument();
+              }}
+              placeholder="例如：英特爾、台積電"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            />
+          </label>
+          <label className="space-y-1.5 text-sm">
+            <span className="font-medium text-foreground">網址或代號</span>
+            <input
+              value={customDraft.urlOrSymbol}
+              onChange={(event) => {
+                const urlOrSymbol = event.target.value;
+                const parsed = parseFinanceQuoteInput(urlOrSymbol);
+                if (parsed && isFinanceQuoteUrl(urlOrSymbol)) {
+                  onCustomDraftChange({
+                    ...customDraft,
+                    urlOrSymbol,
+                    provider: parsed.provider,
+                    group: guessFinanceGroup(parsed.symbol, {
+                      sourceUrl: parsed.sourceUrl,
+                      marketHint: parsed.marketHint,
+                    }),
+                  });
+                  return;
+                }
+                if (parsed && !isFinanceQuoteUrl(urlOrSymbol)) {
+                  const bareGroup = guessFinanceGroup(parsed.symbol);
+                  onCustomDraftChange({
+                    ...customDraft,
+                    urlOrSymbol,
+                    provider: parsed.provider,
+                    // 代號含 .TW / .TWO 等明確後綴時建議地區分類
+                    ...(bareGroup !== "us" ? { group: bareGroup } : {}),
+                  });
+                  return;
+                }
+                onCustomDraftChange({ ...customDraft, urlOrSymbol });
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") onSaveCustomInstrument();
+              }}
+              placeholder="https://tw.stock.yahoo.com/quote/2412.TW 或 2330.TW"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            />
+          </label>
+          <label className="space-y-1.5 text-sm">
+            <span className="font-medium text-foreground">來源</span>
+            <select
+              value={customDraft.provider}
+              onChange={(event) =>
+                onCustomDraftChange({
+                  ...customDraft,
+                  provider: event.target.value as CustomFinanceInstrument["provider"],
+                })
+              }
+              disabled={isFinanceQuoteUrl(customDraft.urlOrSymbol)}
+              title={
+                isFinanceQuoteUrl(customDraft.urlOrSymbol)
+                  ? "來源已由網址自動辨識"
+                  : "直接輸入代號時可手動選擇來源"
+              }
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            >
+              <option value="cnbc">CNBC</option>
+              <option value="yahoo">
+                {isTaiwanYahooStockSource(customDraft.urlOrSymbol) ? "Yahoo 奇摩（台股）" : "Yahoo"}
+              </option>
+            </select>
+          </label>
+          <label className="space-y-1.5 text-sm">
+            <span className="font-medium text-foreground">分類</span>
+            <select
+              value={customDraft.group}
+              onChange={(event) =>
+                onCustomDraftChange({
+                  ...customDraft,
+                  group: event.target.value as CustomFinanceDraft["group"],
+                })
+              }
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            >
+              {FINANCE_CUSTOM_GROUPS.map((group) => (
+                <option key={group} value={group}>
+                  {getFinanceGroupLabel(group)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
+              <Plus size={16} />
+              {isEditingCustom ? "儲存" : "新增"}
+            </Button>
+            {isEditingCustom && (
+              <Button type="button" variant="outline" onClick={onCancelEditCustomInstrument} className="h-10">
+                取消編輯
+              </Button>
+            )}
+          </div>
+        </div>
+        {(() => {
+          const preview = parseFinanceQuoteInput(customDraft.urlOrSymbol);
+          if (!preview) return null;
+          const sourceName = getFinanceProviderDisplayName(preview);
+          const suggestedGroup = guessFinanceGroup(preview.symbol, {
+            sourceUrl: preview.sourceUrl,
+            marketHint: preview.marketHint,
+          });
+          const isTwSource =
+            preview.marketHint === "tw" ||
+            isTaiwanYahooStockSource(preview.sourceUrl) ||
+            suggestedGroup === "taiwan";
+          return (
+            <p className="mt-2 text-xs text-emerald-800/90">
+              {isEditingCustom ? "將更新為：" : "將新增："}
+              <span className="font-semibold">{customDraft.name.trim() || preview.symbol}</span>
+              {" · "}
+              {sourceName}: {preview.symbol}
+              {preview.fromUrl ? "（由網址辨識）" : ""}
+              {isTwSource ? " · 台股來源" : ""}
+            </p>
+          );
+        })()}
+      </div>
+
+      {customInstruments.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {customInstruments.map((instrument) => {
+            const key = getCustomFinanceInstrumentKey(instrument);
+            const isActiveEdit = editingCustomKey === key;
+            return (
+              <span
+                key={key}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
+                  isActiveEdit
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-emerald-100 bg-emerald-50 text-emerald-800"
+                }`}
+              >
+                <span className="font-semibold">{instrument.name}</span>
+                <span>
+                  {instrument.provider.toUpperCase()}: {instrument.symbol}
+                </span>
+                <span className={isActiveEdit ? "text-amber-700/80" : "text-emerald-700/70"}>
+                  {getFinanceGroupLabel(instrument.group)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onEditCustomInstrument(instrument)}
+                  className={`rounded-full px-1.5 py-0.5 font-medium transition ${
+                    isActiveEdit
+                      ? "bg-amber-100 text-amber-900"
+                      : "text-emerald-800 hover:bg-white"
+                  }`}
+                  aria-label={`編輯 ${instrument.name}`}
+                >
+                  編輯
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDeleteCustomInstrument(instrument)}
+                  className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
+                  aria-label={`刪除 ${instrument.name}`}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       <DataCard className="overflow-hidden p-0">
-        {/* order: header → 精選焦點 → 預設追蹤清單 → 其餘報價 → 新增自訂 */}
+        {/* order: header → 精選焦點 → 新增指數 → 預設追蹤清單 → 其餘報價 */}
         <div className="flex flex-col">
         <div
           id={FENGBRO_FINANCE_TOP_ID}
@@ -2406,210 +2606,13 @@ function FengbroFinanceSection({
           </div>
         </div>
 
-        <div className="order-4 border-b border-emerald-100 bg-white/80 p-4 sm:p-6">
-          <div
-            className={`rounded-2xl border p-4 ${
-              isEditingCustom
-                ? "border-amber-200 bg-amber-50/70"
-                : "border-slate-200 bg-slate-50/80"
-            }`}
-          >
-            <div className="mb-3">
-              <p className="text-sm font-semibold text-foreground">
-                {isEditingCustom ? "編輯指數或股票" : "新增指數或股票"}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {isEditingCustom
-                  ? "修改代稱、代號／網址、來源或分類後按「儲存」。也可按「取消編輯」放棄變更。"
-                  : "可貼上 Yahoo / Yahoo 奇摩股市 / CNBC 報價網址並填代稱；也可直接輸入代號（如 INTC、2330.TW、5274.TWO、.SOX）。tw.stock.yahoo.com 會自動辨識為台股來源。已新增的標的可點「編輯」修改。"}
-              </p>
-            </div>
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
-              <label className="space-y-1.5 text-sm">
-                <span className="font-medium text-foreground">代稱</span>
-                <input
-                  value={customDraft.name}
-                  onChange={(event) => onCustomDraftChange({ ...customDraft, name: event.target.value })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") onSaveCustomInstrument();
-                  }}
-                  placeholder="例如：英特爾、台積電"
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                />
-              </label>
-              <label className="space-y-1.5 text-sm">
-                <span className="font-medium text-foreground">網址或代號</span>
-                <input
-                  value={customDraft.urlOrSymbol}
-                  onChange={(event) => {
-                    const urlOrSymbol = event.target.value;
-                    const parsed = parseFinanceQuoteInput(urlOrSymbol);
-                    if (parsed && isFinanceQuoteUrl(urlOrSymbol)) {
-                      onCustomDraftChange({
-                        ...customDraft,
-                        urlOrSymbol,
-                        provider: parsed.provider,
-                        group: guessFinanceGroup(parsed.symbol, {
-                          sourceUrl: parsed.sourceUrl,
-                          marketHint: parsed.marketHint,
-                        }),
-                      });
-                      return;
-                    }
-                    if (parsed && !isFinanceQuoteUrl(urlOrSymbol)) {
-                      const bareGroup = guessFinanceGroup(parsed.symbol);
-                      onCustomDraftChange({
-                        ...customDraft,
-                        urlOrSymbol,
-                        provider: parsed.provider,
-                        // 代號含 .TW / .TWO 等明確後綴時建議地區分類
-                        ...(bareGroup !== "us" ? { group: bareGroup } : {}),
-                      });
-                      return;
-                    }
-                    onCustomDraftChange({ ...customDraft, urlOrSymbol });
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") onSaveCustomInstrument();
-                  }}
-                  placeholder="https://tw.stock.yahoo.com/quote/2412.TW 或 2330.TW"
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                />
-              </label>
-              <label className="space-y-1.5 text-sm">
-                <span className="font-medium text-foreground">來源</span>
-                <select
-                  value={customDraft.provider}
-                  onChange={(event) =>
-                    onCustomDraftChange({
-                      ...customDraft,
-                      provider: event.target.value as CustomFinanceInstrument["provider"],
-                    })
-                  }
-                  disabled={isFinanceQuoteUrl(customDraft.urlOrSymbol)}
-                  title={
-                    isFinanceQuoteUrl(customDraft.urlOrSymbol)
-                      ? "來源已由網址自動辨識"
-                      : "直接輸入代號時可手動選擇來源"
-                  }
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                >
-                  <option value="cnbc">CNBC</option>
-                  <option value="yahoo">
-                    {isTaiwanYahooStockSource(customDraft.urlOrSymbol) ? "Yahoo 奇摩（台股）" : "Yahoo"}
-                  </option>
-                </select>
-              </label>
-              <label className="space-y-1.5 text-sm">
-                <span className="font-medium text-foreground">分類</span>
-                <select
-                  value={customDraft.group}
-                  onChange={(event) =>
-                    onCustomDraftChange({
-                      ...customDraft,
-                      group: event.target.value as CustomFinanceDraft["group"],
-                    })
-                  }
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                >
-                  {FINANCE_CUSTOM_GROUPS.map((group) => (
-                    <option key={group} value={group}>
-                      {getFinanceGroupLabel(group)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
-                  <Plus size={16} />
-                  {isEditingCustom ? "儲存" : "新增"}
-                </Button>
-                {isEditingCustom && (
-                  <Button type="button" variant="outline" onClick={onCancelEditCustomInstrument} className="h-10">
-                    取消編輯
-                  </Button>
-                )}
-              </div>
-            </div>
-            {(() => {
-              const preview = parseFinanceQuoteInput(customDraft.urlOrSymbol);
-              if (!preview) return null;
-              const sourceName = getFinanceProviderDisplayName(preview);
-              const suggestedGroup = guessFinanceGroup(preview.symbol, {
-                sourceUrl: preview.sourceUrl,
-                marketHint: preview.marketHint,
-              });
-              const isTwSource =
-                preview.marketHint === "tw" ||
-                isTaiwanYahooStockSource(preview.sourceUrl) ||
-                suggestedGroup === "taiwan";
-              return (
-                <p className="mt-2 text-xs text-emerald-800/90">
-                  {isEditingCustom ? "將更新為：" : "將新增："}
-                  <span className="font-semibold">{customDraft.name.trim() || preview.symbol}</span>
-                  {" · "}
-                  {sourceName}: {preview.symbol}
-                  {preview.fromUrl ? "（由網址辨識）" : ""}
-                  {isTwSource ? " · 台股來源" : ""}
-                </p>
-              );
-            })()}
-          </div>
-
-          {customInstruments.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {customInstruments.map((instrument) => {
-                const key = getCustomFinanceInstrumentKey(instrument);
-                const isActiveEdit = editingCustomKey === key;
-                return (
-                  <span
-                    key={key}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
-                      isActiveEdit
-                        ? "border-amber-300 bg-amber-50 text-amber-900"
-                        : "border-emerald-100 bg-emerald-50 text-emerald-800"
-                    }`}
-                  >
-                    <span className="font-semibold">{instrument.name}</span>
-                    <span>
-                      {instrument.provider.toUpperCase()}: {instrument.symbol}
-                    </span>
-                    <span className={isActiveEdit ? "text-amber-700/80" : "text-emerald-700/70"}>
-                      {getFinanceGroupLabel(instrument.group)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onEditCustomInstrument(instrument)}
-                      className={`rounded-full px-1.5 py-0.5 font-medium transition ${
-                        isActiveEdit
-                          ? "bg-amber-100 text-amber-900"
-                          : "text-emerald-800 hover:bg-white"
-                      }`}
-                      aria-label={`編輯 ${instrument.name}`}
-                    >
-                      編輯
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteCustomInstrument(instrument)}
-                      className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
-                      aria-label={`刪除 ${instrument.name}`}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         {error && (
           <div className="order-2 m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
         )}
 
         {!error && loading && !result && (
           <div className="order-2 space-y-4 p-4 sm:p-6">
+            {renderCustomInstrumentForm()}
             {renderDefaultWatchlist()}
             <div className="p-4 text-center text-sm text-muted-foreground">正在讀取精選焦點與金融報價...</div>
           </div>
