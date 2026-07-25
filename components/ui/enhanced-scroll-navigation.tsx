@@ -78,17 +78,19 @@ export default function EnhancedScrollNavigation({
   if (!showButtons) return null;
 
   // Docked: sits under global voice on the right stack. Standalone: bottom-right dock.
+  // Outer pointer-events-none so the FAB stack does not block page controls (e.g. edit pens)
+  // under empty space / the non-interactive progress ring; only real controls receive clicks.
   return (
     <div
       className={
         docked
-          ? "relative z-[var(--z-dock)] flex flex-col items-end gap-2"
-          : "fixed right-2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[var(--z-dock)] flex flex-col items-end gap-3 sm:right-4 sm:bottom-6"
+          ? "pointer-events-none relative z-[var(--z-dock)] flex flex-col items-end gap-2"
+          : "pointer-events-none fixed right-2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[var(--z-dock)] flex flex-col items-end gap-3 sm:right-4 sm:bottom-6"
       }
     >
       {/* 快速導航選單 */}
       {showQuickNav && quickNavItems.length > 0 && (
-        <div className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-xl p-2 mb-2 min-w-[200px] max-w-[250px] sm:min-w-[220px]">
+        <div className="pointer-events-auto bg-white/95 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-xl p-2 mb-2 min-w-[200px] max-w-[250px] sm:min-w-[220px]">
           <div className="text-xs font-medium text-gray-500 px-3 py-2 border-b border-gray-100">
             快速導航
           </div>
@@ -106,10 +108,10 @@ export default function EnhancedScrollNavigation({
         </div>
       )}
 
-      <div className={`flex flex-col gap-3 ${docked ? "items-end" : "items-center"}`}>
-        {/* 滾動進度指示器 */}
+      <div className={`pointer-events-none flex flex-col gap-3 ${docked ? "items-end" : "items-center"}`}>
+        {/* 滾動進度指示器（僅顯示，不攔截點擊） */}
         {showProgress && (
-          <div className="relative">
+          <div className="pointer-events-none relative">
             <div className="w-14 h-14 rounded-full bg-white/95 backdrop-blur-sm border border-gray-200 shadow-lg flex items-center justify-center">
               <div className="text-xs font-semibold text-gray-700">
                 {Math.round(scrollProgress)}%
@@ -142,7 +144,7 @@ export default function EnhancedScrollNavigation({
         )}
 
         {/* 導航按鈕容器 */}
-        <div className="flex flex-col gap-2">
+        <div className="pointer-events-auto flex flex-col gap-2">
           {/* 快速導航按鈕 */}
           {quickNavItems.length > 0 && (
             <Button

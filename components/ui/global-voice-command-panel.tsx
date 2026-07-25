@@ -1033,12 +1033,13 @@ export function GlobalVoiceCommandPanel({
     "安全操作";
 
   // Docked: parent right stack (above up-arrow). Standalone: bottom-right fixed FAB.
+  // pointer-events-auto: parent dock uses pointer-events-none so page edit buttons stay clickable.
   return (
     <div
       className={
         docked
-          ? "relative z-[var(--z-voice)] flex w-full max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-end gap-2"
-          : "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-3 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-end gap-2 md:bottom-6 md:right-6"
+          ? "pointer-events-auto relative z-[var(--z-voice)] flex w-full max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-end gap-2"
+          : "pointer-events-auto fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-3 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1.5rem))] flex-col items-end gap-2 md:bottom-6 md:right-6"
       }
     >
       {open && (

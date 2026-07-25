@@ -205,7 +205,8 @@ export default function DashboardLayout({
         <PodcastQueuePanel />
         <VideoQueuePanel />
         {/* 右側浮動列：語音在底欄上方一點 */}
-        <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4 md:bottom-6">
+        {/* pointer-events-none：避免整塊右下角遮住頁面「編輯」等按鈕；子元件自行開啟可點區域 */}
+        <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4 md:bottom-6">
           <GlobalVoiceCommandPanel
             currentModule={currentModule}
             menuItems={menuItems}
