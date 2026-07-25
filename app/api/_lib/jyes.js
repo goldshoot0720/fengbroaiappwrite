@@ -32,6 +32,25 @@ function inferBrand(value) {
   return "other";
 }
 
+/** Exclude cases / buds / watches — 手機比價只要手機本體. */
+const NON_PHONE_RE =
+  /保護殼|保護套|手機殼|背蓋|皮套|矽膠|透明殼|清水套|MagSafe|保護貼|玻璃貼|鏡頭貼|保護膜|滿版|膜$|充電|充電器|無線充|行動電源|旅充|車充|線材|傳輸線|耳機|Buds|AirPods|Watch|手環|平板|iPad|Tab\b|筆電|MacBook|鍵盤|滑鼠|支架|腳架|自拍|配件|卡匣|記憶卡|轉接|吊飾|背帶|鏡頭蓋|收納|殼$/i;
+
+function isPhoneProduct(name, brand) {
+  if (!name || name.length > 140) return false;
+  if (NON_PHONE_RE.test(name)) return false;
+  if (/系列/.test(name) && !/\d{2,4}\s*GB/i.test(name)) return false;
+  if (brand === "samsung") {
+    if (!/^Samsung\s+/i.test(name)) return false;
+    if (/\b(Galaxy\s+)?(Buds|Watch|Tab|Book|Monitor|TV|Tag)\b/i.test(name)) return false;
+    return true;
+  }
+  if (brand === "apple") {
+    return /^iPhone\s+/i.test(name) || /^Apple\s+iPhone\b/i.test(name);
+  }
+  return false;
+}
+
 function normalizeQuery(value) {
   return normalizeSpace(value.replace(/\b(\d{3,4})G\b/gi, "$1GB").replace(/\//g, " "))
     .toLowerCase()
@@ -69,6 +88,7 @@ function parseJyesProducts(markdown) {
     const name = normalizeName(rawName);
     const brand = inferBrand(name);
     if (brand === "other") continue;
+    if (!isPhoneProduct(name, brand)) continue;
 
     const suggestedPrice = parsePrice(match[2]);
     const jyesPrice = parsePrice(match[4]);

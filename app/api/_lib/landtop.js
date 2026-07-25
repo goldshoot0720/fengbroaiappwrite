@@ -177,10 +177,36 @@ function extractCapacityKey(text) {
   return "";
 }
 
+/**
+ * Accessories / non-phone lines to exclude from 手機比價
+ * (e.g. 「Apple iPhone 17 系列 MagSafe 矽膠保護殼」).
+ */
+const NON_PHONE_RE =
+  /保護殼|保護套|手機殼|背蓋|皮套|矽膠|透明殼|清水套|MagSafe|保護貼|玻璃貼|鏡頭貼|保護膜|滿版|膜$|充電|充電器|無線充|行動電源|旅充|車充|線材|傳輸線|耳機|Buds|AirPods|Watch|手環|平板|iPad|Tab\b|筆電|MacBook|鍵盤|滑鼠|支架|腳架|自拍|配件|卡匣|記憶卡|轉接|吊飾|背帶|鏡頭蓋|收納|殼$/i;
+
+/**
+ * Only keep actual phones for 手機比價 (no cases, buds, watches, tablets…).
+ */
+function isPhoneProduct(name, brand) {
+  if (!name || name.length > 140) return false;
+  if (NON_PHONE_RE.test(name)) return false;
+  // 「系列」配件標題常無容量；真機通常帶 GB 或明確 Pro/e 容量型號
+  if (/系列/.test(name) && !/\d{2,4}\s*GB/i.test(name)) return false;
+
+  if (brand === "samsung") {
+    if (!/^Samsung\s+/i.test(name)) return false;
+    if (/\b(Galaxy\s+)?(Buds|Watch|Tab|Book|Monitor|TV|Tag)\b/i.test(name)) return false;
+    return true;
+  }
+
+  // Apple: phones only (iPhone), not "Apple … 保護殼" already filtered above
+  if (/^iPhone\s+/i.test(name) || /^Apple\s+iPhone\b/i.test(name)) return true;
+  return false;
+}
+
+/** @deprecated use isPhoneProduct — kept as alias for call sites */
 function isProductTitle(name, brand) {
-  if (!name || name.length > 120) return false;
-  if (brand === "samsung") return /^Samsung\s+/i.test(name);
-  return /^(iPhone|iPad|AirPods|Apple Watch|Apple\s+)/i.test(name);
+  return isPhoneProduct(name, brand);
 }
 
 function parseBrandProductsFromMarkdown(markdown, brand) {
@@ -665,10 +691,11 @@ export async function fetchLandtopCatalog({ query = "", refresh = false } = {}) 
       allProducts.set(product.id, product);
     });
 
-  // Final filter uses full query including capacity (8g / 128gb …).
-  // Then drop bare shells like "Samsung A17" when 6G/8G variants exist.
+  // Final filter: phones only + full query (capacity tokens) + drop bare shells.
   const products = dropShellProductsWhenVariantsExist(
-    Array.from(allProducts.values()).filter((product) => matchesTokens(product, tokens))
+    Array.from(allProducts.values())
+      .filter((product) => isPhoneProduct(product.name, product.brand))
+      .filter((product) => matchesTokens(product, tokens))
   ).sort((a, b) => {
     const aPrice = a.landtopPrice ?? a.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
     const bPrice = b.landtopPrice ?? b.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
