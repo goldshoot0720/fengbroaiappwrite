@@ -487,12 +487,26 @@ function hasCustomTubeAlias(alias: string) {
 
 function normalizeSavedLandtopQuery(value: string) {
   const defaultQuery = getDefaultLandtopQuery();
-  const legacyDefaultQuery = `Samsung S${new Date().getFullYear().toString().slice(-2)}`;
+  const year2 = new Date().getFullYear().toString().slice(-2);
+  const legacyDefaults = [
+    `Samsung S${year2}`,
+    `Samsung ${year2}`,
+    `Samsung Galaxy S${year2}`,
+    // previous year short forms also count as seasonal auto
+    `Samsung S${String(Number(year2) - 1).padStart(2, "0")}`,
+    `Samsung ${String(Number(year2) - 1).padStart(2, "0")}`,
+  ];
   const trimmed = value.trim();
-  if (!trimmed || trimmed === legacyDefaultQuery) return defaultQuery;
-  // 季節性自動預設（Samsung 26）隨日曆更新
+  if (!trimmed || legacyDefaults.some((q) => q.toLowerCase() === trimmed.toLowerCase())) {
+    return defaultQuery;
+  }
+  // 季節性自動預設（Samsung Galaxy S25 / S26 等）隨日曆更新
   if (isAutoSamsungLandtopDefaultQuery(trimmed)) return defaultQuery;
   return trimmed;
+}
+
+function normalizeSavedSamsungLandtopQuery(value: string) {
+  return normalizeSavedLandtopQuery(value);
 }
 
 function normalizeSavedAppleLandtopQuery(value: string) {
@@ -3722,7 +3736,8 @@ export default function ToolsManagement({
       if (savedAppleQuery) setLandtopAppleQuery(normalizeSavedAppleLandtopQuery(savedAppleQuery));
       else setLandtopAppleQuery(getAppleDefaultLandtopQuery());
       const savedSamsungQuery = window.localStorage.getItem(LANDTOP_SAMSUNG_QUERY_KEY);
-      if (savedSamsungQuery) setLandtopSamsungQuery(normalizeSavedLandtopQuery(savedSamsungQuery));
+      if (savedSamsungQuery) setLandtopSamsungQuery(normalizeSavedSamsungLandtopQuery(savedSamsungQuery));
+      else setLandtopSamsungQuery(getSamsungDefaultLandtopQuery());
 
     } catch {}
   }, []);
