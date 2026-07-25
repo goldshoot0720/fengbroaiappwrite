@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
-export const maxDuration = 600;
+// Vercel Hobby max is 300s; Pro allows higher.
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
