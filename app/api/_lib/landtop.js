@@ -53,7 +53,8 @@ function normalizeVariantName(value) {
 }
 
 function hasVariantInfo(name) {
-  return /(\d{3,4}GB|\d{3,4}G|\d+G\s+\d+GB|\d+G\/\d+G)/i.test(name);
+  // RAM/storage combos: 6G/128G, 6G 128GB, 256GB, etc.
+  return /(\d{3,4}GB|\d{3,4}G|\d{1,2}G\s+\d{3,4}GB|\d{1,2}G\/\d{3,4}G)/i.test(name);
 }
 
 function createProductId(brand, name) {
@@ -67,15 +68,75 @@ function normalizeQuery(value) {
     .filter(Boolean);
 }
 
-function matchesQuery(product, query) {
-  const tokens = normalizeQuery(query);
-  if (tokens.length === 0) return true;
+/** Capacity tokens like 6g / 8g / 128gb / 256g / bare 128 — not used alone to seed product-page expansion. */
+function isCapacityToken(token) {
+  return (
+    /^\d{1,4}g(b)?$/i.test(token) ||
+    /^\d{1,2}g\/\d{3,4}g(b)?$/i.test(token) ||
+    /^\d{3,4}$/.test(token)
+  );
+}
 
-  const haystack = normalizeSpace(
+function splitQueryTokens(query) {
+  const tokens = normalizeQuery(query);
+  const capacityTokens = [];
+  const modelTokens = [];
+  for (const token of tokens) {
+    if (isCapacityToken(token)) capacityTokens.push(token);
+    else modelTokens.push(token);
+  }
+  return { tokens, capacityTokens, modelTokens };
+}
+
+function productHaystack(product) {
+  return normalizeSpace(
     `${product.brand} ${product.name}`.replace(/\b(\d{3,4})G\b/gi, "$1GB").replace(/\//g, " ")
   ).toLowerCase();
+}
 
-  return tokens.every((token) => haystack.includes(token));
+/**
+ * Capacity must match whole tokens — "8g" must not match inside "128gb".
+ */
+function matchesCapacityToken(haystack, token) {
+  const parts = haystack.split(/[^a-z0-9]+/i).filter(Boolean);
+  const t = token.toLowerCase();
+  if (parts.includes(t)) return true;
+  // 128g ↔ 128gb
+  if (/^\d{3,4}g$/.test(t) && parts.includes(`${t}b`)) return true;
+  if (/^\d{3,4}gb$/.test(t) && parts.includes(t.replace(/gb$/, "g"))) return true;
+  // bare "128" ↔ 128g / 128gb
+  if (/^\d{3,4}$/.test(t)) {
+    return parts.some((p) => p === `${t}g` || p === `${t}gb` || p === t);
+  }
+  return false;
+}
+
+function matchesTokens(product, tokens) {
+  if (!tokens || tokens.length === 0) return true;
+  const haystack = productHaystack(product);
+  return tokens.every((token) =>
+    isCapacityToken(token) ? matchesCapacityToken(haystack, token) : haystack.includes(token)
+  );
+}
+
+function matchesQuery(product, query) {
+  return matchesTokens(product, normalizeQuery(query));
+}
+
+/**
+ * Extract capacity key from Landtop SKU / label, e.g.
+ * "SA-a1760 6G/128G快閃灰" → "6G/128G"
+ * "8G/128G" → "8G/128G"
+ */
+function extractCapacityKey(text) {
+  if (!text) return "";
+  const slash = String(text).match(/(\d{1,2})\s*G\s*\/\s*(\d{3,4})\s*G(B)?/i);
+  if (slash) return `${slash[1]}G/${slash[2]}G`;
+  const spaced = String(text).match(/(\d{1,2})\s*G\s+(\d{3,4})\s*GB/i);
+  if (spaced) return `${spaced[1]}G/${spaced[2]}G`;
+  const storageOnly = String(text).match(/\b(\d{3,4})\s*GB\b/i);
+  if (storageOnly) return `${storageOnly[1]}GB`;
+  return "";
 }
 
 function isProductTitle(name, brand) {
@@ -112,6 +173,21 @@ function parseBrandProductsFromMarkdown(markdown, brand) {
   return Array.from(products.values());
 }
 
+function upsertBrandProduct(products, brand, name, sourceUrl, suggestedPrice, landtopPrice) {
+  if (!isProductTitle(name, brand)) return;
+  const id = createProductId(brand, name);
+  products.set(id, {
+    id,
+    brand,
+    name,
+    suggestedPrice,
+    landtopPrice,
+    landtopPriceLabel:
+      landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
+    sourceUrl,
+  });
+}
+
 function parseBrandProducts(html, brand) {
   if (html.includes("Markdown Content:") && html.includes("## [")) {
     const markdownProducts = parseBrandProductsFromMarkdown(html, brand);
@@ -121,6 +197,31 @@ function parseBrandProducts(html, brand) {
   }
 
   const products = new Map();
+
+  // Current brand layout: <a href="/products/..."><h2>Samsung A17</h2></a> … 建議售價 / 地標價
+  const h2CardPattern =
+    /href="(\/products\/[^"]+)"[^>]*>\s*<h2[^>]*>([\s\S]*?)<\/h2>/gi;
+  let h2Match;
+  while ((h2Match = h2CardPattern.exec(html)) !== null) {
+    const sourceUrl = new URL(h2Match[1], "https://www.landtop.com.tw").toString();
+    const name = normalizeSpace(stripTags(h2Match[2]));
+    // Prices usually appear after the title block in brand list rows
+    const chunk = html.slice(h2Match.index, h2Match.index + 1800);
+    const suggestedMatch = chunk.match(/建議售價[\s\S]{0,80}?(\$?\s*[\d,]+)/i);
+    const landtopMatch =
+      chunk.match(/地標價[\s\S]{0,80}?(\$?\s*[\d,]+)/i) ||
+      chunk.match(/挑戰手機最低價[\s\S]{0,80}?(\$?\s*[\d,]+)/i);
+    upsertBrandProduct(
+      products,
+      brand,
+      name,
+      sourceUrl,
+      parsePrice(suggestedMatch?.[1]),
+      parsePrice(landtopMatch?.[1])
+    );
+  }
+
+  // Legacy card layouts (h3 / product-name / img alt)
   const cardPattern =
     /<a[^>]+href="(\/products\/[^"]+)"[\s\S]{0,1800}?(?:<h3[^>]*>|<div class="product-name[^"]*">|<img[^>]+alt=")([\s\S]*?)(?:<\/h3>|<\/div>|")/gi;
   let match;
@@ -128,7 +229,7 @@ function parseBrandProducts(html, brand) {
   while ((match = cardPattern.exec(html)) !== null) {
     const sourceUrl = new URL(match[1], "https://www.landtop.com.tw").toString();
     const name = normalizeSpace(stripTags(match[2]));
-    if (!isProductTitle(name, brand)) continue;
+    if (products.has(createProductId(brand, name))) continue;
 
     const chunk = html.slice(match.index, match.index + 2400);
     const suggestedMatch = chunk.match(/建議售價[\s\S]{0,120}?(\$?\s*[\d,]+)/i);
@@ -136,19 +237,90 @@ function parseBrandProducts(html, brand) {
       chunk.match(/地標價[\s\S]{0,120}?(\$?\s*[\d,]+)/i) ||
       chunk.match(/挑戰手機最低價[\s\S]{0,120}?(\$?\s*[\d,]+)/i);
 
-    const suggestedPrice = parsePrice(suggestedMatch?.[1]);
-    const landtopPrice = parsePrice(landtopMatch?.[1]);
-    const id = createProductId(brand, name);
-
-    products.set(id, {
-      id,
+    upsertBrandProduct(
+      products,
       brand,
       name,
-      suggestedPrice,
-      landtopPrice,
-      landtopPriceLabel: landtopPrice == null ? "挑戰手機最低價" : `NT$ ${landtopPrice.toLocaleString("zh-TW")}`,
       sourceUrl,
-    });
+      parsePrice(suggestedMatch?.[1]),
+      parsePrice(landtopMatch?.[1])
+    );
+  }
+
+  return Array.from(products.values());
+}
+
+/**
+ * Parse Product JSON-LD offers (most accurate multi-SKU prices).
+ * Samsung A17: 6G/128G → 5790, 8G/128G → 6790
+ */
+function parseProductJsonLdOffers(html, brand, sourceUrl) {
+  const products = new Map();
+  const blocks = html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+
+  for (const block of blocks) {
+    let data;
+    try {
+      data = JSON.parse(block[1]);
+    } catch {
+      continue;
+    }
+
+    const nodes = Array.isArray(data) ? data : [data];
+    for (const node of nodes) {
+      if (!node || typeof node !== "object") continue;
+      const offers = Array.isArray(node.offers)
+        ? node.offers
+        : node.offers
+          ? [node.offers]
+          : [];
+      if (offers.length === 0) continue;
+
+      const baseName = normalizeSpace(node.name || "");
+      if (baseName && !isProductTitle(baseName, brand) && brand === "samsung" && !/^Samsung/i.test(baseName)) {
+        // still allow if offers have phone SKUs
+      }
+
+      // capacity → lowest offer price (colors share same storage price)
+      const byCapacity = new Map();
+      for (const offer of offers) {
+        if (!offer || typeof offer !== "object") continue;
+        const capacity = extractCapacityKey(offer.sku || offer.name || "");
+        if (!capacity) continue;
+        const price = Number(offer.price);
+        if (!Number.isFinite(price) || price <= 0) continue;
+        const prev = byCapacity.get(capacity);
+        if (!prev || price < prev.price) {
+          byCapacity.set(capacity, { price, sku: offer.sku || "" });
+        }
+      }
+
+      if (byCapacity.size === 0) continue;
+
+      const modelName =
+        baseName && isProductTitle(baseName, brand)
+          ? baseName
+          : brand === "samsung"
+            ? `Samsung ${baseName || "Phone"}`.replace(/\s+/g, " ")
+            : baseName || "Product";
+
+      for (const [capacity, info] of byCapacity) {
+        const name = normalizeVariantName(`${modelName} ${capacity}`);
+        if (!isProductTitle(name, brand) && brand === "samsung" && !/^Samsung/i.test(name)) {
+          continue;
+        }
+        const id = createProductId(brand, name);
+        products.set(id, {
+          id,
+          brand,
+          name,
+          suggestedPrice: null,
+          landtopPrice: info.price,
+          landtopPriceLabel: `NT$ ${info.price.toLocaleString("zh-TW")}`,
+          sourceUrl,
+        });
+      }
+    }
   }
 
   return Array.from(products.values());
@@ -156,14 +328,16 @@ function parseBrandProducts(html, brand) {
 
 function parseProductVariantLinks(html) {
   const variants = new Map();
+  // Storage option chips: data-product-id + data-variant-id + label-price (6G/128G, 8G/128G)
   const pattern =
-    /data-product-id="(\d+)"[\s\S]{0,220}?data-variant-id="(\d+)"[\s\S]{0,200}?<div class="label-price">([^<]+)<\/div>/g;
+    /data-product-id="(\d+)"[\s\S]{0,320}?data-variant-id="(\d+)"[\s\S]{0,280}?<div class="label-price">([^<]+)<\/div>/g;
   let match;
 
   while ((match = pattern.exec(html)) !== null) {
     const label = stripTags(match[3]);
-    if (!label || !/(\d{3,4}GB|\d{3,4}G|\d+G\/\d+G)/i.test(label)) continue;
-    variants.set(match[2], { productId: match[1], variantId: match[2] });
+    // Accept 6G/128G, 8G/128GB, 256GB, etc. — skip pure color chips without capacity
+    if (!label || !/(\d{1,2}\s*G\s*\/\s*\d{3,4}\s*G|\d{3,4}\s*GB|\d{3,4}G)/i.test(label)) continue;
+    variants.set(match[2], { productId: match[1], variantId: match[2], label });
   }
 
   return Array.from(variants.values());
@@ -371,6 +545,12 @@ async function fetchProductVariantsFromUrl(brand, url, refresh) {
     }
   }
 
+  // Prefer JSON-LD multi-offer prices (accurate per RAM/storage, no extra XHR)
+  const jsonLdProducts = parseProductJsonLdOffers(html, brand, url);
+  if (jsonLdProducts.length > 0) {
+    return { products: jsonLdProducts, fetchedVia };
+  }
+
   const variantLinks = parseProductVariantLinks(html);
 
   if (variantLinks.length === 0) {
@@ -382,8 +562,32 @@ async function fetchProductVariantsFromUrl(brand, url, refresh) {
     variantLinks.map((variant) => fetchVariantProduct(brand, url, variant.productId, variant.variantId, refresh))
   );
 
+  const products = variants.filter(Boolean);
+  // If turbo-stream failed, still surface capacity labels with null price rather than nothing
+  if (products.length === 0 && variantLinks.length > 0) {
+    const pageProduct = parseProductVariant(html, brand, url);
+    return {
+      products: variantLinks.map((link) => {
+        const cap = extractCapacityKey(link.label) || link.label;
+        const name = normalizeVariantName(
+          `${(pageProduct?.name || "").replace(/\s+\d{1,2}G.*$/i, "") || brand} ${cap}`
+        );
+        return {
+          id: createProductId(brand, name),
+          brand,
+          name,
+          suggestedPrice: pageProduct?.suggestedPrice ?? null,
+          landtopPrice: pageProduct?.landtopPrice ?? null,
+          landtopPriceLabel: pageProduct?.landtopPriceLabel || "挑戰手機最低價",
+          sourceUrl: url,
+        };
+      }),
+      fetchedVia,
+    };
+  }
+
   return {
-    products: variants.filter(Boolean),
+    products,
     fetchedVia,
   };
 }
@@ -401,21 +605,47 @@ export async function fetchLandtopCatalog({ query = "", refresh = false } = {}) 
     .flatMap((group) => group.products)
     .forEach((product) => allProducts.set(product.id, product));
 
-  const matchedProducts = Array.from(allProducts.values()).filter((product) => matchesQuery(product, query));
+  // Seed expansion with model tokens only so "a17 8g" still opens the A17 product page
+  // (brand cards only say "Samsung A17" without RAM/storage).
+  const { tokens, modelTokens } = splitQueryTokens(query);
+  const seedTokens = modelTokens.length > 0 ? modelTokens : tokens;
+
+  const matchedProducts = Array.from(allProducts.values()).filter((product) =>
+    matchesTokens(product, seedTokens)
+  );
   const expandableProducts = matchedProducts.filter(
-    (product) => !hasVariantInfo(product.name) && /\/products\//i.test(product.sourceUrl)
+    (product) => !hasVariantInfo(product.name) && /\/products\//i.test(product.sourceUrl || "")
   );
 
   const expandedGroups = await Promise.all(
     expandableProducts.map((product) => fetchProductVariantsFromUrl(product.brand, product.sourceUrl, refresh))
   );
 
+  const expandedSourceUrls = new Set();
   expandedGroups
     .flatMap((group) => group.products)
-    .forEach((product) => allProducts.set(product.id, product));
+    .forEach((product) => {
+      allProducts.set(product.id, product);
+      if (product.sourceUrl && hasVariantInfo(product.name)) {
+        expandedSourceUrls.add(product.sourceUrl);
+      }
+    });
 
+  // Drop bare parent cards (e.g. "Samsung A17" @ lowest price) when per-SKU variants exist
+  if (expandedSourceUrls.size > 0) {
+    for (const [id, product] of allProducts) {
+      if (
+        expandedSourceUrls.has(product.sourceUrl) &&
+        !hasVariantInfo(product.name)
+      ) {
+        allProducts.delete(id);
+      }
+    }
+  }
+
+  // Final filter uses full query including capacity (8g / 128gb …)
   const products = Array.from(allProducts.values())
-    .filter((product) => matchesQuery(product, query))
+    .filter((product) => matchesTokens(product, tokens))
     .sort((a, b) => {
       const aPrice = a.landtopPrice ?? a.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
       const bPrice = b.landtopPrice ?? b.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
