@@ -37,6 +37,8 @@ export type LoopOptions = {
 export type MergeHooks = {
   noAudio?: boolean;
   audioFile?: File | null;
+  /** Soft-mux SRT (mov_text). Empty/null = no subtitle track. */
+  subtitleSrt?: string | null;
   clipDurations?: number[];
   loop?: LoopOptions;
   onLog?: (msg: string) => void;
@@ -520,6 +522,42 @@ async function applyLoopExtend(
   throw new Error(`未知的延長模式：${mode}`);
 }
 
+/** Soft-mux SRT into MP4 as mov_text. */
+async function muxSubtitles(
+  ff: FFmpeg,
+  videoName: string,
+  srtName: string,
+  output: string,
+  onLog?: (msg: string) => void,
+  onLocal?: (r: number) => void
+) {
+  await execOrThrow(
+    ff,
+    [
+      "-i",
+      videoName,
+      "-i",
+      srtName,
+      "-map",
+      "0",
+      "-map",
+      "1",
+      "-c",
+      "copy",
+      "-c:s",
+      "mov_text",
+      "-metadata:s:s:0",
+      "language=zho",
+      "-movflags",
+      "+faststart",
+      "-y",
+      output,
+    ],
+    onLog,
+    { onLocal }
+  );
+}
+
 async function muxCustomAudio(
   ff: FFmpeg,
   videoName: string,
@@ -603,11 +641,12 @@ async function muxCustomAudio(
 /**
  * Merge multiple video Files into one MP4 Blob.
  * Clips are normalized to 1280×720 @ 30fps H.264 + AAC before concat.
+ * Optional soft subtitles via `subtitleSrt` (mov_text).
  */
 export async function mergeVideos(
   files: File[],
   hooks: MergeHooks = {}
-): Promise<{ blob: Blob }> {
+): Promise<{ blob: Blob; subtitlesEmbedded: boolean }> {
   if (!files?.length) throw new Error("請至少選擇一段影片");
 
   const {
@@ -616,6 +655,7 @@ export async function mergeVideos(
     onStatus,
     noAudio = false,
     audioFile = null,
+    subtitleSrt = null,
     clipDurations = [],
     loop = { mode: "once" },
   } = hooks;
@@ -625,6 +665,8 @@ export async function mergeVideos(
   const useCustomAudio = Boolean(audioFile) && !noAudio;
   const stripOriginalAudio = noAudio || useCustomAudio;
   const needsLoop = Boolean(loop?.mode && loop.mode !== "once");
+  const srtText = String(subtitleSrt || "").replace(/^\uFEFF/, "").trim();
+  const useSubtitles = Boolean(srtText);
 
   const durs = files.map((_, i) => {
     const d = Number(clipDurations[i]);
@@ -676,6 +718,9 @@ export async function mergeVideos(
       label: "套用自訂音軌…",
     });
   }
+  if (useSubtitles) {
+    stages.push({ id: "subs", weight: 3, label: "嵌入字幕…" });
+  }
   stages.push({ id: "read", weight: 2, label: "讀取結果…" });
 
   const tracker = createStageTracker({ onProgress, onStatus }, stages);
@@ -683,6 +728,9 @@ export async function mergeVideos(
   if (noAudio) onLog?.("選項：不要聲音（輸出無音軌）");
   if (useCustomAudio && audioFile) {
     onLog?.(`選項：自訂音軌 ${audioFile.name}（取代原影片聲音）`);
+  }
+  if (useSubtitles) {
+    onLog?.(`選項：語音稿字幕（SRT ${srtText.length} 字元）`);
   }
   if (loop?.mode && loop.mode !== "once") {
     onLog?.(
@@ -796,6 +844,37 @@ export async function mergeVideos(
       tracker.complete();
     }
 
+    let subtitlesEmbedded = false;
+    if (useSubtitles) {
+      tracker.start("subs");
+      const srtName = "subs.srt";
+      await ff.writeFile(srtName, srtText);
+      written.push(srtName);
+      try {
+        const withSubs = "output_subs.mp4";
+        await muxSubtitles(ff, currentVideo, srtName, withSubs, onLog, (r) =>
+          tracker.update(r)
+        );
+        written.push(withSubs);
+        const subData = await ff.readFile(withSubs);
+        if (typeof subData === "string") {
+          throw new Error("字幕輸出格式異常");
+        }
+        const subU8 =
+          subData instanceof Uint8Array ? subData : new Uint8Array(subData);
+        await ff.writeFile("output.mp4", subU8);
+        currentVideo = "output.mp4";
+        subtitlesEmbedded = true;
+        onLog?.("字幕已嵌入 MP4（mov_text 軟字幕）");
+      } catch (err) {
+        onLog?.(
+          `嵌入字幕失敗（仍可下載 SRT）：${err instanceof Error ? err.message : err}`
+        );
+        subtitlesEmbedded = false;
+      }
+      tracker.complete();
+    }
+
     tracker.start("read");
     const data = await ff.readFile(
       currentVideo === "output.mp4" ? "output.mp4" : currentVideo
@@ -815,6 +894,7 @@ export async function mergeVideos(
     copy.set(u8);
     return {
       blob: new Blob([copy], { type: "video/mp4" }),
+      subtitlesEmbedded,
     };
   } finally {
     activeProgressSink = null;

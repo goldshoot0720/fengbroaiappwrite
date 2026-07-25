@@ -27,3 +27,15 @@ export {
   type LoopOptions,
   type MergeHooks,
 } from "./merge";
+
+export {
+  buildMergeSubtitles,
+  chunksToSrt,
+  chunksToVtt,
+  getMediaDuration,
+  parseTimedScript,
+  scriptToSubtitles,
+  splitScriptIntoLines,
+  type ScriptToSubtitlesResult,
+  type SubChunk,
+} from "./subtitle";

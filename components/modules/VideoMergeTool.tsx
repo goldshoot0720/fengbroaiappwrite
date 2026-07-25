@@ -7,6 +7,7 @@ import {
   Download,
   ExternalLink,
   Film,
+  FileText,
   Loader2,
   Trash2,
   Upload,
@@ -16,12 +17,14 @@ import { Button } from "@/components/ui/button";
 import { getExportFilename } from "@/lib/utils";
 import {
   LOOP_LIMITS,
+  buildMergeSubtitles,
   clearClips,
   clearStoredAudio,
   clearStoredPreview,
   extractFrames,
   formatBytes,
   formatDuration,
+  getMediaDuration,
   loadAudio,
   loadClips,
   loadPreview,
@@ -36,6 +39,7 @@ import {
 const SOURCE_URL = "https://github.com/huang1988pioneer/VideoMerge";
 const DEMO_URL = "https://video-merge-one.vercel.app";
 const LOOP_STORE_KEY = "fengbro.tools.videomerge.loop";
+const SCRIPT_STORE_KEY = "fengbro.tools.videomerge.script";
 
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -84,9 +88,19 @@ export default function VideoMergeTool() {
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [dragging, setDragging] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [scriptText, setScriptText] = useState("");
+  const [scriptPreview, setScriptPreview] = useState<{
+    cueCount: number;
+    source: string;
+    mode: string;
+    srt: string;
+  } | null>(null);
+  const [lastSrt, setLastSrt] = useState<string | null>(null);
+  const [subsEmbedded, setSubsEmbedded] = useState<boolean | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const scriptFileRef = useRef<HTMLInputElement>(null);
   const clipsRef = useRef(clips);
   const resultUrlRef = useRef<string | null>(null);
   clipsRef.current = clips;
@@ -103,6 +117,13 @@ export default function VideoMergeTool() {
   );
 
   const targetSeconds = loopHours * 3600 + loopMins * 60 + loopSecs;
+
+  const estimateOutDuration = useMemo(() => {
+    if (baseDuration <= 0) return 0;
+    if (loopMode === "once") return baseDuration;
+    if (loopMode === "count") return baseDuration * Math.max(1, loopCount);
+    return targetSeconds > 0 ? targetSeconds : baseDuration;
+  }, [baseDuration, loopCount, loopMode, targetSeconds]);
 
   const estimateLabel = useMemo(() => {
     if (baseDuration <= 0) return "加入影片後可預估輸出時長";
@@ -152,6 +173,13 @@ export default function VideoMergeTool() {
           if (Number.isFinite(data.mins)) setLoopMins(Math.max(0, Math.floor(data.mins!)));
           if (Number.isFinite(data.secs)) setLoopSecs(Math.max(0, Math.floor(data.secs!)));
         }
+      } catch {
+        /* ignore */
+      }
+
+      try {
+        const script = localStorage.getItem(SCRIPT_STORE_KEY);
+        if (script) setScriptText(script);
       } catch {
         /* ignore */
       }
@@ -220,6 +248,17 @@ export default function VideoMergeTool() {
       /* ignore */
     }
   }, [hydrated, loopCount, loopHours, loopMins, loopMode, loopSecs]);
+
+  // Persist script
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (scriptText.trim()) localStorage.setItem(SCRIPT_STORE_KEY, scriptText);
+      else localStorage.removeItem(SCRIPT_STORE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, [hydrated, scriptText]);
 
   const enrichClip = useCallback(
     async (id: string, file: File) => {
@@ -331,6 +370,10 @@ export default function VideoMergeTool() {
     setLoopHours(0);
     setLoopMins(1);
     setLoopSecs(0);
+    setScriptText("");
+    setScriptPreview(null);
+    setLastSrt(null);
+    setSubsEmbedded(null);
     setProgress(0);
     setLogLines([]);
     setResultBlob(null);
@@ -340,15 +383,91 @@ export default function VideoMergeTool() {
     });
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (audioInputRef.current) audioInputRef.current.value = "";
+    if (scriptFileRef.current) scriptFileRef.current.value = "";
     void clearClips();
     void clearStoredAudio();
     void clearStoredPreview();
     try {
       localStorage.removeItem(LOOP_STORE_KEY);
+      localStorage.removeItem(SCRIPT_STORE_KEY);
     } catch {
       /* ignore */
     }
     setStatus("已清除全部");
+  }, []);
+
+  const resolveFinalDuration = useCallback(() => {
+    if (estimateOutDuration > 0) return estimateOutDuration;
+    return baseDuration;
+  }, [baseDuration, estimateOutDuration]);
+
+  const buildScriptPreview = useCallback(async () => {
+    const text = scriptText.trim();
+    if (!text) {
+      setScriptPreview(null);
+      setStatus("請先貼上語音稿或上傳 SRT / VTT / TXT");
+      return;
+    }
+    const videoDur = resolveFinalDuration();
+    if (videoDur <= 0.5) {
+      setStatus("請先加入影片，才能依時長切句");
+      return;
+    }
+    try {
+      let audioDur: number | null = null;
+      if (audioFile && !noAudio) {
+        try {
+          audioDur = await getMediaDuration(audioFile);
+        } catch {
+          audioDur = null;
+        }
+      }
+      const built = buildMergeSubtitles({
+        scriptText: text,
+        videoDur,
+        audioDur,
+        hasCustomAudio: Boolean(audioFile) && !noAudio,
+      });
+      setScriptPreview({
+        cueCount: built.cueCount,
+        source: built.source,
+        mode: built.mode,
+        srt: built.srt,
+      });
+      setLastSrt(built.srt);
+      setStatus(
+        `語音稿就緒：${built.cueCount} 句（${
+          built.source === "timed" ? "已含時間軸" : "依時長自動切句"
+        } · 輸出約 ${formatDuration(videoDur)}）`
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "無法產生字幕";
+      setScriptPreview(null);
+      setStatus(message);
+    }
+  }, [audioFile, noAudio, resolveFinalDuration, scriptText]);
+
+  const downloadSrt = useCallback(() => {
+    const srt = lastSrt || scriptPreview?.srt;
+    if (!srt?.trim()) {
+      setStatus("尚無字幕可下載，請先預覽語音稿或完成合併");
+      return;
+    }
+    downloadBlob(
+      new Blob([srt], { type: "text/plain;charset=utf-8" }),
+      getExportFilename("video-merge", "srt")
+    );
+  }, [lastSrt, scriptPreview?.srt]);
+
+  const onScriptFile = useCallback(async (file: File | null) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setScriptText(text);
+      setStatus(`已載入講稿：${file.name}`);
+    } catch {
+      setStatus("無法讀取講稿檔案");
+    }
   }, []);
 
   const pickAudio = useCallback(
@@ -392,6 +511,7 @@ export default function VideoMergeTool() {
     setProgress(0);
     setLogLines([]);
     setShowLog(true);
+    setSubsEmbedded(null);
     setStatus("開始合併…");
 
     try {
@@ -418,15 +538,54 @@ export default function VideoMergeTool() {
         loop = { mode: "duration", targetSeconds: t, baseDurationSec };
       }
 
-      const { blob } = await mergeVideos(files, {
+      let outDur = baseDurationSec;
+      if (loop.mode === "count") {
+        outDur = baseDurationSec * Math.max(1, Math.floor(Number(loop.count) || 1));
+      } else if (loop.mode === "duration") {
+        outDur = Math.max(0.1, Number(loop.targetSeconds) || baseDurationSec);
+      }
+
+      let subtitleSrt: string | null = null;
+      if (scriptText.trim()) {
+        let audioDur: number | null = null;
+        if (audioFile && !noAudio) {
+          try {
+            audioDur = await getMediaDuration(audioFile);
+          } catch {
+            audioDur = null;
+          }
+        }
+        const built = buildMergeSubtitles({
+          scriptText,
+          videoDur: outDur,
+          audioDur,
+          hasCustomAudio: Boolean(audioFile) && !noAudio,
+        });
+        subtitleSrt = built.srt || null;
+        setLastSrt(built.srt);
+        setScriptPreview({
+          cueCount: built.cueCount,
+          source: built.source,
+          mode: built.mode,
+          srt: built.srt,
+        });
+        appendLog(
+          `語音稿字幕：${built.cueCount} 句 · source=${built.source} · mode=${built.mode}`
+        );
+      }
+
+      const { blob, subtitlesEmbedded } = await mergeVideos(files, {
         noAudio,
         audioFile: noAudio ? null : audioFile,
+        subtitleSrt,
         clipDurations,
         loop,
         onLog: appendLog,
         onProgress: (r) => setProgress(Math.round(r * 100)),
         onStatus: (s) => setStatus(s),
       });
+
+      setSubsEmbedded(subtitleSrt ? subtitlesEmbedded : null);
 
       const url = URL.createObjectURL(blob);
       setResultUrl((prev) => {
@@ -437,7 +596,12 @@ export default function VideoMergeTool() {
       void savePreview(blob, {
         filename: getExportFilename("video-merge", "mp4"),
       });
-      setStatus(`合併完成（${formatBytes(blob.size)}）`);
+      const subNote = !subtitleSrt
+        ? ""
+        : subtitlesEmbedded
+          ? " · 已嵌入軟字幕"
+          : " · 字幕嵌入失敗（可下載 SRT）";
+      setStatus(`合併完成（${formatBytes(blob.size)}）${subNote}`);
       setProgress(100);
     } catch (err) {
       const message = err instanceof Error ? err.message : "合併失敗";
@@ -456,6 +620,7 @@ export default function VideoMergeTool() {
     loopSecs,
     merging,
     noAudio,
+    scriptText,
   ]);
 
   const onDrop = useCallback(
@@ -480,7 +645,7 @@ export default function VideoMergeTool() {
             <div className="min-w-0">
               <h3 className="text-lg font-semibold">影片合併 VideoMerge</h3>
               <p className="text-sm text-muted-foreground">
-                多段影片首尾幀預覽、排序後合併為 MP4。本機 FFmpeg.wasm 處理，不上傳伺服器。
+                多段影片首尾幀預覽、排序、自訂音軌、語音稿字幕後合併為 MP4。本機 FFmpeg.wasm 處理，不上傳伺服器。
               </p>
             </div>
           </div>
@@ -716,6 +881,104 @@ export default function VideoMergeTool() {
           </div>
         </div>
 
+        {/* Script / subtitles */}
+        <div className="space-y-3 rounded-2xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] p-4">
+          <div className="flex items-start gap-2">
+            <FileText className="mt-0.5 shrink-0 text-violet-600 dark:text-violet-300" size={16} />
+            <div className="min-w-0 flex-1">
+              <h4 className="text-sm font-semibold">語音稿字幕</h4>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                貼上／上傳講稿，依輸出時長自動切句；亦支援 SRT、VTT 或{" "}
+                <code className="rounded bg-black/5 px-1 dark:bg-white/10">[00:01-00:03] 文字</code>
+                。合併時 soft-mux 進 MP4（mov_text）；瀏覽器預覽未必顯示字幕，請用下載的 SRT 或支援軟字幕的播放器。
+              </p>
+            </div>
+          </div>
+          <textarea
+            value={scriptText}
+            disabled={merging}
+            onChange={(e) => {
+              setScriptText(e.target.value);
+              setScriptPreview(null);
+            }}
+            rows={6}
+            placeholder={"例如：\n歡迎來到鋒兄工具。\n今天示範影片合併與語音稿字幕。\n\n或直接貼上完整 SRT / VTT。"}
+            className="w-full resize-y rounded-xl border border-[var(--line-soft)] bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={scriptFileRef}
+              type="file"
+              accept=".txt,.srt,.vtt,text/plain,application/x-subrip"
+              className="hidden"
+              onChange={(e) => {
+                void onScriptFile(e.target.files?.[0] ?? null);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={merging}
+              onClick={() => scriptFileRef.current?.click()}
+            >
+              上傳講稿 / SRT
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={merging || !scriptText.trim() || readyClips.length === 0}
+              onClick={() => void buildScriptPreview()}
+            >
+              預覽切句
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={merging || !scriptText.trim()}
+              onClick={() => {
+                setScriptText("");
+                setScriptPreview(null);
+                setLastSrt(null);
+                setStatus("已清除語音稿");
+              }}
+            >
+              清除講稿
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={!lastSrt && !scriptPreview?.srt}
+              onClick={downloadSrt}
+              className="gap-1"
+            >
+              <Download size={14} />
+              下載 SRT
+            </Button>
+          </div>
+          {scriptPreview ? (
+            <div className="rounded-xl border border-violet-200/70 bg-violet-50/60 p-3 text-xs dark:border-violet-900/50 dark:bg-violet-950/30">
+              <p className="font-medium text-violet-900 dark:text-violet-100">
+                {scriptPreview.cueCount} 句字幕 ·{" "}
+                {scriptPreview.source === "timed" ? "時間軸格式" : "純文字自動切句"} ·{" "}
+                輸出時長約 {formatDuration(estimateOutDuration || baseDuration)}
+              </p>
+              <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-violet-900/90 dark:text-violet-100/90">
+                {scriptPreview.srt.split("\n").slice(0, 24).join("\n")}
+                {scriptPreview.srt.split("\n").length > 24 ? "\n…" : ""}
+              </pre>
+            </div>
+          ) : scriptText.trim() ? (
+            <p className="text-[11px] text-[var(--muted-foreground)]">
+              已輸入講稿，合併時會自動切句並嘗試嵌入；也可先按「預覽切句」檢查。
+            </p>
+          ) : null}
+        </div>
+
         {/* Merge CTA */}
         <div className="flex flex-wrap items-center gap-3">
           <Button
@@ -865,6 +1128,18 @@ export default function VideoMergeTool() {
                 <Download size={14} />
                 下載 MP4
               </Button>
+              {lastSrt ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={downloadSrt}
+                >
+                  <Download size={14} />
+                  下載 SRT
+                </Button>
+              ) : null}
               <Button type="button" size="sm" variant="outline" onClick={clearResult}>
                 清除預覽
               </Button>
@@ -879,6 +1154,11 @@ export default function VideoMergeTool() {
           {resultBlob ? (
             <p className="text-xs text-[var(--muted-foreground)]">
               {formatBytes(resultBlob.size)} · 1280×720 · 30fps · H.264
+              {subsEmbedded === true
+                ? " · 含軟字幕 (mov_text)"
+                : subsEmbedded === false
+                  ? " · 字幕未嵌入（請下載 SRT）"
+                  : ""}
             </p>
           ) : null}
         </DataCard>
@@ -894,7 +1174,7 @@ export default function VideoMergeTool() {
         >
           huang1988pioneer/VideoMerge
         </a>
-        。首次合併需下載 FFmpeg 核心（約數十 MB），之後可走快取。長影片或很多片段時瀏覽器內轉檔會較慢。進階字幕時間軸 / Whisper 辨識請使用原始{" "}
+        。首次合併需下載 FFmpeg 核心（約數十 MB），之後可走快取。長影片或很多片段時瀏覽器內轉檔會較慢。依音軌 Whisper 自動辨識字幕請使用原始{" "}
         <a href={DEMO_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           Demo
         </a>
