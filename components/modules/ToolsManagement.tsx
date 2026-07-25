@@ -336,8 +336,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", provider: "cnbc", group: "us" },
   { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", provider: "cnbc", group: "us" },
   { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us" },
-  // 其他
-  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", provider: "cnbc", group: "other" },
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
 /** 精選焦點：固定優先顯示（KOSPI / 日經 / 費城半導體） */

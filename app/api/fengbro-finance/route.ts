@@ -70,7 +70,6 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   sp500: "^GSPC",
   nasdaq: "^IXIC",
   "phlx-semiconductor": "^SOX",
-  bitcoin: "BTC-USD",
   tsm: "TSM",
   koru: "KORU",
   soxl: "SOXL",
@@ -183,7 +182,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫", imageUrl: "/finance/sox-cats.jpg" },
   { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", sourceUrl: "https://www.cnbc.com/quotes/SOXL", group: "us", localLabel: "NYSEARCA: SOXL" },
   { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us", localLabel: "AI泡沫" },
-  { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "other", alertThreshold: 111111, imageUrl: "/finance/bitcoin-cats.jpg" },
 ];
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
