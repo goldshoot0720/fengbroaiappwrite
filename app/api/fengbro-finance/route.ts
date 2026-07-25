@@ -97,7 +97,6 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   "nikkei-225": "^N225",
   kospi: "^KS11",
   brent: "BZ=F",
-  us30y: "^TYX",
   gold: "GC=F",
   dow: "^DJI",
   sp500: "^GSPC",
@@ -210,7 +209,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
   { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", sourceUrl: "https://finance.yahoo.com/quote/SKHY", group: "korea", provider: "yahoo" },
   { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", sourceUrl: "https://www.cnbc.com/quotes/KORU", group: "korea", localLabel: "NYSEARCA: KORU" },
-  { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", sourceUrl: "https://finance.yahoo.com/quote/USDTWD=X", group: "other", provider: "yahoo", alertThreshold: 37 },
   {
     id: "usd-jpy",
     name: "美元對日圓匯率",
@@ -224,7 +222,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
       "https://search.bilibili.com/all?keyword=%E6%97%A5%E5%85%83%E8%B4%AC%E5%80%BC&from_source=websuggest_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399",
   },
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "other", alertThreshold: 222 },
-  { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", sourceUrl: "https://www.cnbc.com/quotes/US.30", group: "other", alertThreshold: 6.66 },
   { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "other", alertThreshold: 6666, imageUrl: "/finance/gold-featured.jpg" },
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666, localLabel: "Roaring '20s" },
   { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", sourceUrl: "https://www.cnbc.com/quotes/.SPX", group: "us", alertThreshold: 11111 },

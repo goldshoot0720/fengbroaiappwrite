@@ -263,8 +263,6 @@ export function guessFinanceGroup(
   if (/=X$/i.test(s)) return "other";
   if (/BTC|ETH|CRYPTO|CAPE/i.test(s)) return "other";
   if (s.startsWith("@") || /=(F)$/i.test(s) || s.endsWith("=F")) return "other";
-  if (s === "US.30" || s === "^TYX") return "other";
-
   // US indices & equities
   if (s.startsWith(".") || s.startsWith("^")) return "us";
   return "us";

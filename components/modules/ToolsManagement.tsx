@@ -422,11 +422,9 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us" },
   // 其他
   { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", provider: "multpl", group: "other" },
-  { id: "usd-twd", name: "美元對台幣匯率", symbol: "USDTWD=X", provider: "yahoo", group: "other" },
   { id: "usd-jpy", name: "美元對日圓匯率", symbol: "USDJPY=X", provider: "yahoo", group: "other" },
   { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", provider: "cnbc", group: "other" },
   { id: "gold", name: "Gold COMEX", symbol: "@GC.1", provider: "cnbc", group: "other" },
-  { id: "us30y", name: "U.S. 30 Year Treasury", symbol: "US.30", provider: "cnbc", group: "other" },
   { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", provider: "cnbc", group: "other" },
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
@@ -856,7 +854,7 @@ function FinanceFibonacciRetracementPanel({
     typeof quote.high52 === "number" && typeof quote.low52 === "number"
       ? quote.high52 - quote.low52
       : null;
-  const digits = quote.id === "us30y" || quote.symbol === "US.30" ? 3 : 2;
+  const digits = 2;
   const positionPct =
     typeof quote.price === "number" &&
     typeof quote.high52 === "number" &&
@@ -3213,7 +3211,7 @@ function FengbroFinanceSection({
                                 <p className="text-xs text-muted-foreground">最新價</p>
                                 <div className="mt-1 flex items-end justify-between gap-2">
                                   <p className="text-2xl font-semibold text-foreground tabular-nums">
-                                    {formatFinanceNumber(quote.price, quote.id === "us30y" || quote.symbol === "US.30" ? 3 : 2)}
+                                    {formatFinanceNumber(quote.price, 2)}
                                     {quote.currency ? <span className="ml-1 text-xs font-medium text-muted-foreground">{quote.currency}</span> : null}
                                   </p>
                                   <div className={`text-right text-xs font-semibold tabular-nums ${isUp ? "text-emerald-700" : "text-red-600"}`}>
