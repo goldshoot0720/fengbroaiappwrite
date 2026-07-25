@@ -8,7 +8,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type FinanceProvider = "cnbc" | "yahoo" | "multpl" | "mis";
+type FinanceProvider = "cnbc" | "yahoo" | "mis";
 
 type FinanceInstrument = {
   id: string;
@@ -50,23 +50,6 @@ type FinanceHistoryPoint = {
   price: number;
 };
 
-/** Daily OHLC bar for integer-level hit dates (e.g. USD/JPY 162 / 163). */
-type FinanceDailyBar = {
-  date: string;
-  high: number;
-  low: number;
-  close: number;
-};
-
-/**
- * Last date price traded at an integer handle within the lookback window.
- * `lastDate` is YYYY-MM-DD when found inside the window; otherwise null → UI shows「無」.
- */
-type FinanceIntegerLevelHit = {
-  level: number;
-  lastDate: string | null;
-};
-
 type FinanceHistoryRange = {
   key: "1y" | "3y";
   range: string;
@@ -75,19 +58,6 @@ type FinanceHistoryRange = {
   keepYears?: number;
 };
 
-/** Rolling window for FX integer-level “上次日期” (months). Outside → 無. */
-const INTEGER_LEVEL_LOOKBACK_MONTHS = 3;
-/**
- * How many *unreached* integer handles to preview above the current record.
- * Tracking itself is unlimited upward (no fixed end like 168): when record becomes
- * 168, the list becomes 168, 169, 170… — never caps at a hard max level.
- * Lower handles (record-1, record-2, …) are never listed.
- */
-const INTEGER_LEVEL_NEXT_PREVIEW = 12;
-
-const SHILLER_PE_URL = "https://www.multpl.com/shiller-pe";
-const SHILLER_PE_RECORD_HIGH = 44.19;
-const SHILLER_PE_RECORD_DATE = "Dec 1999";
 const FINANCE_HISTORY_RANGES: FinanceHistoryRange[] = [
   { key: "1y", range: "1y", interval: "1wk" },
   // Yahoo chart API has no native "3y"; fetch 5y weekly then trim to 3 years.
@@ -96,8 +66,6 @@ const FINANCE_HISTORY_RANGES: FinanceHistoryRange[] = [
 const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   "nikkei-225": "^N225",
   kospi: "^KS11",
-  brent: "BZ=F",
-  gold: "GC=F",
   dow: "^DJI",
   sp500: "^GSPC",
   nasdaq: "^IXIC",
@@ -209,27 +177,12 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
   { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", sourceUrl: "https://finance.yahoo.com/quote/SKHY", group: "korea", provider: "yahoo" },
   { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", sourceUrl: "https://www.cnbc.com/quotes/KORU", group: "korea", localLabel: "NYSEARCA: KORU" },
-  {
-    id: "usd-jpy",
-    name: "美元對日圓匯率",
-    symbol: "USDJPY=X",
-    sourceUrl: "https://finance.yahoo.com/quote/USDJPY=X",
-    group: "other",
-    provider: "yahoo",
-    alertThreshold: 222,
-    localLabel: "整數關向上 · 近3個月",
-    bilibiliUrl:
-      "https://search.bilibili.com/all?keyword=%E6%97%A5%E5%85%83%E8%B4%AC%E5%80%BC&from_source=websuggest_search&spm_id_from=333.1007&search_source=5&pubtime_begin_s=1782489600&pubtime_end_s=1783094399",
-  },
-  { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", sourceUrl: "https://www.cnbc.com/quotes/@LCO.1", group: "other", alertThreshold: 222 },
-  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", sourceUrl: "https://www.cnbc.com/quotes/@GC.1", group: "other", alertThreshold: 6666, imageUrl: "/finance/gold-featured.jpg" },
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666, localLabel: "Roaring '20s" },
   { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", sourceUrl: "https://www.cnbc.com/quotes/.SPX", group: "us", alertThreshold: 11111 },
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333, localLabel: "科技泡沫" },
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫", imageUrl: "/finance/sox-cats.jpg" },
   { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", sourceUrl: "https://www.cnbc.com/quotes/SOXL", group: "us", localLabel: "NYSEARCA: SOXL" },
   { id: "micron", name: "美光科技", symbol: "MU", sourceUrl: "https://www.cnbc.com/quotes/MU", group: "us", localLabel: "AI泡沫" },
-  { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", sourceUrl: SHILLER_PE_URL, group: "other", provider: "multpl", alertThreshold: 45 },
   { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", sourceUrl: "https://www.cnbc.com/quotes/BTC.CM=", group: "other", alertThreshold: 111111, imageUrl: "/finance/bitcoin-cats.jpg" },
 ];
 
@@ -550,208 +503,6 @@ function getRecordTag(price: number | null, high52: number | null, low52: number
 
 function isThresholdAlert(price: number | null, threshold?: number) {
   return typeof price === "number" && typeof threshold === "number" && price > threshold;
-}
-
-/**
- * Today's record integer handle = floor of the peak (day high / price / bar highs).
- * Only this level and higher targets need dates; lower handles (record-1, …) are ignored.
- */
-function getUsdJpyRecordLevel(peak: number) {
-  return Math.floor(peak);
-}
-
-/**
- * Levels to list: current record + next unreached previews (unlimited upward, no hard max).
- * e.g. record 163 → 163…175; when record becomes 170 → 170…182.
- * Never includes handles below the current record (162↓).
- */
-function getUpwardIntegerLevels(recordLevel: number, nextPreview = INTEGER_LEVEL_NEXT_PREVIEW) {
-  const levels: number[] = [];
-  // record + nextPreview unreached targets (tracking continues forever as record rises)
-  for (let i = 0; i <= nextPreview; i++) levels.push(recordLevel + i);
-  return levels;
-}
-
-/** True when the day's high reached the integer barrier (upward milestone). */
-function dayReachedIntegerLevel(high: number, level: number) {
-  return high >= level;
-}
-
-function lookbackCutoffIso(months = INTEGER_LEVEL_LOOKBACK_MONTHS) {
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - months);
-  return cutoff.toISOString().slice(0, 10);
-}
-
-/**
- * Most recent date (within lookback) when the high reached each integer barrier.
- * Only used for the current record and higher targets — not for lower dips.
- */
-function findIntegerLevelHits(
-  levels: number[],
-  bars: FinanceDailyBar[],
-  lookbackMonths = INTEGER_LEVEL_LOOKBACK_MONTHS
-): FinanceIntegerLevelHit[] {
-  const cutoff = lookbackCutoffIso(lookbackMonths);
-  const sorted = [...bars]
-    .filter((bar) => bar.date >= cutoff && bar.high > 0 && bar.low > 0)
-    .sort((a, b) => b.date.localeCompare(a.date));
-
-  return levels.map((level) => {
-    const hit = sorted.find((bar) => dayReachedIntegerLevel(bar.high, level));
-    return { level, lastDate: hit?.date ?? null };
-  });
-}
-
-/** Yahoo daily OHLC for the last ~3 months (for integer-level dates). */
-async function fetchYahooDailyBars3mo(symbol: string): Promise<FinanceDailyBar[]> {
-  const params = new URLSearchParams({
-    range: "3mo",
-    interval: "1d",
-    lang: "en-US",
-    region: "US",
-  });
-  const response = await fetch(`${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(symbol)}?${params.toString()}`, {
-    headers: FETCH_BROWSER_HEADERS,
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`Yahoo Finance daily ${response.status}`);
-  const payload = await response.json();
-  const chart = payload?.chart?.result?.[0];
-  const timestamps = chart?.timestamp;
-  const quote = chart?.indicators?.quote?.[0];
-  if (!Array.isArray(timestamps) || !quote) return [];
-
-  const highArr = Array.isArray(quote.high) ? quote.high : [];
-  const lowArr = Array.isArray(quote.low) ? quote.low : [];
-  const closeArr = Array.isArray(quote.close) ? quote.close : [];
-
-  const bars: FinanceDailyBar[] = [];
-  for (let i = 0; i < timestamps.length; i++) {
-    const time = asNumber(timestamps[i]);
-    const high = asNumber(highArr[i]);
-    const low = asNumber(lowArr[i]);
-    const close = asNumber(closeArr[i]);
-    if (time == null || high == null || low == null || close == null) continue;
-    if (high <= 0 || low <= 0) continue;
-    bars.push({
-      date: new Date(time * 1000).toISOString().slice(0, 10),
-      high,
-      low,
-      close,
-    });
-  }
-  return bars;
-}
-
-/**
- * Attach USD/JPY upward integer-level last-hit dates.
- *
- * Rules (per product):
- * - Today's record = floor(peak high). e.g. high 163.04 → record 163.
- * - Upward is unlimited (no fixed end at 168): as record rises, list slides up.
- * - Show record + next preview targets; dates only for upward barriers.
- * - Lower handles (162, 161, 160, …) are never listed.
- * - lastDate only if high reached the level within 3 months; else 無.
- */
-async function attachIntegerLevelHits<T extends {
-  id: string;
-  symbol: string;
-  price: number | null;
-  dayHigh?: number | null;
-  dayLow?: number | null;
-  high52?: number | null;
-  lastUpdated?: string;
-}>(quote: T): Promise<T & { integerLevelHits?: FinanceIntegerLevelHit[]; integerRecordLevel?: number }> {
-  if (quote.id !== "usd-jpy" && quote.symbol !== "USDJPY=X") {
-    return quote;
-  }
-  if (typeof quote.price !== "number" || !Number.isFinite(quote.price)) {
-    return { ...quote, integerLevelHits: [] };
-  }
-
-  const fallbackRecord = getUsdJpyRecordLevel(
-    Math.max(
-      quote.price,
-      typeof quote.dayHigh === "number" ? quote.dayHigh : quote.price,
-      typeof quote.high52 === "number" ? quote.high52 : quote.price
-    )
-  );
-
-  try {
-    const bars = await fetchYahooDailyBars3mo(quote.symbol);
-    const todayIso =
-      (quote.lastUpdated && quote.lastUpdated.slice(0, 10)) ||
-      new Date().toISOString().slice(0, 10);
-    const dayHigh = typeof quote.dayHigh === "number" ? quote.dayHigh : quote.price;
-    const dayLow = typeof quote.dayLow === "number" ? quote.dayLow : quote.price;
-    // Merge live session into bars (overwrite same date if present).
-    const withoutToday = bars.filter((bar) => bar.date !== todayIso);
-    withoutToday.push({
-      date: todayIso,
-      high: Math.max(dayHigh, quote.price),
-      low: Math.min(dayLow, quote.price),
-      close: quote.price,
-    });
-
-    // Peak within 3 months (bars already ~3mo) drives the record; ignore lower dips.
-    const cutoff = lookbackCutoffIso();
-    let peak = Math.max(dayHigh, quote.price);
-    for (const bar of withoutToday) {
-      if (bar.date >= cutoff && bar.high > peak) peak = bar.high;
-    }
-    if (typeof quote.high52 === "number" && quote.high52 > peak) {
-      // high52 may be older than 3mo; only raise record if still the live peak today
-      peak = Math.max(peak, dayHigh, quote.price);
-    }
-
-    const recordLevel = getUsdJpyRecordLevel(peak);
-    const levels = getUpwardIntegerLevels(recordLevel);
-    const integerLevelHits = findIntegerLevelHits(levels, withoutToday);
-    return { ...quote, integerLevelHits, integerRecordLevel: recordLevel };
-  } catch {
-    const levels = getUpwardIntegerLevels(fallbackRecord);
-    return {
-      ...quote,
-      integerRecordLevel: fallbackRecord,
-      integerLevelHits: levels.map((level) => ({
-        level,
-        // Only the current record is assumed touched today when history fails
-        lastDate: level === fallbackRecord ? new Date().toISOString().slice(0, 10) : null,
-      })),
-    };
-  }
-}
-
-function extractFirstNumber(pattern: RegExp, text: string) {
-  const match = text.match(pattern);
-  return match?.[1] ? asNumber(match[1]) : null;
-}
-
-function toReadableText(html: string) {
-  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function parseShillerPeText(text: string) {
-  const price =
-    extractFirstNumber(/Current\s+Shiller\s+PE\s+Ratio(?:\s+is)?\s*:?\s*([0-9]+(?:\.[0-9]+)?)/i, text) ??
-    extractFirstNumber(/\bShiller\s+PE\s+Ratio\s+([0-9]+(?:\.[0-9]+)?)/i, text);
-
-  const changeMatch =
-    text.match(/Current\s+Shiller\s+PE\s+Ratio(?:\s+is)?\s*:?\s*[0-9]+(?:\.[0-9]+)?\s*,?\s*([+-]?[0-9]+(?:\.[0-9]+)?)\s*\(([+-]?[0-9]+(?:\.[0-9]+)?)%\)/i) ??
-    text.match(/\bShiller\s+PE\s+Ratio\s+[0-9]+(?:\.[0-9]+)?\s+([+-]?[0-9]+(?:\.[0-9]+)?)\s*\(([+-]?[0-9]+(?:\.[0-9]+)?)%\)/i);
-
-  return {
-    price,
-    change: changeMatch?.[1] ? asNumber(changeMatch[1]) : null,
-    changePercent: changeMatch?.[2] ? asNumber(changeMatch[2]) : null,
-    pageMax: extractFirstNumber(/Max:\s*([0-9]+(?:\.[0-9]+)?)/i, text),
-    minFromPage: extractFirstNumber(/Min:\s*([0-9]+(?:\.[0-9]+)?)/i, text),
-    updatedAt:
-      text.match(/([0-9]{1,2}:[0-9]{2}\s*[AP]M\s*[A-Z]{2,4},\s*[A-Za-z]{3}\s+[A-Za-z]{3}\s+[0-9]{1,2})/i)?.[1] ||
-      text.match(/\b(At market close\s+[A-Za-z]{3}\s+[A-Za-z]{3}\s+[0-9]{1,2},\s*[0-9]{4})\b/i)?.[1] ||
-      "",
-  };
 }
 
 function toNumberList(value: unknown) {
@@ -1155,61 +906,15 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   };
 }
 
-async function fetchMultplInstrument(instrument: FinanceInstrument) {
-  const fetchMultplText = async (url: string) => {
-    const response = await fetch(url, {
-      headers: {
-        accept: "text/html,text/plain,*/*",
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-      },
-      cache: "no-store",
-    });
-
-    if (!response.ok) throw new Error(`Multpl ${response.status}`);
-    return toReadableText(await response.text());
-  };
-
-  const primaryText = await fetchMultplText(instrument.sourceUrl);
-  let parsed = parseShillerPeText(primaryText);
-
-  if (parsed.price == null) {
-    const fallbackText = await fetchMultplText("https://www.multpl.com/");
-    parsed = parseShillerPeText(fallbackText);
-  }
-
-  const price = parsed.price;
-  if (price == null) throw new Error("No Shiller PE data");
-
-  return {
-    ...instrument,
-    displayName: instrument.name,
-    price,
-    change: parsed.change,
-    changePercent: parsed.changePercent,
-    currency: "",
-    high52: SHILLER_PE_RECORD_HIGH,
-    low52: parsed.minFromPage,
-    dayHigh: null,
-    dayLow: null,
-    lastUpdated: parsed.updatedAt,
-    recordTag: price > SHILLER_PE_RECORD_HIGH ? "new-high" : null,
-    recordNote: `Historical max ${SHILLER_PE_RECORD_HIGH} (${SHILLER_PE_RECORD_DATE})`,
-    pageMax: parsed.pageMax,
-  };
-}
-
 async function fetchFinanceInstrument(instrument: FinanceInstrument, options?: { skipHistory?: boolean }) {
   const quote =
     instrument.provider === "mis"
       ? await fetchMisInstrument(instrument)
       : instrument.provider === "yahoo"
         ? await fetchYahooInstrument(instrument)
-        : instrument.provider === "multpl"
-          ? await fetchMultplInstrument(instrument)
-          : await fetchInstrument(instrument);
+        : await fetchInstrument(instrument);
 
-  if (options?.skipHistory || instrument.provider === "multpl") {
+  if (options?.skipHistory) {
     return { ...quote, historyRanges: {}, historyErrors: {} };
   }
 
@@ -1282,9 +987,7 @@ export async function GET(request: Request) {
       error: item.reason instanceof Error ? item.reason.message : "Failed to load quote",
     };
   });
-  // Enrich USD/JPY (etc.) with integer-level last-hit dates (3-month window → else 無).
-  const enrichedQuotes = await Promise.all(baseQuotes.map((quote) => attachIntegerLevelHits(quote)));
-  const quotes = enrichedQuotes.map((quote) => {
+  const quotes = baseQuotes.map((quote) => {
     const thresholdAlert = isThresholdAlert(quote.price, quote.alertThreshold);
     return {
       ...quote,
@@ -1294,7 +997,6 @@ export async function GET(request: Request) {
         : "",
     };
   });
-  const shillerQuote = quotes.find((quote) => quote.id === "shiller-pe");
   const financeAlerts = quotes
     .filter((quote) => quote.isThresholdAlert)
     .map((quote) => ({
@@ -1313,20 +1015,8 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     fetchedAt: new Date().toISOString(),
-    source: "CNBC / Yahoo Finance / Multpl / TWSE MIS / TPEx",
+    source: "CNBC / Yahoo Finance / TWSE MIS / TPEx",
     quotes,
     financeAlerts,
-    shillerPe: {
-      id: "shiller-pe",
-      name: "Shiller PE Ratio",
-      sourceUrl: SHILLER_PE_URL,
-      current: shillerQuote?.price ?? null,
-      recordHigh: SHILLER_PE_RECORD_HIGH,
-      recordHighDate: SHILLER_PE_RECORD_DATE,
-      updatedAt: shillerQuote?.lastUpdated ?? "",
-      isRecordHigh:
-        shillerQuote?.isThresholdAlert === true,
-      error: shillerQuote && "error" in shillerQuote ? shillerQuote.error : undefined,
-    },
   });
 }

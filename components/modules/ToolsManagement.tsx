@@ -191,13 +191,6 @@ type FengbroFinanceQuote = {
   periodLabel?: string;
   /** Horizontal reference levels (e.g. 融資平均水平線). */
   referenceLevels?: Array<{ value: number; label: string }>;
-  /**
-   * USD/JPY upward integer barriers from today's record (unlimited upward; no hard max).
-   * Lower handles (162↓) are omitted. lastDate within 3 months, else null →「無」.
-   */
-  integerLevelHits?: Array<{ level: number; lastDate: string | null }>;
-  /** Floor of the recent peak high (today's record integer). */
-  integerRecordLevel?: number;
   historyRanges?: Record<string, PriceHistoryEntry[]>;
   historyErrors?: Record<string, string>;
   isThresholdAlert?: boolean;
@@ -206,74 +199,10 @@ type FengbroFinanceQuote = {
   error?: string;
 };
 
-/** Format integer-level last date for 鋒兄金融 (null / missing → 無). */
-function formatIntegerLevelLastDate(lastDate: string | null | undefined) {
-  if (!lastDate) return "無";
-  // Prefer compact YYYY-MM-DD already from API
-  return lastDate;
-}
-
-function FinanceIntegerLevelHitsPanel({
-  quote,
-}: {
-  quote: Pick<FengbroFinanceQuote, "integerLevelHits" | "integerRecordLevel" | "id">;
-}) {
-  const hits = quote.integerLevelHits;
-  if (!hits || hits.length === 0) return null;
-  const recordLevel = quote.integerRecordLevel ?? hits[0]?.level;
-  const topListed = hits[hits.length - 1]?.level;
-  return (
-    <div className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-800/80">
-        整數關向上 · 無限追蹤 · 上次日期（近3個月）
-      </p>
-      {recordLevel != null && (
-        <p className="mt-1 text-[11px] font-medium text-cyan-900/80">
-          今日紀錄 <span className="tabular-nums font-semibold">{recordLevel}</span>
-          <span className="text-cyan-800/50">
-            {" "}
-            · 往上無限（列表預覽至 {topListed ?? recordLevel + 1}，紀錄上升後繼續）· 不記{" "}
-            {recordLevel - 1} 以下
-          </span>
-        </p>
-      )}
-      <div className="mt-2 grid max-h-56 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
-        {hits.map((hit) => {
-          const isRecord = hit.level === recordLevel;
-          return (
-            <div
-              key={hit.level}
-              className={`rounded-lg border px-2.5 py-2 ${
-                isRecord
-                  ? "border-cyan-300 bg-white shadow-sm"
-                  : "border-cyan-100/80 bg-white/80"
-              }`}
-            >
-              <p className="text-[11px] text-muted-foreground">
-                {isRecord ? `紀錄${hit.level}` : `上次${hit.level}`}
-              </p>
-              <p
-                className={`mt-0.5 text-sm font-semibold tabular-nums ${
-                  hit.lastDate ? "text-cyan-950" : "text-slate-400"
-                }`}
-              >
-                {formatIntegerLevelLastDate(hit.lastDate)}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-[10px] leading-relaxed text-cyan-900/60">
-        僅往上：紀錄關與更高關才列日期，無固定上限（168 之後仍繼續 169…）。回落較低關不顯示。近三個月未觸及為「無」。
-      </p>
-    </div>
-  );
-}
-
 function getFinanceSourceLabel(quote: Pick<FengbroFinanceQuote, "provider" | "sourceUrl" | "id">) {
   const source = (quote.sourceUrl || "").toLowerCase();
   if (source.includes("investing.com")) return "Investing";
-  if (source.includes("multpl.com") || quote.provider === "multpl" || quote.id === "shiller-pe") return "Multpl";
+  if (source.includes("multpl.com") || quote.provider === "multpl") return "Multpl";
   if (
     quote.provider === "mis" ||
     quote.id === "otc" ||
@@ -311,23 +240,10 @@ function getFinanceSessionLabel(quote: Pick<FengbroFinanceQuote, "marketSession"
   return "";
 }
 
-type ShillerPeRatio = {
-  id: string;
-  name: string;
-  sourceUrl: string;
-  current: number | null;
-  recordHigh: number;
-  recordHighDate: string;
-  updatedAt: string;
-  isRecordHigh: boolean;
-  error?: string;
-};
-
 type FengbroFinanceResult = {
   fetchedAt: string;
   source: string;
   quotes: FengbroFinanceQuote[];
-  shillerPe?: ShillerPeRatio;
 };
 
 type DefaultFinanceInstrumentSummary = {
@@ -421,10 +337,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", provider: "cnbc", group: "us" },
   { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us" },
   // 其他
-  { id: "shiller-pe", name: "Shiller PE Ratio", symbol: "CAPE", provider: "multpl", group: "other" },
-  { id: "usd-jpy", name: "美元對日圓匯率", symbol: "USDJPY=X", provider: "yahoo", group: "other" },
-  { id: "brent", name: "ICE Brent Crude", symbol: "@LCO.1", provider: "cnbc", group: "other" },
-  { id: "gold", name: "Gold COMEX", symbol: "@GC.1", provider: "cnbc", group: "other" },
   { id: "bitcoin", name: "Bitcoin/USD Coin Metrics", symbol: "BTC.CM=", provider: "cnbc", group: "other" },
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
@@ -3002,54 +2914,6 @@ function FengbroFinanceSection({
             })()}
             {/* ── END 精選焦點區塊 ─────────────────────────────────── */}
 
-            {result.shillerPe && (
-              <div
-                className={`rounded-[24px] border p-4 shadow-sm ${
-                  result.shillerPe.isRecordHigh
-                    ? "border-rose-300 bg-rose-50 text-rose-950"
-                    : "border-emerald-100 bg-emerald-50/70 text-emerald-950"
-                }`}
-              >
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-                        result.shillerPe.isRecordHigh ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
-                      }`}
-                    >
-                      {result.shillerPe.isRecordHigh ? <AlertTriangle size={20} /> : <BarChart3 size={20} />}
-                    </div>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-semibold">Shiller PE Ratio</h4>
-                        {result.shillerPe.isRecordHigh && (
-                          <span className="rounded-full border border-rose-200 bg-white px-2.5 py-1 text-xs font-semibold text-rose-700">
-                            創歷史新高
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-sm opacity-80">
-                        Max: {formatFinanceNumber(result.shillerPe.recordHigh, 2)} ({result.shillerPe.recordHighDate})
-                        {result.shillerPe.updatedAt ? ` / ${result.shillerPe.updatedAt}` : ""}
-                      </p>
-                      {result.shillerPe.error && <p className="mt-2 text-sm text-rose-600">{result.shillerPe.error}</p>}
-                    </div>
-                  </div>
-                  <div className="text-left md:text-right">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-70">Current</p>
-                    <p className="mt-1 text-3xl font-semibold">{formatFinanceNumber(result.shillerPe.current, 2)}</p>
-                    <a
-                      href={result.shillerPe.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium underline-offset-4 hover:underline"
-                    >
-                      multpl.com <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
             {/* ── 搜尋列 ─────────────────────────────────────── */}
             <div className="relative">
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
@@ -3275,7 +3139,6 @@ function FengbroFinanceSection({
                             </div>
                             <FinanceFibonacciRetracementPanel quote={quote} />
                             <FinanceHistoryPanels quote={quote} />
-                            <FinanceIntegerLevelHitsPanel quote={quote} />
                             {quote.recordNote ? (
                               <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
                                 {quote.recordNote}
