@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ClipboardList, Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
+import {
+  buildManualPriceCsv,
+  mergeManualPriceProducts,
+  parseManualPriceCsv,
+  type ManualPriceCsvProduct,
+} from "@/lib/manualPriceCsv";
+import { getExportFilename } from "@/lib/utils";
 
 type ManualPriceRecord = {
   id: string;
@@ -334,6 +341,7 @@ export default function ManualPriceTracker() {
   const [recordNote, setRecordNote] = useState("");
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loaded = loadProducts();
@@ -554,18 +562,129 @@ export default function ManualPriceTracker() {
     return [...sortRecords(selectedProduct.records)].reverse();
   }, [selectedProduct]);
 
+  const handleExportCsv = useCallback(() => {
+    try {
+      const csv = buildManualPriceCsv(products as ManualPriceCsvProduct[]);
+      const BOM = "\uFEFF";
+      const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("manual-price");
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setFormError("");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "輸出 CSV 失敗");
+    }
+  }, [products]);
+
+  const handleImportCsv = useCallback(
+    (file: File) => {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setFormError("請選擇 .csv 檔案");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          const { data, errors } = parseManualPriceCsv(text);
+
+          if (data.length === 0) {
+            setFormError(
+              errors.length > 0
+                ? `CSV 匯入失敗：${errors.slice(0, 5).join("；")}`
+                : "CSV 沒有可匯入的商品或價格"
+            );
+            return;
+          }
+
+          if (products.length > 0) {
+            const ok = window.confirm(
+              `將合併匯入 ${data.length} 個商品的價格紀錄（同商品名稱+幣別或同 productId 會合併）。\n` +
+                `目前 ${products.length} 個商品，合併後最多 ${MAX_PRODUCTS} 個。\n\n` +
+                `確定匯入？`
+            );
+            if (!ok) return;
+          }
+
+          const merged = mergeManualPriceProducts(
+            products as ManualPriceCsvProduct[],
+            data
+          ) as ManualPriceProduct[];
+          persistProducts(merged);
+
+          if (!selectedProductId || !merged.some((p) => p.id === selectedProductId)) {
+            setSelectedProductId(merged[0]?.id ?? null);
+          }
+
+          setFormError("");
+          const warn =
+            errors.length > 0
+              ? `\n警告 ${errors.length}：${errors.slice(0, 5).join("\n")}${errors.length > 5 ? "\n…" : ""}`
+              : "";
+          const recordCount = data.reduce((sum, p) => sum + p.records.length, 0);
+          window.alert(
+            `匯入完成！\n商品：${data.length} 個（約 ${recordCount} 筆價格）\n合併後共 ${merged.length} 個商品${warn}`
+          );
+        } catch (error) {
+          setFormError(error instanceof Error ? error.message : "輸入 CSV 失敗");
+        }
+      };
+      reader.onerror = () => setFormError("讀取 CSV 檔案失敗");
+      reader.readAsText(file, "UTF-8");
+    },
+    [persistProducts, products, selectedProductId]
+  );
+
   return (
     <div className="space-y-4">
       <DataCard className="space-y-4 p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
-            <ClipboardList size={20} />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+              <ClipboardList size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">手動價格紀錄</h3>
+              <p className="text-sm text-muted-foreground">
+                自行輸入商品與價錢，保存歷史紀錄並檢視走勢圖。可輸出／輸入 CSV；資料存在本機瀏覽器。
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold">手動價格紀錄</h3>
-            <p className="text-sm text-muted-foreground">
-              自行輸入商品與價錢，保存歷史紀錄並檢視走勢圖。資料存在本機瀏覽器。
-            </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) handleImportCsv(file);
+                event.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportCsv}
+              className="gap-2 border-violet-200 text-violet-800 hover:bg-violet-50"
+              title="匯出全部商品與價格紀錄為 CSV"
+            >
+              <Download size={16} />
+              輸出 CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => csvInputRef.current?.click()}
+              className="gap-2 border-violet-200 text-violet-800 hover:bg-violet-50"
+              title="從 CSV 匯入商品與價格紀錄（合併）"
+            >
+              <Upload size={16} />
+              輸入 CSV
+            </Button>
           </div>
         </div>
 
