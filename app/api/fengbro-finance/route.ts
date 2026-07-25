@@ -43,7 +43,46 @@ type CustomFinanceInstrumentInput = {
   symbol?: unknown;
   provider?: unknown;
   group?: unknown;
+  imageUrl?: unknown;
+  imageUrls?: unknown;
+  youtubeUrl?: unknown;
+  bilibiliUrl?: unknown;
 };
+
+function normalizeOptionalHttpUrl(value: unknown, maxLen = 500): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim().slice(0, maxLen);
+  if (!trimmed) return undefined;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(withProtocol);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    return withProtocol;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeImageUrls(input: unknown): string[] {
+  const raw: string[] = [];
+  if (typeof input === "string") {
+    raw.push(...input.split(/[\n,]+/).map((part) => part.trim()).filter(Boolean));
+  } else if (Array.isArray(input)) {
+    for (const item of input) {
+      if (typeof item === "string" && item.trim()) raw.push(item.trim());
+    }
+  }
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const item of raw) {
+    const url = normalizeOptionalHttpUrl(item, 800);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
+    if (urls.length >= 12) break;
+  }
+  return urls;
+}
 
 type FinanceHistoryPoint = {
   date: string;
@@ -133,6 +172,14 @@ function normalizeCustomFinanceInstrument(input: CustomFinanceInstrumentInput, i
       : symbol;
   const idBase = slugifyInstrumentId(`${provider}-${symbol}`) || `custom-${index + 1}`;
 
+  const imageUrls = normalizeImageUrls(
+    Array.isArray(input.imageUrls) && input.imageUrls.length > 0
+      ? input.imageUrls
+      : input.imageUrl
+  );
+  const youtubeUrl = normalizeOptionalHttpUrl(input.youtubeUrl);
+  const bilibiliUrl = normalizeOptionalHttpUrl(input.bilibiliUrl);
+
   return {
     id: `custom-${idBase}`,
     name,
@@ -145,6 +192,10 @@ function normalizeCustomFinanceInstrument(input: CustomFinanceInstrumentInput, i
     group,
     provider,
     localLabel: `${provider.toUpperCase()}: ${symbol}`,
+    ...(imageUrls[0] ? { imageUrl: imageUrls[0] } : {}),
+    ...(imageUrls.length > 0 ? { imageUrls } : {}),
+    ...(youtubeUrl ? { youtubeUrl } : {}),
+    ...(bilibiliUrl ? { bilibiliUrl } : {}),
   };
 }
 

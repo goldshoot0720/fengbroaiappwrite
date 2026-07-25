@@ -15,6 +15,11 @@ export type CustomFinanceInstrument = {
   symbol: string;
   provider: FinanceCustomProvider;
   group: FinanceCustomGroup;
+  /** Optional media / external video links shown on the quote card. */
+  imageUrl?: string;
+  imageUrls?: string[];
+  youtubeUrl?: string;
+  bilibiliUrl?: string;
 };
 
 export type CustomFinanceDraft = {
@@ -24,7 +29,59 @@ export type CustomFinanceDraft = {
   urlOrSymbol: string;
   provider: FinanceCustomProvider;
   group: FinanceCustomGroup;
+  /** One image URL per line (optional). */
+  imageUrlsText: string;
+  youtubeUrl: string;
+  bilibiliUrl: string;
 };
+
+const MAX_CUSTOM_IMAGE_URLS = 12;
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Normalize optional http(s) URL; empty / invalid → undefined. */
+export function normalizeOptionalHttpUrl(value: unknown, maxLen = 500): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim().slice(0, maxLen);
+  if (!trimmed) return undefined;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return isHttpUrl(withProtocol) ? withProtocol : undefined;
+}
+
+/** Parse draft textarea / stored list into clean http(s) image URLs. */
+export function normalizeFinanceImageUrls(input: unknown): string[] {
+  const rawList: string[] = [];
+  if (typeof input === "string") {
+    rawList.push(
+      ...input
+        .split(/[\n,]+/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+    );
+  } else if (Array.isArray(input)) {
+    for (const item of input) {
+      if (typeof item === "string" && item.trim()) rawList.push(item.trim());
+    }
+  }
+
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const raw of rawList) {
+    const url = normalizeOptionalHttpUrl(raw, 800);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
+    if (urls.length >= MAX_CUSTOM_IMAGE_URLS) break;
+  }
+  return urls;
+}
 
 export const FINANCE_CUSTOM_GROUPS: FinanceCustomGroup[] = [
   "korea",
@@ -385,11 +442,22 @@ export function draftFromCustomFinanceInstrument(
       ? buildYahooQuoteSourceUrl(instrument.symbol, { group: instrument.group })
       : buildCnbcQuoteSourceUrl(instrument.symbol);
 
+  const imageUrls = normalizeFinanceImageUrls(
+    instrument.imageUrls?.length
+      ? instrument.imageUrls
+      : instrument.imageUrl
+        ? [instrument.imageUrl]
+        : []
+  );
+
   return {
     name: instrument.name,
     urlOrSymbol,
     provider: instrument.provider,
     group: migrateFinanceGroup(instrument.group),
+    imageUrlsText: imageUrls.join("\n"),
+    youtubeUrl: instrument.youtubeUrl || "",
+    bilibiliUrl: instrument.bilibiliUrl || "",
   };
 }
 
@@ -406,11 +474,30 @@ export function normalizeCustomFinanceInstrument(
   const provider = input.provider === "yahoo" ? "yahoo" : "cnbc";
   const group = migrateFinanceGroup(input.group);
 
-  return { name, symbol, provider, group };
+  const imageUrls = normalizeFinanceImageUrls(
+    input.imageUrls?.length
+      ? input.imageUrls
+      : input.imageUrl
+        ? [input.imageUrl]
+        : (input as { imageUrlsText?: string }).imageUrlsText
+  );
+  const youtubeUrl = normalizeOptionalHttpUrl(input.youtubeUrl);
+  const bilibiliUrl = normalizeOptionalHttpUrl(input.bilibiliUrl);
+
+  return {
+    name,
+    symbol,
+    provider,
+    group,
+    ...(imageUrls[0] ? { imageUrl: imageUrls[0] } : {}),
+    ...(imageUrls.length > 0 ? { imageUrls } : {}),
+    ...(youtubeUrl ? { youtubeUrl } : {}),
+    ...(bilibiliUrl ? { bilibiliUrl } : {}),
+  };
 }
 
 /**
- * Build a custom instrument from the add form (代稱 + 網址/代號 + optional overrides).
+ * Build a custom instrument from the add form (代稱 + 網址/代號 + optional media).
  */
 export function buildCustomFinanceInstrumentFromDraft(
   draft: CustomFinanceDraft
@@ -436,6 +523,9 @@ export function buildCustomFinanceInstrumentFromDraft(
     symbol: parsed.symbol,
     provider,
     group,
+    imageUrls: normalizeFinanceImageUrls(draft.imageUrlsText),
+    youtubeUrl: draft.youtubeUrl,
+    bilibiliUrl: draft.bilibiliUrl,
   });
 }
 
@@ -447,6 +537,9 @@ export function createEmptyCustomFinanceDraft(
     urlOrSymbol: "",
     provider: "cnbc",
     group: "us",
+    imageUrlsText: "",
+    youtubeUrl: "",
+    bilibiliUrl: "",
     ...overrides,
   };
 }

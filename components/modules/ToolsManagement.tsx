@@ -2357,8 +2357,8 @@ function FengbroFinanceSection({
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {isEditingCustom
-              ? "修改代稱、代號／網址、來源或分類後按「儲存」。也可按「取消編輯」放棄變更。"
-              : "可貼上 Yahoo / Yahoo 奇摩股市 / CNBC 報價網址並填代稱；也可直接輸入代號（如 INTC、2330.TW、5274.TWO、.SOX）。tw.stock.yahoo.com 會自動辨識為台股來源。已新增的標的可點「編輯」修改。"}
+              ? "修改代稱、代號／網址、來源、分類，以及圖片／YouTube／Bilibili 後按「儲存」。也可按「取消編輯」放棄變更。"
+              : "可貼上 Yahoo / Yahoo 奇摩股市 / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片網址、YouTube、Bilibili，會顯示在報價卡片。"}
           </p>
         </div>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
@@ -2468,6 +2468,45 @@ function FengbroFinanceSection({
             )}
           </div>
         </div>
+
+        <div className="mt-4 grid gap-3 border-t border-slate-200/80 pt-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="space-y-1.5 text-sm sm:col-span-2 lg:col-span-1">
+            <span className="font-medium text-foreground">圖片網址（可選）</span>
+            <textarea
+              value={customDraft.imageUrlsText || ""}
+              onChange={(event) =>
+                onCustomDraftChange({ ...customDraft, imageUrlsText: event.target.value })
+              }
+              rows={3}
+              placeholder={"每行一張圖片 URL\nhttps://example.com/chart.png"}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            />
+            <span className="block text-[11px] text-muted-foreground">最多 12 張，會顯示在報價卡片輪播。</span>
+          </label>
+          <label className="space-y-1.5 text-sm">
+            <span className="font-medium text-foreground">YouTube（可選）</span>
+            <input
+              value={customDraft.youtubeUrl || ""}
+              onChange={(event) =>
+                onCustomDraftChange({ ...customDraft, youtubeUrl: event.target.value })
+              }
+              placeholder="https://www.youtube.com/..."
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            />
+          </label>
+          <label className="space-y-1.5 text-sm">
+            <span className="font-medium text-foreground">Bilibili（可選）</span>
+            <input
+              value={customDraft.bilibiliUrl || ""}
+              onChange={(event) =>
+                onCustomDraftChange({ ...customDraft, bilibiliUrl: event.target.value })
+              }
+              placeholder="https://www.bilibili.com/..."
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            />
+          </label>
+        </div>
+
         {(() => {
           const preview = parseFinanceQuoteInput(customDraft.urlOrSymbol);
           if (!preview) return null;
@@ -2480,6 +2519,11 @@ function FengbroFinanceSection({
             preview.marketHint === "tw" ||
             isTaiwanYahooStockSource(preview.sourceUrl) ||
             suggestedGroup === "taiwan";
+          const mediaHints = [
+            (customDraft.imageUrlsText || "").trim() ? "圖片" : "",
+            (customDraft.youtubeUrl || "").trim() ? "YouTube" : "",
+            (customDraft.bilibiliUrl || "").trim() ? "Bilibili" : "",
+          ].filter(Boolean);
           return (
             <p className="mt-2 text-xs text-emerald-800/90">
               {isEditingCustom ? "將更新為：" : "將新增："}
@@ -2488,6 +2532,7 @@ function FengbroFinanceSection({
               {sourceName}: {preview.symbol}
               {preview.fromUrl ? "（由網址辨識）" : ""}
               {isTwSource ? " · 台股來源" : ""}
+              {mediaHints.length > 0 ? ` · 媒體：${mediaHints.join("、")}` : ""}
             </p>
           );
         })()}
@@ -2498,6 +2543,7 @@ function FengbroFinanceSection({
           {customInstruments.map((instrument) => {
             const key = getCustomFinanceInstrumentKey(instrument);
             const isActiveEdit = editingCustomKey === key;
+            const hasImage = Boolean(instrument.imageUrl || instrument.imageUrls?.length);
             return (
               <span
                 key={key}
@@ -2514,6 +2560,21 @@ function FengbroFinanceSection({
                 <span className={isActiveEdit ? "text-amber-700/80" : "text-emerald-700/70"}>
                   {getFinanceGroupLabel(instrument.group)}
                 </span>
+                {hasImage ? (
+                  <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                    圖
+                  </span>
+                ) : null}
+                {instrument.youtubeUrl ? (
+                  <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                    YT
+                  </span>
+                ) : null}
+                {instrument.bilibiliUrl ? (
+                  <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                    B站
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => onEditCustomInstrument(instrument)}
