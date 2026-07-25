@@ -18,6 +18,7 @@ import {
   Podcast,
   Landmark,
   Clapperboard,
+  Images,
   Newspaper,
   Settings,
   Smartphone,
@@ -133,6 +134,7 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "price-compare", label: "鋒兄比價", subtitle: "(＋比價紀錄)", icon: <Wrench size={18} /> },
       { id: "landtop", label: "手機比價", icon: <Smartphone size={18} /> },
       { id: "image-voice-video", label: "圖片 + 語音 = 影片", icon: <Clapperboard size={18} /> },
+      { id: "image-format-convert", label: "PNG / JPG 轉換", icon: <Images size={18} /> },
     ],
   },
   {
@@ -233,6 +235,10 @@ export default function DashboardPage() {
         return <ToolsManagement initialTab="fengbro-news" onNavigate={handleModuleChange} />;
       case "image-voice-video":
         return <ToolsManagement initialTab="image-voice-video" onNavigate={handleModuleChange} />;
+      case "image-format-convert":
+        return (
+          <ToolsManagement initialTab="image-format-convert" onNavigate={handleModuleChange} />
+        );
       case "settings":
         return <SettingsManagement />;
       case "about":

@@ -57,10 +57,18 @@ import {
 } from "@/lib/landtopDefaults";
 import { getExportFilename } from "@/lib/utils";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
+import ImageFormatConvertTool from "@/components/modules/ImageFormatConvertTool";
 import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
 import ManualPriceTracker from "@/components/modules/ManualPriceTracker";
 
-type ToolsTab = "price-compare" | "landtop" | "fengbro-tube" | "fengbro-finance" | "fengbro-news" | "image-voice-video";
+type ToolsTab =
+  | "price-compare"
+  | "landtop"
+  | "fengbro-tube"
+  | "fengbro-finance"
+  | "fengbro-news"
+  | "image-voice-video"
+  | "image-format-convert";
 type PriceSource = "local" | "biggo-api";
 
 type PriceHistoryEntry = {
@@ -282,6 +290,7 @@ const PRIMARY_TOOL_TABS: { id: ToolsTab; label: string; subtitle?: string }[] = 
   { id: "price-compare", label: "鋒兄比價", subtitle: "(＋比價紀錄)" },
   { id: "landtop", label: "手機比價" },
   { id: "image-voice-video", label: "圖片 + 語音 = 影片" },
+  { id: "image-format-convert", label: "PNG / JPG 轉換" },
 ];
 
 /** 上方選單「鋒兄子工具」— 獨立群組，不出現在鋒兄工具頁分頁列 */
@@ -307,7 +316,8 @@ function getToolGroupMeta(tab: ToolsTab) {
   }
   return {
     title: "鋒兄工具",
-    description: "實用工具：比價、手機比價、圖片 + 語音 = 影片。子工具可於本頁精簡列或上方選單進入。",
+    description:
+      "實用工具：比價、手機比價、圖片 + 語音 = 影片、PNG / JPG 批次轉換。子工具可於本頁精簡列或上方選單進入。",
     tabs: PRIMARY_TOOL_TABS,
   };
 }
@@ -5040,6 +5050,8 @@ export default function ToolsManagement({
         <FengbroNewsTool />
       ) : activeTab === "image-voice-video" ? (
         <ImageVoiceVideoTool />
+      ) : activeTab === "image-format-convert" ? (
+        <ImageFormatConvertTool />
       ) : (
         <FengbroFinanceSection
           result={financeResult}
