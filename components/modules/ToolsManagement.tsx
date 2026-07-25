@@ -1466,6 +1466,35 @@ function PriceTrendChart({
   );
 }
 
+function hasLandtopCapacityVariantInfo(name: string) {
+  return /(\d{3,4}GB|\d{3,4}G|\d{1,2}G\s+\d{3,4}GB|\d{1,2}G\/\d{3,4}G)/i.test(name || "");
+}
+
+function landtopModelBaseKey(name: string) {
+  return (name || "")
+    .replace(/\b(\d{1,2})\s*G\s*\/\s*(\d{3,4})\s*G(B)?\b/gi, " ")
+    .replace(/\b(\d{1,2})\s*G\s+(\d{3,4})\s*GB\b/gi, " ")
+    .replace(/\b\d{3,4}\s*GB?\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/** Hide bare "Samsung A17" in history when 6G/8G capacity series exist. */
+function filterLandtopHistoryShells(histories: LandtopHistorySeries[]) {
+  const variantBases = new Set(
+    histories
+      .filter((item) => hasLandtopCapacityVariantInfo(item.name))
+      .map((item) => landtopModelBaseKey(item.name))
+  );
+  if (variantBases.size === 0) return histories;
+  return histories.filter((item) => {
+    if (hasLandtopCapacityVariantInfo(item.name)) return true;
+    const base = landtopModelBaseKey(item.name);
+    return !base || !variantBases.has(base);
+  });
+}
+
 function LandtopHistoryChart({
   histories,
   historyAvailable,
@@ -1476,7 +1505,7 @@ function LandtopHistoryChart({
   const palette = ["#0ea5e9", "#f97316", "#10b981", "#8b5cf6"];
 
   const chart = useMemo(() => {
-    const series = histories
+    const series = filterLandtopHistoryShells(histories)
       .map((item) => ({
         ...item,
         pricedPoints: item.points.filter(
