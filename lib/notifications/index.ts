@@ -6,6 +6,7 @@ export {
   foodExpiredMessage,
   financeBreakthroughMessage,
   aggregatePushSummary,
+  formatMultiItemPushBody,
   dashboardOsSubscriptionMessage,
   dashboardOsFoodExpiringMessage,
   dashboardOsFoodExpiredMessage,

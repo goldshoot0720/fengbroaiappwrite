@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v12';
+const CACHE_NAME = 'fengbro-ai-v13';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -138,17 +138,50 @@ async function checkExpiryBackground() {
 }
 
 // ─── Push：伺服器推播通知 ─────────────────────────────────────────────────────
+function resolveItemDays(item) {
+  if (typeof item.daysLeft === 'number') return item.daysLeft;
+  if (typeof item.daysRemaining === 'number') return item.daysRemaining;
+  return 0;
+}
+
+/** Prefer server body when it already lists items; otherwise expand items into lines. */
+function formatPushNotificationBody(data) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  if (items.length <= 1) return data.body || '您有新的提醒';
+  // Server already sent multi-line detail (summary + names).
+  if (typeof data.body === 'string' && data.body.includes('\n')) return data.body;
+
+  const PREVIEW = 8;
+  const sorted = [...items].sort((a, b) => resolveItemDays(a) - resolveItemDays(b));
+  const subs = sorted.filter((i) => i.type === 'subscription').length;
+  const foods = sorted.filter((i) => i.type === 'food').length;
+  const summary =
+    data.body ||
+    `${sorted.length} 個項目即將到期（${subs} 訂閱 + ${foods} 食品）`;
+  const lines = sorted.slice(0, PREVIEW).map((item) => {
+    const days = resolveItemDays(item);
+    const unit = item.type === 'food' ? '過期' : '到期';
+    const label = days === 0 ? `今天${unit}！` : `${days} 天後${unit}`;
+    return `${item.name} ${label}`;
+  });
+  const remaining = sorted.length - lines.length;
+  const more = remaining > 0 ? `…還有 ${remaining} 項` : null;
+  return [summary, ...lines, more].filter(Boolean).join('\n');
+}
+
 self.addEventListener('push', (event) => {
   let data = { title: '鋒兄AI Appwrite', body: '您有新的提醒', items: [], url: '/' };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch {}
 
-  const hasUrgent = Array.isArray(data.items) && data.items.some(i => i.daysLeft === 0);
+  const items = Array.isArray(data.items) ? data.items : [];
+  const hasUrgent = items.some((i) => resolveItemDays(i) === 0);
+  const body = formatPushNotificationBody(data);
 
   event.waitUntil(
     self.registration.showNotification(data.title, {
-      body: data.body,
+      body,
       icon: '/favicon.ico',
       badge: '/favicon.ico',
       tag: 'fengbro-expiry',

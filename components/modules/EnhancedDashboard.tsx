@@ -368,21 +368,42 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       {/* 訂閱到期提醒 */}
       {stats.subscriptionsExpiring3Days > 0 && (
         <DataCard className="p-4 bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 shrink-0 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
               <Bell className="text-orange-600 dark:text-orange-400" size={20} />
             </div>
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-orange-900 dark:text-orange-100">
-                🔔 有 {stats.subscriptionsExpiring3Days} 項訂閱將在3天內到期
+                🔔 有 {stats.subscriptionsExpiring3Days} 項訂閱將在 3 天內到期
               </p>
-              <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
-                請至「鋒兄訂閱」查看詳情
-              </p>
+              <ul className="mt-2 space-y-1 max-h-36 overflow-y-auto">
+                {[...stats.subscriptionsExpiring3DaysList]
+                  .sort((a, b) => a.daysRemaining - b.daysRemaining)
+                  .slice(0, 8)
+                  .map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 text-xs text-orange-800 dark:text-orange-200"
+                    >
+                      <span className="flex items-center gap-2 min-w-0 truncate">
+                        <FaviconImage siteUrl={item.site} siteName={item.name} size={14} />
+                        <span className="truncate">{item.name}</span>
+                      </span>
+                      <span className="shrink-0 font-medium">
+                        {formatDaysRemaining(item.daysRemaining)}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+              {stats.subscriptionsExpiring3DaysList.length > 8 && (
+                <p className="text-xs text-orange-700/80 dark:text-orange-300/80 mt-1">
+                  還有 {stats.subscriptionsExpiring3DaysList.length - 8} 項…
+                </p>
+              )}
             </div>
             <button
-              onClick={() => onNavigate('subscription')}
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors"
+              onClick={() => onNavigate("subscription")}
+              className="px-4 py-2 shrink-0 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors"
             >
               查看
             </button>
@@ -521,33 +542,47 @@ function FinanceAlertsNoticeCard({
 }
 
 function FoodStatsCard({ stats, onNavigate }: { stats: ReturnType<typeof useDashboardStats>["stats"]; onNavigate: (id: string) => void }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
+  const hasAttention =
+    stats.foodsExpiring7Days > 0 || stats.foodsExpiring30Days > 0 || stats.expiredFoods > 0;
+  const [isExpanded, setIsExpanded] = useState(hasAttention);
+
   return (
     <DataCard className="p-4 sm:p-6">
-      <div 
+      <div
         className="flex items-center justify-between mb-4 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 shrink-0 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
             <Package className="text-blue-600 dark:text-blue-400" size={20} />
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">食品管理統計</h2>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">食品管理統計</h2>
+            {!isExpanded && hasAttention && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5 truncate">
+                {[
+                  stats.expiredFoods > 0 ? `${stats.expiredFoods} 已過期` : null,
+                  stats.foodsExpiring7Days > 0 ? `${stats.foodsExpiring7Days} 項 7 天內` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
+          </div>
         </div>
         {isExpanded ? (
-          <ChevronUp className="text-gray-500 dark:text-gray-400" size={20} />
+          <ChevronUp className="text-gray-500 dark:text-gray-400 shrink-0" size={20} />
         ) : (
-          <ChevronDown className="text-gray-500 dark:text-gray-400" size={20} />
+          <ChevronDown className="text-gray-500 dark:text-gray-400 shrink-0" size={20} />
         )}
       </div>
-      
+
       {isExpanded && (
         <div className="space-y-3">
           <StatRow label="正常食品" value={stats.totalFoods - stats.foodsExpiring30Days - stats.expiredFoods} status="success" />
-          <DetailStatRow label="7天內過期" value={stats.foodsExpiring7Days} status="warning" items={stats.foodsExpiring7DaysList} bgColor="bg-yellow-50 dark:bg-yellow-900/20" />
-          <DetailStatRow label="30天內過期" value={stats.foodsExpiring30Days} status="urgent" items={stats.foodsExpiring30DaysList} bgColor="bg-orange-50 dark:bg-orange-900/20" />
-          <DetailStatRow label="已過期" value={stats.expiredFoods} status="expired" items={stats.expiredFoodsList} bgColor="bg-red-50 dark:bg-red-900/20" isExpired />
+          <DetailStatRow label="7天內過期" value={stats.foodsExpiring7Days} status="warning" items={stats.foodsExpiring7DaysList} bgColor="bg-yellow-50 dark:bg-yellow-900/20" onNavigate={() => onNavigate("food")} />
+          <DetailStatRow label="30天內過期" value={stats.foodsExpiring30Days} status="urgent" items={stats.foodsExpiring30DaysList} bgColor="bg-orange-50 dark:bg-orange-900/20" onNavigate={() => onNavigate("food")} />
+          <DetailStatRow label="已過期" value={stats.expiredFoods} status="expired" items={stats.expiredFoodsList} bgColor="bg-red-50 dark:bg-red-900/20" isExpired onNavigate={() => onNavigate("food")} />
         </div>
       )}
     </DataCard>
@@ -556,33 +591,51 @@ function FoodStatsCard({ stats, onNavigate }: { stats: ReturnType<typeof useDash
 
 // 訂閱統計卡片
 function SubscriptionStatsCard({ stats, onNavigate }: { stats: ReturnType<typeof useDashboardStats>["stats"]; onNavigate: (id: string) => void }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
+  const hasAttention =
+    stats.subscriptionsExpiring3Days > 0 ||
+    stats.subscriptionsExpiring7Days > 0 ||
+    stats.overdueSubscriptions > 0;
+  const [isExpanded, setIsExpanded] = useState(hasAttention);
+
   return (
     <DataCard className="p-4 sm:p-6">
-      <div 
+      <div
         className="flex items-center justify-between mb-4 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 shrink-0 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
             <CreditCard className="text-green-600 dark:text-green-400" size={20} />
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">訂閱管理統計</h2>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">訂閱管理統計</h2>
+            {!isExpanded && hasAttention && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5 truncate">
+                {[
+                  stats.overdueSubscriptions > 0 ? `${stats.overdueSubscriptions} 已逾期` : null,
+                  stats.subscriptionsExpiring3Days > 0
+                    ? `${stats.subscriptionsExpiring3Days} 項 3 天內`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
+          </div>
         </div>
         {isExpanded ? (
-          <ChevronUp className="text-gray-500 dark:text-gray-400" size={20} />
+          <ChevronUp className="text-gray-500 dark:text-gray-400 shrink-0" size={20} />
         ) : (
-          <ChevronDown className="text-gray-500 dark:text-gray-400" size={20} />
+          <ChevronDown className="text-gray-500 dark:text-gray-400 shrink-0" size={20} />
         )}
       </div>
-      
+
       {isExpanded && (
         <div className="space-y-3">
           <StatRow label="正常訂閱" value={stats.totalSubscriptions - stats.subscriptionsExpiring7Days - stats.overdueSubscriptions} status="success" />
-          <DetailStatRowSub label="3天內到期" value={stats.subscriptionsExpiring3Days} status="warning" items={stats.subscriptionsExpiring3DaysList} bgColor="bg-yellow-50 dark:bg-yellow-900/20" />
-          <DetailStatRowSub label="7天內到期" value={stats.subscriptionsExpiring7Days} status="urgent" items={stats.subscriptionsExpiring7DaysList} bgColor="bg-orange-50 dark:bg-orange-900/20" />
-          <DetailStatRowSub label="已逾期" value={stats.overdueSubscriptions} status="expired" items={stats.overdueSubscriptionsList} bgColor="bg-red-50 dark:bg-red-900/20" isExpired />
+          <DetailStatRowSub label="3天內到期" value={stats.subscriptionsExpiring3Days} status="warning" items={stats.subscriptionsExpiring3DaysList} bgColor="bg-yellow-50 dark:bg-yellow-900/20" onNavigate={() => onNavigate("subscription")} />
+          <DetailStatRowSub label="7天內到期" value={stats.subscriptionsExpiring7Days} status="urgent" items={stats.subscriptionsExpiring7DaysList} bgColor="bg-orange-50 dark:bg-orange-900/20" onNavigate={() => onNavigate("subscription")} />
+          <DetailStatRowSub label="已逾期" value={stats.overdueSubscriptions} status="expired" items={stats.overdueSubscriptionsList} bgColor="bg-red-50 dark:bg-red-900/20" isExpired onNavigate={() => onNavigate("subscription")} />
         </div>
       )}
     </DataCard>
@@ -602,10 +655,29 @@ function StatRow({ label, value, status }: { label: string; value: number; statu
   );
 }
 
+const DETAIL_LIST_PREVIEW = 8;
+
 // 詳細統計行 (食品)
-function DetailStatRow({ label, value, status, items, bgColor, isExpired = false }: { label: string; value: number; status: "warning" | "urgent" | "expired"; items: FoodDetail[]; bgColor: string; isExpired?: boolean }) {
+function DetailStatRow({
+  label,
+  value,
+  status,
+  items,
+  bgColor,
+  isExpired = false,
+  onNavigate,
+}: {
+  label: string;
+  value: number;
+  status: "warning" | "urgent" | "expired";
+  items: FoodDetail[];
+  bgColor: string;
+  isExpired?: boolean;
+  onNavigate?: () => void;
+}) {
   const textColor = status === "expired" ? "text-red-700 dark:text-red-400" : status === "urgent" ? "text-orange-700 dark:text-orange-400" : "text-yellow-700 dark:text-yellow-400";
-  
+  const sorted = [...items].sort((a, b) => a.daysRemaining - b.daysRemaining);
+
   return (
     <div className={`p-3 ${bgColor} rounded-xl`}>
       <div className="flex items-center justify-between mb-2">
@@ -615,17 +687,28 @@ function DetailStatRow({ label, value, status, items, bgColor, isExpired = false
         </div>
         <span className={`font-semibold ${textColor}`}>{value}</span>
       </div>
-      {items.length > 0 && (
-        <div className="space-y-1 mt-2">
-          {items.slice(0, 3).map((item) => (
-            <div key={item.id} className="flex justify-between items-center text-xs">
-              <span className="text-gray-600 dark:text-gray-400 truncate flex-1 mr-2">{item.name}</span>
-              <span className={`font-medium ${textColor}`}>
+      {sorted.length > 0 && (
+        <div className="space-y-1.5 mt-2 max-h-48 overflow-y-auto">
+          {sorted.slice(0, DETAIL_LIST_PREVIEW).map((item) => (
+            <div key={item.id} className="flex justify-between items-center gap-2 text-xs">
+              <span className="text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">{item.name}</span>
+              <span className={`font-medium shrink-0 ${textColor}`}>
                 {isExpired ? `${Math.abs(item.daysRemaining)}天前` : formatDaysRemaining(item.daysRemaining)}
               </span>
             </div>
           ))}
-          {items.length > 3 && <div className="text-xs text-gray-500 text-center">還有 {items.length - 3} 項...</div>}
+          {sorted.length > DETAIL_LIST_PREVIEW && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate?.();
+              }}
+              className="w-full text-xs text-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 py-1"
+            >
+              還有 {sorted.length - DETAIL_LIST_PREVIEW} 項…{onNavigate ? " 查看全部" : ""}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -633,9 +716,26 @@ function DetailStatRow({ label, value, status, items, bgColor, isExpired = false
 }
 
 // 詳細統計行 (訂閱)
-function DetailStatRowSub({ label, value, status, items, bgColor, isExpired = false }: { label: string; value: number; status: "warning" | "urgent" | "expired"; items: SubscriptionDetail[]; bgColor: string; isExpired?: boolean }) {
+function DetailStatRowSub({
+  label,
+  value,
+  status,
+  items,
+  bgColor,
+  isExpired = false,
+  onNavigate,
+}: {
+  label: string;
+  value: number;
+  status: "warning" | "urgent" | "expired";
+  items: SubscriptionDetail[];
+  bgColor: string;
+  isExpired?: boolean;
+  onNavigate?: () => void;
+}) {
   const textColor = status === "expired" ? "text-red-700 dark:text-red-400" : status === "urgent" ? "text-orange-700 dark:text-orange-400" : "text-yellow-700 dark:text-yellow-400";
-  
+  const sorted = [...items].sort((a, b) => a.daysRemaining - b.daysRemaining);
+
   return (
     <div className={`p-3 ${bgColor} rounded-xl`}>
       <div className="flex items-center justify-between mb-2">
@@ -645,23 +745,69 @@ function DetailStatRowSub({ label, value, status, items, bgColor, isExpired = fa
         </div>
         <span className={`font-semibold ${textColor}`}>{value}</span>
       </div>
-      {items.length > 0 && (
-        <div className="space-y-1 mt-2">
-          {items.slice(0, 3).map((item) => (
-            <div key={item.id} className="flex justify-between items-center text-xs">
-              <div className="flex items-center gap-2 truncate flex-1 mr-2">
+      {sorted.length > 0 && (
+        <div className="space-y-1.5 mt-2 max-h-48 overflow-y-auto">
+          {sorted.slice(0, DETAIL_LIST_PREVIEW).map((item) => (
+            <div key={item.id} className="flex justify-between items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 truncate flex-1 min-w-0 mr-1">
                 <FaviconImage siteUrl={item.site} siteName={item.name} size={16} />
-                <span className="text-gray-600 dark:text-gray-400 truncate">{item.name}</span>
+                <span className="text-gray-700 dark:text-gray-300 truncate">{item.name}</span>
               </div>
-              <span className={`font-medium ${textColor}`}>
+              <span className={`font-medium shrink-0 ${textColor}`}>
                 {isExpired ? `${Math.abs(item.daysRemaining)}天前` : formatDaysRemaining(item.daysRemaining)}
               </span>
             </div>
           ))}
-          {items.length > 3 && <div className="text-xs text-gray-500 text-center">還有 {items.length - 3} 項...</div>}
+          {sorted.length > DETAIL_LIST_PREVIEW && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate?.();
+              }}
+              className="w-full text-xs text-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 py-1"
+            >
+              還有 {sorted.length - DETAIL_LIST_PREVIEW} 項…{onNavigate ? " 查看全部" : ""}
+            </button>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+function AlertItemList({
+  items,
+  isExpired = false,
+  tone,
+}: {
+  items: Array<{ id: string; name: string; daysRemaining: number }>;
+  isExpired?: boolean;
+  tone: "red" | "orange";
+}) {
+  if (items.length === 0) return null;
+  const sorted = [...items].sort((a, b) => a.daysRemaining - b.daysRemaining);
+  const nameColor = tone === "red" ? "text-red-800 dark:text-red-200" : "text-orange-800 dark:text-orange-200";
+  const dayColor = tone === "red" ? "text-red-600 dark:text-red-300" : "text-orange-600 dark:text-orange-300";
+
+  return (
+    <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto border-t border-black/5 dark:border-white/10 pt-2">
+      {sorted.slice(0, DETAIL_LIST_PREVIEW).map((item) => (
+        <li key={item.id} className="flex justify-between gap-2 text-xs">
+          <span className={`truncate min-w-0 ${nameColor}`}>{item.name}</span>
+          <span className={`shrink-0 font-medium ${dayColor}`}>
+            {isExpired
+              ? `已過期 ${Math.abs(item.daysRemaining)} 天`
+              : formatDaysRemaining(item.daysRemaining)}
+          </span>
+        </li>
+      ))}
+      {sorted.length > DETAIL_LIST_PREVIEW && (
+        <li className="text-xs text-muted-foreground text-center pt-0.5">
+          還有 {sorted.length - DETAIL_LIST_PREVIEW} 項…
+        </li>
+      )}
+    </ul>
   );
 }
 
@@ -670,14 +816,45 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
   return (
     <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 sm:p-6">
       <div className="flex items-center gap-3 mb-4">
-        <AlertTriangle className="text-red-600 dark:text-red-400" size={24} />
-        <h2 className="text-lg font-semibold text-red-900 dark:text-red-100">需要注意</h2>
+        <AlertTriangle className="text-red-600 dark:text-red-400 shrink-0" size={24} />
+        <div>
+          <h2 className="text-lg font-semibold text-red-900 dark:text-red-100">需要注意</h2>
+          <p className="text-xs text-red-700/80 dark:text-red-300/80 mt-0.5">依剩餘天數排序，可直接對照名稱與期限</p>
+        </div>
       </div>
-      <div className="space-y-2 text-sm">
-        {stats.expiredFoods > 0 && <p className="text-red-700 dark:text-red-300">⚠️ 有 {stats.expiredFoods} 項食品已過期，建議立即處理</p>}
-        {stats.foodsExpiring7Days > 0 && <p className="text-orange-700 dark:text-orange-300">📅 有 {stats.foodsExpiring7Days} 項食品將在7天內過期</p>}
-        {stats.overdueSubscriptions > 0 && <p className="text-red-700 dark:text-red-300">💳 有 {stats.overdueSubscriptions} 項訂閱已逾期付款</p>}
-        {stats.subscriptionsExpiring3Days > 0 && <p className="text-orange-700 dark:text-orange-300">🔔 有 {stats.subscriptionsExpiring3Days} 項訂閱將在3天內到期</p>}
+      <div className="grid gap-3 sm:grid-cols-2 text-sm">
+        {stats.expiredFoods > 0 && (
+          <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
+            <p className="font-medium text-red-700 dark:text-red-300">
+              ⚠️ 有 {stats.expiredFoods} 項食品已過期
+            </p>
+            <AlertItemList items={stats.expiredFoodsList} isExpired tone="red" />
+          </div>
+        )}
+        {stats.foodsExpiring7Days > 0 && (
+          <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
+            <p className="font-medium text-orange-700 dark:text-orange-300">
+              📅 有 {stats.foodsExpiring7Days} 項食品將在 7 天內過期
+            </p>
+            <AlertItemList items={stats.foodsExpiring7DaysList} tone="orange" />
+          </div>
+        )}
+        {stats.overdueSubscriptions > 0 && (
+          <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
+            <p className="font-medium text-red-700 dark:text-red-300">
+              💳 有 {stats.overdueSubscriptions} 項訂閱已逾期付款
+            </p>
+            <AlertItemList items={stats.overdueSubscriptionsList} isExpired tone="red" />
+          </div>
+        )}
+        {stats.subscriptionsExpiring3Days > 0 && (
+          <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
+            <p className="font-medium text-orange-700 dark:text-orange-300">
+              🔔 有 {stats.subscriptionsExpiring3Days} 項訂閱將在 3 天內到期
+            </p>
+            <AlertItemList items={stats.subscriptionsExpiring3DaysList} tone="orange" />
+          </div>
+        )}
       </div>
     </div>
   );

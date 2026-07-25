@@ -59,6 +59,37 @@ export function financeBreakthroughMessage(alert: {
   };
 }
 
+/** How many item lines to put in a multi-item push body (OS trays truncate long text). */
+const PUSH_BODY_PREVIEW_LIMIT = 8;
+
+type TypedExpiryItem = ExpiryItemLike & { type: "subscription" | "food" };
+
+function formatTypedItemLine(item: TypedExpiryItem): string {
+  const days = resolveDays(item);
+  const unit = item.type === "food" ? "過期" : "到期";
+  return `${item.name} ${dayLabel(days, unit)}`;
+}
+
+/** Multi-line body: summary + soonest items first, then “…還有 N 項”. */
+export function formatMultiItemPushBody(params: {
+  subscriptions: ExpiryItemLike[];
+  foods: ExpiryItemLike[];
+  items: TypedExpiryItem[];
+  previewLimit?: number;
+}): string {
+  const { subscriptions, foods, items } = params;
+  const limit = params.previewLimit ?? PUSH_BODY_PREVIEW_LIMIT;
+  const totalItems = items.length;
+  const summary = `${totalItems} 個項目即將到期（${subscriptions.length} 訂閱 + ${foods.length} 食品）`;
+
+  const sorted = [...items].sort((a, b) => resolveDays(a) - resolveDays(b));
+  const preview = sorted.slice(0, limit).map(formatTypedItemLine);
+  const remaining = sorted.length - preview.length;
+  const more = remaining > 0 ? `…還有 ${remaining} 項` : null;
+
+  return [summary, ...preview, more].filter(Boolean).join("\n");
+}
+
 export function aggregatePushSummary(params: {
   subscriptions: ExpiryItemLike[];
   foods: ExpiryItemLike[];
@@ -66,10 +97,10 @@ export function aggregatePushSummary(params: {
   const { subscriptions, foods } = params;
   const totalItems = subscriptions.length + foods.length;
   if (totalItems === 0) {
-    return { title: "⏰ 鋒兄到期提醒", body: "無到期項目", items: [] as Array<ExpiryItemLike & { type: string }> };
+    return { title: "⏰ 鋒兄到期提醒", body: "無到期項目", items: [] as TypedExpiryItem[] };
   }
 
-  const items = [
+  const items: TypedExpiryItem[] = [
     ...subscriptions.map((s) => ({ type: "subscription" as const, ...s })),
     ...foods.map((f) => ({ type: "food" as const, ...f })),
   ];
@@ -94,7 +125,7 @@ export function aggregatePushSummary(params: {
 
   return {
     title: "⏰ 鋒兄到期提醒",
-    body: `${totalItems} 個項目即將到期（${subscriptions.length} 訂閱 + ${foods.length} 食品）`,
+    body: formatMultiItemPushBody({ subscriptions, foods, items }),
     items,
   };
 }
