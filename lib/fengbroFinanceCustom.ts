@@ -40,7 +40,7 @@ export type CustomFinanceDraft = {
 };
 
 /** Max instruments user can pin as 精選焦點. */
-export const MAX_FEATURED_FINANCE_INSTRUMENTS = 6;
+export const MAX_FEATURED_FINANCE_INSTRUMENTS = 9;
 
 /** Match server-side custom quote id generation (`custom-${slug(provider-symbol)}`). */
 export function buildCustomFinanceQuoteId(
