@@ -2180,7 +2180,13 @@ function FengbroFinanceSection({
 }) {
   const isEditingCustom = Boolean(editingCustomKey);
   const [watchlistOpen, setWatchlistOpen] = useState(false);
+  /** 新增指數或股票：預設折疊；進入編輯時自動展開 */
+  const [customFormOpen, setCustomFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (isEditingCustom) setCustomFormOpen(true);
+  }, [isEditingCustom]);
   /** Last name we auto-filled from resolve-name (so we can replace it when the symbol changes). */
   const autofilledNameRef = useRef<string>("");
   const customDraftRef = useRef(customDraft);
@@ -2386,25 +2392,50 @@ function FengbroFinanceSection({
     </div>
   );
 
-  const renderCustomInstrumentForm = () => (
+  const renderCustomInstrumentForm = () => {
+    const formExpanded = customFormOpen || isEditingCustom;
+    return (
     <div id="fengbro-finance-add-custom" className="scroll-mt-28">
       <div
-        className={`rounded-2xl border p-4 ${
+        className={`rounded-2xl border ${
           isEditingCustom
             ? "border-amber-200 bg-amber-50/70"
             : "border-slate-200 bg-slate-50/80"
         }`}
       >
-        <div className="mb-3">
-          <p className="text-sm font-semibold text-foreground">
-            {isEditingCustom ? "編輯指數或股票" : "新增指數或股票"}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {isEditingCustom
-              ? "修改代稱、代號／網址、來源、分類，以及圖片／YouTube／Bilibili 後按「儲存」。也可按「取消編輯」放棄變更。"
-              : "可貼上 Yahoo / Yahoo 奇摩 / Yahoo 日本 (finance.yahoo.co.jp) / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片、YouTube、Bilibili，並可設為精選焦點。"}
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setCustomFormOpen((prev) => !prev)}
+          className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left"
+          aria-expanded={formExpanded}
+        >
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {isEditingCustom ? "編輯指數或股票" : "新增指數或股票"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {isEditingCustom
+                ? "修改代稱、代號／網址、來源、分類，以及圖片／YouTube／Bilibili 後按「儲存」。也可按「取消編輯」放棄變更。"
+                : formExpanded
+                  ? "可貼上 Yahoo / Yahoo 奇摩 / Yahoo 日本 (finance.yahoo.co.jp) / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片、YouTube、Bilibili，並可設為精選焦點。"
+                  : "點擊展開以新增指數或股票；已新增的標的仍顯示於下方。"}
+            </p>
+          </div>
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+              formExpanded
+                ? isEditingCustom
+                  ? "bg-white text-amber-800"
+                  : "bg-white text-slate-700"
+                : "bg-slate-200/80 text-slate-700"
+            }`}
+          >
+            {formExpanded ? "收合 ▲" : "展開 ▼"}
+          </span>
+        </button>
+
+        {formExpanded && (
+        <div className="space-y-4 border-t border-slate-200/80 p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
           <label className="space-y-1.5 text-sm">
             <span className="font-medium text-foreground">代稱</span>
@@ -2595,6 +2626,8 @@ function FengbroFinanceSection({
             </p>
           );
         })()}
+        </div>
+        )}
       </div>
 
       {customInstruments.length > 0 && (
@@ -2683,6 +2716,7 @@ function FengbroFinanceSection({
       )}
     </div>
   );
+  };
 
   return (
     <div className="space-y-5">
