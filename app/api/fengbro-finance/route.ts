@@ -86,7 +86,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
       { label: "證交所", url: "https://www.twse.com.tw/" },
     ],
   },
-  { id: "tsmc", name: "台積電", symbol: "2330.TW", sourceUrl: "https://tw.stock.yahoo.com/quote/2330.TW", group: "taiwan", provider: "yahoo", alertThreshold: 3333, imageUrl: "/finance/tsmc-featured.jpg" },
   { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "japan", alertThreshold: 110000, localLabel: "日経平均株価", imageUrl: "/finance/nikkei-225-featured.jpg" },
   { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", sourceUrl: "https://finance.yahoo.com/quote/285A.T", group: "japan", provider: "yahoo", localLabel: "TYO: 285A" },
   {

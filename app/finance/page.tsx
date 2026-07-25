@@ -210,7 +210,6 @@ export default function FinancePage() {
       const params = new URLSearchParams({
         defaults: JSON.stringify([
           'kospi',
-          'tsmc',
         ]),
         skipHistory: '1',
       });
@@ -366,7 +365,6 @@ export default function FinancePage() {
   }
 
   const kospi = getQuote('kospi');
-  const tsmc = getQuote('tsmc');
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -574,89 +572,6 @@ export default function FinancePage() {
 
                 {/* 圖片輪播 */}
                 <FinanceImageCarousel quote={kospi} alt="KOSPI Index Chart" />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* 台積電 2330.TW */}
-      <section className="min-w-0">
-        <Card className="h-full bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200 dark:border-green-800">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Activity className="w-5 h-5 shrink-0 text-green-600" />
-                  台積電
-                </CardTitle>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  TSMC • 2330.TW
-                </p>
-              </div>
-              {tsmc?.sourceUrl && (
-                <a
-                  href={tsmc.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-green-600 hover:text-green-700 dark:text-green-400"
-                >
-                  <ExternalLink className="w-5 h-5" />
-                </a>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {tsmc?.error ? (
-              <div className="text-red-600 dark:text-red-400">
-                載入失敗: {tsmc.error}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* 當前價格 */}
-                <div className="flex items-baseline gap-3">
-                  <div className="text-4xl font-bold tabular-nums text-green-600 dark:text-green-400">
-                    {formatNumber(tsmc?.price, 2)}
-                  </div>
-                  {tsmc?.currency && (
-                    <div className="text-lg text-gray-500">{tsmc.currency}</div>
-                  )}
-                </div>
-
-                {/* 漲跌資訊 */}
-                {(tsmc?.change !== null || tsmc?.changePercent !== null) && (
-                  <div className={`flex flex-wrap items-center gap-2 text-base font-semibold ${
-                    isPositive(tsmc?.change) 
-                      ? 'text-green-600 dark:text-green-400' 
-                      : isNegative(tsmc?.change)
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {isPositive(tsmc?.change) ? (
-                      <TrendingUp className="w-5 h-5" />
-                    ) : isNegative(tsmc?.change) ? (
-                      <TrendingDown className="w-5 h-5" />
-                    ) : null}
-                    <span>{formatChange(tsmc?.change ?? null, tsmc?.changePercent ?? null)}</span>
-                    {isBearMarketFrom52WHigh(tsmc?.price, tsmc?.high52) && bearMarketBadge}
-                  </div>
-                )}
-
-                {/* 52週高低點 */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-green-200 dark:border-green-800">
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      {formatNumber(tsmc?.high52)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      {formatNumber(tsmc?.low52)}
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </CardContent>
