@@ -135,7 +135,7 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "price-compare", label: "鋒兄比價", subtitle: "(＋比價紀錄)", icon: <Wrench size={18} /> },
       { id: "landtop", label: "手機比價", icon: <Smartphone size={18} /> },
       { id: "image-voice-video", label: "圖片 + 語音 = 影片", icon: <Clapperboard size={18} /> },
-      { id: "image-format-convert", label: "PNG / JPG 轉換", icon: <Images size={18} /> },
+      { id: "image-format-convert", label: "PNG / JPEG 轉換", icon: <Images size={18} /> },
       { id: "video-merge", label: "影片合併", icon: <Film size={18} /> },
     ],
   },

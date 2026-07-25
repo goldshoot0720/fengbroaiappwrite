@@ -292,7 +292,7 @@ const PRIMARY_TOOL_TABS: { id: ToolsTab; label: string; subtitle?: string }[] = 
   { id: "price-compare", label: "鋒兄比價", subtitle: "(＋比價紀錄)" },
   { id: "landtop", label: "手機比價" },
   { id: "image-voice-video", label: "圖片 + 語音 = 影片" },
-  { id: "image-format-convert", label: "PNG / JPG 轉換" },
+  { id: "image-format-convert", label: "PNG / JPEG 轉換" },
   { id: "video-merge", label: "影片合併" },
 ];
 
