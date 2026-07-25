@@ -57,6 +57,44 @@ function hasVariantInfo(name) {
   return /(\d{3,4}GB|\d{3,4}G|\d{1,2}G\s+\d{3,4}GB|\d{1,2}G\/\d{3,4}G)/i.test(name);
 }
 
+/** "Samsung A17 6G 128GB" / "Samsung A17" → "samsung a17" for shell vs variant grouping. */
+function modelBaseKey(name) {
+  return normalizeSpace(String(name || ""))
+    .replace(/\b(\d{1,2})\s*G\s*\/\s*(\d{3,4})\s*G(B)?\b/gi, " ")
+    .replace(/\b(\d{1,2})\s*G\s+(\d{3,4})\s*GB\b/gi, " ")
+    .replace(/\b\d{3,4}\s*GB?\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Drop brand-list shells (e.g. "Samsung A17" @ lowest price) when capacity variants exist
+ * ("Samsung A17 6G 128GB", "Samsung A17 8G 128GB").
+ */
+function dropShellProductsWhenVariantsExist(products) {
+  const list = Array.isArray(products) ? products : [];
+  const variantBases = new Set();
+  const variantUrls = new Set();
+
+  for (const product of list) {
+    if (!hasVariantInfo(product.name)) continue;
+    const base = modelBaseKey(product.name);
+    if (base) variantBases.add(base);
+    if (product.sourceUrl) variantUrls.add(product.sourceUrl);
+  }
+
+  if (variantBases.size === 0 && variantUrls.size === 0) return list;
+
+  return list.filter((product) => {
+    if (hasVariantInfo(product.name)) return true;
+    const base = modelBaseKey(product.name);
+    if (base && variantBases.has(base)) return false;
+    if (product.sourceUrl && variantUrls.has(product.sourceUrl)) return false;
+    return true;
+  });
+}
+
 function createProductId(brand, name) {
   return `${brand}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
 }
@@ -621,36 +659,21 @@ export async function fetchLandtopCatalog({ query = "", refresh = false } = {}) 
     expandableProducts.map((product) => fetchProductVariantsFromUrl(product.brand, product.sourceUrl, refresh))
   );
 
-  const expandedSourceUrls = new Set();
   expandedGroups
     .flatMap((group) => group.products)
     .forEach((product) => {
       allProducts.set(product.id, product);
-      if (product.sourceUrl && hasVariantInfo(product.name)) {
-        expandedSourceUrls.add(product.sourceUrl);
-      }
     });
 
-  // Drop bare parent cards (e.g. "Samsung A17" @ lowest price) when per-SKU variants exist
-  if (expandedSourceUrls.size > 0) {
-    for (const [id, product] of allProducts) {
-      if (
-        expandedSourceUrls.has(product.sourceUrl) &&
-        !hasVariantInfo(product.name)
-      ) {
-        allProducts.delete(id);
-      }
-    }
-  }
-
-  // Final filter uses full query including capacity (8g / 128gb …)
-  const products = Array.from(allProducts.values())
-    .filter((product) => matchesTokens(product, tokens))
-    .sort((a, b) => {
-      const aPrice = a.landtopPrice ?? a.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
-      const bPrice = b.landtopPrice ?? b.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
-      return aPrice - bPrice;
-    });
+  // Final filter uses full query including capacity (8g / 128gb …).
+  // Then drop bare shells like "Samsung A17" when 6G/8G variants exist.
+  const products = dropShellProductsWhenVariantsExist(
+    Array.from(allProducts.values()).filter((product) => matchesTokens(product, tokens))
+  ).sort((a, b) => {
+    const aPrice = a.landtopPrice ?? a.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
+    const bPrice = b.landtopPrice ?? b.suggestedPrice ?? Number.MAX_SAFE_INTEGER;
+    return aPrice - bPrice;
+  });
 
   return {
     source: "地標網通",

@@ -29,6 +29,34 @@ function normalizeCompareName(value: string) {
     .toLowerCase();
 }
 
+function hasCapacityVariantInfo(name: string) {
+  return /(\d{3,4}GB|\d{3,4}G|\d{1,2}G\s+\d{3,4}GB|\d{1,2}G\/\d{3,4}G)/i.test(name || "");
+}
+
+/** "Samsung A17 6G 128GB" / "Samsung A17" → "samsung a17" */
+function modelBaseKey(name: string) {
+  return (name || "")
+    .replace(/\b(\d{1,2})\s*G\s*\/\s*(\d{3,4})\s*G(B)?\b/gi, " ")
+    .replace(/\b(\d{1,2})\s*G\s+(\d{3,4})\s*GB\b/gi, " ")
+    .replace(/\b\d{3,4}\s*GB?\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/** Drop bare "Samsung A17" when "Samsung A17 6G 128GB" / "8G 128GB" already exist. */
+function dropShellProductsWhenVariantsExist(products: CompareProduct[]) {
+  const variantBases = new Set(
+    products.filter((p) => hasCapacityVariantInfo(p.name || "")).map((p) => modelBaseKey(p.name || ""))
+  );
+  if (variantBases.size === 0) return products;
+  return products.filter((product) => {
+    if (hasCapacityVariantInfo(product.name || "")) return true;
+    const base = modelBaseKey(product.name || "");
+    return !base || !variantBases.has(base);
+  });
+}
+
 function mergeProducts(landtopProducts: CompareProduct[], jyesProducts: CompareProduct[]) {
   const jyesByName = new Map(
     jyesProducts.map((product) => [normalizeCompareName(product.name || ""), product])
@@ -70,7 +98,7 @@ function mergeProducts(landtopProducts: CompareProduct[], jyesProducts: CompareP
       bestSourceLabel: product.jyesPrice ? "傑昇通信" : null,
     }));
 
-  return [...merged, ...jyesOnly];
+  return dropShellProductsWhenVariantsExist([...merged, ...jyesOnly]);
 }
 
 export async function GET(request: Request) {
