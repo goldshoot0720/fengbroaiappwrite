@@ -323,9 +323,7 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   // 日本
   { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", provider: "cnbc", group: "japan" },
   { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", provider: "yahoo", group: "japan" },
-  // 台灣
-  { id: "taiex", name: "加權指數", symbol: "^TWII", provider: "yahoo", group: "taiwan" },
-  // 美國
+  // 台灣 / 美國：目前無預設標的（可自行新增）
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
 /** 精選焦點：固定優先顯示（KOSPI / 日經） */

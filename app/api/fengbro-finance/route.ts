@@ -70,22 +70,6 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
 };
 
 const INSTRUMENTS: FinanceInstrument[] = [
-  {
-    id: "taiex",
-    name: "加權指數",
-    symbol: "^TWII",
-    sourceUrl: "https://tw.stock.yahoo.com/quote/%5ETWII",
-    group: "taiwan",
-    provider: "yahoo",
-    alertThreshold: 126820,
-    localLabel: "週一至五 09:00–13:30",
-    imageUrl: "/finance/taiex-cats.png",
-    relatedLinks: [
-      { label: "盤中閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E4%B8%AD%E9%96%92%E8%81%8A" },
-      { label: "盤後閒聊", url: "https://www.ptt.cc/bbs/Stock/search?q=%E7%9B%A4%E5%BE%8C%E9%96%92%E8%81%8A" },
-      { label: "證交所", url: "https://www.twse.com.tw/" },
-    ],
-  },
   { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", sourceUrl: "https://www.cnbc.com/quotes/.N225", group: "japan", alertThreshold: 110000, localLabel: "日経平均株価", imageUrl: "/finance/nikkei-225-featured.jpg" },
   { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", sourceUrl: "https://finance.yahoo.com/quote/285A.T", group: "japan", provider: "yahoo", localLabel: "TYO: 285A" },
   {
