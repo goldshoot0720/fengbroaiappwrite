@@ -38,6 +38,11 @@ import {
   mergeFinanceCustomInstruments,
   parseFinanceCustomCsv,
 } from "@/lib/fengbroFinanceCsv";
+import {
+  buildFengbroTubeCsv,
+  mergeFengbroTubeChannels,
+  parseFengbroTubeCsv,
+} from "@/lib/fengbroTubeCsv";
 import { getExportFilename } from "@/lib/utils";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
@@ -1684,6 +1689,8 @@ function FengbroTubeSection({
   onDeleteChannel,
   onCancelEditChannel,
   onResetChannels,
+  onExportChannelsCsv,
+  onImportChannelsCsv,
   onRefresh,
 }: {
   result: FengbroTubeResult | null;
@@ -1702,10 +1709,13 @@ function FengbroTubeSection({
   onDeleteChannel: (sourceUrl: string) => void;
   onCancelEditChannel: () => void;
   onResetChannels: () => void;
+  onExportChannelsCsv: () => void;
+  onImportChannelsCsv: (file: File) => void;
   onRefresh: () => void;
 }) {
   const channelNavOpenState = useState(false);
   const [channelNavOpen, setChannelNavOpen] = channelNavOpenState;
+  const tubeCsvInputRef = useRef<HTMLInputElement>(null);
   
   const visibleChannels = useMemo(() => {
     return result?.channels.filter(c => !c.sourceUrl.includes("henren778")) || [];
@@ -1732,7 +1742,7 @@ function FengbroTubeSection({
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600/80">FengBro Tube</p>
               <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄Tube</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                追蹤指定 YouTube 頻道最新影片，每個頻道顯示 10 部；目前追蹤 {channelCount} 個頻道。
+                追蹤指定 YouTube 頻道最新影片，每個頻道顯示 10 部；目前追蹤 {channelCount} 個頻道。可輸出／輸入 CSV 備份頻道清單。
               </p>
             </div>
           </div>
@@ -1745,6 +1755,37 @@ function FengbroTubeSection({
             <span className="rounded-full border border-red-100 bg-white px-3 py-1 text-xs text-muted-foreground">
               頻道：{channelConfigs.length} / 預設 {DEFAULT_FENGBRO_TUBE_CHANNELS.length}
             </span>
+            <input
+              ref={tubeCsvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onImportChannelsCsv(file);
+                event.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onExportChannelsCsv}
+              className="gap-2 rounded-xl border-red-200 text-red-800 hover:bg-red-50"
+              title="匯出頻道清單為 CSV"
+            >
+              <Download size={16} />
+              輸出 CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => tubeCsvInputRef.current?.click()}
+              className="gap-2 rounded-xl border-red-200 text-red-800 hover:bg-red-50"
+              title="從 CSV 匯入頻道（同網址覆蓋合併）"
+            >
+              <Upload size={16} />
+              輸入 CSV
+            </Button>
             <Button type="button" variant="outline" onClick={onToggleChannelManager} className="gap-2 rounded-xl">
               <Wrench size={16} />
               頻道管理
@@ -3888,6 +3929,73 @@ export default function ToolsManagement({
     setTubeLoadedOnce(false);
   }, [clearTubeChannelForm]);
 
+  const handleExportTubeChannelsCsv = useCallback(() => {
+    try {
+      const csv = buildFengbroTubeCsv(tubeChannelConfigs);
+      const BOM = "\uFEFF";
+      const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("fengbro-tube");
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setTubeError("");
+    } catch (error) {
+      setTubeError(error instanceof Error ? error.message : "輸出 CSV 失敗");
+    }
+  }, [tubeChannelConfigs]);
+
+  const handleImportTubeChannelsCsv = useCallback(
+    (file: File) => {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setTubeError("請選擇 .csv 檔案");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          const { data, errors } = parseFengbroTubeCsv(text);
+
+          if (data.length === 0) {
+            setTubeError(
+              errors.length > 0
+                ? `CSV 匯入失敗：${errors.slice(0, 5).join("；")}`
+                : "CSV 沒有可匯入的頻道"
+            );
+            return;
+          }
+
+          if (tubeChannelConfigs.length > 0) {
+            const ok = window.confirm(
+              `將合併匯入 ${data.length} 個頻道（相同網址會覆蓋別名）。\n` +
+                `目前 ${tubeChannelConfigs.length} 個，合併後最多 80 個。\n\n` +
+                `確定匯入？`
+            );
+            if (!ok) return;
+          }
+
+          const merged = mergeFengbroTubeChannels(tubeChannelConfigs, data);
+          setTubeChannelConfigs(merged);
+          setTubeError("");
+          setTubeLoadedOnce(false);
+          setTubeChannelManagerOpen(true);
+          const warn =
+            errors.length > 0
+              ? `\n警告 ${errors.length}：${errors.slice(0, 5).join("\n")}${errors.length > 5 ? "\n…" : ""}`
+              : "";
+          window.alert(`匯入完成！\n新增／覆蓋：${data.length} 個\n合併後共 ${merged.length} 個頻道${warn}`);
+        } catch (error) {
+          setTubeError(error instanceof Error ? error.message : "輸入 CSV 失敗");
+        }
+      };
+      reader.onerror = () => setTubeError("讀取 CSV 檔案失敗");
+      reader.readAsText(file, "UTF-8");
+    },
+    [tubeChannelConfigs]
+  );
+
   useEffect(() => {
     if (activeTab === "fengbro-tube" && !tubeLoadedOnce && !tubeLoading) {
       void loadTube();
@@ -4733,6 +4841,8 @@ export default function ToolsManagement({
           onDeleteChannel={handleDeleteTubeChannel}
           onCancelEditChannel={clearTubeChannelForm}
           onResetChannels={handleResetTubeChannels}
+          onExportChannelsCsv={handleExportTubeChannelsCsv}
+          onImportChannelsCsv={handleImportTubeChannelsCsv}
           onRefresh={() => void loadTube()}
         />
       ) : activeTab === "fengbro-news" ? (
