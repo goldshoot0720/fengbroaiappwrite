@@ -2367,76 +2367,398 @@ function FengbroFinanceSection({
     [defaultInstruments, selectedDefaultIdSet]
   );
 
-  const renderDefaultWatchlist = (anchorId = "fengbro-finance-watchlist") => (
-    <div id={anchorId} className="scroll-mt-28 rounded-2xl border border-emerald-100 bg-emerald-50/70">
-      <button
-        type="button"
-        onClick={() => setWatchlistOpen((prev) => !prev)}
-        className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left"
-        aria-expanded={watchlistOpen}
-      >
-        <div>
-          <p className="text-sm font-semibold text-emerald-950">預設追蹤清單</p>
-          <p className="mt-1 text-xs text-emerald-800/80">
-            已啟用 {selectedDefaultInstruments.length} / {defaultInstruments.length} 個預設標的，可刪除、加回或重設。
-          </p>
-        </div>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${watchlistOpen ? "bg-white text-emerald-800" : "bg-emerald-100 text-emerald-700"}`}>
-          {watchlistOpen ? "收合 ▲" : "展開 ▼"}
-        </span>
-      </button>
-      {watchlistOpen && (
-        <div className="border-t border-emerald-100 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                value=""
-                onChange={(event) => {
-                  if (event.target.value) onAddDefaultInstrument(event.target.value);
-                }}
-                disabled={deletedDefaultInstruments.length === 0}
-                className="h-10 min-w-[220px] rounded-xl border border-emerald-100 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="">{deletedDefaultInstruments.length ? "加回預設標的" : "預設標的已全數啟用"}</option>
-                {deletedDefaultInstruments.map((instrument) => (
-                  <option key={instrument.id} value={instrument.id}>
-                    {instrument.name} ({instrument.symbol})
-                  </option>
-                ))}
-              </select>
-              <Button type="button" variant="outline" onClick={onResetDefaultInstruments} className="h-10 gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
-                <RotateCcw size={16} />
-                重設預設
-              </Button>
-            </div>
-          </div>
+  /**
+   * 新增指數 / 已新增標的 / 預設追蹤：折疊標題同一列，展開內容在下方。
+   */
+  const renderFinanceControls = () => {
+    const formExpanded = customFormOpen || isEditingCustom;
+    const toggleClass =
+      "flex h-full min-h-[4.5rem] w-full cursor-pointer items-center justify-between gap-2 rounded-2xl border p-3 text-left transition sm:p-3.5";
+    const badgeClass = (open: boolean, tone: "slate" | "emerald" | "amber") => {
+      if (open) {
+        if (tone === "amber") return "bg-white text-amber-800";
+        if (tone === "emerald") return "bg-white text-emerald-800";
+        return "bg-white text-slate-700";
+      }
+      if (tone === "emerald") return "bg-emerald-100 text-emerald-700";
+      if (tone === "amber") return "bg-amber-100 text-amber-800";
+      return "bg-slate-200/80 text-slate-700";
+    };
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {selectedDefaultInstruments.map((instrument) => {
-              const isFeatured = featuredQuoteIdSet.has(instrument.id);
+    return (
+      <div id="fengbro-finance-add-custom" className="scroll-mt-28 space-y-3">
+        {/* 同一列：三個折疊標題 */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => setCustomFormOpen((prev) => !prev)}
+            className={`${toggleClass} ${
+              isEditingCustom
+                ? "border-amber-200 bg-amber-50/70"
+                : formExpanded
+                  ? "border-slate-300 bg-slate-50"
+                  : "border-slate-200 bg-slate-50/80 hover:border-slate-300"
+            }`}
+            aria-expanded={formExpanded}
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                {isEditingCustom ? "編輯指數或股票" : "新增指數或股票"}
+              </p>
+              <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+                {isEditingCustom
+                  ? "修改後按儲存，或取消編輯"
+                  : formExpanded
+                    ? "填代稱、代號／網址與選用媒體"
+                    : "點擊展開以新增"}
+              </p>
+            </div>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${badgeClass(
+                formExpanded,
+                isEditingCustom ? "amber" : "slate"
+              )}`}
+            >
+              {formExpanded ? "收合 ▲" : "展開 ▼"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCustomListOpen((prev) => !prev)}
+            disabled={customInstruments.length === 0}
+            className={`${toggleClass} border-emerald-100 bg-emerald-50/70 ${
+              customInstruments.length === 0
+                ? "cursor-not-allowed opacity-60"
+                : customListOpen
+                  ? "border-emerald-200"
+                  : "hover:border-emerald-200"
+            }`}
+            aria-expanded={customListOpen}
+            title={
+              customInstruments.length === 0
+                ? "尚無自訂標的"
+                : customListOpen
+                  ? "收合已新增標的"
+                  : "展開已新增標的"
+            }
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-emerald-950">已新增標的</p>
+              <p className="mt-0.5 line-clamp-2 text-[11px] text-emerald-800/80">
+                {customInstruments.length === 0
+                  ? "尚無標的"
+                  : `共 ${customInstruments.length} 筆 · 編輯／精選／刪除`}
+              </p>
+            </div>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${badgeClass(customListOpen, "emerald")}`}>
+              {customListOpen ? "收合 ▲" : "展開 ▼"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setWatchlistOpen((prev) => !prev)}
+            className={`${toggleClass} border-emerald-100 bg-emerald-50/70 ${
+              watchlistOpen ? "border-emerald-200" : "hover:border-emerald-200"
+            }`}
+            aria-expanded={watchlistOpen}
+            id="fengbro-finance-watchlist"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-emerald-950">預設追蹤清單</p>
+              <p className="mt-0.5 line-clamp-2 text-[11px] text-emerald-800/80">
+                已啟用 {selectedDefaultInstruments.length} / {defaultInstruments.length}
+              </p>
+            </div>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${badgeClass(watchlistOpen, "emerald")}`}>
+              {watchlistOpen ? "收合 ▲" : "展開 ▼"}
+            </span>
+          </button>
+        </div>
+
+        {/* 展開：新增／編輯表單 */}
+        {formExpanded && (
+          <div
+            className={`space-y-4 rounded-2xl border p-4 ${
+              isEditingCustom
+                ? "border-amber-200 bg-amber-50/50"
+                : "border-slate-200 bg-slate-50/80"
+            }`}
+          >
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">代稱</span>
+                <input
+                  value={customDraft.name}
+                  onChange={(event) => onCustomDraftChange({ ...customDraft, name: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") onSaveCustomInstrument();
+                  }}
+                  placeholder="例如：英特爾、台積電"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">網址或代號</span>
+                <input
+                  value={customDraft.urlOrSymbol}
+                  onChange={(event) => {
+                    const urlOrSymbol = event.target.value;
+                    const parsed = parseFinanceQuoteInput(urlOrSymbol);
+                    if (parsed && isFinanceQuoteUrl(urlOrSymbol)) {
+                      onCustomDraftChange({
+                        ...customDraft,
+                        urlOrSymbol,
+                        provider: parsed.provider,
+                        group: guessFinanceGroup(parsed.symbol, {
+                          sourceUrl: parsed.sourceUrl,
+                          marketHint: parsed.marketHint,
+                        }),
+                      });
+                      return;
+                    }
+                    if (parsed && !isFinanceQuoteUrl(urlOrSymbol)) {
+                      const bareGroup = guessFinanceGroup(parsed.symbol);
+                      onCustomDraftChange({
+                        ...customDraft,
+                        urlOrSymbol,
+                        provider: parsed.provider,
+                        ...(bareGroup !== "us" ? { group: bareGroup } : {}),
+                      });
+                      return;
+                    }
+                    onCustomDraftChange({ ...customDraft, urlOrSymbol });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") onSaveCustomInstrument();
+                  }}
+                  placeholder="https://finance.yahoo.co.jp/quote/285A.T 或 2330.TW"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">來源</span>
+                <select
+                  value={customDraft.provider}
+                  onChange={(event) =>
+                    onCustomDraftChange({
+                      ...customDraft,
+                      provider: event.target.value as CustomFinanceInstrument["provider"],
+                    })
+                  }
+                  disabled={isFinanceQuoteUrl(customDraft.urlOrSymbol)}
+                  title={
+                    isFinanceQuoteUrl(customDraft.urlOrSymbol)
+                      ? "來源已由網址自動辨識"
+                      : "直接輸入代號時可手動選擇來源"
+                  }
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  <option value="cnbc">CNBC</option>
+                  <option value="yahoo">
+                    {isTaiwanYahooStockSource(customDraft.urlOrSymbol) ? "Yahoo 奇摩（台股）" : "Yahoo"}
+                  </option>
+                </select>
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">分類</span>
+                <select
+                  value={customDraft.group}
+                  onChange={(event) =>
+                    onCustomDraftChange({
+                      ...customDraft,
+                      group: event.target.value as CustomFinanceDraft["group"],
+                    })
+                  }
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                >
+                  {FINANCE_CUSTOM_GROUPS.map((group) => (
+                    <option key={group} value={group}>
+                      {getFinanceGroupLabel(group)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
+                  <Plus size={16} />
+                  {isEditingCustom ? "儲存" : "新增"}
+                </Button>
+                {isEditingCustom && (
+                  <Button type="button" variant="outline" onClick={onCancelEditCustomInstrument} className="h-10">
+                    取消編輯
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-3 border-t border-slate-200/80 pt-4 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="space-y-1.5 text-sm sm:col-span-2 lg:col-span-1">
+                <span className="font-medium text-foreground">圖片網址（可選）</span>
+                <textarea
+                  value={customDraft.imageUrlsText || ""}
+                  onChange={(event) =>
+                    onCustomDraftChange({ ...customDraft, imageUrlsText: event.target.value })
+                  }
+                  rows={3}
+                  placeholder={"每行一張圖片 URL\nhttps://example.com/chart.png"}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
+                <span className="block text-[11px] text-muted-foreground">最多 9 張，會顯示在報價卡片輪播。</span>
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">YouTube（可選）</span>
+                <input
+                  value={customDraft.youtubeUrl || ""}
+                  onChange={(event) =>
+                    onCustomDraftChange({ ...customDraft, youtubeUrl: event.target.value })
+                  }
+                  placeholder="https://www.youtube.com/..."
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-foreground">Bilibili（可選）</span>
+                <input
+                  value={customDraft.bilibiliUrl || ""}
+                  onChange={(event) =>
+                    onCustomDraftChange({ ...customDraft, bilibiliUrl: event.target.value })
+                  }
+                  placeholder="https://www.bilibili.com/..."
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
+              </label>
+              <label className="space-y-1.5 text-sm sm:col-span-2 lg:col-span-3">
+                <span className="font-medium text-foreground">自訂網址（可選）</span>
+                <textarea
+                  value={customDraft.relatedLinksText || ""}
+                  onChange={(event) =>
+                    onCustomDraftChange({ ...customDraft, relatedLinksText: event.target.value })
+                  }
+                  rows={3}
+                  placeholder={
+                    "每行一個網址，顯示在報價卡片外部連結\nhttps://www.ptt.cc/bbs/stock/index.html\nPTT 股板|https://www.ptt.cc/bbs/stock/index.html"
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                />
+                <span className="block text-[11px] text-muted-foreground">
+                  最多 9 個。可只貼網址（自動命名，如 PTT 股板），或用「標籤|網址」自訂顯示名稱。
+                </span>
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2 text-sm sm:col-span-2 lg:col-span-3">
+                <input
+                  type="checkbox"
+                  checked={Boolean(customDraft.featured)}
+                  onChange={(event) =>
+                    onCustomDraftChange({ ...customDraft, featured: event.target.checked })
+                  }
+                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-400"
+                />
+                <span className="font-medium text-amber-950">設為精選焦點</span>
+                <span className="text-xs text-amber-800/80">
+                  優先顯示於頂部（最多 {MAX_FEATURED_FINANCE_INSTRUMENTS} 個）
+                </span>
+              </label>
+            </div>
+
+            {(() => {
+              const preview = parseFinanceQuoteInput(customDraft.urlOrSymbol);
+              if (!preview) return null;
+              const sourceName = getFinanceProviderDisplayName(preview);
+              const suggestedGroup = guessFinanceGroup(preview.symbol, {
+                sourceUrl: preview.sourceUrl,
+                marketHint: preview.marketHint,
+              });
+              const isTwSource =
+                preview.marketHint === "tw" ||
+                isTaiwanYahooStockSource(preview.sourceUrl) ||
+                suggestedGroup === "taiwan";
+              const mediaHints = [
+                (customDraft.imageUrlsText || "").trim() ? "圖片" : "",
+                (customDraft.youtubeUrl || "").trim() ? "YouTube" : "",
+                (customDraft.bilibiliUrl || "").trim() ? "Bilibili" : "",
+                (customDraft.relatedLinksText || "").trim() ? "自訂網址" : "",
+                customDraft.featured ? "精選焦點" : "",
+              ].filter(Boolean);
+              return (
+                <p className="text-xs text-emerald-800/90">
+                  {isEditingCustom ? "將更新為：" : "將新增："}
+                  <span className="font-semibold">{customDraft.name.trim() || preview.symbol}</span>
+                  {" · "}
+                  {sourceName}: {preview.symbol}
+                  {preview.fromUrl ? "（由網址辨識）" : ""}
+                  {isTwSource ? " · 台股來源" : ""}
+                  {mediaHints.length > 0 ? ` · ${mediaHints.join("、")}` : ""}
+                </p>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* 展開：已新增標的 chips */}
+        {customListOpen && customInstruments.length > 0 && (
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3.5">
+            {customInstruments.map((instrument) => {
+              const key = getCustomFinanceInstrumentKey(instrument);
+              const quoteId = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
+              const isFeatured = featuredQuoteIdSet.has(quoteId) || Boolean(instrument.featured);
+              const isActiveEdit = editingCustomKey === key;
+              const hasImage = Boolean(instrument.imageUrl || instrument.imageUrls?.length);
+              const hasRelatedLinks = Boolean(instrument.relatedLinks?.length);
               return (
                 <span
-                  key={instrument.id}
+                  key={key}
                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
                     isFeatured
-                      ? "border-amber-200 bg-amber-50 text-amber-950"
-                      : "border-emerald-100 bg-white text-emerald-900"
+                      ? "border-amber-300 bg-amber-50 text-amber-950"
+                      : isActiveEdit
+                        ? "border-amber-300 bg-amber-50 text-amber-900"
+                        : "border-emerald-100 bg-white text-emerald-800"
                   }`}
                 >
-                  {isFeatured && (
+                  <span className="font-semibold">{instrument.name}</span>
+                  <span>
+                    {instrument.provider.toUpperCase()}: {instrument.symbol}
+                  </span>
+                  <span className={isActiveEdit || isFeatured ? "text-amber-700/80" : "text-emerald-700/70"}>
+                    {getFinanceGroupLabel(instrument.group)}
+                  </span>
+                  {isFeatured ? (
                     <span className="rounded-full bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
                       焦點
                     </span>
-                  )}
-                  <span className="font-semibold">{instrument.name}</span>
-                  <span className={isFeatured ? "text-amber-800" : "text-emerald-700"}>{instrument.symbol}</span>
+                  ) : null}
+                  {hasImage ? (
+                    <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                      圖
+                    </span>
+                  ) : null}
+                  {instrument.youtubeUrl ? (
+                    <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                      YT
+                    </span>
+                  ) : null}
+                  {instrument.bilibiliUrl ? (
+                    <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                      B站
+                    </span>
+                  ) : null}
+                  {hasRelatedLinks ? (
+                    <span
+                      className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                      title={instrument.relatedLinks?.map((link) => link.label).join("、")}
+                    >
+                      連{instrument.relatedLinks!.length > 1 ? instrument.relatedLinks!.length : ""}
+                    </span>
+                  ) : null}
                   <button
                     type="button"
-                    onClick={() => onToggleFeaturedQuoteId(instrument.id)}
+                    onClick={() => onToggleFeaturedQuoteId(quoteId)}
                     className={`rounded-full p-0.5 ${
                       isFeatured
                         ? "text-amber-700 hover:bg-white"
-                        : "text-emerald-700 hover:bg-emerald-50 hover:text-amber-700"
+                        : "text-emerald-700 hover:bg-white hover:text-amber-700"
                     }`}
                     title={isFeatured ? "取消精選焦點" : "設為精選焦點"}
                     aria-label={isFeatured ? `取消精選 ${instrument.name}` : `設為精選 ${instrument.name}`}
@@ -2445,10 +2767,22 @@ function FengbroFinanceSection({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onDeleteDefaultInstrument(instrument.id)}
-                    className={`rounded-full p-0.5 hover:text-red-600 ${
-                      isFeatured ? "text-amber-800 hover:bg-white" : "text-emerald-700 hover:bg-emerald-50"
+                    onClick={() => onEditCustomInstrument(instrument)}
+                    className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium transition ${
+                      isActiveEdit
+                        ? "bg-amber-100 text-amber-900"
+                        : "text-emerald-800 hover:bg-white"
                     }`}
+                    aria-label={`編輯 ${instrument.name}`}
+                    title={`編輯 ${instrument.name}`}
+                  >
+                    <Pencil size={12} strokeWidth={2.25} />
+                    編輯
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteCustomInstrument(instrument)}
+                    className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
                     aria-label={`刪除 ${instrument.name}`}
                   >
                     <Trash2 size={13} />
@@ -2457,389 +2791,89 @@ function FengbroFinanceSection({
               );
             })}
           </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
 
-  const renderCustomInstrumentForm = () => {
-    const formExpanded = customFormOpen || isEditingCustom;
-    return (
-    <div id="fengbro-finance-add-custom" className="scroll-mt-28">
-      <div
-        className={`rounded-2xl border ${
-          isEditingCustom
-            ? "border-amber-200 bg-amber-50/70"
-            : "border-slate-200 bg-slate-50/80"
-        }`}
-      >
-        <button
-          type="button"
-          onClick={() => setCustomFormOpen((prev) => !prev)}
-          className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left"
-          aria-expanded={formExpanded}
-        >
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              {isEditingCustom ? "編輯指數或股票" : "新增指數或股票"}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {isEditingCustom
-                ? "修改代稱、代號／網址、來源、分類，以及圖片／YouTube／Bilibili／自訂網址後按「儲存」。也可按「取消編輯」放棄變更。"
-                : formExpanded
-                  ? "可貼上 Yahoo / Yahoo 奇摩 / Yahoo 日本 (finance.yahoo.co.jp) / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片、YouTube、Bilibili、自訂網址（如 PTT 股板），並可設為精選焦點。"
-                  : "點擊展開以新增指數或股票；已新增標的預設折疊，可於下方展開管理。"}
-            </p>
-          </div>
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors ${
-              formExpanded
-                ? isEditingCustom
-                  ? "bg-white text-amber-800"
-                  : "bg-white text-slate-700"
-                : "bg-slate-200/80 text-slate-700"
-            }`}
-          >
-            {formExpanded ? "收合 ▲" : "展開 ▼"}
-          </span>
-        </button>
+        {/* 展開：預設追蹤清單 */}
+        {watchlistOpen && (
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select
+                  value=""
+                  onChange={(event) => {
+                    if (event.target.value) onAddDefaultInstrument(event.target.value);
+                  }}
+                  disabled={deletedDefaultInstruments.length === 0}
+                  className="h-10 min-w-[220px] rounded-xl border border-emerald-100 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="">{deletedDefaultInstruments.length ? "加回預設標的" : "預設標的已全數啟用"}</option>
+                  {deletedDefaultInstruments.map((instrument) => (
+                    <option key={instrument.id} value={instrument.id}>
+                      {instrument.name} ({instrument.symbol})
+                    </option>
+                  ))}
+                </select>
+                <Button type="button" variant="outline" onClick={onResetDefaultInstruments} className="h-10 gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                  <RotateCcw size={16} />
+                  重設預設
+                </Button>
+              </div>
+            </div>
 
-        {formExpanded && (
-        <div className="space-y-4 border-t border-slate-200/80 p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)_0.85fr_0.85fr_auto] lg:items-end">
-          <label className="space-y-1.5 text-sm">
-            <span className="font-medium text-foreground">代稱</span>
-            <input
-              value={customDraft.name}
-              onChange={(event) => onCustomDraftChange({ ...customDraft, name: event.target.value })}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") onSaveCustomInstrument();
-              }}
-              placeholder="例如：英特爾、台積電"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            />
-          </label>
-          <label className="space-y-1.5 text-sm">
-            <span className="font-medium text-foreground">網址或代號</span>
-            <input
-              value={customDraft.urlOrSymbol}
-              onChange={(event) => {
-                const urlOrSymbol = event.target.value;
-                const parsed = parseFinanceQuoteInput(urlOrSymbol);
-                if (parsed && isFinanceQuoteUrl(urlOrSymbol)) {
-                  onCustomDraftChange({
-                    ...customDraft,
-                    urlOrSymbol,
-                    provider: parsed.provider,
-                    group: guessFinanceGroup(parsed.symbol, {
-                      sourceUrl: parsed.sourceUrl,
-                      marketHint: parsed.marketHint,
-                    }),
-                  });
-                  return;
-                }
-                if (parsed && !isFinanceQuoteUrl(urlOrSymbol)) {
-                  const bareGroup = guessFinanceGroup(parsed.symbol);
-                  onCustomDraftChange({
-                    ...customDraft,
-                    urlOrSymbol,
-                    provider: parsed.provider,
-                    // 代號含 .TW / .TWO 等明確後綴時建議地區分類
-                    ...(bareGroup !== "us" ? { group: bareGroup } : {}),
-                  });
-                  return;
-                }
-                onCustomDraftChange({ ...customDraft, urlOrSymbol });
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") onSaveCustomInstrument();
-              }}
-              placeholder="https://finance.yahoo.co.jp/quote/285A.T 或 2330.TW"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            />
-          </label>
-          <label className="space-y-1.5 text-sm">
-            <span className="font-medium text-foreground">來源</span>
-            <select
-              value={customDraft.provider}
-              onChange={(event) =>
-                onCustomDraftChange({
-                  ...customDraft,
-                  provider: event.target.value as CustomFinanceInstrument["provider"],
+            <div className="mt-4 flex flex-wrap gap-2">
+              {selectedDefaultInstruments.length === 0 ? (
+                <p className="text-xs text-emerald-800/80">目前沒有啟用的預設標的。</p>
+              ) : (
+                selectedDefaultInstruments.map((instrument) => {
+                  const isFeatured = featuredQuoteIdSet.has(instrument.id);
+                  return (
+                    <span
+                      key={instrument.id}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
+                        isFeatured
+                          ? "border-amber-200 bg-amber-50 text-amber-950"
+                          : "border-emerald-100 bg-white text-emerald-900"
+                      }`}
+                    >
+                      {isFeatured && (
+                        <span className="rounded-full bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                          焦點
+                        </span>
+                      )}
+                      <span className="font-semibold">{instrument.name}</span>
+                      <span className={isFeatured ? "text-amber-800" : "text-emerald-700"}>{instrument.symbol}</span>
+                      <button
+                        type="button"
+                        onClick={() => onToggleFeaturedQuoteId(instrument.id)}
+                        className={`rounded-full p-0.5 ${
+                          isFeatured
+                            ? "text-amber-700 hover:bg-white"
+                            : "text-emerald-700 hover:bg-emerald-50 hover:text-amber-700"
+                        }`}
+                        title={isFeatured ? "取消精選焦點" : "設為精選焦點"}
+                        aria-label={isFeatured ? `取消精選 ${instrument.name}` : `設為精選 ${instrument.name}`}
+                      >
+                        <Star size={13} className={isFeatured ? "fill-amber-400 text-amber-500" : ""} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteDefaultInstrument(instrument.id)}
+                        className={`rounded-full p-0.5 hover:text-red-600 ${
+                          isFeatured ? "text-amber-800 hover:bg-white" : "text-emerald-700 hover:bg-emerald-50"
+                        }`}
+                        aria-label={`刪除 ${instrument.name}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </span>
+                  );
                 })
-              }
-              disabled={isFinanceQuoteUrl(customDraft.urlOrSymbol)}
-              title={
-                isFinanceQuoteUrl(customDraft.urlOrSymbol)
-                  ? "來源已由網址自動辨識"
-                  : "直接輸入代號時可手動選擇來源"
-              }
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-            >
-              <option value="cnbc">CNBC</option>
-              <option value="yahoo">
-                {isTaiwanYahooStockSource(customDraft.urlOrSymbol) ? "Yahoo 奇摩（台股）" : "Yahoo"}
-              </option>
-            </select>
-          </label>
-          <label className="space-y-1.5 text-sm">
-            <span className="font-medium text-foreground">分類</span>
-            <select
-              value={customDraft.group}
-              onChange={(event) =>
-                onCustomDraftChange({
-                  ...customDraft,
-                  group: event.target.value as CustomFinanceDraft["group"],
-                })
-              }
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            >
-              {FINANCE_CUSTOM_GROUPS.map((group) => (
-                <option key={group} value={group}>
-                  {getFinanceGroupLabel(group)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={onSaveCustomInstrument} className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700">
-              <Plus size={16} />
-              {isEditingCustom ? "儲存" : "新增"}
-            </Button>
-            {isEditingCustom && (
-              <Button type="button" variant="outline" onClick={onCancelEditCustomInstrument} className="h-10">
-                取消編輯
-              </Button>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 border-t border-slate-200/80 pt-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="space-y-1.5 text-sm sm:col-span-2 lg:col-span-1">
-            <span className="font-medium text-foreground">圖片網址（可選）</span>
-            <textarea
-              value={customDraft.imageUrlsText || ""}
-              onChange={(event) =>
-                onCustomDraftChange({ ...customDraft, imageUrlsText: event.target.value })
-              }
-              rows={3}
-              placeholder={"每行一張圖片 URL\nhttps://example.com/chart.png"}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            />
-            <span className="block text-[11px] text-muted-foreground">最多 9 張，會顯示在報價卡片輪播。</span>
-          </label>
-          <label className="space-y-1.5 text-sm">
-            <span className="font-medium text-foreground">YouTube（可選）</span>
-            <input
-              value={customDraft.youtubeUrl || ""}
-              onChange={(event) =>
-                onCustomDraftChange({ ...customDraft, youtubeUrl: event.target.value })
-              }
-              placeholder="https://www.youtube.com/..."
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            />
-          </label>
-          <label className="space-y-1.5 text-sm">
-            <span className="font-medium text-foreground">Bilibili（可選）</span>
-            <input
-              value={customDraft.bilibiliUrl || ""}
-              onChange={(event) =>
-                onCustomDraftChange({ ...customDraft, bilibiliUrl: event.target.value })
-              }
-              placeholder="https://www.bilibili.com/..."
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            />
-          </label>
-          <label className="space-y-1.5 text-sm sm:col-span-2 lg:col-span-3">
-            <span className="font-medium text-foreground">自訂網址（可選）</span>
-            <textarea
-              value={customDraft.relatedLinksText || ""}
-              onChange={(event) =>
-                onCustomDraftChange({ ...customDraft, relatedLinksText: event.target.value })
-              }
-              rows={3}
-              placeholder={
-                "每行一個網址，顯示在報價卡片外部連結\nhttps://www.ptt.cc/bbs/stock/index.html\nPTT 股板|https://www.ptt.cc/bbs/stock/index.html"
-              }
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            />
-            <span className="block text-[11px] text-muted-foreground">
-              最多 9 個。可只貼網址（自動命名，如 PTT 股板），或用「標籤|網址」自訂顯示名稱。
-            </span>
-          </label>
-          <label className="flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2 text-sm sm:col-span-2 lg:col-span-3">
-            <input
-              type="checkbox"
-              checked={Boolean(customDraft.featured)}
-              onChange={(event) =>
-                onCustomDraftChange({ ...customDraft, featured: event.target.checked })
-              }
-              className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-400"
-            />
-            <span className="font-medium text-amber-950">設為精選焦點</span>
-            <span className="text-xs text-amber-800/80">
-              優先顯示於頂部（最多 {MAX_FEATURED_FINANCE_INSTRUMENTS} 個）
-            </span>
-          </label>
-        </div>
-
-        {(() => {
-          const preview = parseFinanceQuoteInput(customDraft.urlOrSymbol);
-          if (!preview) return null;
-          const sourceName = getFinanceProviderDisplayName(preview);
-          const suggestedGroup = guessFinanceGroup(preview.symbol, {
-            sourceUrl: preview.sourceUrl,
-            marketHint: preview.marketHint,
-          });
-          const isTwSource =
-            preview.marketHint === "tw" ||
-            isTaiwanYahooStockSource(preview.sourceUrl) ||
-            suggestedGroup === "taiwan";
-          const mediaHints = [
-            (customDraft.imageUrlsText || "").trim() ? "圖片" : "",
-            (customDraft.youtubeUrl || "").trim() ? "YouTube" : "",
-            (customDraft.bilibiliUrl || "").trim() ? "Bilibili" : "",
-            (customDraft.relatedLinksText || "").trim() ? "自訂網址" : "",
-            customDraft.featured ? "精選焦點" : "",
-          ].filter(Boolean);
-          return (
-            <p className="mt-2 text-xs text-emerald-800/90">
-              {isEditingCustom ? "將更新為：" : "將新增："}
-              <span className="font-semibold">{customDraft.name.trim() || preview.symbol}</span>
-              {" · "}
-              {sourceName}: {preview.symbol}
-              {preview.fromUrl ? "（由網址辨識）" : ""}
-              {isTwSource ? " · 台股來源" : ""}
-              {mediaHints.length > 0 ? ` · ${mediaHints.join("、")}` : ""}
-            </p>
-          );
-        })()}
-        </div>
         )}
       </div>
-
-      {customInstruments.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/60">
-          <button
-            type="button"
-            onClick={() => setCustomListOpen((prev) => !prev)}
-            className="flex w-full cursor-pointer items-center justify-between gap-3 p-3.5 text-left"
-            aria-expanded={customListOpen}
-          >
-            <div>
-              <p className="text-sm font-semibold text-emerald-950">已新增標的</p>
-              <p className="mt-0.5 text-xs text-emerald-800/80">
-                共 {customInstruments.length} 筆 · 可編輯、精選或刪除
-                {!customListOpen ? " · 點擊展開" : ""}
-              </p>
-            </div>
-            <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors ${
-                customListOpen ? "bg-white text-emerald-800" : "bg-emerald-100 text-emerald-700"
-              }`}
-            >
-              {customListOpen ? "收合 ▲" : "展開 ▼"}
-            </span>
-          </button>
-          {customListOpen && (
-            <div className="flex flex-wrap gap-2 border-t border-emerald-100 p-3.5">
-              {customInstruments.map((instrument) => {
-                const key = getCustomFinanceInstrumentKey(instrument);
-                const quoteId = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
-                const isFeatured = featuredQuoteIdSet.has(quoteId) || Boolean(instrument.featured);
-                const isActiveEdit = editingCustomKey === key;
-                const hasImage = Boolean(instrument.imageUrl || instrument.imageUrls?.length);
-                const hasRelatedLinks = Boolean(instrument.relatedLinks?.length);
-                return (
-                  <span
-                    key={key}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
-                      isFeatured
-                        ? "border-amber-300 bg-amber-50 text-amber-950"
-                        : isActiveEdit
-                          ? "border-amber-300 bg-amber-50 text-amber-900"
-                          : "border-emerald-100 bg-white text-emerald-800"
-                    }`}
-                  >
-                    <span className="font-semibold">{instrument.name}</span>
-                    <span>
-                      {instrument.provider.toUpperCase()}: {instrument.symbol}
-                    </span>
-                    <span className={isActiveEdit || isFeatured ? "text-amber-700/80" : "text-emerald-700/70"}>
-                      {getFinanceGroupLabel(instrument.group)}
-                    </span>
-                    {isFeatured ? (
-                      <span className="rounded-full bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                        焦點
-                      </span>
-                    ) : null}
-                    {hasImage ? (
-                      <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                        圖
-                      </span>
-                    ) : null}
-                    {instrument.youtubeUrl ? (
-                      <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
-                        YT
-                      </span>
-                    ) : null}
-                    {instrument.bilibiliUrl ? (
-                      <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
-                        B站
-                      </span>
-                    ) : null}
-                    {hasRelatedLinks ? (
-                      <span
-                        className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
-                        title={instrument.relatedLinks?.map((link) => link.label).join("、")}
-                      >
-                        連{instrument.relatedLinks!.length > 1 ? instrument.relatedLinks!.length : ""}
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => onToggleFeaturedQuoteId(quoteId)}
-                      className={`rounded-full p-0.5 ${
-                        isFeatured
-                          ? "text-amber-700 hover:bg-white"
-                          : "text-emerald-700 hover:bg-white hover:text-amber-700"
-                      }`}
-                      title={isFeatured ? "取消精選焦點" : "設為精選焦點"}
-                      aria-label={isFeatured ? `取消精選 ${instrument.name}` : `設為精選 ${instrument.name}`}
-                    >
-                      <Star size={13} className={isFeatured ? "fill-amber-400 text-amber-500" : ""} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onEditCustomInstrument(instrument)}
-                      className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium transition ${
-                        isActiveEdit
-                          ? "bg-amber-100 text-amber-900"
-                          : "text-emerald-800 hover:bg-white"
-                      }`}
-                      aria-label={`編輯 ${instrument.name}`}
-                      title={`編輯 ${instrument.name}`}
-                    >
-                      <Pencil size={12} strokeWidth={2.25} />
-                      編輯
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteCustomInstrument(instrument)}
-                      className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
-                      aria-label={`刪除 ${instrument.name}`}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+    );
   };
 
   return (
@@ -2913,8 +2947,7 @@ function FengbroFinanceSection({
 
         {!error && loading && !result && (
           <div className="order-2 space-y-4 p-4 sm:p-6">
-            {renderCustomInstrumentForm()}
-            {renderDefaultWatchlist()}
+            {renderFinanceControls()}
             <div className="p-4 text-center text-sm text-muted-foreground">正在讀取精選焦點與金融報價...</div>
           </div>
         )}
@@ -3168,9 +3201,8 @@ function FengbroFinanceSection({
             })()}
             {/* ── END 精選焦點區塊 ─────────────────────────────────── */}
 
-            {/* ── 新增指數／預設追蹤（精選焦點正下方） ───────────────── */}
-            {renderCustomInstrumentForm()}
-            {renderDefaultWatchlist()}
+            {/* ── 新增指數／已新增／預設追蹤（同一列標題） ───────────── */}
+            {renderFinanceControls()}
 
             {/* ── 搜尋列 ─────────────────────────────────────── */}
             <div className="relative">
