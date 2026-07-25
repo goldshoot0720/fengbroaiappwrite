@@ -15,7 +15,6 @@ type ManualPriceRecord = {
 type ManualPriceProduct = {
   id: string;
   name: string;
-  shop?: string;
   note?: string;
   currency: string;
   createdAt: number;
@@ -98,7 +97,6 @@ function normalizeProduct(input: Partial<ManualPriceProduct>): ManualPriceProduc
   return {
     id: typeof input.id === "string" && input.id ? input.id : createId(),
     name,
-    shop: typeof input.shop === "string" && input.shop.trim() ? input.shop.trim() : undefined,
     note: typeof input.note === "string" && input.note.trim() ? input.note.trim() : undefined,
     currency:
       typeof input.currency === "string" && input.currency.trim()
@@ -323,7 +321,6 @@ export default function ManualPriceTracker() {
   const [hydrated, setHydrated] = useState(false);
 
   const [productName, setProductName] = useState("");
-  const [productShop, setProductShop] = useState("");
   const [productNote, setProductNote] = useState("");
   const [productCurrency, setProductCurrency] = useState("TWD");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -374,7 +371,6 @@ export default function ManualPriceTracker() {
 
   const resetProductForm = () => {
     setProductName("");
-    setProductShop("");
     setProductNote("");
     setProductCurrency("TWD");
     setEditingProductId(null);
@@ -404,7 +400,6 @@ export default function ManualPriceTracker() {
           ? {
               ...product,
               name,
-              shop: productShop.trim() || undefined,
               note: productNote.trim() || undefined,
               currency: productCurrency.trim().toUpperCase() || "TWD",
               updatedAt: now,
@@ -424,7 +419,6 @@ export default function ManualPriceTracker() {
 
     const product = normalizeProduct({
       name,
-      shop: productShop,
       note: productNote,
       currency: productCurrency,
       createdAt: now,
@@ -444,7 +438,6 @@ export default function ManualPriceTracker() {
   const handleEditProduct = (product: ManualPriceProduct) => {
     setEditingProductId(product.id);
     setProductName(product.name);
-    setProductShop(product.shop || "");
     setProductNote(product.note || "");
     setProductCurrency(product.currency || "TWD");
     setSelectedProductId(product.id);
@@ -592,21 +585,12 @@ export default function ManualPriceTracker() {
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1.5 text-sm">
+            <label className="space-y-1.5 text-sm sm:col-span-2">
               <span className="font-medium">商品名稱 *</span>
               <input
                 value={productName}
                 onChange={(event) => setProductName(event.target.value)}
                 placeholder="例如 iPhone 16 Pro 256GB"
-                className="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-violet-400"
-              />
-            </label>
-            <label className="space-y-1.5 text-sm">
-              <span className="font-medium">商店／來源</span>
-              <input
-                value={productShop}
-                onChange={(event) => setProductShop(event.target.value)}
-                placeholder="例如 PChome、實體店"
                 className="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-violet-400"
               />
             </label>
@@ -669,9 +653,7 @@ export default function ManualPriceTracker() {
                       className="w-full text-left"
                     >
                       <p className="line-clamp-1 text-sm font-semibold text-foreground">{product.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {product.shop || "未指定商店"} · {product.records.length} 筆紀錄
-                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{product.records.length} 筆紀錄</p>
                       <p className="mt-1 text-sm font-medium text-violet-700">
                         最新：{latest ? formatPrice(latest.price, product.currency) : "尚無價格"}
                       </p>
@@ -712,10 +694,9 @@ export default function ManualPriceTracker() {
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h4 className="text-sm font-semibold">紀錄價格 — {selectedProduct.name}</h4>
-                <p className="text-xs text-muted-foreground">
-                  {selectedProduct.shop ? `商店：${selectedProduct.shop}` : "商店未填"}
-                  {selectedProduct.note ? ` · ${selectedProduct.note}` : ""}
-                </p>
+                {selectedProduct.note ? (
+                  <p className="text-xs text-muted-foreground">{selectedProduct.note}</p>
+                ) : null}
               </div>
               {editingRecordId && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetRecordForm}>

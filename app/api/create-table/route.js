@@ -192,7 +192,6 @@ const TABLE_SCHEMAS = {
     name: "manualprice",
     attributes: [
       { key: 'name', type: 'string', size: 200, required: true },
-      { key: 'shop', type: 'string', size: 100, required: false },
       { key: 'note', type: 'string', size: 500, required: false },
       { key: 'currency', type: 'string', size: 20, required: false },
       { key: 'recordsJson', type: 'string', size: 20000, required: false },

@@ -62,7 +62,6 @@ function toClientProduct(doc) {
   return {
     id: doc.$id,
     name: doc.name || "",
-    shop: doc.shop || undefined,
     note: doc.note || undefined,
     currency: doc.currency || "TWD",
     localId: doc.localId || undefined,
@@ -91,10 +90,6 @@ function buildPayload(body) {
 
   const payload = {
     name: name.slice(0, 200),
-    shop:
-      typeof body.shop === "string" && body.shop.trim()
-        ? body.shop.trim().slice(0, 100)
-        : "",
     note:
       typeof body.note === "string" && body.note.trim()
         ? body.note.trim().slice(0, 500)
@@ -160,7 +155,6 @@ export async function POST(req) {
 
     const filteredPayload = filterPayloadByAttributes(built.payload, collection, [
       "name",
-      "shop",
       "note",
       "currency",
       "recordsJson",
