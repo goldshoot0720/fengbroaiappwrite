@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Pencil, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
@@ -2195,6 +2195,60 @@ function FengbroFinanceSection({
   const [searchQuery, setSearchQuery] = useState("");
   const financeCsvInputRef = useRef<HTMLInputElement>(null);
 
+  /** Map quote id (`custom-…`) back to the editable local instrument. */
+  const findCustomInstrumentByQuoteId = useCallback(
+    (quoteId: string): CustomFinanceInstrument | null => {
+      if (!quoteId.startsWith("custom-")) return null;
+      return (
+        customInstruments.find(
+          (instrument) =>
+            buildCustomFinanceQuoteId(instrument.provider, instrument.symbol) === quoteId
+        ) ?? null
+      );
+    },
+    [customInstruments]
+  );
+
+  const beginEditCustomQuote = useCallback(
+    (quoteId: string) => {
+      const instrument = findCustomInstrumentByQuoteId(quoteId);
+      if (!instrument) return;
+      onEditCustomInstrument(instrument);
+      window.requestAnimationFrame(() => {
+        document.getElementById("fengbro-finance-add-custom")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    },
+    [findCustomInstrumentByQuoteId, onEditCustomInstrument]
+  );
+
+  /** Icon edit control for quote cards (精選 / 分區). */
+  const renderQuoteEditButton = (quoteId: string, variant: "featured" | "card" = "card") => {
+    const instrument = findCustomInstrumentByQuoteId(quoteId);
+    if (!instrument) return null;
+    const isActive =
+      editingCustomKey === getCustomFinanceInstrumentKey(instrument);
+    const featuredStyle =
+      "rounded-full border border-amber-200 bg-white/90 p-1.5 text-amber-800 shadow-sm backdrop-blur transition hover:bg-amber-50 hover:text-amber-950";
+    const cardStyle =
+      "rounded-full border border-emerald-100 bg-white/95 p-1.5 text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-900";
+    return (
+      <button
+        type="button"
+        onClick={() => beginEditCustomQuote(quoteId)}
+        className={`${variant === "featured" ? featuredStyle : cardStyle} ${
+          isActive ? "ring-2 ring-amber-300 ring-offset-1" : ""
+        }`}
+        title={`編輯 ${instrument.name}`}
+        aria-label={`編輯 ${instrument.name}`}
+      >
+        <Pencil size={14} strokeWidth={2.25} />
+      </button>
+    );
+  };
+
   useEffect(() => {
     if (isEditingCustom) setCustomFormOpen(true);
   }, [isEditingCustom]);
@@ -2730,13 +2784,15 @@ function FengbroFinanceSection({
                 <button
                   type="button"
                   onClick={() => onEditCustomInstrument(instrument)}
-                  className={`rounded-full px-1.5 py-0.5 font-medium transition ${
+                  className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium transition ${
                     isActiveEdit
                       ? "bg-amber-100 text-amber-900"
                       : "text-emerald-800 hover:bg-white"
                   }`}
                   aria-label={`編輯 ${instrument.name}`}
+                  title={`編輯 ${instrument.name}`}
                 >
+                  <Pencil size={12} strokeWidth={2.25} />
                   編輯
                 </button>
                 <button
@@ -2886,13 +2942,16 @@ function FengbroFinanceSection({
                           key={quote.id}
                           className={`relative overflow-hidden rounded-[28px] border ${cfg.borderClass} ${cfg.bgClass} p-5 shadow-sm transition hover:shadow-md`}
                         >
-                          {/* 區塊序號 */}
-                          <span className={`absolute right-4 top-4 text-[11px] font-semibold uppercase tracking-widest opacity-40 ${cfg.accentClass}`}>
-                            BLOCK {idx + 1}
-                          </span>
+                          {/* 編輯 + 區塊序號 */}
+                          <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5">
+                            {renderQuoteEditButton(quote.id, "featured")}
+                            <span className={`text-[11px] font-semibold uppercase tracking-widest opacity-40 ${cfg.accentClass}`}>
+                              BLOCK {idx + 1}
+                            </span>
+                          </div>
 
                           {/* 標題 */}
-                          <div className="mb-4 pr-16">
+                          <div className="mb-4 pr-20">
                             <p className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${cfg.accentClass} opacity-80`}>
                               {cfg.subtitle}
                             </p>
@@ -3123,10 +3182,16 @@ function FengbroFinanceSection({
                     const recordLabel = getFinanceRecordLabel(quote.recordTag);
                     const isUp = (quote.change || 0) >= 0;
                     const isBearMarket = isFinanceBearMarketFrom52WHigh(quote);
+                    const canEditQuote = Boolean(findCustomInstrumentByQuoteId(quote.id));
                     return (
-                      <div key={quote.id} className="rounded-[24px] border border-border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
+                      <div key={quote.id} className="relative rounded-[24px] border border-border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
+                        {canEditQuote ? (
+                          <div className="absolute right-3 top-3 z-10">
+                            {renderQuoteEditButton(quote.id, "card")}
+                          </div>
+                        ) : null}
                         <div className="flex flex-col gap-3">
-                          <div className="min-w-0">
+                          <div className={`min-w-0 ${canEditQuote ? "pr-10" : ""}`}>
                             <div className="flex flex-wrap items-center gap-2">
                               <h5 className="font-semibold text-foreground">{getFinanceQuoteTitle(quote)}</h5>
                               {quote.localLabel && (
