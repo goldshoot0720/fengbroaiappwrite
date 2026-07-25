@@ -81,7 +81,7 @@ function normalizeImageUrls(input: unknown): string[] {
     if (!url || seen.has(url)) continue;
     seen.add(url);
     urls.push(url);
-    if (urls.length >= 12) break;
+    if (urls.length >= 9) break;
   }
   return urls;
 }

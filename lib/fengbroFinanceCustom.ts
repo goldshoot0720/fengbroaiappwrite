@@ -57,7 +57,7 @@ export function buildCustomFinanceQuoteId(
   return `custom-${idBase}`;
 }
 
-const MAX_CUSTOM_IMAGE_URLS = 12;
+const MAX_CUSTOM_IMAGE_URLS = 9;
 
 function isHttpUrl(value: string): boolean {
   try {

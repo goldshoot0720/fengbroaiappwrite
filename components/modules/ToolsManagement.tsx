@@ -2556,7 +2556,7 @@ function FengbroFinanceSection({
               placeholder={"每行一張圖片 URL\nhttps://example.com/chart.png"}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             />
-            <span className="block text-[11px] text-muted-foreground">最多 12 張，會顯示在報價卡片輪播。</span>
+            <span className="block text-[11px] text-muted-foreground">最多 9 張，會顯示在報價卡片輪播。</span>
           </label>
           <label className="space-y-1.5 text-sm">
             <span className="font-medium text-foreground">YouTube（可選）</span>
