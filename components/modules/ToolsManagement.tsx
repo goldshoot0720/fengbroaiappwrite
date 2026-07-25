@@ -2192,6 +2192,8 @@ function FengbroFinanceSection({
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   /** 新增指數或股票：預設折疊；進入編輯時自動展開 */
   const [customFormOpen, setCustomFormOpen] = useState(false);
+  /** 已新增標的 chips：預設折疊；進入編輯時自動展開 */
+  const [customListOpen, setCustomListOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const financeCsvInputRef = useRef<HTMLInputElement>(null);
 
@@ -2250,7 +2252,10 @@ function FengbroFinanceSection({
   };
 
   useEffect(() => {
-    if (isEditingCustom) setCustomFormOpen(true);
+    if (isEditingCustom) {
+      setCustomFormOpen(true);
+      setCustomListOpen(true);
+    }
   }, [isEditingCustom]);
   /** Last name we auto-filled from resolve-name (so we can replace it when the symbol changes). */
   const autofilledNameRef = useRef<string>("");
@@ -2483,7 +2488,7 @@ function FengbroFinanceSection({
                 ? "修改代稱、代號／網址、來源、分類，以及圖片／YouTube／Bilibili／自訂網址後按「儲存」。也可按「取消編輯」放棄變更。"
                 : formExpanded
                   ? "可貼上 Yahoo / Yahoo 奇摩 / Yahoo 日本 (finance.yahoo.co.jp) / CNBC 報價網址並填代稱；也可直接輸入代號。可另填圖片、YouTube、Bilibili、自訂網址（如 PTT 股板），並可設為精選焦點。"
-                  : "點擊展開以新增指數或股票；已新增的標的仍顯示於下方。"}
+                  : "點擊展開以新增指數或股票；已新增標的預設折疊，可於下方展開管理。"}
             </p>
           </div>
           <span
@@ -2714,98 +2719,123 @@ function FengbroFinanceSection({
       </div>
 
       {customInstruments.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {customInstruments.map((instrument) => {
-            const key = getCustomFinanceInstrumentKey(instrument);
-            const quoteId = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
-            const isFeatured = featuredQuoteIdSet.has(quoteId) || Boolean(instrument.featured);
-            const isActiveEdit = editingCustomKey === key;
-            const hasImage = Boolean(instrument.imageUrl || instrument.imageUrls?.length);
-            const hasRelatedLinks = Boolean(instrument.relatedLinks?.length);
-            return (
-              <span
-                key={key}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
-                  isFeatured
-                    ? "border-amber-300 bg-amber-50 text-amber-950"
-                    : isActiveEdit
-                      ? "border-amber-300 bg-amber-50 text-amber-900"
-                      : "border-emerald-100 bg-emerald-50 text-emerald-800"
-                }`}
-              >
-                <span className="font-semibold">{instrument.name}</span>
-                <span>
-                  {instrument.provider.toUpperCase()}: {instrument.symbol}
-                </span>
-                <span className={isActiveEdit || isFeatured ? "text-amber-700/80" : "text-emerald-700/70"}>
-                  {getFinanceGroupLabel(instrument.group)}
-                </span>
-                {isFeatured ? (
-                  <span className="rounded-full bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                    焦點
-                  </span>
-                ) : null}
-                {hasImage ? (
-                  <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                    圖
-                  </span>
-                ) : null}
-                {instrument.youtubeUrl ? (
-                  <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
-                    YT
-                  </span>
-                ) : null}
-                {instrument.bilibiliUrl ? (
-                  <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
-                    B站
-                  </span>
-                ) : null}
-                {hasRelatedLinks ? (
+        <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/60">
+          <button
+            type="button"
+            onClick={() => setCustomListOpen((prev) => !prev)}
+            className="flex w-full cursor-pointer items-center justify-between gap-3 p-3.5 text-left"
+            aria-expanded={customListOpen}
+          >
+            <div>
+              <p className="text-sm font-semibold text-emerald-950">已新增標的</p>
+              <p className="mt-0.5 text-xs text-emerald-800/80">
+                共 {customInstruments.length} 筆 · 可編輯、精選或刪除
+                {!customListOpen ? " · 點擊展開" : ""}
+              </p>
+            </div>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                customListOpen ? "bg-white text-emerald-800" : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {customListOpen ? "收合 ▲" : "展開 ▼"}
+            </span>
+          </button>
+          {customListOpen && (
+            <div className="flex flex-wrap gap-2 border-t border-emerald-100 p-3.5">
+              {customInstruments.map((instrument) => {
+                const key = getCustomFinanceInstrumentKey(instrument);
+                const quoteId = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
+                const isFeatured = featuredQuoteIdSet.has(quoteId) || Boolean(instrument.featured);
+                const isActiveEdit = editingCustomKey === key;
+                const hasImage = Boolean(instrument.imageUrl || instrument.imageUrls?.length);
+                const hasRelatedLinks = Boolean(instrument.relatedLinks?.length);
+                return (
                   <span
-                    className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
-                    title={instrument.relatedLinks?.map((link) => link.label).join("、")}
+                    key={key}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
+                      isFeatured
+                        ? "border-amber-300 bg-amber-50 text-amber-950"
+                        : isActiveEdit
+                          ? "border-amber-300 bg-amber-50 text-amber-900"
+                          : "border-emerald-100 bg-white text-emerald-800"
+                    }`}
                   >
-                    連{instrument.relatedLinks!.length > 1 ? instrument.relatedLinks!.length : ""}
+                    <span className="font-semibold">{instrument.name}</span>
+                    <span>
+                      {instrument.provider.toUpperCase()}: {instrument.symbol}
+                    </span>
+                    <span className={isActiveEdit || isFeatured ? "text-amber-700/80" : "text-emerald-700/70"}>
+                      {getFinanceGroupLabel(instrument.group)}
+                    </span>
+                    {isFeatured ? (
+                      <span className="rounded-full bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                        焦點
+                      </span>
+                    ) : null}
+                    {hasImage ? (
+                      <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                        圖
+                      </span>
+                    ) : null}
+                    {instrument.youtubeUrl ? (
+                      <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                        YT
+                      </span>
+                    ) : null}
+                    {instrument.bilibiliUrl ? (
+                      <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                        B站
+                      </span>
+                    ) : null}
+                    {hasRelatedLinks ? (
+                      <span
+                        className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                        title={instrument.relatedLinks?.map((link) => link.label).join("、")}
+                      >
+                        連{instrument.relatedLinks!.length > 1 ? instrument.relatedLinks!.length : ""}
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => onToggleFeaturedQuoteId(quoteId)}
+                      className={`rounded-full p-0.5 ${
+                        isFeatured
+                          ? "text-amber-700 hover:bg-white"
+                          : "text-emerald-700 hover:bg-white hover:text-amber-700"
+                      }`}
+                      title={isFeatured ? "取消精選焦點" : "設為精選焦點"}
+                      aria-label={isFeatured ? `取消精選 ${instrument.name}` : `設為精選 ${instrument.name}`}
+                    >
+                      <Star size={13} className={isFeatured ? "fill-amber-400 text-amber-500" : ""} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onEditCustomInstrument(instrument)}
+                      className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium transition ${
+                        isActiveEdit
+                          ? "bg-amber-100 text-amber-900"
+                          : "text-emerald-800 hover:bg-white"
+                      }`}
+                      aria-label={`編輯 ${instrument.name}`}
+                      title={`編輯 ${instrument.name}`}
+                    >
+                      <Pencil size={12} strokeWidth={2.25} />
+                      編輯
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteCustomInstrument(instrument)}
+                      className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
+                      aria-label={`刪除 ${instrument.name}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </span>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => onToggleFeaturedQuoteId(quoteId)}
-                  className={`rounded-full p-0.5 ${
-                    isFeatured
-                      ? "text-amber-700 hover:bg-white"
-                      : "text-emerald-700 hover:bg-white hover:text-amber-700"
-                  }`}
-                  title={isFeatured ? "取消精選焦點" : "設為精選焦點"}
-                  aria-label={isFeatured ? `取消精選 ${instrument.name}` : `設為精選 ${instrument.name}`}
-                >
-                  <Star size={13} className={isFeatured ? "fill-amber-400 text-amber-500" : ""} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onEditCustomInstrument(instrument)}
-                  className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium transition ${
-                    isActiveEdit
-                      ? "bg-amber-100 text-amber-900"
-                      : "text-emerald-800 hover:bg-white"
-                  }`}
-                  aria-label={`編輯 ${instrument.name}`}
-                  title={`編輯 ${instrument.name}`}
-                >
-                  <Pencil size={12} strokeWidth={2.25} />
-                  編輯
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDeleteCustomInstrument(instrument)}
-                  className="rounded-full p-0.5 text-emerald-700 hover:bg-white hover:text-red-600"
-                  aria-label={`刪除 ${instrument.name}`}
-                >
-                  <Trash2 size={13} />
-                </button>
-              </span>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
