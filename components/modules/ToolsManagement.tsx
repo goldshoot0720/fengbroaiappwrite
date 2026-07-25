@@ -316,7 +316,6 @@ const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDef
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   // 韓國
   { id: "kospi", name: "KOSPI Index", symbol: ".KS11", provider: "cnbc", group: "korea" },
-  { id: "samsung-electronics", name: "三星電子", symbol: "005930.KS", provider: "yahoo", group: "korea" },
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", provider: "yahoo", group: "korea" },
   { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", provider: "yahoo", group: "korea" },
   { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", provider: "cnbc", group: "korea" },
