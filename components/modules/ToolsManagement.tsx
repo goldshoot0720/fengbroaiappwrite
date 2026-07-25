@@ -331,7 +331,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "tsm", name: "台積電 ADR", symbol: "TSM", provider: "yahoo", group: "taiwan" },
   // 美國
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
-  { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", provider: "cnbc", group: "us" },
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", provider: "cnbc", group: "us" },
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", provider: "cnbc", group: "us" },
 ];
@@ -2764,10 +2763,9 @@ function FengbroFinanceSection({
                                     熊市
                                   </span>
                                 )}
-                                {(typeof quote.changePercent === "number") && (
-                                  (quote.id === "kospi" && Math.abs(quote.changePercent) > 8) ||
-                                  (quote.id === "sp500" && quote.changePercent < -7)
-                                ) && (
+                                {(typeof quote.changePercent === "number") &&
+                                  quote.id === "kospi" &&
+                                  Math.abs(quote.changePercent) > 8 && (
                                   <span className="rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
                                     熔斷機制
                                   </span>
@@ -3017,10 +3015,9 @@ function FengbroFinanceSection({
                                   突破門檻
                                 </span>
                               )}
-                              {(typeof quote.changePercent === "number") && (
-                                (quote.id === "kospi" && Math.abs(quote.changePercent) > 8) ||
-                                (quote.id === "sp500" && quote.changePercent < -7)
-                              ) && (
+                              {(typeof quote.changePercent === "number") &&
+                                quote.id === "kospi" &&
+                                Math.abs(quote.changePercent) > 8 && (
                                 <span className="rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700">
                                   熔斷機制
                                 </span>
