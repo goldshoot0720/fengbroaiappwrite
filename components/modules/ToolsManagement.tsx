@@ -334,7 +334,6 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "sp500", name: "S&P 500 Index", symbol: ".SPX", provider: "cnbc", group: "us" },
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", provider: "cnbc", group: "us" },
   { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", provider: "cnbc", group: "us" },
-  { id: "soxl", name: "Direxion Daily Semiconductor Bull 3X ETF", symbol: "SOXL", provider: "cnbc", group: "us" },
   { id: "micron", name: "美光科技", symbol: "MU", provider: "cnbc", group: "us" },
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
@@ -418,9 +417,9 @@ function getSavedDefaultFinanceInstrumentIds() {
     }
 
     // First migration after introducing known-ids tracking: treat the previous full catalog
-    // (everything except SOXL / KORU) as already known so only those two auto-appear.
+    // (everything except KORU) as already known so KORU can auto-appear once.
     if (knownIds.length === 0) {
-      knownIds = DEFAULT_FINANCE_INSTRUMENT_IDS.filter((id) => id !== "soxl" && id !== "koru");
+      knownIds = DEFAULT_FINANCE_INSTRUMENT_IDS.filter((id) => id !== "koru");
     }
 
     const knownSet = new Set(knownIds);
