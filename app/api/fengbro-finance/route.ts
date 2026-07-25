@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import {
   buildCnbcQuoteSourceUrl,
   buildYahooQuoteSourceUrl,
+  isJapanYahooQuoteTarget,
   isTaiwanYahooQuoteTarget,
+  parseJapanYahooQuotePageTitle,
   parseTaiwanYahooQuotePageTitle,
 } from "@/lib/fengbroFinanceCustom";
 
@@ -682,10 +684,49 @@ async function resolveTaiwanYahooChineseName(symbol: string, sourceUrl?: string)
   return null;
 }
 
+/**
+ * Yahoo chart meta is English for JP listings (e.g. KIOXIA HOLDINGS CORPORATION).
+ * Scrape finance.yahoo.co.jp title for Japanese short names (e.g. キオクシアホールディングス).
+ */
+async function resolveJapanYahooJapaneseName(symbol: string, sourceUrl?: string): Promise<string | null> {
+  const pageUrl =
+    sourceUrl && /finance\.yahoo\.co\.jp/i.test(sourceUrl)
+      ? sourceUrl
+      : buildYahooQuoteSourceUrl(symbol, { marketHint: "jp" });
+
+  try {
+    const response = await fetch(pageUrl, {
+      headers: {
+        ...FETCH_BROWSER_HEADERS,
+        "accept-language": "ja,ja-JP;q=0.9,en;q=0.5",
+      },
+      cache: "no-store",
+      redirect: "follow",
+    });
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    const title = (html.match(/<title[^>]*>([^<]+)/i) || [])[1] || "";
+    const fromTitle = parseJapanYahooQuotePageTitle(title);
+    if (fromTitle?.name) return fromTitle.name.slice(0, 80);
+  } catch {
+    // network / parse — fall back to chart English name
+  }
+  return null;
+}
+
 function isTickerLikeName(name: string, symbol: string) {
   const n = name.trim().toUpperCase();
   const s = symbol.trim().toUpperCase();
-  return !n || n === s;
+  if (!n || n === s) return true;
+  // Bare JP code without .T (Yahoo 日本 title uses 【285A】)
+  const bare = s.replace(/\.T$/i, "");
+  if (bare && n === bare) return true;
+  // English chart fallback still counts as “not a local 代稱”
+  if (/^[A-Z0-9 .,&'/-]+$/i.test(name) && /HOLDINGS|CORPORATION|INC|LTD|CO\./i.test(name)) {
+    return true;
+  }
+  return false;
 }
 
 async function fetchYahooInstrument(instrument: FinanceInstrument) {
@@ -793,11 +834,15 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     currency = meta.exchangeTimezoneName === "America/New_York" ? "USD" : "TWD";
   }
 
-  // Chart API returns English names for TW listings; prefer 奇摩中文 when 代稱 is still the ticker.
+  // Chart API often returns English names for TW/JP listings; prefer local-language 代稱.
   const chartName = pickText(meta, ["shortName", "longName"]);
   let displayName = chartName || instrument.name;
   let name = instrument.name;
   const preferTwChinese = isTaiwanYahooQuoteTarget(instrument.symbol, {
+    group: instrument.group,
+    sourceUrl: instrument.sourceUrl,
+  });
+  const preferJpJapanese = isJapanYahooQuoteTarget(instrument.symbol, {
     group: instrument.group,
     sourceUrl: instrument.sourceUrl,
   });
@@ -806,6 +851,12 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     if (chineseName) {
       displayName = chineseName;
       name = chineseName;
+    }
+  } else if (preferJpJapanese && isTickerLikeName(instrument.name, instrument.symbol)) {
+    const japaneseName = await resolveJapanYahooJapaneseName(instrument.symbol, instrument.sourceUrl);
+    if (japaneseName) {
+      displayName = japaneseName;
+      name = japaneseName;
     }
   }
 

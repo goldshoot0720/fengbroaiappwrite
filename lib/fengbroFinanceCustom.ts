@@ -508,6 +508,47 @@ export function parseTaiwanYahooQuotePageTitle(
   return { name, symbol };
 }
 
+/**
+ * Parse Yahoo!ファイナンス Japan HTML `<title>` into short display name.
+ * e.g. "キオクシアホールディングス(株)【285A】：株価・株式情報（夜間PTS含む） - Yahoo!ファイナンス"
+ *   → { name: "キオクシアホールディングス", symbol: "285A" }
+ */
+export function parseJapanYahooQuotePageTitle(
+  title: string
+): { name: string; symbol: string } | null {
+  const cleaned = title.replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+
+  // Primary: 会社名【コード】：…
+  const bracket = cleaned.match(/^(.+?)【([^】]+)】/);
+  if (bracket?.[1] && bracket[2]) {
+    let name = bracket[1].trim();
+    // Drop corporate form suffix for a cleaner 代稱: (株) / （株）
+    name = name.replace(/[（(]株[）)]\s*$/u, "").trim();
+    let symbol = bracket[2].trim().toUpperCase();
+    try {
+      symbol = decodeURIComponent(symbol);
+    } catch {
+      // keep raw
+    }
+    if (name && symbol && name.length <= 60 && symbol.length <= 32) {
+      if (!/^yahoo/i.test(name) && !/ファイナンス/.test(name)) {
+        return { name, symbol };
+      }
+    }
+  }
+
+  // Fallback: 会社名(コード.T) style if present
+  const paren = cleaned.match(/^(.+?)\(([^)]+\.T)\)/i);
+  if (paren?.[1] && paren[2]) {
+    const name = paren[1].replace(/[（(]株[）)]\s*$/u, "").trim();
+    const symbol = paren[2].trim().toUpperCase();
+    if (name && symbol && name.length <= 60) return { name, symbol };
+  }
+
+  return null;
+}
+
 /** Public quote-page URL for a CNBC symbol. */
 export function buildCnbcQuoteSourceUrl(symbol: string): string {
   return `https://www.cnbc.com/quotes/${encodeURIComponent(symbol.trim())}`;
