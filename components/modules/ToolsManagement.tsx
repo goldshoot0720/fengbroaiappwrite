@@ -317,9 +317,7 @@ const FINANCE_FEATURED_QUOTE_IDS_KEY = "fengbro.tools.finance.featuredQuoteIds";
 /** Tracks which default instrument ids the client has already seen, so newly shipped defaults auto-appear. */
 const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDefaultInstrumentIds";
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
-  // 韓國
-  { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", provider: "yahoo", group: "korea" },
-  // 日本 / 台灣 / 美國：目前無預設標的（可自行新增）
+  // 目前無內建預設標的；請用「新增指數或股票」自行追蹤
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
 

@@ -104,9 +104,7 @@ const FINANCE_HISTORY_RANGES: FinanceHistoryRange[] = [
 ];
 const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {};
 
-const INSTRUMENTS: FinanceInstrument[] = [
-  { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
-];
+const INSTRUMENTS: FinanceInstrument[] = [];
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
 const YAHOO_CHART_ENDPOINT = "https://query1.finance.yahoo.com/v8/finance/chart";
