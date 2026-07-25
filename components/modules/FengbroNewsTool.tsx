@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Clock,
+  Download,
   ExternalLink,
   Focus,
   Lock,
@@ -14,6 +15,7 @@ import {
   Search,
   Trash2,
   Unlock,
+  Upload,
   UtensilsCrossed,
   Wrench,
   X,
@@ -35,6 +37,12 @@ import {
   type FengbroNewsAdapter,
   type FengbroNewsSiteConfig,
 } from "@/lib/fengbroNewsSites";
+import {
+  buildFengbroNewsCsv,
+  mergeFengbroNewsSites,
+  parseFengbroNewsCsv,
+} from "@/lib/fengbroNewsCsv";
+import { getExportFilename } from "@/lib/utils";
 
 type NewsArticle = {
   title: string;
@@ -155,6 +163,7 @@ export default function FengbroNewsTool() {
   const [bentoError, setBentoError] = useState("");
   const [bentoResult, setBentoResult] = useState<TraBentoStoresResult | null>(null);
   const [bentoFocusOnly, setBentoFocusOnly] = useState(true);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const lockedSites = useMemo(() => sites.filter((s) => s.locked), [sites]);
   const lockedCount = lockedSites.length;
@@ -389,6 +398,75 @@ export default function FengbroNewsTool() {
     void loadBentoStores(true);
   }, [loadBentoStores]);
 
+  const handleExportCsv = useCallback(() => {
+    try {
+      const csv = buildFengbroNewsCsv(sites);
+      const BOM = "\uFEFF";
+      const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("fengbro-news");
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "輸出 CSV 失敗");
+    }
+  }, [sites]);
+
+  const handleImportCsv = useCallback(
+    (file: File) => {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setError("請選擇 .csv 檔案");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          const { data, errors } = parseFengbroNewsCsv(text);
+
+          if (data.length === 0) {
+            setError(
+              errors.length > 0
+                ? `CSV 匯入失敗：${errors.slice(0, 5).join("；")}`
+                : "CSV 沒有可匯入的新聞來源"
+            );
+            return;
+          }
+
+          if (sites.length > 0) {
+            const ok = window.confirm(
+              `將合併匯入 ${data.length} 個新聞來源（相同網站會覆蓋）。\n` +
+                `目前 ${sites.length} 個，合併後最多 80 個。\n\n` +
+                `確定匯入？`
+            );
+            if (!ok) return;
+          }
+
+          const merged = mergeFengbroNewsSites(sites, data);
+          setSites(merged);
+          setError("");
+          setManagerOpen(true);
+          const warn =
+            errors.length > 0
+              ? `\n警告 ${errors.length}：${errors.slice(0, 5).join("\n")}${errors.length > 5 ? "\n…" : ""}`
+              : "";
+          const lockedIn = data.filter((s) => s.locked).length;
+          window.alert(
+            `匯入完成！\n新增／覆蓋：${data.length} 個（其中鎖定 ${lockedIn}）\n合併後共 ${merged.length} 個來源${warn}`
+          );
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "輸入 CSV 失敗");
+        }
+      };
+      reader.onerror = () => setError("讀取 CSV 檔案失敗");
+      reader.readAsText(file, "UTF-8");
+    },
+    [sites]
+  );
+
   return (
     <div className="space-y-5">
       <DataCard className="overflow-hidden p-0">
@@ -401,7 +479,7 @@ export default function FengbroNewsTool() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-600/80">FengBro News</p>
               <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄新聞</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                鎖定網站焦點後，只在指定網站搜尋「標題包含關鍵字」的文章（最多三年內）。
+                鎖定網站焦點後，只在指定網站搜尋「標題包含關鍵字」的文章（最多三年內）。可輸出／輸入 CSV 備份來源清單。
               </p>
             </div>
           </div>
@@ -417,6 +495,37 @@ export default function FengbroNewsTool() {
                 ? ` · 預設 ${DEFAULT_FENGBRO_NEWS_SITES_COUNT}`
                 : ""}
             </span>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) handleImportCsv(file);
+                event.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportCsv}
+              className="gap-2 rounded-xl border-sky-200 text-sky-800 hover:bg-sky-50"
+              title="匯出新聞來源清單為 CSV"
+            >
+              <Download size={16} />
+              輸出 CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => csvInputRef.current?.click()}
+              className="gap-2 rounded-xl border-sky-200 text-sky-800 hover:bg-sky-50"
+              title="從 CSV 匯入新聞來源（同網站覆蓋合併）"
+            >
+              <Upload size={16} />
+              輸入 CSV
+            </Button>
             <Button
               type="button"
               onClick={() => {
