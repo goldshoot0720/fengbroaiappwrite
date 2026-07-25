@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Trash2, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,9 @@ import {
 import {
   FINANCE_CUSTOM_GROUPS,
   FINANCE_GROUP_LABELS,
+  MAX_FEATURED_FINANCE_INSTRUMENTS,
   buildCustomFinanceInstrumentFromDraft,
+  buildCustomFinanceQuoteId,
   createEmptyCustomFinanceDraft,
   draftFromCustomFinanceInstrument,
   getCustomFinanceInstrumentKey,
@@ -310,21 +312,16 @@ const LANDTOP_SAMSUNG_QUERY_KEY = "fengbro.tools.landtop.samsungQuery";
 const TUBE_CHANNELS_KEY = "fengbro.tools.tube.channels";
 const FINANCE_CUSTOM_INSTRUMENTS_KEY = "fengbro.tools.finance.customInstruments";
 const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrumentIds";
+/** User-selected 精選焦點 quote ids (default ids and custom-*). */
+const FINANCE_FEATURED_QUOTE_IDS_KEY = "fengbro.tools.finance.featuredQuoteIds";
 /** Tracks which default instrument ids the client has already seen, so newly shipped defaults auto-appear. */
 const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDefaultInstrumentIds";
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   // 韓國
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", provider: "yahoo", group: "korea" },
-  { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", provider: "yahoo", group: "korea" },
-  { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", provider: "cnbc", group: "korea" },
-  // 日本
-  { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", provider: "yahoo", group: "japan" },
-  // 台灣 / 美國：目前無預設標的（可自行新增）
+  // 日本 / 台灣 / 美國：目前無預設標的（可自行新增）
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
-/** 精選焦點：固定優先顯示（目前無） */
-const FEATURED_FINANCE_INSTRUMENT_IDS = [] as readonly string[];
-const FEATURED_FINANCE_INSTRUMENT_ID_SET = new Set<string>(FEATURED_FINANCE_INSTRUMENT_IDS);
 
 function getSavedTubeChannels() {
   if (typeof window === "undefined") return DEFAULT_FENGBRO_TUBE_CHANNELS;
@@ -361,6 +358,42 @@ function getSavedCustomFinanceInstruments() {
   } catch {
     return [];
   }
+}
+
+function getSavedFeaturedFinanceQuoteIds(customInstruments: CustomFinanceInstrument[] = []) {
+  const fromCustom = customInstruments
+    .filter((instrument) => instrument.featured)
+    .map((instrument) => buildCustomFinanceQuoteId(instrument.provider, instrument.symbol));
+
+  if (typeof window === "undefined") {
+    return fromCustom.slice(0, MAX_FEATURED_FINANCE_INSTRUMENTS);
+  }
+
+  try {
+    const raw = window.localStorage.getItem(FINANCE_FEATURED_QUOTE_IDS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    const fromStorage = Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === "string" && id.trim().length > 0).map((id) => id.trim())
+      : [];
+
+    const merged: string[] = [];
+    const seen = new Set<string>();
+    for (const id of [...fromStorage, ...fromCustom]) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      merged.push(id);
+      if (merged.length >= MAX_FEATURED_FINANCE_INSTRUMENTS) break;
+    }
+    return merged;
+  } catch {
+    return fromCustom.slice(0, MAX_FEATURED_FINANCE_INSTRUMENTS);
+  }
+}
+
+function toggleIdInList(ids: string[], id: string, max = MAX_FEATURED_FINANCE_INSTRUMENTS) {
+  if (ids.includes(id)) return ids.filter((item) => item !== id);
+  if (ids.length >= max) return ids;
+  return [...ids, id];
 }
 
 function getSavedDefaultFinanceInstrumentIds() {
@@ -401,10 +434,9 @@ function getSavedDefaultFinanceInstrumentIds() {
       knownIds = [];
     }
 
-    // First migration after introducing known-ids tracking: treat the previous full catalog
-    // (everything except KORU) as already known so KORU can auto-appear once.
+    // First migration after introducing known-ids tracking: treat current catalog as already known.
     if (knownIds.length === 0) {
-      knownIds = DEFAULT_FINANCE_INSTRUMENT_IDS.filter((id) => id !== "koru");
+      knownIds = [...DEFAULT_FINANCE_INSTRUMENT_IDS];
     }
 
     const knownSet = new Set(knownIds);
@@ -2124,6 +2156,8 @@ function FengbroFinanceSection({
   onEditCustomInstrument,
   onCancelEditCustomInstrument,
   onDeleteCustomInstrument,
+  featuredQuoteIds,
+  onToggleFeaturedQuoteId,
   onRefresh,
 }: {
   result: FengbroFinanceResult | null;
@@ -2142,6 +2176,8 @@ function FengbroFinanceSection({
   onEditCustomInstrument: (instrument: CustomFinanceInstrument) => void;
   onCancelEditCustomInstrument: () => void;
   onDeleteCustomInstrument: (instrument: CustomFinanceInstrument) => void;
+  featuredQuoteIds: string[];
+  onToggleFeaturedQuoteId: (quoteId: string) => void;
   onRefresh: () => void;
 }) {
   const isEditingCustom = Boolean(editingCustomKey);
@@ -2235,25 +2271,22 @@ function FengbroFinanceSection({
       .filter((item) => item.quotes.length > 0);
   }, [result, searchQuery]);
   const selectedDefaultIdSet = useMemo(() => new Set(selectedDefaultInstrumentIds), [selectedDefaultInstrumentIds]);
+  const featuredQuoteIdSet = useMemo(() => new Set(featuredQuoteIds), [featuredQuoteIds]);
   const selectedDefaultInstruments = useMemo(
     () =>
       defaultInstruments
         .filter((instrument) => selectedDefaultIdSet.has(instrument.id))
         // 精選焦點 chips 優先排在追蹤清單最前
         .sort((left, right) => {
-          const leftFeatured = FEATURED_FINANCE_INSTRUMENT_ID_SET.has(left.id) ? 0 : 1;
-          const rightFeatured = FEATURED_FINANCE_INSTRUMENT_ID_SET.has(right.id) ? 0 : 1;
+          const leftFeatured = featuredQuoteIdSet.has(left.id) ? 0 : 1;
+          const rightFeatured = featuredQuoteIdSet.has(right.id) ? 0 : 1;
           if (leftFeatured !== rightFeatured) return leftFeatured - rightFeatured;
-          const leftIdx = FEATURED_FINANCE_INSTRUMENT_IDS.indexOf(
-            left.id as (typeof FEATURED_FINANCE_INSTRUMENT_IDS)[number]
-          );
-          const rightIdx = FEATURED_FINANCE_INSTRUMENT_IDS.indexOf(
-            right.id as (typeof FEATURED_FINANCE_INSTRUMENT_IDS)[number]
-          );
+          const leftIdx = featuredQuoteIds.indexOf(left.id);
+          const rightIdx = featuredQuoteIds.indexOf(right.id);
           if (leftFeatured === 0 && rightFeatured === 0) return leftIdx - rightIdx;
           return 0;
         }),
-    [defaultInstruments, selectedDefaultIdSet]
+    [defaultInstruments, featuredQuoteIdSet, featuredQuoteIds, selectedDefaultIdSet]
   );
   const deletedDefaultInstruments = useMemo(
     () => defaultInstruments.filter((instrument) => !selectedDefaultIdSet.has(instrument.id)),
@@ -2306,7 +2339,7 @@ function FengbroFinanceSection({
 
           <div className="mt-4 flex flex-wrap gap-2">
             {selectedDefaultInstruments.map((instrument) => {
-              const isFeatured = FEATURED_FINANCE_INSTRUMENT_ID_SET.has(instrument.id);
+              const isFeatured = featuredQuoteIdSet.has(instrument.id);
               return (
                 <span
                   key={instrument.id}
@@ -2323,6 +2356,19 @@ function FengbroFinanceSection({
                   )}
                   <span className="font-semibold">{instrument.name}</span>
                   <span className={isFeatured ? "text-amber-800" : "text-emerald-700"}>{instrument.symbol}</span>
+                  <button
+                    type="button"
+                    onClick={() => onToggleFeaturedQuoteId(instrument.id)}
+                    className={`rounded-full p-0.5 ${
+                      isFeatured
+                        ? "text-amber-700 hover:bg-white"
+                        : "text-emerald-700 hover:bg-emerald-50 hover:text-amber-700"
+                    }`}
+                    title={isFeatured ? "取消精選焦點" : "設為精選焦點"}
+                    aria-label={isFeatured ? `取消精選 ${instrument.name}` : `設為精選 ${instrument.name}`}
+                  >
+                    <Star size={13} className={isFeatured ? "fill-amber-400 text-amber-500" : ""} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => onDeleteDefaultInstrument(instrument.id)}
@@ -2505,6 +2551,20 @@ function FengbroFinanceSection({
               className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             />
           </label>
+          <label className="flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2 text-sm sm:col-span-2 lg:col-span-3">
+            <input
+              type="checkbox"
+              checked={Boolean(customDraft.featured)}
+              onChange={(event) =>
+                onCustomDraftChange({ ...customDraft, featured: event.target.checked })
+              }
+              className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-400"
+            />
+            <span className="font-medium text-amber-950">設為精選焦點</span>
+            <span className="text-xs text-amber-800/80">
+              優先顯示於頂部（最多 {MAX_FEATURED_FINANCE_INSTRUMENTS} 個）
+            </span>
+          </label>
         </div>
 
         {(() => {
@@ -2523,6 +2583,7 @@ function FengbroFinanceSection({
             (customDraft.imageUrlsText || "").trim() ? "圖片" : "",
             (customDraft.youtubeUrl || "").trim() ? "YouTube" : "",
             (customDraft.bilibiliUrl || "").trim() ? "Bilibili" : "",
+            customDraft.featured ? "精選焦點" : "",
           ].filter(Boolean);
           return (
             <p className="mt-2 text-xs text-emerald-800/90">
@@ -2532,7 +2593,7 @@ function FengbroFinanceSection({
               {sourceName}: {preview.symbol}
               {preview.fromUrl ? "（由網址辨識）" : ""}
               {isTwSource ? " · 台股來源" : ""}
-              {mediaHints.length > 0 ? ` · 媒體：${mediaHints.join("、")}` : ""}
+              {mediaHints.length > 0 ? ` · ${mediaHints.join("、")}` : ""}
             </p>
           );
         })()}
@@ -2542,24 +2603,33 @@ function FengbroFinanceSection({
         <div className="mt-4 flex flex-wrap gap-2">
           {customInstruments.map((instrument) => {
             const key = getCustomFinanceInstrumentKey(instrument);
+            const quoteId = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
+            const isFeatured = featuredQuoteIdSet.has(quoteId) || Boolean(instrument.featured);
             const isActiveEdit = editingCustomKey === key;
             const hasImage = Boolean(instrument.imageUrl || instrument.imageUrls?.length);
             return (
               <span
                 key={key}
                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm ${
-                  isActiveEdit
-                    ? "border-amber-300 bg-amber-50 text-amber-900"
-                    : "border-emerald-100 bg-emerald-50 text-emerald-800"
+                  isFeatured
+                    ? "border-amber-300 bg-amber-50 text-amber-950"
+                    : isActiveEdit
+                      ? "border-amber-300 bg-amber-50 text-amber-900"
+                      : "border-emerald-100 bg-emerald-50 text-emerald-800"
                 }`}
               >
                 <span className="font-semibold">{instrument.name}</span>
                 <span>
                   {instrument.provider.toUpperCase()}: {instrument.symbol}
                 </span>
-                <span className={isActiveEdit ? "text-amber-700/80" : "text-emerald-700/70"}>
+                <span className={isActiveEdit || isFeatured ? "text-amber-700/80" : "text-emerald-700/70"}>
                   {getFinanceGroupLabel(instrument.group)}
                 </span>
+                {isFeatured ? (
+                  <span className="rounded-full bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                    焦點
+                  </span>
+                ) : null}
                 {hasImage ? (
                   <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
                     圖
@@ -2575,6 +2645,19 @@ function FengbroFinanceSection({
                     B站
                   </span>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={() => onToggleFeaturedQuoteId(quoteId)}
+                  className={`rounded-full p-0.5 ${
+                    isFeatured
+                      ? "text-amber-700 hover:bg-white"
+                      : "text-emerald-700 hover:bg-white hover:text-amber-700"
+                  }`}
+                  title={isFeatured ? "取消精選焦點" : "設為精選焦點"}
+                  aria-label={isFeatured ? `取消精選 ${instrument.name}` : `設為精選 ${instrument.name}`}
+                >
+                  <Star size={13} className={isFeatured ? "fill-amber-400 text-amber-500" : ""} />
+                </button>
                 <button
                   type="button"
                   onClick={() => onEditCustomInstrument(instrument)}
@@ -2675,23 +2758,24 @@ function FengbroFinanceSection({
             )}
             {/* ── 精選焦點區塊（優先顯示） ─────────────────────────── */}
             {(() => {
-              // Fixed order, side-by-side grid — no price sort that reorders “who appears first”.
-              const featuredQuotes = FEATURED_FINANCE_INSTRUMENT_IDS
+              // User-selected order; side-by-side grid — no price sort that reorders “who appears first”.
+              const featuredQuotes = featuredQuoteIds
                 .map((id) => (result?.quotes || []).find((q) => q.id === id))
                 .filter((q): q is NonNullable<typeof q> => !!q);
               if (featuredQuotes.length === 0) return null;
-              const featuredLabels: Record<string, { title: string; subtitle: string; accentClass: string; bgClass: string; borderClass: string }> = {};
               return (
                 <div id="fengbro-finance-featured" className="scroll-mt-28">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/80">精選焦點 · 優先顯示 · 同時並排</p>
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/80">
+                    精選焦點 · 優先顯示 · 同時並排 · {featuredQuotes.length}/{MAX_FEATURED_FINANCE_INSTRUMENTS}
+                  </p>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {featuredQuotes.map((quote, idx) => {
-                      const cfg = featuredLabels[quote.id] ?? {
-                        title: quote.name,
-                        subtitle: quote.symbol,
-                        accentClass: "text-emerald-700",
-                        bgClass: "bg-white",
-                        borderClass: "border-slate-200",
+                      const cfg = {
+                        title: getFinanceQuoteTitle(quote),
+                        subtitle: `${quote.symbol}${quote.localLabel ? ` · ${quote.localLabel}` : ""}`,
+                        accentClass: "text-amber-800",
+                        bgClass: "bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))]",
+                        borderClass: "border-amber-200",
                       };
                       const isUp = (quote.change || 0) >= 0;
                       const recordLabel = getFinanceRecordLabel(quote.recordTag);
@@ -3311,6 +3395,9 @@ export default function ToolsManagement({
     getSavedDefaultFinanceInstrumentIds
   );
   const [customFinanceInstruments, setCustomFinanceInstruments] = useState<CustomFinanceInstrument[]>(getSavedCustomFinanceInstruments);
+  const [featuredFinanceQuoteIds, setFeaturedFinanceQuoteIds] = useState<string[]>(() =>
+    getSavedFeaturedFinanceQuoteIds(getSavedCustomFinanceInstruments())
+  );
   const [customFinanceDraft, setCustomFinanceDraft] = useState<CustomFinanceDraft>(createEmptyCustomFinanceDraft);
   const [editingCustomFinanceKey, setEditingCustomFinanceKey] = useState<string | null>(null);
 
@@ -3353,6 +3440,13 @@ export default function ToolsManagement({
       window.localStorage.setItem(FINANCE_CUSTOM_INSTRUMENTS_KEY, JSON.stringify(customFinanceInstruments));
     } catch {}
   }, [customFinanceInstruments]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(FINANCE_FEATURED_QUOTE_IDS_KEY, JSON.stringify(featuredFinanceQuoteIds));
+    } catch {}
+  }, [featuredFinanceQuoteIds]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3577,8 +3671,8 @@ export default function ToolsManagement({
     setFinanceLoading(true);
     setFinanceError("");
     try {
-      // 冷啟動時先拉精選焦點，讓區塊優先上屏，再補齊其餘標的
-      const featuredSelected = FEATURED_FINANCE_INSTRUMENT_IDS.filter((id) =>
+      // 冷啟動時先拉精選焦點（預設標的），讓區塊優先上屏
+      const featuredSelected = featuredFinanceQuoteIds.filter((id) =>
         selectedDefaultFinanceInstrumentIds.includes(id)
       );
       const alreadyHasQuotes = (financeResultRef.current?.quotes.length ?? 0) > 0;
@@ -3598,10 +3692,13 @@ export default function ToolsManagement({
       }
 
       const params = new URLSearchParams();
-      // 精選 id 排前面，方便後續若要做串流優先也能沿用同一順序
+      const featuredDefaultSet = new Set(
+        featuredFinanceQuoteIds.filter((id) => selectedDefaultFinanceInstrumentIds.includes(id))
+      );
+      // 精選預設 id 排前面
       const orderedDefaults = [
-        ...FEATURED_FINANCE_INSTRUMENT_IDS.filter((id) => selectedDefaultFinanceInstrumentIds.includes(id)),
-        ...selectedDefaultFinanceInstrumentIds.filter((id) => !FEATURED_FINANCE_INSTRUMENT_ID_SET.has(id)),
+        ...featuredFinanceQuoteIds.filter((id) => selectedDefaultFinanceInstrumentIds.includes(id)),
+        ...selectedDefaultFinanceInstrumentIds.filter((id) => !featuredDefaultSet.has(id)),
       ];
       params.set("defaults", JSON.stringify(orderedDefaults));
       if (customFinanceInstruments.length > 0) {
@@ -3617,7 +3714,7 @@ export default function ToolsManagement({
     } finally {
       setFinanceLoading(false);
     }
-  }, [customFinanceInstruments, selectedDefaultFinanceInstrumentIds]);
+  }, [customFinanceInstruments, featuredFinanceQuoteIds, selectedDefaultFinanceInstrumentIds]);
 
   const clearCustomFinanceForm = useCallback(() => {
     setEditingCustomFinanceKey(null);
@@ -3664,6 +3761,21 @@ export default function ToolsManagement({
     }
 
     setFinanceError("");
+    const nextQuoteId = buildCustomFinanceQuoteId(
+      normalizedInstrument.provider,
+      normalizedInstrument.symbol
+    );
+    const previousQuoteId =
+      editingCustomFinanceKey && editingCustomFinanceKey.includes("|")
+        ? (() => {
+            const [provider, symbol] = editingCustomFinanceKey.split("|");
+            if (provider === "yahoo" || provider === "cnbc") {
+              return buildCustomFinanceQuoteId(provider, symbol);
+            }
+            return "";
+          })()
+        : "";
+
     setCustomFinanceInstruments((currentInstruments) => {
       const nextKey = getCustomFinanceInstrumentKey(normalizedInstrument);
       const nextInstruments = currentInstruments.filter((instrument) => {
@@ -3676,6 +3788,25 @@ export default function ToolsManagement({
       });
       return [...nextInstruments, normalizedInstrument].slice(-30);
     });
+
+    setFeaturedFinanceQuoteIds((currentIds) => {
+      let next = currentIds.filter((id) => id !== previousQuoteId || previousQuoteId === nextQuoteId);
+      if (normalizedInstrument.featured) {
+        if (!next.includes(nextQuoteId)) {
+          if (next.length >= MAX_FEATURED_FINANCE_INSTRUMENTS) {
+            // Keep existing pins; drop the new pin if full.
+            return next.filter((id) => id !== previousQuoteId || previousQuoteId === nextQuoteId);
+          }
+          next = [...next.filter((id) => id !== previousQuoteId), nextQuoteId];
+        } else if (previousQuoteId && previousQuoteId !== nextQuoteId) {
+          next = next.map((id) => (id === previousQuoteId ? nextQuoteId : id));
+        }
+      } else {
+        next = next.filter((id) => id !== nextQuoteId && id !== previousQuoteId);
+      }
+      return next.slice(0, MAX_FEATURED_FINANCE_INSTRUMENTS);
+    });
+
     setEditingCustomFinanceKey(null);
     setCustomFinanceDraft(
       createEmptyCustomFinanceDraft({
@@ -3689,12 +3820,40 @@ export default function ToolsManagement({
   const handleEditCustomFinanceInstrument = useCallback((instrument: CustomFinanceInstrument) => {
     setFinanceError("");
     setEditingCustomFinanceKey(getCustomFinanceInstrumentKey(instrument));
-    setCustomFinanceDraft(draftFromCustomFinanceInstrument(instrument));
-  }, []);
+    const quoteId = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
+    setCustomFinanceDraft({
+      ...draftFromCustomFinanceInstrument(instrument),
+      featured: featuredFinanceQuoteIds.includes(quoteId) || Boolean(instrument.featured),
+    });
+  }, [featuredFinanceQuoteIds]);
 
   const handleCancelEditCustomFinanceInstrument = useCallback(() => {
     clearCustomFinanceForm();
   }, [clearCustomFinanceForm]);
+
+  const handleToggleFeaturedFinanceQuoteId = useCallback((quoteId: string) => {
+    setFeaturedFinanceQuoteIds((currentIds) => {
+      const next = toggleIdInList(currentIds, quoteId);
+      if (next.length === currentIds.length && !currentIds.includes(quoteId)) {
+        setFinanceError(`精選焦點最多 ${MAX_FEATURED_FINANCE_INSTRUMENTS} 個`);
+      } else {
+        setFinanceError("");
+      }
+      return next;
+    });
+    // Keep custom instrument.featured flag in sync when toggled from chips.
+    setCustomFinanceInstruments((currentInstruments) =>
+      currentInstruments.map((instrument) => {
+        const id = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
+        if (id !== quoteId) return instrument;
+        const willFeature = !featuredFinanceQuoteIds.includes(quoteId);
+        if (willFeature && featuredFinanceQuoteIds.length >= MAX_FEATURED_FINANCE_INSTRUMENTS) {
+          return instrument;
+        }
+        return { ...instrument, featured: willFeature ? true : undefined };
+      })
+    );
+  }, [featuredFinanceQuoteIds]);
 
   const handleAddDefaultFinanceInstrument = useCallback((id: string) => {
     if (!DEFAULT_FINANCE_INSTRUMENT_IDS.includes(id)) return;
@@ -3708,6 +3867,7 @@ export default function ToolsManagement({
 
   const handleDeleteDefaultFinanceInstrument = useCallback((id: string) => {
     setSelectedDefaultFinanceInstrumentIds((currentIds) => currentIds.filter((currentId) => currentId !== id));
+    setFeaturedFinanceQuoteIds((currentIds) => currentIds.filter((currentId) => currentId !== id));
     setFinanceLoadedOnce(false);
   }, []);
 
@@ -3719,9 +3879,11 @@ export default function ToolsManagement({
   const handleDeleteCustomFinanceInstrument = useCallback(
     (targetInstrument: CustomFinanceInstrument) => {
       const targetKey = getCustomFinanceInstrumentKey(targetInstrument);
+      const quoteId = buildCustomFinanceQuoteId(targetInstrument.provider, targetInstrument.symbol);
       setCustomFinanceInstruments((currentInstruments) =>
         currentInstruments.filter((instrument) => getCustomFinanceInstrumentKey(instrument) !== targetKey)
       );
+      setFeaturedFinanceQuoteIds((currentIds) => currentIds.filter((id) => id !== quoteId));
       if (editingCustomFinanceKey === targetKey) {
         clearCustomFinanceForm();
       }
@@ -4279,6 +4441,8 @@ export default function ToolsManagement({
           onEditCustomInstrument={handleEditCustomFinanceInstrument}
           onCancelEditCustomInstrument={handleCancelEditCustomFinanceInstrument}
           onDeleteCustomInstrument={handleDeleteCustomFinanceInstrument}
+          featuredQuoteIds={featuredFinanceQuoteIds}
+          onToggleFeaturedQuoteId={handleToggleFeaturedFinanceQuoteId}
           onRefresh={() => void loadFinance()}
         />
       )}

@@ -102,15 +102,10 @@ const FINANCE_HISTORY_RANGES: FinanceHistoryRange[] = [
   // Yahoo chart API has no native "3y"; fetch 5y weekly then trim to 3 years.
   { key: "3y", range: "5y", interval: "1wk", keepYears: 3 },
 ];
-const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
-  koru: "KORU",
-};
+const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {};
 
 const INSTRUMENTS: FinanceInstrument[] = [
-  { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", sourceUrl: "https://finance.yahoo.com/quote/285A.T", group: "japan", provider: "yahoo", localLabel: "TYO: 285A" },
   { id: "sk-hynix", name: "SK 海力士", symbol: "000660.KS", sourceUrl: "https://finance.yahoo.com/quote/000660.KS", group: "korea", provider: "yahoo", alertThreshold: 11110000 },
-  { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", sourceUrl: "https://finance.yahoo.com/quote/SKHY", group: "korea", provider: "yahoo" },
-  { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", sourceUrl: "https://www.cnbc.com/quotes/KORU", group: "korea", localLabel: "NYSEARCA: KORU" },
 ];
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";

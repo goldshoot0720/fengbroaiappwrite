@@ -20,6 +20,8 @@ export type CustomFinanceInstrument = {
   imageUrls?: string[];
   youtubeUrl?: string;
   bilibiliUrl?: string;
+  /** When true, show this instrument in 精選焦點. */
+  featured?: boolean;
 };
 
 export type CustomFinanceDraft = {
@@ -33,7 +35,27 @@ export type CustomFinanceDraft = {
   imageUrlsText: string;
   youtubeUrl: string;
   bilibiliUrl: string;
+  /** Pin to 精選焦點. */
+  featured: boolean;
 };
+
+/** Max instruments user can pin as 精選焦點. */
+export const MAX_FEATURED_FINANCE_INSTRUMENTS = 6;
+
+/** Match server-side custom quote id generation (`custom-${slug(provider-symbol)}`). */
+export function buildCustomFinanceQuoteId(
+  provider: FinanceCustomProvider,
+  symbol: string
+): string {
+  const idBase =
+    `${provider}-${symbol}`
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "item";
+  return `custom-${idBase}`;
+}
 
 const MAX_CUSTOM_IMAGE_URLS = 12;
 
@@ -458,6 +480,7 @@ export function draftFromCustomFinanceInstrument(
     imageUrlsText: imageUrls.join("\n"),
     youtubeUrl: instrument.youtubeUrl || "",
     bilibiliUrl: instrument.bilibiliUrl || "",
+    featured: Boolean(instrument.featured),
   };
 }
 
@@ -493,6 +516,7 @@ export function normalizeCustomFinanceInstrument(
     ...(imageUrls.length > 0 ? { imageUrls } : {}),
     ...(youtubeUrl ? { youtubeUrl } : {}),
     ...(bilibiliUrl ? { bilibiliUrl } : {}),
+    ...(input.featured ? { featured: true } : {}),
   };
 }
 
@@ -526,6 +550,7 @@ export function buildCustomFinanceInstrumentFromDraft(
     imageUrls: normalizeFinanceImageUrls(draft.imageUrlsText),
     youtubeUrl: draft.youtubeUrl,
     bilibiliUrl: draft.bilibiliUrl,
+    featured: Boolean(draft.featured),
   });
 }
 
@@ -540,6 +565,7 @@ export function createEmptyCustomFinanceDraft(
     imageUrlsText: "",
     youtubeUrl: "",
     bilibiliUrl: "",
+    featured: false,
     ...overrides,
   };
 }
