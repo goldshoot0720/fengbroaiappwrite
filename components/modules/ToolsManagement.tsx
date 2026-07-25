@@ -1673,9 +1673,9 @@ function LandtopHistoryChart({
         {chart.series.map((item) => (
           <a
             key={item.id}
-            href={item.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
+            href={item.sourceUrl || "#"}
+            target={item.sourceUrl ? "_blank" : undefined}
+            rel={item.sourceUrl ? "noreferrer" : undefined}
             className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs shadow-sm"
           >
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
@@ -3627,6 +3627,7 @@ function LandtopProductSection({
   open: boolean;
   onToggle: () => void;
 }) {
+  const list = Array.isArray(products) ? products : [];
   return (
     <div className="rounded-3xl border border-slate-200/80 bg-white/40 p-1 shadow-sm backdrop-blur-xl dark:border-slate-800 dark:bg-[#121212]/40">
       <button 
@@ -3636,7 +3637,7 @@ function LandtopProductSection({
       >
         <div>
           <h4 className="text-sm font-bold text-foreground transition-colors group-hover:text-sky-600 dark:group-hover:text-sky-400">{title}</h4>
-          <p className="mt-1 text-xs text-muted-foreground">預設 {defaultQuery}，目前 {products.length} 筆</p>
+          <p className="mt-1 text-xs text-muted-foreground">預設 {defaultQuery}，目前 {list.length} 筆</p>
         </div>
         <span className="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors group-hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:group-hover:border-slate-600">
           {open ? "收合" : "展開"}
@@ -3646,11 +3647,13 @@ function LandtopProductSection({
       {open && (
         <div className="px-2 pb-2 pt-1">
           <div className="grid gap-3 md:grid-cols-2">
-            {products.length > 0 ? (
-              products.slice(0, 12).map((product) => <LandtopProductCard key={product.id} product={product} />)
+            {list.length > 0 ? (
+              list.slice(0, 12).map((product) => (
+                <LandtopProductCard key={product.id || product.name} product={product} />
+              ))
             ) : (
               <p className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-white/50 px-3 py-8 text-center text-sm text-muted-foreground backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/30">
-                目前沒有這個區塊的比價結果。
+                目前沒有這個區塊的比價結果。請按上方搜尋或重新抓取。
               </p>
             )}
           </div>
@@ -3689,6 +3692,7 @@ export default function ToolsManagement({
   const [landtopLoadedOnce, setLandtopLoadedOnce] = useState(false);
   const [landtopAppleOpen, setLandtopAppleOpen] = useState(true);
   const [landtopSamsungOpen, setLandtopSamsungOpen] = useState(true);
+  const [landtopHistoryCsvBusy, setLandtopHistoryCsvBusy] = useState(false);
   const [tubeLoading, setTubeLoading] = useState(false);
   const [tubeError, setTubeError] = useState("");
   const [tubeResult, setTubeResult] = useState<FengbroTubeResult | null>(null);
@@ -3835,8 +3839,6 @@ export default function ToolsManagement({
     persistRecentLinks([{ url, title, updatedAt: now }, ...existing].slice(0, 12));
   };
 
-  const [landtopHistoryCsvBusy, setLandtopHistoryCsvBusy] = useState(false);
-
   const loadLandtop = useCallback(
     async (refresh = false, overrideQuery?: string) => {
       const query = (overrideQuery ?? landtopQuery).trim();
@@ -3852,7 +3854,14 @@ export default function ToolsManagement({
         const response = await fetch(`/api/landtop?${params.toString()}`);
         const data = (await response.json()) as LandtopResult & { error?: string };
         if (!response.ok) throw new Error(data.error || "地標網通查詢失敗");
-        setLandtopResult(data);
+        // Normalize so UI never crashes on missing products array
+        setLandtopResult({
+          ...data,
+          products: Array.isArray(data.products) ? data.products : [],
+          histories: Array.isArray(data.histories) ? data.histories : [],
+          total: typeof data.total === "number" ? data.total : Array.isArray(data.products) ? data.products.length : 0,
+          fetchedAt: data.fetchedAt || new Date().toISOString(),
+        });
       } catch (error) {
         setLandtopError(error instanceof Error ? error.message : "地標網通查詢失敗");
       } finally {
@@ -4948,46 +4957,62 @@ export default function ToolsManagement({
             </div>
           </div>
 
+          {landtopLoading && !landtopResult && (
+            <p className="relative mt-6 rounded-xl border border-sky-100 bg-white/70 px-3 py-3 text-center text-sm text-sky-800">
+              正在載入手機比價資料…
+            </p>
+          )}
+
           {landtopError && (
-            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{landtopError}</p>
+            <div className="relative mt-6 space-y-2">
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{landtopError}</p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void loadLandtop(true, landtopQuery)}
+                className="gap-2"
+              >
+                <RefreshCw size={16} />
+                重試
+              </Button>
+            </div>
           )}
 
           {!landtopError && landtopResult?.warnings?.length ? (
-            <div className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <div className="relative mt-4 space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
               {landtopResult.warnings.map((warning) => (
                 <p key={warning}>{warning}</p>
               ))}
             </div>
           ) : null}
 
-          {!landtopError && landtopResult && (
-            <>
-              <div className="space-y-3">
-                <LandtopProductSection
-                  title="蘋果手機區塊"
-                  defaultQuery={getAppleDefaultLandtopQuery()}
-                  products={landtopResult.products.filter((product) => product.brand === "apple")}
-                  open={landtopAppleOpen}
-                  onToggle={() => setLandtopAppleOpen((open) => !open)}
-                />
-                <LandtopProductSection
-                  title="三星手機區塊"
-                  defaultQuery={getSamsungDefaultLandtopQuery()}
-                  products={landtopResult.products.filter((product) => product.brand === "samsung")}
-                  open={landtopSamsungOpen}
-                  onToggle={() => setLandtopSamsungOpen((open) => !open)}
-                />
-              </div>
+          {/* Always show sections so the tab is never a blank card */}
+          <div className="relative mt-6 space-y-3">
+            <LandtopProductSection
+              title="蘋果手機區塊"
+              defaultQuery={getAppleDefaultLandtopQuery()}
+              products={(landtopResult?.products || []).filter((product) => product.brand === "apple")}
+              open={landtopAppleOpen}
+              onToggle={() => setLandtopAppleOpen((open) => !open)}
+            />
+            <LandtopProductSection
+              title="三星手機區塊"
+              defaultQuery={getSamsungDefaultLandtopQuery()}
+              products={(landtopResult?.products || []).filter((product) => product.brand === "samsung")}
+              open={landtopSamsungOpen}
+              onToggle={() => setLandtopSamsungOpen((open) => !open)}
+            />
+          </div>
 
-              <LandtopHistoryChart
-                histories={landtopResult.histories || []}
-                historyAvailable={landtopResult.historyAvailable}
-                onExportCsv={() => void handleExportLandtopHistoryCsv()}
-                onImportCsv={handleImportLandtopHistoryCsv}
-                csvBusy={landtopHistoryCsvBusy}
-              />
-            </>
-          )}
+          <div className="relative mt-6">
+            <LandtopHistoryChart
+              histories={landtopResult?.histories || []}
+              historyAvailable={landtopResult?.historyAvailable}
+              onExportCsv={() => void handleExportLandtopHistoryCsv()}
+              onImportCsv={handleImportLandtopHistoryCsv}
+              csvBusy={landtopHistoryCsvBusy}
+            />
+          </div>
         </DataCard>
       ) : activeTab === "fengbro-tube" ? (
         <FengbroTubeSection
