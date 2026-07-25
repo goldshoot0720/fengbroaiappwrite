@@ -332,11 +332,10 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   // 美國
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", provider: "cnbc", group: "us" },
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", provider: "cnbc", group: "us" },
-  { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", provider: "cnbc", group: "us" },
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
-/** 精選焦點：固定優先顯示（KOSPI / 日經 / 費城半導體） */
-const FEATURED_FINANCE_INSTRUMENT_IDS = ["kospi", "nikkei-225", "phlx-semiconductor"] as const;
+/** 精選焦點：固定優先顯示（KOSPI / 日經） */
+const FEATURED_FINANCE_INSTRUMENT_IDS = ["kospi", "nikkei-225"] as const;
 const FEATURED_FINANCE_INSTRUMENT_ID_SET = new Set<string>(FEATURED_FINANCE_INSTRUMENT_IDS);
 
 function getSavedTubeChannels() {
@@ -2664,13 +2663,6 @@ function FengbroFinanceSection({
                   accentClass: "text-rose-700",
                   bgClass: "bg-[linear-gradient(135deg,rgba(255,228,230,0.95),rgba(255,255,255,0.98))]",
                   borderClass: "border-rose-200",
-                },
-                "phlx-semiconductor": {
-                  title: "費城半導體指數",
-                  subtitle: "Philadelphia Semiconductor · SOX",
-                  accentClass: "text-violet-700",
-                  bgClass: "bg-[linear-gradient(135deg,rgba(237,233,254,0.95),rgba(255,255,255,0.98))]",
-                  borderClass: "border-violet-200",
                 },
               };
               return (

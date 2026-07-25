@@ -210,7 +210,6 @@ export default function FinancePage() {
       const params = new URLSearchParams({
         defaults: JSON.stringify([
           'kospi',
-          'phlx-semiconductor',
           'tsmc',
           'tsm',
         ]),
@@ -368,7 +367,6 @@ export default function FinancePage() {
   }
 
   const kospi = getQuote('kospi');
-  const phlxSemi = getQuote('phlx-semiconductor');
   const tsmc = getQuote('tsmc');
   const tsm = getQuote('tsm');
 
@@ -586,89 +584,6 @@ export default function FinancePage() {
 
                 {/* 圖片輪播 */}
                 <FinanceImageCarousel quote={kospi} alt="KOSPI Index Chart" />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* 費城半導體指數 */}
-      <section className="min-w-0">
-        <Card className="h-full bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border-purple-200 dark:border-purple-800">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Activity className="w-5 h-5 shrink-0 text-purple-600" />
-                  費城半導體指數
-                </CardTitle>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {phlxSemi?.localLabel || 'Philadelphia Semiconductor Index'} • SOX
-                </p>
-              </div>
-              {phlxSemi?.sourceUrl && (
-                <a
-                  href={phlxSemi.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-purple-600 hover:text-purple-700 dark:text-purple-400"
-                >
-                  <ExternalLink className="w-5 h-5" />
-                </a>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {phlxSemi?.error ? (
-              <div className="text-red-600 dark:text-red-400">
-                載入失敗: {phlxSemi.error}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* 當前價格 */}
-                <div className="flex items-baseline gap-3">
-                  <div className="text-4xl font-bold tabular-nums text-purple-600 dark:text-purple-400">
-                    {formatNumber(phlxSemi?.price, 2)}
-                  </div>
-                  {phlxSemi?.currency && (
-                    <div className="text-lg text-gray-500">{phlxSemi.currency}</div>
-                  )}
-                </div>
-
-                {/* 漲跌資訊 */}
-                {(phlxSemi?.change !== null || phlxSemi?.changePercent !== null) && (
-                  <div className={`flex flex-wrap items-center gap-2 text-base font-semibold ${
-                    isPositive(phlxSemi?.change) 
-                      ? 'text-green-600 dark:text-green-400' 
-                      : isNegative(phlxSemi?.change)
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {isPositive(phlxSemi?.change) ? (
-                      <TrendingUp className="w-5 h-5" />
-                    ) : isNegative(phlxSemi?.change) ? (
-                      <TrendingDown className="w-5 h-5" />
-                    ) : null}
-                    <span>{formatChange(phlxSemi?.change ?? null, phlxSemi?.changePercent ?? null)}</span>
-                    {isBearMarketFrom52WHigh(phlxSemi?.price, phlxSemi?.high52) && bearMarketBadge}
-                  </div>
-                )}
-
-                {/* 52週高低點 */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-purple-200 dark:border-purple-800">
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">52週最高</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      {formatNumber(phlxSemi?.high52)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">52週最低</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      {formatNumber(phlxSemi?.low52)}
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </CardContent>

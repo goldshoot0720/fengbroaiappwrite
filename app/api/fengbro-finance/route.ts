@@ -68,7 +68,6 @@ const YAHOO_HISTORY_SYMBOLS: Record<string, string> = {
   kospi: "^KS11",
   dow: "^DJI",
   nasdaq: "^IXIC",
-  "phlx-semiconductor": "^SOX",
   tsm: "TSM",
   koru: "KORU",
 };
@@ -176,7 +175,6 @@ const INSTRUMENTS: FinanceInstrument[] = [
   { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", sourceUrl: "https://www.cnbc.com/quotes/KORU", group: "korea", localLabel: "NYSEARCA: KORU" },
   { id: "dow", name: "Dow Jones Industrial Average", symbol: ".DJI", sourceUrl: "https://www.cnbc.com/quotes/.DJI", group: "us", alertThreshold: 66666, localLabel: "Roaring '20s" },
   { id: "nasdaq", name: "NASDAQ Composite", symbol: ".IXIC", sourceUrl: "https://www.cnbc.com/quotes/.IXIC", group: "us", alertThreshold: 33333, localLabel: "科技泡沫" },
-  { id: "phlx-semiconductor", name: "費城半導體指數", symbol: ".SOX", sourceUrl: "https://www.cnbc.com/quotes/.SOX", group: "us", localLabel: "半導體泡沫", imageUrl: "/finance/sox-cats.jpg" },
 ];
 
 const CNBC_ENDPOINT = "https://quote.cnbc.com/quote-html-webservice/quote.htm";
