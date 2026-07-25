@@ -12,11 +12,14 @@ type ManualPriceRecord = {
   note?: string;
 };
 
+const MANUAL_PRICE_CURRENCIES = ["TWD", "USD", "JPY"] as const;
+type ManualPriceCurrency = (typeof MANUAL_PRICE_CURRENCIES)[number];
+
 type ManualPriceProduct = {
   id: string;
   name: string;
   note?: string;
-  currency: string;
+  currency: ManualPriceCurrency;
   createdAt: number;
   updatedAt: number;
   records: ManualPriceRecord[];
@@ -25,6 +28,13 @@ type ManualPriceProduct = {
 const STORAGE_KEY = "fengbro.tools.manualPrice.products";
 const MAX_PRODUCTS = 50;
 const MAX_RECORDS_PER_PRODUCT = 200;
+
+function normalizeCurrency(value: unknown): ManualPriceCurrency {
+  const code = typeof value === "string" ? value.trim().toUpperCase() : "";
+  return (MANUAL_PRICE_CURRENCIES as readonly string[]).includes(code)
+    ? (code as ManualPriceCurrency)
+    : "TWD";
+}
 
 function createId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -98,10 +108,7 @@ function normalizeProduct(input: Partial<ManualPriceProduct>): ManualPriceProduc
     id: typeof input.id === "string" && input.id ? input.id : createId(),
     name,
     note: typeof input.note === "string" && input.note.trim() ? input.note.trim() : undefined,
-    currency:
-      typeof input.currency === "string" && input.currency.trim()
-        ? input.currency.trim().toUpperCase()
-        : "TWD",
+    currency: normalizeCurrency(input.currency),
     createdAt: typeof input.createdAt === "number" ? input.createdAt : now,
     updatedAt: typeof input.updatedAt === "number" ? input.updatedAt : now,
     records: sortRecords(records),
@@ -322,7 +329,7 @@ export default function ManualPriceTracker() {
 
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
-  const [productCurrency, setProductCurrency] = useState("TWD");
+  const [productCurrency, setProductCurrency] = useState<ManualPriceCurrency>("TWD");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   const [recordPrice, setRecordPrice] = useState("");
@@ -401,7 +408,7 @@ export default function ManualPriceTracker() {
               ...product,
               name,
               note: productNote.trim() || undefined,
-              currency: productCurrency.trim().toUpperCase() || "TWD",
+              currency: normalizeCurrency(productCurrency),
               updatedAt: now,
             }
           : product
@@ -439,7 +446,7 @@ export default function ManualPriceTracker() {
     setEditingProductId(product.id);
     setProductName(product.name);
     setProductNote(product.note || "");
-    setProductCurrency(product.currency || "TWD");
+    setProductCurrency(normalizeCurrency(product.currency));
     setSelectedProductId(product.id);
     setFormError("");
   };
@@ -596,12 +603,17 @@ export default function ManualPriceTracker() {
             </label>
             <label className="space-y-1.5 text-sm">
               <span className="font-medium">幣別</span>
-              <input
+              <select
                 value={productCurrency}
-                onChange={(event) => setProductCurrency(event.target.value)}
-                placeholder="TWD"
+                onChange={(event) => setProductCurrency(normalizeCurrency(event.target.value))}
                 className="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-violet-400"
-              />
+              >
+                {MANUAL_PRICE_CURRENCIES.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="space-y-1.5 text-sm">
               <span className="font-medium">備註</span>

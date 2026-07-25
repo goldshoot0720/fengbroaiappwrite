@@ -11,6 +11,12 @@ const sdk = require("node-appwrite");
 export const dynamic = "force-dynamic";
 
 const MAX_RECORDS = 200;
+const ALLOWED_CURRENCIES = new Set(["TWD", "USD", "JPY"]);
+
+function normalizeCurrency(value) {
+  const code = typeof value === "string" ? value.trim().toUpperCase() : "";
+  return ALLOWED_CURRENCIES.has(code) ? code : "TWD";
+}
 
 function parseRecordsJson(raw) {
   if (!raw || typeof raw !== "string") return [];
@@ -62,7 +68,7 @@ function toClientProduct(doc) {
     id: doc.$id,
     name: doc.name || "",
     note: doc.note || undefined,
-    currency: doc.currency || "TWD",
+    currency: normalizeCurrency(doc.currency),
     localId: doc.localId || undefined,
     createdAt: doc.$createdAt ? new Date(doc.$createdAt).getTime() : Date.now(),
     updatedAt: doc.$updatedAt ? new Date(doc.$updatedAt).getTime() : Date.now(),
@@ -87,10 +93,7 @@ function buildUpdatePayload(body) {
   }
 
   if (body.currency !== undefined) {
-    payload.currency =
-      typeof body.currency === "string" && body.currency.trim()
-        ? body.currency.trim().toUpperCase().slice(0, 20)
-        : "TWD";
+    payload.currency = normalizeCurrency(body.currency);
   }
 
   if (body.records !== undefined || body.recordsJson !== undefined) {
