@@ -321,13 +321,12 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   { id: "sk-hynix-adr", name: "SK hynix Inc. ADR", symbol: "SKHY", provider: "yahoo", group: "korea" },
   { id: "koru", name: "Direxion Daily MSCI South Korea Bull 3X ETF", symbol: "KORU", provider: "cnbc", group: "korea" },
   // 日本
-  { id: "nikkei-225", name: "Nikkei 225 Index", symbol: ".N225", provider: "cnbc", group: "japan" },
   { id: "kioxia", name: "キオクシア 鎧俠", symbol: "285A.T", provider: "yahoo", group: "japan" },
   // 台灣 / 美國：目前無預設標的（可自行新增）
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
-/** 精選焦點：固定優先顯示（KOSPI / 日經） */
-const FEATURED_FINANCE_INSTRUMENT_IDS = ["kospi", "nikkei-225"] as const;
+/** 精選焦點：固定優先顯示（KOSPI） */
+const FEATURED_FINANCE_INSTRUMENT_IDS = ["kospi"] as const;
 const FEATURED_FINANCE_INSTRUMENT_ID_SET = new Set<string>(FEATURED_FINANCE_INSTRUMENT_IDS);
 
 function getSavedTubeChannels() {
@@ -2656,13 +2655,6 @@ function FengbroFinanceSection({
                   accentClass: "text-sky-700",
                   bgClass: "bg-[linear-gradient(135deg,rgba(224,242,254,0.95),rgba(255,255,255,0.98))]",
                   borderClass: "border-sky-200",
-                },
-                "nikkei-225": {
-                  title: "Nikkei 225 Index",
-                  subtitle: "日經平均指數 日経平均株価",
-                  accentClass: "text-rose-700",
-                  bgClass: "bg-[linear-gradient(135deg,rgba(255,228,230,0.95),rgba(255,255,255,0.98))]",
-                  borderClass: "border-rose-200",
                 },
               };
               return (
