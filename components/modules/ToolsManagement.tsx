@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,12 @@ import {
   type CustomFinanceInstrument,
   type FinanceCustomGroup,
 } from "@/lib/fengbroFinanceCustom";
+import {
+  buildFinanceCustomCsv,
+  mergeFinanceCustomInstruments,
+  parseFinanceCustomCsv,
+} from "@/lib/fengbroFinanceCsv";
+import { getExportFilename } from "@/lib/utils";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
 import ManualPriceTracker from "@/components/modules/ManualPriceTracker";
@@ -2156,6 +2162,8 @@ function FengbroFinanceSection({
   onDeleteCustomInstrument,
   featuredQuoteIds,
   onToggleFeaturedQuoteId,
+  onExportCustomCsv,
+  onImportCustomCsv,
   onRefresh,
 }: {
   result: FengbroFinanceResult | null;
@@ -2176,6 +2184,8 @@ function FengbroFinanceSection({
   onDeleteCustomInstrument: (instrument: CustomFinanceInstrument) => void;
   featuredQuoteIds: string[];
   onToggleFeaturedQuoteId: (quoteId: string) => void;
+  onExportCustomCsv: () => void;
+  onImportCustomCsv: (file: File) => void;
   onRefresh: () => void;
 }) {
   const isEditingCustom = Boolean(editingCustomKey);
@@ -2183,6 +2193,7 @@ function FengbroFinanceSection({
   /** 新增指數或股票：預設折疊；進入編輯時自動展開 */
   const [customFormOpen, setCustomFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const financeCsvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isEditingCustom) setCustomFormOpen(true);
@@ -2762,7 +2773,7 @@ function FengbroFinanceSection({
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700/80">FengBro Finance</p>
               <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄金融</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                CNBC 報價監控：股指、商品、利率與加密貨幣，觸及新高或新低時自動標註。
+                自訂指數／股票報價監控；可輸出／輸入 CSV 備份追蹤清單，觸及新高或新低時自動標註。
               </p>
             </div>
           </div>
@@ -2772,6 +2783,37 @@ function FengbroFinanceSection({
                 更新：{new Date(result.fetchedAt).toLocaleString("zh-TW")}
               </span>
             )}
+            <input
+              ref={financeCsvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onImportCustomCsv(file);
+                event.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onExportCustomCsv}
+              className="gap-2 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+              title="匯出自訂指數／股票為 CSV"
+            >
+              <Download size={16} />
+              輸出 CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => financeCsvInputRef.current?.click()}
+              className="gap-2 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+              title="從 CSV 匯入自訂指數／股票（同代號覆蓋合併）"
+            >
+              <Upload size={16} />
+              輸入 CSV
+            </Button>
             <Button onClick={onRefresh} disabled={loading} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               {loading ? "更新中" : "重新整理"}
@@ -3890,6 +3932,94 @@ export default function ToolsManagement({
     clearCustomFinanceForm();
   }, [clearCustomFinanceForm]);
 
+  const handleExportFinanceCustomCsv = useCallback(() => {
+    try {
+      const csv = buildFinanceCustomCsv(customFinanceInstruments);
+      const BOM = "\uFEFF";
+      const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("fengbro-finance");
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setFinanceError("");
+    } catch (error) {
+      setFinanceError(error instanceof Error ? error.message : "輸出 CSV 失敗");
+    }
+  }, [customFinanceInstruments]);
+
+  const handleImportFinanceCustomCsv = useCallback(
+    (file: File) => {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setFinanceError("請選擇 .csv 檔案");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          const { data, errors } = parseFinanceCustomCsv(text);
+
+          if (data.length === 0) {
+            setFinanceError(
+              errors.length > 0
+                ? `CSV 匯入失敗：${errors.slice(0, 5).join("；")}`
+                : "CSV 沒有可匯入的標的"
+            );
+            return;
+          }
+
+          if (customFinanceInstruments.length > 0) {
+            const ok = window.confirm(
+              `將合併匯入 ${data.length} 筆自訂標的（相同來源+代號會覆蓋）。\n` +
+                `目前 ${customFinanceInstruments.length} 筆，合併後最多保留 30 筆。\n\n` +
+                `確定匯入？`
+            );
+            if (!ok) return;
+          }
+
+          const merged = mergeFinanceCustomInstruments(customFinanceInstruments, data);
+          setCustomFinanceInstruments(merged);
+
+          // Apply featured flags from imported rows (merge into existing pins)
+          setFeaturedFinanceQuoteIds((currentIds) => {
+            const next: string[] = [...currentIds];
+            const seen = new Set(next);
+            for (const instrument of data) {
+              if (!instrument.featured) continue;
+              const id = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
+              if (seen.has(id)) continue;
+              if (next.length >= MAX_FEATURED_FINANCE_INSTRUMENTS) break;
+              seen.add(id);
+              next.push(id);
+            }
+            const validIds = new Set(
+              merged.map((item) => buildCustomFinanceQuoteId(item.provider, item.symbol))
+            );
+            // Keep default-instrument pins (non custom-*) even if not in merged list
+            return next
+              .filter((id) => !id.startsWith("custom-") || validIds.has(id))
+              .slice(0, MAX_FEATURED_FINANCE_INSTRUMENTS);
+          });
+
+          setFinanceError("");
+          setFinanceLoadedOnce(false);
+          const warn =
+            errors.length > 0
+              ? `\n警告 ${errors.length}：${errors.slice(0, 5).join("\n")}${errors.length > 5 ? "\n…" : ""}`
+              : "";
+          window.alert(`匯入完成！\n新增／覆蓋：${data.length} 筆\n合併後共 ${merged.length} 筆${warn}`);
+        } catch (error) {
+          setFinanceError(error instanceof Error ? error.message : "輸入 CSV 失敗");
+        }
+      };
+      reader.onerror = () => setFinanceError("讀取 CSV 檔案失敗");
+      reader.readAsText(file, "UTF-8");
+    },
+    [customFinanceInstruments]
+  );
+
   const handleToggleFeaturedFinanceQuoteId = useCallback((quoteId: string) => {
     setFeaturedFinanceQuoteIds((currentIds) => {
       const next = toggleIdInList(currentIds, quoteId);
@@ -4502,6 +4632,8 @@ export default function ToolsManagement({
           onDeleteCustomInstrument={handleDeleteCustomFinanceInstrument}
           featuredQuoteIds={featuredFinanceQuoteIds}
           onToggleFeaturedQuoteId={handleToggleFeaturedFinanceQuoteId}
+          onExportCustomCsv={handleExportFinanceCustomCsv}
+          onImportCustomCsv={handleImportFinanceCustomCsv}
           onRefresh={() => void loadFinance()}
         />
       )}
