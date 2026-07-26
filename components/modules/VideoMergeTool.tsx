@@ -32,6 +32,7 @@ import {
   saveAudio,
   saveClips,
   savePreview,
+  transcribeAudioToSubtitles,
   type LoopMode,
   type VideoClip,
 } from "@/lib/videoMerge";
@@ -40,6 +41,7 @@ const SOURCE_URL = "https://github.com/huang1988pioneer/VideoMerge";
 const DEMO_URL = "https://video-merge-one.vercel.app";
 const LOOP_STORE_KEY = "fengbro.tools.videomerge.loop";
 const SCRIPT_STORE_KEY = "fengbro.tools.videomerge.script";
+const ASR_STORE_KEY = "fengbro.tools.videomerge.asr";
 
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -97,6 +99,11 @@ export default function VideoMergeTool() {
   } | null>(null);
   const [lastSrt, setLastSrt] = useState<string | null>(null);
   const [subsEmbedded, setSubsEmbedded] = useState<boolean | null>(null);
+  const [autoSubs, setAutoSubs] = useState(false);
+  const [asrLanguage, setAsrLanguage] = useState<"chinese" | "english" | "auto">(
+    "chinese"
+  );
+  const [asrBusy, setAsrBusy] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -180,6 +187,25 @@ export default function VideoMergeTool() {
       try {
         const script = localStorage.getItem(SCRIPT_STORE_KEY);
         if (script) setScriptText(script);
+        const asrRaw = localStorage.getItem(ASR_STORE_KEY);
+        if (asrRaw) {
+          try {
+            const asr = JSON.parse(asrRaw) as {
+              autoSubs?: boolean;
+              language?: "chinese" | "english" | "auto";
+            };
+            if (typeof asr.autoSubs === "boolean") setAutoSubs(asr.autoSubs);
+            if (
+              asr.language === "chinese" ||
+              asr.language === "english" ||
+              asr.language === "auto"
+            ) {
+              setAsrLanguage(asr.language);
+            }
+          } catch {
+            /* ignore */
+          }
+        }
       } catch {
         /* ignore */
       }
@@ -259,6 +285,19 @@ export default function VideoMergeTool() {
       /* ignore */
     }
   }, [hydrated, scriptText]);
+
+  // Persist ASR options
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(
+        ASR_STORE_KEY,
+        JSON.stringify({ autoSubs, language: asrLanguage })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [asrLanguage, autoSubs, hydrated]);
 
   const enrichClip = useCallback(
     async (id: string, file: File) => {
@@ -387,9 +426,12 @@ export default function VideoMergeTool() {
     void clearClips();
     void clearStoredAudio();
     void clearStoredPreview();
+    setAutoSubs(false);
+    setAsrLanguage("chinese");
     try {
       localStorage.removeItem(LOOP_STORE_KEY);
       localStorage.removeItem(SCRIPT_STORE_KEY);
+      localStorage.removeItem(ASR_STORE_KEY);
     } catch {
       /* ignore */
     }
@@ -450,7 +492,7 @@ export default function VideoMergeTool() {
   const downloadSrt = useCallback(() => {
     const srt = lastSrt || scriptPreview?.srt;
     if (!srt?.trim()) {
-      setStatus("尚無字幕可下載，請先預覽語音稿或完成合併");
+      setStatus("尚無字幕可下載，請先預覽語音稿、執行辨識或完成合併");
       return;
     }
     downloadBlob(
@@ -458,6 +500,46 @@ export default function VideoMergeTool() {
       getExportFilename("video-merge", "srt")
     );
   }, [lastSrt, scriptPreview?.srt]);
+
+  const runWhisperPreview = useCallback(async () => {
+    if (asrBusy || merging) return;
+    if (!audioFile || noAudio) {
+      setStatus("請先選擇自訂音軌（MP3 等），再執行 Whisper 辨識");
+      return;
+    }
+    setAsrBusy(true);
+    setShowLog(true);
+    setProgress(0);
+    try {
+      const result = await transcribeAudioToSubtitles(audioFile, {
+        language: asrLanguage === "auto" ? null : asrLanguage,
+        onStatus: (s) => setStatus(s),
+        onProgress: (r) => setProgress(Math.round(r * 100)),
+        onLog: appendLog,
+      });
+      setLastSrt(result.srt);
+      setScriptPreview({
+        cueCount: result.chunks.length,
+        source: "whisper",
+        mode: "asr",
+        srt: result.srt,
+      });
+      // Also fill textarea so user can edit before merge
+      if (!scriptText.trim()) {
+        setScriptText(result.srt);
+      }
+      setStatus(
+        `Whisper 就緒：${result.chunks.length} 句（model=${result.modelId || "?"}）`
+      );
+      setProgress(100);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Whisper 辨識失敗";
+      setStatus(message);
+      appendLog(message);
+    } finally {
+      setAsrBusy(false);
+    }
+  }, [appendLog, asrBusy, asrLanguage, audioFile, merging, noAudio, scriptText]);
 
   const onScriptFile = useCallback(async (file: File | null) => {
     if (!file) return;
@@ -500,7 +582,7 @@ export default function VideoMergeTool() {
   }, []);
 
   const runMerge = useCallback(async () => {
-    if (merging) return;
+    if (merging || asrBusy) return;
     const ready = clipsRef.current.filter((c) => c.status === "ready");
     if (!ready.length) {
       setStatus("請先加入可讀取的影片");
@@ -546,7 +628,30 @@ export default function VideoMergeTool() {
       }
 
       let subtitleSrt: string | null = null;
-      if (scriptText.trim()) {
+      const wantAsr =
+        autoSubs && Boolean(audioFile) && !noAudio && !scriptText.trim();
+      const wantScript = Boolean(scriptText.trim());
+
+      if (wantAsr && audioFile) {
+        appendLog("依音軌 Whisper 自動辨識字幕…");
+        const result = await transcribeAudioToSubtitles(audioFile, {
+          language: asrLanguage === "auto" ? null : asrLanguage,
+          onStatus: (s) => setStatus(s),
+          onProgress: (r) => setProgress(Math.round(r * 40)),
+          onLog: appendLog,
+        });
+        subtitleSrt = result.srt;
+        setLastSrt(result.srt);
+        setScriptPreview({
+          cueCount: result.chunks.length,
+          source: "whisper",
+          mode: "asr",
+          srt: result.srt,
+        });
+        appendLog(
+          `Whisper 字幕：${result.chunks.length} 句 · model=${result.modelId || "?"}`
+        );
+      } else if (wantScript) {
         let audioDur: number | null = null;
         if (audioFile && !noAudio) {
           try {
@@ -572,8 +677,12 @@ export default function VideoMergeTool() {
         appendLog(
           `語音稿字幕：${built.cueCount} 句 · source=${built.source} · mode=${built.mode}`
         );
+      } else if (autoSubs && !audioFile) {
+        appendLog("已勾選自動辨識但未選音軌，略過字幕");
       }
 
+      const asrProgressBase = wantAsr ? 40 : 0;
+      const asrProgressScale = wantAsr ? 60 : 100;
       const { blob, subtitlesEmbedded } = await mergeVideos(files, {
         noAudio,
         audioFile: noAudio ? null : audioFile,
@@ -581,7 +690,8 @@ export default function VideoMergeTool() {
         clipDurations,
         loop,
         onLog: appendLog,
-        onProgress: (r) => setProgress(Math.round(r * 100)),
+        onProgress: (r) =>
+          setProgress(Math.round(asrProgressBase + r * asrProgressScale)),
         onStatus: (s) => setStatus(s),
       });
 
@@ -612,7 +722,10 @@ export default function VideoMergeTool() {
     }
   }, [
     appendLog,
+    asrBusy,
+    asrLanguage,
     audioFile,
+    autoSubs,
     loopCount,
     loopHours,
     loopMins,
@@ -632,7 +745,11 @@ export default function VideoMergeTool() {
     [addFiles]
   );
 
-  const canMerge = readyClips.length > 0 && !merging && !clips.some((c) => c.status === "loading");
+  const canMerge =
+    readyClips.length > 0 &&
+    !merging &&
+    !asrBusy &&
+    !clips.some((c) => c.status === "loading");
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -645,7 +762,8 @@ export default function VideoMergeTool() {
             <div className="min-w-0">
               <h3 className="text-lg font-semibold">影片合併 VideoMerge</h3>
               <p className="text-sm text-muted-foreground">
-                多段影片首尾幀預覽、排序、自訂音軌、語音稿字幕後合併為 MP4。本機 FFmpeg.wasm 處理，不上傳伺服器。
+                多段影片首尾幀預覽、排序、自訂音軌、語音稿／Whisper 字幕後合併為 MP4。本機
+                FFmpeg.wasm + Transformers.js 處理，不上傳伺服器。
               </p>
             </div>
           </div>
@@ -879,6 +997,54 @@ export default function VideoMergeTool() {
                   : "未選擇音訊"}
             </span>
           </div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-[var(--line-soft)] pt-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={autoSubs}
+                disabled={merging || asrBusy || noAudio || !audioFile}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setAutoSubs(on);
+                  if (on && scriptText.trim()) {
+                    setStatus("已有語音稿時優先用講稿；清除講稿後合併才會跑 Whisper");
+                  }
+                }}
+                className="h-4 w-4 rounded border-[var(--line-soft)]"
+              />
+              <span>依音軌 Whisper 自動辨識字幕</span>
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+              語言
+              <select
+                value={asrLanguage}
+                disabled={merging || asrBusy || !autoSubs}
+                onChange={(e) =>
+                  setAsrLanguage(e.target.value as "chinese" | "english" | "auto")
+                }
+                className="h-8 rounded-lg border border-[var(--line-soft)] bg-background px-2 text-sm text-foreground"
+              >
+                <option value="chinese">中文</option>
+                <option value="english">English</option>
+                <option value="auto">自動</option>
+              </select>
+            </label>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={merging || asrBusy || noAudio || !audioFile}
+              onClick={() => void runWhisperPreview()}
+              className="gap-1"
+            >
+              {asrBusy ? <Loader2 size={14} className="animate-spin" /> : null}
+              {asrBusy ? "辨識中…" : "先辨識預覽"}
+            </Button>
+          </div>
+          <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+            首次需下載 Whisper 模型（約數十 MB，之後快取）。有現成講稿時建議直接貼語音稿，較快也較準。
+            勾選自動辨識且<strong>未填講稿</strong>時，合併會先跑 ASR 再合成。
+          </p>
         </div>
 
         {/* Script / subtitles */}
@@ -896,7 +1062,7 @@ export default function VideoMergeTool() {
           </div>
           <textarea
             value={scriptText}
-            disabled={merging}
+            disabled={merging || asrBusy}
             onChange={(e) => {
               setScriptText(e.target.value);
               setScriptPreview(null);
@@ -920,7 +1086,7 @@ export default function VideoMergeTool() {
               type="button"
               size="sm"
               variant="outline"
-              disabled={merging}
+              disabled={merging || asrBusy}
               onClick={() => scriptFileRef.current?.click()}
             >
               上傳講稿 / SRT
@@ -929,7 +1095,7 @@ export default function VideoMergeTool() {
               type="button"
               size="sm"
               variant="outline"
-              disabled={merging || !scriptText.trim() || readyClips.length === 0}
+              disabled={merging || asrBusy || !scriptText.trim() || readyClips.length === 0}
               onClick={() => void buildScriptPreview()}
             >
               預覽切句
@@ -938,7 +1104,7 @@ export default function VideoMergeTool() {
               type="button"
               size="sm"
               variant="ghost"
-              disabled={merging || !scriptText.trim()}
+              disabled={merging || asrBusy || !scriptText.trim()}
               onClick={() => {
                 setScriptText("");
                 setScriptPreview(null);
@@ -964,8 +1130,12 @@ export default function VideoMergeTool() {
             <div className="rounded-xl border border-violet-200/70 bg-violet-50/60 p-3 text-xs dark:border-violet-900/50 dark:bg-violet-950/30">
               <p className="font-medium text-violet-900 dark:text-violet-100">
                 {scriptPreview.cueCount} 句字幕 ·{" "}
-                {scriptPreview.source === "timed" ? "時間軸格式" : "純文字自動切句"} ·{" "}
-                輸出時長約 {formatDuration(estimateOutDuration || baseDuration)}
+                {scriptPreview.source === "whisper"
+                  ? "Whisper 自動辨識"
+                  : scriptPreview.source === "timed"
+                    ? "時間軸格式"
+                    : "純文字自動切句"}{" "}
+                · 輸出時長約 {formatDuration(estimateOutDuration || baseDuration)}
               </p>
               <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-violet-900/90 dark:text-violet-100/90">
                 {scriptPreview.srt.split("\n").slice(0, 24).join("\n")}
@@ -987,13 +1157,21 @@ export default function VideoMergeTool() {
             disabled={!canMerge}
             className="gap-1.5"
           >
-            {merging ? <Loader2 size={16} className="animate-spin" /> : <Film size={16} />}
-            {merging ? "合併中…" : `合併為 MP4（${readyClips.length} 段）`}
+            {merging || asrBusy ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Film size={16} />
+            )}
+            {merging
+              ? "合併中…"
+              : asrBusy
+                ? "辨識中…"
+                : `合併為 MP4（${readyClips.length} 段）`}
           </Button>
           <p className="text-sm text-[var(--muted-foreground)]">{status}</p>
         </div>
 
-        {(merging || progress > 0) && (
+        {(merging || asrBusy || progress > 0) && (
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs text-[var(--muted-foreground)]">
               <span>進度</span>
@@ -1174,11 +1352,7 @@ export default function VideoMergeTool() {
         >
           huang1988pioneer/VideoMerge
         </a>
-        。首次合併需下載 FFmpeg 核心（約數十 MB），之後可走快取。長影片或很多片段時瀏覽器內轉檔會較慢。依音軌 Whisper 自動辨識字幕請使用原始{" "}
-        <a href={DEMO_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-          Demo
-        </a>
-        。
+        。首次合併需下載 FFmpeg 核心；Whisper 首次另需下載模型（皆可快取）。長影片或很多片段時瀏覽器內轉檔／辨識會較慢。
       </p>
     </div>
   );

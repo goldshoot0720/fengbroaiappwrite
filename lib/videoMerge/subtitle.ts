@@ -1,7 +1,7 @@
 /**
  * Script → timed subtitles (SRT / VTT).
- * Adapted from huang1988pioneer/VideoMerge (subtitle.js) — script path only
- * (no Whisper / Transformers.js model download).
+ * Adapted from huang1988pioneer/VideoMerge (subtitle.js).
+ * Whisper ASR lives in `./whisper` (Transformers.js, client-only).
  */
 
 export type SubChunk = {

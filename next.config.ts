@@ -3,8 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // 動態模式配置 - 支援 API 路由和伺服器端功能
 
-  // face-api is browser-only (image gender detect for 圖片+語音=影片)
-  transpilePackages: ['@vladmandic/face-api'],
+  // face-api / transformers are browser-only (media tools)
+  transpilePackages: ['@vladmandic/face-api', '@huggingface/transformers'],
 
   // 圖片優化設定
   images: {

@@ -39,3 +39,12 @@ export {
   type ScriptToSubtitlesResult,
   type SubChunk,
 } from "./subtitle";
+
+export {
+  decodeAudioForWhisper,
+  ensureTranscriber,
+  getLoadedWhisperModelId,
+  transcribeAudioToSubtitles,
+  type TranscribeOptions,
+  type TranscribeResult,
+} from "./whisper";
