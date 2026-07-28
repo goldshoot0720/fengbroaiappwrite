@@ -29,6 +29,7 @@ type ToolsProbe = {
   ffmpeg: string | null;
   ffprobe: string | null;
   ytDlpSource?: string | null;
+  hasEnvCookies?: boolean;
   installHint: string[];
 };
 
@@ -89,6 +90,9 @@ export default function YoutubeBilibiliConvertTool() {
   const [probe, setProbe] = useState<ToolsProbe | null>(null);
   const [probeLoading, setProbeLoading] = useState(true);
   const [hydrated, setHydrated] = useState(false);
+  /** Netscape cookies.txt — memory only, never persisted (session secret). */
+  const [cookiesText, setCookiesText] = useState("");
+  const [showCookies, setShowCookies] = useState(false);
 
   // Restore settings
   useEffect(() => {
@@ -238,6 +242,7 @@ export default function YoutubeBilibiliConvertTool() {
           urls: list,
           format,
           mp4Quality,
+          ...(cookiesText.trim() ? { cookies: cookiesText } : {}),
         }),
       });
 
@@ -253,11 +258,19 @@ export default function YoutubeBilibiliConvertTool() {
             logs?: string[];
             installHint?: string[];
             validationErrors?: string[];
+            needCookies?: boolean;
           };
           if (data.error) message = data.error;
           if (data.logs?.length) appendLog(data.logs);
           if (data.installHint?.length) appendLog(data.installHint);
           if (data.validationErrors?.length) appendLog(data.validationErrors);
+          if (data.needCookies) {
+            setShowCookies(true);
+            appendLog([
+              "→ 請展開「YouTube cookies」貼上 Netscape cookies.txt 後重試。",
+              "  匯出：瀏覽器擴充套件 Get cookies.txt LOCALLY，或見 yt-dlp wiki。",
+            ]);
+          }
         } catch {
           // 504/HTML 等非 JSON 回應
           if (res.status === 504 || res.status === 502 || res.status === 524) {
@@ -316,7 +329,7 @@ export default function YoutubeBilibiliConvertTool() {
     } finally {
       setBusy(false);
     }
-  }, [appendLog, busy, format, mp4Quality, visibleUrls]);
+  }, [appendLog, busy, cookiesText, format, mp4Quality, visibleUrls]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -454,6 +467,73 @@ export default function YoutubeBilibiliConvertTool() {
           </div>
         </div>
 
+        {/* YouTube cookies (needed on Vercel / datacenter IP) */}
+        <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface-muted)]/40 p-3 sm:p-4">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 text-left text-sm font-medium"
+            onClick={() => setShowCookies((v) => !v)}
+          >
+            <span>
+              YouTube cookies（雲端防 bot 用）
+              {cookiesText.trim()
+                ? " · 已貼上"
+                : probe?.hasEnvCookies
+                  ? " · 伺服器環境變數已設定"
+                  : ""}
+            </span>
+            <span className="text-xs text-[var(--muted-foreground)]">
+              {showCookies ? "收合" : "展開"}
+            </span>
+          </button>
+          {showCookies ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+                Vercel 等資料中心 IP 會被 YouTube 要求「Sign in to confirm
+                you&apos;re not a bot」。請匯出 Netscape 格式的{" "}
+                <code className="rounded bg-black/10 px-1">cookies.txt</code>
+                （需已登入 youtube.com），貼到下方。僅本次請求送到伺服器轉檔，
+                <strong className="font-medium">不會存 localStorage</strong>
+                。亦可在 Vercel 設定環境變數{" "}
+                <code className="rounded bg-black/10 px-1">YT_DLP_COOKIES</code>
+                。說明：
+                <a
+                  href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-1 underline underline-offset-2"
+                >
+                  匯出 cookies
+                </a>
+                。
+              </p>
+              <textarea
+                value={cookiesText}
+                disabled={busy}
+                rows={5}
+                spellCheck={false}
+                autoComplete="off"
+                placeholder={
+                  "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\t..."
+                }
+                onChange={(e) => setCookiesText(e.target.value)}
+                className="w-full rounded-lg border border-[var(--line-soft)] bg-background px-3 py-2 font-mono text-[11px] leading-relaxed"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || !cookiesText}
+                  onClick={() => setCookiesText("")}
+                >
+                  清除 cookies
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
         {/* Format */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -571,9 +651,8 @@ export default function YoutubeBilibiliConvertTool() {
           >
             huang1988pioneer/YoutubeBilibiliMP4MP3Converter
           </a>
-          。僅供合法授權／個人備份用途；部分會員、地區限制或反爬影片可能失敗。伺服器端不會讀取瀏覽器
-          cookies（與桌面版不同）。若平台提供中文字幕，會一併下載（ZIP
-          時含 .srt）。
+          。僅供合法授權／個人備份用途。YouTube 在雲端常要求 cookies（上方可貼
+          cookies.txt）。若平台提供中文字幕，會一併下載（ZIP 時含 .srt）。
         </p>
       </DataCard>
     </div>

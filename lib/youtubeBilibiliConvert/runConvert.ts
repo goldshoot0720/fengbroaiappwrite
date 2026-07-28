@@ -67,8 +67,18 @@ function buildArgs(opts: {
   mp4Quality: Mp4Quality;
   ffmpegPath: string;
   platform: MediaPlatform;
+  /** Absolute path to a Netscape cookies.txt for yt-dlp --cookies */
+  cookiesPath?: string | null;
 }): string[] {
-  const { url, outputDir, format, mp4Quality, ffmpegPath, platform } = opts;
+  const {
+    url,
+    outputDir,
+    format,
+    mp4Quality,
+    ffmpegPath,
+    platform,
+    cookiesPath,
+  } = opts;
   const args: string[] = [];
 
   // Fail faster / cleaner logs when the platform hangs or rate-limits.
@@ -132,10 +142,11 @@ function buildArgs(opts: {
     );
   }
 
-  // Optional cookies for cloud IP / bot challenges (Netscape cookie file path).
-  const cookies = process.env.YT_DLP_COOKIES_PATH?.trim();
-  if (cookies) {
-    args.push("--cookies", cookies);
+  // Cookies: request-scoped path wins, else env file path.
+  const cookiesFile =
+    cookiesPath?.trim() || process.env.YT_DLP_COOKIES_PATH?.trim() || "";
+  if (cookiesFile) {
+    args.push("--cookies", cookiesFile);
   }
   const proxy = process.env.YT_DLP_PROXY?.trim();
   if (proxy) {
@@ -157,7 +168,7 @@ function annotateLog(line: string, platform: MediaPlatform): string[] {
     lower.includes("confirm you’re not a bot")
   ) {
     out.push(
-      "YouTube 判定為機器人／資料中心 IP。雲端（Vercel）常被封鎖；請改本機桌面版、自架主機，或設定 YT_DLP_COOKIES_PATH / YT_DLP_PROXY。"
+      "YouTube 判定為機器人／資料中心 IP。請在工具裡貼上 Netscape cookies.txt，或設定環境變數 YT_DLP_COOKIES / YT_DLP_COOKIES_PATH / YT_DLP_PROXY。匯出說明：https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
     );
   }
   if (
@@ -297,8 +308,9 @@ export async function convertOneUrl(opts: {
   format: OutputFormat;
   mp4Quality: Mp4Quality;
   timeoutMs?: number;
+  cookiesPath?: string | null;
 }): Promise<ConvertOneResult> {
-  const { tools, url, outputDir, format, mp4Quality } = opts;
+  const { tools, url, outputDir, format, mp4Quality, cookiesPath } = opts;
   const timeoutMs = opts.timeoutMs ?? defaultTimeoutMsPerUrl();
   const idleTimeoutMs = isServerless() ? 90_000 : 180_000;
   const platform = detectPlatform(url);
@@ -330,6 +342,7 @@ export async function convertOneUrl(opts: {
     mp4Quality,
     ffmpegPath: tools.ffmpeg,
     platform,
+    cookiesPath,
   });
 
   if (isServerless() && format === "MP4" && mp4Quality !== "1080p") {
@@ -397,6 +410,7 @@ export async function convertUrls(opts: {
   format: OutputFormat;
   mp4Quality: Mp4Quality;
   timeoutMsPerUrl?: number;
+  cookiesPath?: string | null;
 }): Promise<ConvertBatchResult> {
   const results: ConvertOneResult[] = [];
   const allFiles: string[] = [];
@@ -412,6 +426,17 @@ export async function convertUrls(opts: {
   logs.push(`ffprobe: ${opts.tools.ffprobe || "找不到"}`);
   logs.push(`輸出格式: ${opts.format}`);
   if (opts.format === "MP4") logs.push(`MP4 畫質: ${opts.mp4Quality}`);
+  logs.push(
+    `cookies: ${
+      opts.cookiesPath
+        ? "已提供（本次請求）"
+        : process.env.YT_DLP_COOKIES_PATH
+          ? "YT_DLP_COOKIES_PATH"
+          : process.env.YT_DLP_COOKIES
+            ? "YT_DLP_COOKIES 環境變數"
+            : "未提供（YouTube 雲端常需要）"
+    }`
+  );
   if (isServerless()) {
     logs.push(
       `執行環境: serverless（每支約 ${Math.round(timeoutMsPerUrl / 1000)}s 上限；YouTube 常擋資料中心 IP）`
@@ -430,6 +455,7 @@ export async function convertUrls(opts: {
       format: opts.format,
       mp4Quality: opts.mp4Quality,
       timeoutMs: timeoutMsPerUrl,
+      cookiesPath: opts.cookiesPath,
     });
     results.push(one);
     logs.push(...one.logs);

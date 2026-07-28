@@ -4,7 +4,7 @@ export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { mkdtemp, readFile, rm } from "fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, join } from "path";
 import {
@@ -17,6 +17,8 @@ import {
 } from "@/lib/youtubeBilibiliConvert";
 
 const MAX_URLS = 7;
+/** Cap cookies body size (~512KB) to avoid abuse. */
+const MAX_COOKIES_CHARS = 512_000;
 
 function normalizeFormat(v: unknown): OutputFormat {
   return String(v || "").toUpperCase() === "MP4" ? "MP4" : "MP3";
@@ -35,6 +37,85 @@ function contentDisposition(filename: string): string {
   return `attachment; filename="${asciiFallback(filename)}"; filename*=UTF-8''${encoded}`;
 }
 
+function looksLikeNetscapeCookies(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 20) return false;
+  // Netscape cookie file, or header-ish lines with youtube domains
+  if (t.includes("# Netscape") || t.includes("# HTTP Cookie File")) return true;
+  if (/youtube\.com|google\.com/i.test(t) && /\t/.test(t)) return true;
+  // Cookie header style: name=value; name2=value2
+  if (/^\s*[\w.-]+=/.test(t) && t.includes("=")) return true;
+  return false;
+}
+
+/**
+ * Resolve cookies file for this request:
+ * 1. POST body cookies text (or base64)
+ * 2. YT_DLP_COOKIES env (raw Netscape text or base64)
+ * 3. YT_DLP_COOKIES_PATH env (existing file on disk)
+ */
+async function resolveCookiesFile(
+  tempDir: string,
+  bodyCookies: unknown
+): Promise<{ path: string | null; source: string | null; note?: string }> {
+  const rawBody =
+    typeof bodyCookies === "string" ? bodyCookies.trim() : "";
+  const envText = process.env.YT_DLP_COOKIES?.trim() || "";
+  const envPath = process.env.YT_DLP_COOKIES_PATH?.trim() || "";
+
+  let text = rawBody || envText;
+  if (!text) {
+    if (envPath) return { path: envPath, source: "YT_DLP_COOKIES_PATH" };
+    return { path: null, source: null };
+  }
+
+  if (text.length > MAX_COOKIES_CHARS) {
+    return {
+      path: null,
+      source: null,
+      note: `cookies 過長（>${MAX_COOKIES_CHARS} 字元）`,
+    };
+  }
+
+  // Allow base64-wrapped env (Vercel env UI friendly)
+  if (!looksLikeNetscapeCookies(text) && /^[A-Za-z0-9+/=\s]+$/.test(text)) {
+    try {
+      const decoded = Buffer.from(text.replace(/\s+/g, ""), "base64").toString(
+        "utf8"
+      );
+      if (looksLikeNetscapeCookies(decoded)) text = decoded;
+    } catch {
+      /* keep original */
+    }
+  }
+
+  if (!looksLikeNetscapeCookies(text)) {
+    return {
+      path: null,
+      source: null,
+      note: "cookies 格式不像 Netscape cookies.txt（需含 youtube.com 等欄位）",
+    };
+  }
+
+  // yt-dlp expects Netscape format; if user pasted "a=b; c=d" header style,
+  // write as-is — yt-dlp may still fail; prefer real cookies.txt.
+  const dest = join(tempDir, "cookies.txt");
+  await writeFile(dest, text.endsWith("\n") ? text : `${text}\n`, "utf8");
+  return {
+    path: dest,
+    source: rawBody ? "request" : "YT_DLP_COOKIES",
+  };
+}
+
+function botBlockedError(logs: string[]): boolean {
+  return logs.some(
+    (l) =>
+      /sign in to confirm/i.test(l) ||
+      /not a bot/i.test(l) ||
+      /confirm you.re not a bot/i.test(l)
+  );
+}
+
 /** GET – probe whether yt-dlp + ffmpeg are available (may auto-download yt-dlp). */
 export async function GET() {
   const tools = await resolveConvertTools({ allowDownload: true });
@@ -44,6 +125,10 @@ export async function GET() {
     ffmpeg: tools.ffmpeg,
     ffprobe: tools.ffprobe,
     ytDlpSource: tools.ytDlpSource ?? null,
+    hasEnvCookies: Boolean(
+      process.env.YT_DLP_COOKIES?.trim() ||
+        process.env.YT_DLP_COOKIES_PATH?.trim()
+    ),
     installHint: tools.installHint,
     source:
       "https://github.com/huang1988pioneer/YoutubeBilibiliMP4MP3Converter",
@@ -52,8 +137,12 @@ export async function GET() {
 
 /**
  * POST – convert YouTube / Bilibili URLs to MP3 or MP4.
- * Body: { urls: string[], format?: "MP3"|"MP4", mp4Quality?: "1080p"|"4K" }
- * Returns a single media file, or a zip when multiple files are produced.
+ * Body: {
+ *   urls: string[],
+ *   format?: "MP3"|"MP4",
+ *   mp4Quality?: "1080p"|"4K",
+ *   cookies?: string  // Netscape cookies.txt (optional; helps YouTube bot check)
+ * }
  */
 export async function POST(req: NextRequest) {
   const tools = await resolveConvertTools({ allowDownload: true });
@@ -74,6 +163,7 @@ export async function POST(req: NextRequest) {
     urls?: unknown;
     format?: unknown;
     mp4Quality?: unknown;
+    cookies?: unknown;
   };
   try {
     body = await req.json();
@@ -108,6 +198,14 @@ export async function POST(req: NextRequest) {
 
   const tempDir = await mkdtemp(join(tmpdir(), "ytbili-"));
   try {
+    const cookieInfo = await resolveCookiesFile(tempDir, body.cookies);
+    if (cookieInfo.note && !cookieInfo.path) {
+      return NextResponse.json(
+        { error: cookieInfo.note, logs: [cookieInfo.note] },
+        { status: 400 }
+      );
+    }
+
     // Must stay under route maxDuration (300s on Hobby).
     const batch = await convertUrls({
       tools,
@@ -116,7 +214,12 @@ export async function POST(req: NextRequest) {
       format,
       mp4Quality,
       timeoutMsPerUrl: defaultTimeoutMsPerUrl(),
+      cookiesPath: cookieInfo.path,
     });
+
+    if (cookieInfo.source) {
+      batch.logs.unshift(`cookies 來源: ${cookieInfo.source}`);
+    }
 
     const success = batch.results.filter((r) => r.ok).length;
     const mediaFiles = batch.allFiles.filter((f) =>
@@ -127,12 +230,15 @@ export async function POST(req: NextRequest) {
     );
 
     if (mediaFiles.length === 0) {
+      const bot = botBlockedError(batch.logs);
       return NextResponse.json(
         {
-          error:
-            success === 0
+          error: bot
+            ? "YouTube 要求登入驗證（判定為機器人）。請貼上 cookies.txt 後重試，或改本機桌面版。"
+            : success === 0
               ? "轉換失敗，請查看日誌（區域限制、會員、或平台防護）"
               : "找不到輸出媒體檔",
+          needCookies: bot,
           logs: batch.logs.slice(-200),
           results: batch.results.map((r) => ({
             url: r.url,
