@@ -259,9 +259,14 @@ export default function YoutubeBilibiliConvertTool() {
           if (data.installHint?.length) appendLog(data.installHint);
           if (data.validationErrors?.length) appendLog(data.validationErrors);
         } catch {
-          /* ignore */
+          // 504/HTML 等非 JSON 回應
+          if (res.status === 504 || res.status === 502 || res.status === 524) {
+            message =
+              "伺服器逾時（雲端下載 YouTube 常卡住）。沒有產生檔案可下載。";
+          }
         }
-        setStatus(message);
+        setStatus(`${message}（未產生下載檔）`);
+        appendLog(["—— 結束：轉換失敗，沒有檔案可下載 ——"]);
         return;
       }
 
@@ -269,6 +274,15 @@ export default function YoutubeBilibiliConvertTool() {
       if (headerLogs.length) appendLog(headerLogs);
 
       const blob = await res.blob();
+      if (!blob || blob.size < 64) {
+        setStatus("伺服器回傳空檔，未產生可下載內容");
+        appendLog([
+          "—— 結束：回應幾乎是空的，沒有檔案可下載 ——",
+          "常見原因：YouTube 擋雲端 IP、函式逾時、或轉檔中途失敗。",
+        ]);
+        return;
+      }
+
       const disp = res.headers.get("Content-Disposition");
       const fallback =
         blob.type === "application/zip"
@@ -287,15 +301,18 @@ export default function YoutubeBilibiliConvertTool() {
           ? `完成，已輸出 ${ok} 個 ${format}（已開始下載 ${name}）`
           : `完成 ${ok}/${total}，已開始下載 ${name}；請查看記錄`
       );
-      appendLog([`下載：${name}（${(blob.size / 1024 / 1024).toFixed(2)} MB）`]);
+      appendLog([
+        `下載：${name}（${(blob.size / 1024 / 1024).toFixed(2)} MB）`,
+        "若瀏覽器沒跳出檔案，請檢查下載列／是否封鎖彈出下載。",
+      ]);
     } catch (err) {
       const raw = err instanceof Error ? err.message : "轉換時發生錯誤";
       const message =
         /failed to fetch|networkerror|load failed|aborted/i.test(raw)
-          ? "連線中斷或函式逾時（雲端下載 YouTube 常失敗／超時）。請改本機桌面版或縮短影片。"
-          : raw;
+          ? "連線中斷或函式逾時（雲端下載 YouTube 常失敗／超時）。沒有產生檔案可下載。"
+          : `${raw}（未產生下載檔）`;
       setStatus(message);
-      appendLog([message]);
+      appendLog([message, "—— 結束：沒有檔案可下載 ——"]);
     } finally {
       setBusy(false);
     }
