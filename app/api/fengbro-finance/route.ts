@@ -6,6 +6,7 @@ import {
   isTaiwanYahooQuoteTarget,
   parseJapanYahooQuotePageTitle,
   parseTaiwanYahooQuotePageTitle,
+  pickYahooChartName,
 } from "@/lib/fengbroFinanceCustom";
 
 export const dynamic = "force-dynamic";
@@ -921,7 +922,8 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   }
 
   // Chart API often returns English names for TW/JP listings; prefer local-language 代稱.
-  const chartName = pickText(meta, ["shortName", "longName"]);
+  // Prefer longName when Yahoo truncates shortName (e.g. SOXL "…Bu" → full Bull 3X Shares).
+  const chartName = pickYahooChartName(meta);
   let displayName = chartName || instrument.name;
   let name = instrument.name;
   const preferTwChinese = isTaiwanYahooQuoteTarget(instrument.symbol, {

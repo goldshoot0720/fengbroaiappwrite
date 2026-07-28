@@ -684,6 +684,35 @@ export function parseJapanYahooQuotePageTitle(
   return null;
 }
 
+/**
+ * Pick a display name from Yahoo chart meta.
+ *
+ * Yahoo often truncates `shortName` to a fixed width (e.g. SOXL →
+ * "Direxion Daily Semiconductor Bu" while longName is
+ * "Direxion Daily Semiconductor Bull 3X Shares"). Prefer `longName`
+ * when `shortName` is clearly a truncated prefix of it.
+ */
+export function pickYahooChartName(meta: {
+  shortName?: unknown;
+  longName?: unknown;
+  symbol?: unknown;
+}): string {
+  const shortName =
+    typeof meta.shortName === "string" ? meta.shortName.replace(/\s+/g, " ").trim() : "";
+  const longName =
+    typeof meta.longName === "string" ? meta.longName.replace(/\s+/g, " ").trim() : "";
+  const symbol =
+    typeof meta.symbol === "string" ? meta.symbol.replace(/\s+/g, " ").trim() : "";
+
+  if (shortName && longName) {
+    if (longName.length > shortName.length && longName.startsWith(shortName)) {
+      return longName;
+    }
+    return shortName;
+  }
+  return longName || shortName || symbol;
+}
+
 /** Public quote-page URL for a CNBC symbol. */
 export function buildCnbcQuoteSourceUrl(symbol: string): string {
   return `https://www.cnbc.com/quotes/${encodeURIComponent(symbol.trim())}`;

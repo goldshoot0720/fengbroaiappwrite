@@ -6,6 +6,7 @@ import {
   parseFinanceQuoteInput,
   parseJapanYahooQuotePageTitle,
   parseTaiwanYahooQuotePageTitle,
+  pickYahooChartName,
 } from "@/lib/fengbroFinanceCustom";
 
 export const dynamic = "force-dynamic";
@@ -18,14 +19,6 @@ const FETCH_BROWSER_HEADERS = {
 };
 
 const YAHOO_CHART_ENDPOINT = "https://query1.finance.yahoo.com/v8/finance/chart";
-
-function pickText(record: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
-}
 
 async function resolveTaiwanYahooPageName(symbol: string, sourceUrl?: string) {
   const pageUrl =
@@ -101,7 +94,8 @@ async function resolveYahooChartName(
 
   const payload = await response.json();
   const meta = (payload?.chart?.result?.[0]?.meta || {}) as Record<string, unknown>;
-  return pickText(meta, ["shortName", "longName", "symbol"]) || null;
+  // Prefer longName when Yahoo truncates shortName (e.g. SOXL "…Bu").
+  return pickYahooChartName(meta) || null;
 }
 
 /**
