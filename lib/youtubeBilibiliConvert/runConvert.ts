@@ -7,7 +7,7 @@ import { spawn } from "child_process";
 import { readdir, stat } from "fs/promises";
 import { join, dirname } from "path";
 import type { ConvertTools } from "./resolveTools";
-import { detectPlatform } from "./url";
+import { detectPlatform, type MediaPlatform } from "./url";
 
 export type OutputFormat = "MP3" | "MP4";
 export type Mp4Quality = "1080p" | "4K";
@@ -26,8 +26,37 @@ export type ConvertBatchResult = {
   logs: string[];
 };
 
+function isServerless(): boolean {
+  return Boolean(
+    process.env.VERCEL ||
+      process.env.VERCEL_ENV ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME
+  );
+}
+
+/** Stay under Vercel Hobby maxDuration (300s) with room for zip/response. */
+export function defaultTimeoutMsPerUrl(): number {
+  if (isServerless()) return 250_000;
+  return 10 * 60 * 1000;
+}
+
 function getMp4FormatSelector(mp4Quality: Mp4Quality): string {
-  const maxHeight = mp4Quality === "4K" ? 2160 : 1080;
+  const maxHeight = (() => {
+    if (isServerless()) {
+      // 4K/1080p often OOM or time out on Hobby; cap for cloud.
+      return mp4Quality === "4K" ? 1080 : 720;
+    }
+    return mp4Quality === "4K" ? 2160 : 1080;
+  })();
+
+  if (isServerless()) {
+    // Prefer single progressive file, then merge, then best.
+    return [
+      `best[height<=${maxHeight}][ext=mp4]/best[height<=${maxHeight}]`,
+      `bestvideo*[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`,
+      "best",
+    ].join("/");
+  }
   return `bestvideo*[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]/best`;
 }
 
@@ -37,16 +66,29 @@ function buildArgs(opts: {
   format: OutputFormat;
   mp4Quality: Mp4Quality;
   ffmpegPath: string;
+  platform: MediaPlatform;
 }): string[] {
-  const { url, outputDir, format, mp4Quality, ffmpegPath } = opts;
+  const { url, outputDir, format, mp4Quality, ffmpegPath, platform } = opts;
   const args: string[] = [];
+
+  // Fail faster / cleaner logs when the platform hangs or rate-limits.
+  args.push("--no-playlist");
+  args.push("--newline");
+  args.push("--no-colors");
+  args.push("--socket-timeout", "30");
+  args.push("--retries", "3");
+  args.push("--fragment-retries", "3");
+  args.push("--concurrent-fragments", isServerless() ? "1" : "4");
 
   if (format === "MP4") {
     args.push("--format", getMp4FormatSelector(mp4Quality));
     args.push("--merge-output-format", "mp4");
   } else {
     args.push("--extract-audio", "--audio-format", "mp3", "--audio-quality", "0");
-    args.push("--embed-thumbnail");
+    // Thumbnail embed needs ffmpeg write; fine locally, skip on serverless to save time.
+    if (!isServerless()) {
+      args.push("--embed-thumbnail");
+    }
   }
 
   args.push("--encoding", "utf-8");
@@ -64,7 +106,21 @@ function buildArgs(opts: {
   args.push("--output", "%(title).180B [%(id)s].%(ext)s");
   args.push("--no-overwrites");
 
-  if (detectPlatform(url) === "bilibili") {
+  if (platform === "youtube") {
+    // Datacenter IPs often fail on default web client. Prefer clients that
+    // work without browser cookies when possible; fall through order.
+    // See yt-dlp wiki: android / ios / tv / mweb players.
+    args.push(
+      "--extractor-args",
+      "youtube:player_client=android,ios,tv,mweb,web"
+    );
+    args.push(
+      "--user-agent",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    );
+  }
+
+  if (platform === "bilibili") {
     args.push(
       "--add-headers",
       "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
@@ -76,8 +132,62 @@ function buildArgs(opts: {
     );
   }
 
+  // Optional cookies for cloud IP / bot challenges (Netscape cookie file path).
+  const cookies = process.env.YT_DLP_COOKIES_PATH?.trim();
+  if (cookies) {
+    args.push("--cookies", cookies);
+  }
+  const proxy = process.env.YT_DLP_PROXY?.trim();
+  if (proxy) {
+    args.push("--proxy", proxy);
+  }
+
   args.push(url);
   return args;
+}
+
+function annotateLog(line: string, platform: MediaPlatform): string[] {
+  const out: string[] = [line];
+  const lower = line.toLowerCase();
+
+  if (
+    line.includes("Sign in to confirm") ||
+    line.includes("not a bot") ||
+    lower.includes("confirm you're not a bot") ||
+    lower.includes("confirm you’re not a bot")
+  ) {
+    out.push(
+      "YouTube 判定為機器人／資料中心 IP。雲端（Vercel）常被封鎖；請改本機桌面版、自架主機，或設定 YT_DLP_COOKIES_PATH / YT_DLP_PROXY。"
+    );
+  }
+  if (
+    line.includes("HTTP Error 429") ||
+    lower.includes("too many requests") ||
+    lower.includes("rate-limit")
+  ) {
+    out.push("平台限流（429）：請稍後再試或使用住宅代理（YT_DLP_PROXY）。");
+  }
+  if (line.includes("HTTP Error 403") || lower.includes("forbidden")) {
+    out.push(
+      "HTTP 403：可能是地區限制、版權、或 IP 被擋。本機或 cookies/proxy 較容易成功。"
+    );
+  }
+  if (line.includes("HTTP Error 412") || line.includes("Precondition Failed")) {
+    out.push(
+      "Bilibili 回傳 412：可能是網站防護、地區/會員限制。請確認瀏覽器可播放後再試，或於本機桌面版搭配 cookies。"
+    );
+  }
+  if (
+    platform === "youtube" &&
+    (lower.includes("unable to extract") ||
+      lower.includes("failed to extract") ||
+      lower.includes("no video formats"))
+  ) {
+    out.push(
+      "無法解析 YouTube 格式：請更新 yt-dlp，或在自架環境使用 cookies。"
+    );
+  }
+  return out;
 }
 
 function runProcess(
@@ -85,7 +195,8 @@ function runProcess(
   args: string[],
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
-  onLog: (line: string) => void
+  onLog: (line: string) => void,
+  idleTimeoutMs: number
 ): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = spawn(file, args, {
@@ -95,14 +206,48 @@ function runProcess(
     });
 
     let settled = false;
-    const timer = setTimeout(() => {
+    let lastActivity = Date.now();
+
+    const finish = (fn: () => void) => {
       if (settled) return;
       settled = true;
-      child.kill("SIGKILL");
-      reject(new Error(`yt-dlp 逾時（${Math.round(timeoutMs / 1000)} 秒）`));
+      clearTimeout(hardTimer);
+      clearInterval(idleTimer);
+      fn();
+    };
+
+    const hardTimer = setTimeout(() => {
+      finish(() => {
+        child.kill("SIGKILL");
+        reject(
+          new Error(
+            `yt-dlp 逾時（${Math.round(timeoutMs / 1000)} 秒）。雲端函式有上限；長影片請用本機／Docker。`
+          )
+        );
+      });
     }, timeoutMs);
 
+    // If yt-dlp prints nothing for a while after start, YouTube is usually stuck/blocked.
+    const idleTimer = setInterval(() => {
+      if (settled) return;
+      const idle = Date.now() - lastActivity;
+      if (idle >= idleTimeoutMs) {
+        finish(() => {
+          child.kill("SIGKILL");
+          reject(
+            new Error(
+              `yt-dlp 超過 ${Math.round(idleTimeoutMs / 1000)} 秒無輸出（可能卡在 YouTube 解析或 IP 被擋）。` +
+                (isServerless()
+                  ? " Vercel 資料中心 IP 常被 YouTube 封鎖，建議本機桌面版或自架 + cookies/proxy。"
+                  : "")
+            )
+          );
+        });
+      }
+    }, 5_000);
+
     const feed = (buf: Buffer) => {
+      lastActivity = Date.now();
       const text = buf.toString("utf8");
       for (const line of text.split(/\r?\n/)) {
         if (line.trim()) onLog(line);
@@ -113,17 +258,11 @@ function runProcess(
     child.stderr?.on("data", feed);
 
     child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
+      finish(() => reject(err));
     });
 
     child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(code ?? 1);
+      finish(() => resolve(code ?? 1));
     });
   });
 }
@@ -160,14 +299,13 @@ export async function convertOneUrl(opts: {
   timeoutMs?: number;
 }): Promise<ConvertOneResult> {
   const { tools, url, outputDir, format, mp4Quality } = opts;
-  const timeoutMs = opts.timeoutMs ?? 10 * 60 * 1000;
+  const timeoutMs = opts.timeoutMs ?? defaultTimeoutMsPerUrl();
+  const idleTimeoutMs = isServerless() ? 90_000 : 180_000;
+  const platform = detectPlatform(url);
   const logs: string[] = [];
   const onLog = (line: string) => {
-    logs.push(line);
-    if (line.includes("HTTP Error 412") || line.includes("Precondition Failed")) {
-      logs.push(
-        "Bilibili 回傳 412：可能是網站防護、地區/會員限制。請確認瀏覽器可播放後再試，或於本機桌面版搭配 cookies。"
-      );
+    for (const l of annotateLog(line, platform)) {
+      logs.push(l);
     }
   };
 
@@ -191,7 +329,16 @@ export async function convertOneUrl(opts: {
     format,
     mp4Quality,
     ffmpegPath: tools.ffmpeg,
+    platform,
   });
+
+  if (isServerless() && format === "MP4" && mp4Quality !== "1080p") {
+    onLog(
+      `雲端環境已自動限制畫質（請求 ${mp4Quality} → 實際上限約 720p～1080p）以避免逾時/OOM`
+    );
+  } else if (isServerless() && format === "MP4") {
+    onLog("雲端環境 MP4 建議使用較短影片；畫質已偏向 720p progressive 以降低失敗率");
+  }
 
   onLog(
     `$ yt-dlp ${args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(" ")}`
@@ -212,7 +359,14 @@ export async function convertOneUrl(opts: {
 
   let exitCode = 1;
   try {
-    exitCode = await runProcess(tools.ytDlp, args, env, timeoutMs, onLog);
+    exitCode = await runProcess(
+      tools.ytDlp,
+      args,
+      env,
+      timeoutMs,
+      onLog,
+      idleTimeoutMs
+    );
   } catch (err) {
     onLog(err instanceof Error ? err.message : String(err));
     return { url, ok: false, exitCode: 1, logs, files: [] };
@@ -220,6 +374,13 @@ export async function convertOneUrl(opts: {
 
   const files = await listNewMediaFiles(outputDir, beforeNames);
   const hasMedia = files.some((f) => /\.(mp3|mp4|m4a|webm|mkv|opus)$/i.test(f));
+
+  if (!hasMedia && exitCode !== 0 && platform === "youtube" && isServerless()) {
+    onLog(
+      "提示：Vercel 等雲端 IP 經常無法完成 YouTube 下載。工具鏈已就緒不代表平台允許；請改本機或自架。"
+    );
+  }
+
   return {
     url,
     ok: exitCode === 0 && hasMedia,
@@ -240,6 +401,7 @@ export async function convertUrls(opts: {
   const results: ConvertOneResult[] = [];
   const allFiles: string[] = [];
   const logs: string[] = [];
+  const timeoutMsPerUrl = opts.timeoutMsPerUrl ?? defaultTimeoutMsPerUrl();
 
   logs.push(
     `yt-dlp: ${opts.tools.ytDlp || "找不到"}${
@@ -250,6 +412,11 @@ export async function convertUrls(opts: {
   logs.push(`ffprobe: ${opts.tools.ffprobe || "找不到"}`);
   logs.push(`輸出格式: ${opts.format}`);
   if (opts.format === "MP4") logs.push(`MP4 畫質: ${opts.mp4Quality}`);
+  if (isServerless()) {
+    logs.push(
+      `執行環境: serverless（每支約 ${Math.round(timeoutMsPerUrl / 1000)}s 上限；YouTube 常擋資料中心 IP）`
+    );
+  }
   logs.push(`準備轉換 ${opts.urls.length} 個項目`);
 
   for (let i = 0; i < opts.urls.length; i++) {
@@ -262,7 +429,7 @@ export async function convertUrls(opts: {
       outputDir: opts.outputDir,
       format: opts.format,
       mp4Quality: opts.mp4Quality,
-      timeoutMs: opts.timeoutMsPerUrl,
+      timeoutMs: timeoutMsPerUrl,
     });
     results.push(one);
     logs.push(...one.logs);

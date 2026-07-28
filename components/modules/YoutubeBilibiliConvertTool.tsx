@@ -289,7 +289,11 @@ export default function YoutubeBilibiliConvertTool() {
       );
       appendLog([`下載：${name}（${(blob.size / 1024 / 1024).toFixed(2)} MB）`]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "轉換時發生錯誤";
+      const raw = err instanceof Error ? err.message : "轉換時發生錯誤";
+      const message =
+        /failed to fetch|networkerror|load failed|aborted/i.test(raw)
+          ? "連線中斷或函式逾時（雲端下載 YouTube 常失敗／超時）。請改本機桌面版或縮短影片。"
+          : raw;
       setStatus(message);
       appendLog([message]);
     } finally {
@@ -311,7 +315,8 @@ export default function YoutubeBilibiliConvertTool() {
               </h3>
               <p className="text-sm text-muted-foreground">
                 貼上 YouTube 或 Bilibili 連結，在伺服器端以 yt-dlp + ffmpeg
-                轉成 MP3 或 MP4 後下載。
+                轉成 MP3 或 MP4 後下載。雲端（Vercel）IP 常被 YouTube
+                封鎖，若卡在「Extracting URL」請改本機或桌面版。
               </p>
             </div>
           </div>

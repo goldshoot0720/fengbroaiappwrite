@@ -9,6 +9,7 @@ import { tmpdir } from "os";
 import { basename, join } from "path";
 import {
   convertUrls,
+  defaultTimeoutMsPerUrl,
   resolveConvertTools,
   validateAndNormalizeUrls,
   type Mp4Quality,
@@ -107,13 +108,14 @@ export async function POST(req: NextRequest) {
 
   const tempDir = await mkdtemp(join(tmpdir(), "ytbili-"));
   try {
+    // Must stay under route maxDuration (300s on Hobby).
     const batch = await convertUrls({
       tools,
       urls,
       outputDir: tempDir,
       format,
       mp4Quality,
-      timeoutMsPerUrl: 8 * 60 * 1000,
+      timeoutMsPerUrl: defaultTimeoutMsPerUrl(),
     });
 
     const success = batch.results.filter((r) => r.ok).length;

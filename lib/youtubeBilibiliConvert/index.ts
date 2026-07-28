@@ -15,6 +15,7 @@ export {
 export {
   convertOneUrl,
   convertUrls,
+  defaultTimeoutMsPerUrl,
   type ConvertBatchResult,
   type ConvertOneResult,
   type Mp4Quality,
