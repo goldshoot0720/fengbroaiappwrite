@@ -28,6 +28,7 @@ type ToolsProbe = {
   ytDlp: string | null;
   ffmpeg: string | null;
   ffprobe: string | null;
+  ytDlpSource?: string | null;
   installHint: string[];
 };
 
@@ -144,7 +145,9 @@ export default function YoutubeBilibiliConvertTool() {
       if (!data.available) {
         setStatus("需要 yt-dlp 和 ffmpeg 才能轉換 MP3 / MP4");
         setLogLines([
-          `yt-dlp: ${data.ytDlp || "找不到"}`,
+          `yt-dlp: ${data.ytDlp || "找不到"}${
+            data.ytDlpSource ? ` (${data.ytDlpSource})` : ""
+          }`,
           `ffmpeg: ${data.ffmpeg || "找不到"}`,
           `ffprobe: ${data.ffprobe || "找不到"}`,
           ...(data.installHint || []),
@@ -152,7 +155,9 @@ export default function YoutubeBilibiliConvertTool() {
       } else {
         setStatus("準備就緒");
         setLogLines([
-          `yt-dlp: ${data.ytDlp}`,
+          `yt-dlp: ${data.ytDlp}${
+            data.ytDlpSource ? ` (${data.ytDlpSource})` : ""
+          }`,
           `ffmpeg: ${data.ffmpeg}`,
           `ffprobe: ${data.ffprobe || "—"}`,
         ]);
@@ -163,6 +168,7 @@ export default function YoutubeBilibiliConvertTool() {
         ytDlp: null,
         ffmpeg: null,
         ffprobe: null,
+        ytDlpSource: null,
         installHint: ["無法連線探測 API"],
       });
       setStatus("無法檢查轉檔工具");
@@ -335,7 +341,11 @@ export default function YoutubeBilibiliConvertTool() {
             </span>
           ) : probe?.available ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span>轉檔工具就緒（yt-dlp + ffmpeg）</span>
+              <span>
+                轉檔工具就緒（yt-dlp
+                {probe.ytDlpSource === "auto-download" ? " 已自動下載" : ""} +
+                ffmpeg）
+              </span>
               <Button
                 type="button"
                 size="sm"
@@ -348,14 +358,14 @@ export default function YoutubeBilibiliConvertTool() {
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="font-medium">伺服器尚未安裝 yt-dlp 或 ffmpeg</p>
+              <p className="font-medium">伺服器尚未就緒 yt-dlp 或 ffmpeg</p>
               <ul className="list-inside list-disc text-xs opacity-90">
                 {(probe?.installHint || []).map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>
               <p className="text-xs opacity-80">
-                亦可使用桌面版{" "}
+                雲端會嘗試自動下載 yt-dlp；本機可用桌面版{" "}
                 <a
                   href={SOURCE_URL}
                   target="_blank"
@@ -364,7 +374,8 @@ export default function YoutubeBilibiliConvertTool() {
                 >
                   YoutubeBilibiliMP4MP3Converter
                 </a>
-                。可選將 yt-dlp 放到專案{" "}
+                ，或設定{" "}
+                <code className="rounded bg-black/10 px-1">YT_DLP_PATH</code>／
                 <code className="rounded bg-black/10 px-1">.vendor/yt-dlp/</code>
                 。
               </p>

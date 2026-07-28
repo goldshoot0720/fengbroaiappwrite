@@ -203,8 +203,12 @@ export async function convertOneUrl(opts: {
     PYTHONUTF8: "1",
   };
 
-  const ffmpegDir = dirname(tools.ffmpeg);
-  env.PATH = `${ffmpegDir}${process.platform === "win32" ? ";" : ":"}${env.PATH || ""}`;
+  // yt-dlp looks up ffmpeg/ffprobe via PATH or --ffmpeg-location (dir).
+  const pathSep = process.platform === "win32" ? ";" : ":";
+  const extraDirs = new Set<string>();
+  extraDirs.add(dirname(tools.ffmpeg));
+  if (tools.ffprobe) extraDirs.add(dirname(tools.ffprobe));
+  env.PATH = `${[...extraDirs].join(pathSep)}${pathSep}${env.PATH || ""}`;
 
   let exitCode = 1;
   try {
@@ -237,7 +241,11 @@ export async function convertUrls(opts: {
   const allFiles: string[] = [];
   const logs: string[] = [];
 
-  logs.push(`yt-dlp: ${opts.tools.ytDlp || "找不到"}`);
+  logs.push(
+    `yt-dlp: ${opts.tools.ytDlp || "找不到"}${
+      opts.tools.ytDlpSource ? ` (${opts.tools.ytDlpSource})` : ""
+    }`
+  );
   logs.push(`ffmpeg: ${opts.tools.ffmpeg || "找不到"}`);
   logs.push(`ffprobe: ${opts.tools.ffprobe || "找不到"}`);
   logs.push(`輸出格式: ${opts.format}`);

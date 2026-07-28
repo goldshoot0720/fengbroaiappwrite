@@ -1,8 +1,8 @@
 # 使用官方 Node.js LTS 24 Alpine 映像作為基礎
 FROM node:24-alpine AS base
 
-# 安裝依賴項所需的套件
-RUN apk add --no-cache libc6-compat
+# 安裝依賴項所需的套件 + 媒體轉檔工具（YT/B 站轉 MP3/MP4）
+RUN apk add --no-cache libc6-compat ffmpeg yt-dlp
 WORKDIR /app
 
 # 複製 package.json 和 package-lock.json

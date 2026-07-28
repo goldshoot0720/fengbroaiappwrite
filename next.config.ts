@@ -16,6 +16,16 @@ const nextConfig: NextConfig = {
     },
   },
 
+  // Keep ffmpeg/ffprobe installer binaries in the youtube convert serverless bundle.
+  outputFileTracingIncludes: {
+    "/api/youtube-bilibili-convert": [
+      "./node_modules/@ffmpeg-installer/**/*",
+      "./node_modules/@ffprobe-installer/**/*",
+      "./.vendor/yt-dlp/**/*",
+      "./.vendor/ffmpeg/**/*",
+    ],
+  },
+
   // 圖片優化設定
   images: {
     remotePatterns: [

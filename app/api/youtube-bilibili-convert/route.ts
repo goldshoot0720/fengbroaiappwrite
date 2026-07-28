@@ -34,14 +34,15 @@ function contentDisposition(filename: string): string {
   return `attachment; filename="${asciiFallback(filename)}"; filename*=UTF-8''${encoded}`;
 }
 
-/** GET – probe whether yt-dlp + ffmpeg are available */
+/** GET – probe whether yt-dlp + ffmpeg are available (may auto-download yt-dlp). */
 export async function GET() {
-  const tools = await resolveConvertTools();
+  const tools = await resolveConvertTools({ allowDownload: true });
   return NextResponse.json({
     available: tools.available,
     ytDlp: tools.ytDlp,
     ffmpeg: tools.ffmpeg,
     ffprobe: tools.ffprobe,
+    ytDlpSource: tools.ytDlpSource ?? null,
     installHint: tools.installHint,
     source:
       "https://github.com/huang1988pioneer/YoutubeBilibiliMP4MP3Converter",
@@ -54,7 +55,7 @@ export async function GET() {
  * Returns a single media file, or a zip when multiple files are produced.
  */
 export async function POST(req: NextRequest) {
-  const tools = await resolveConvertTools();
+  const tools = await resolveConvertTools({ allowDownload: true });
   if (!tools.available) {
     return NextResponse.json(
       {
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
         installHint: tools.installHint,
         ytDlp: tools.ytDlp,
         ffmpeg: tools.ffmpeg,
+        ytDlpSource: tools.ytDlpSource ?? null,
       },
       { status: 501 }
     );
