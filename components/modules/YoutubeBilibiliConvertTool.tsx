@@ -196,6 +196,30 @@ export default function YoutubeBilibiliConvertTool() {
     [visibleUrls]
   );
 
+  const hasYoutubeUrl = useMemo(
+    () =>
+      visibleUrls.some((u) => {
+        const t = u.trim().toLowerCase();
+        return (
+          t.includes("youtube.com") ||
+          t.includes("youtu.be") ||
+          t.includes("music.youtube.com")
+        );
+      }),
+    [visibleUrls]
+  );
+
+  const hasCookiesReady = Boolean(
+    cookiesText.trim() || probe?.hasEnvCookies
+  );
+
+  // Auto-open cookies panel when user pastes a YouTube link without cookies.
+  useEffect(() => {
+    if (hasYoutubeUrl && !hasCookiesReady) {
+      setShowCookies(true);
+    }
+  }, [hasYoutubeUrl, hasCookiesReady]);
+
   const setUrlAt = useCallback((index: number, value: string) => {
     setUrls((prev) => {
       const next = [...prev];
@@ -224,6 +248,37 @@ export default function YoutubeBilibiliConvertTool() {
       return;
     }
 
+    const youtubeOnly = list.some((u) => {
+      const t = u.toLowerCase();
+      return (
+        t.includes("youtube.com") ||
+        t.includes("youtu.be") ||
+        t.includes("music.youtube.com")
+      );
+    });
+
+    // Pre-flight: without cookies, Vercel YouTube always hits "not a bot".
+    if (youtubeOnly && !cookiesText.trim() && !probe?.hasEnvCookies) {
+      setShowCookies(true);
+      setStatus("YouTube 需要 cookies 才能在雲端轉換（尚未提供）");
+      appendLog([
+        "",
+        "—— 已阻止轉換：未提供 YouTube cookies ——",
+        "日誌裡的 cookies: 未提供 → 一定會被 YouTube 擋下（Sign in to confirm you're not a bot）。",
+        "",
+        "請依序操作：",
+        "1. 用 Chrome/Edge 登入 https://www.youtube.com",
+        "2. 安裝擴充套件「Get cookies.txt LOCALLY」（或同等工具）",
+        "3. 在 youtube.com 頁面匯出 Netscape cookies.txt",
+        "4. 將檔案內容全部貼到下方「YouTube cookies」文字框",
+        "5. 再按一次「轉成 MP4/MP3」",
+        "",
+        "不想貼 cookies → 請用本機桌面版：",
+        SOURCE_URL,
+      ]);
+      return;
+    }
+
     setBusy(true);
     setStatus(`正在轉換 1/${list.length}…`);
     appendLog([
@@ -232,6 +287,11 @@ export default function YoutubeBilibiliConvertTool() {
         format === "MP4" ? ` ${mp4Quality}` : ""
       } ——`,
       ...list.map((u, i) => `[${i + 1}] ${u}`),
+      cookiesText.trim()
+        ? "cookies: 本次請求已附帶（來自文字框）"
+        : probe?.hasEnvCookies
+          ? "cookies: 使用伺服器環境變數"
+          : "cookies: 未提供",
     ]);
 
     try {
@@ -329,7 +389,15 @@ export default function YoutubeBilibiliConvertTool() {
     } finally {
       setBusy(false);
     }
-  }, [appendLog, busy, cookiesText, format, mp4Quality, visibleUrls]);
+  }, [
+    appendLog,
+    busy,
+    cookiesText,
+    format,
+    mp4Quality,
+    probe?.hasEnvCookies,
+    visibleUrls,
+  ]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -467,50 +535,77 @@ export default function YoutubeBilibiliConvertTool() {
           </div>
         </div>
 
-        {/* YouTube cookies (needed on Vercel / datacenter IP) */}
-        <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface-muted)]/40 p-3 sm:p-4">
+        {/* YouTube cookies (required on Vercel / datacenter IP) */}
+        <div
+          className={
+            hasYoutubeUrl && !hasCookiesReady
+              ? "rounded-2xl border border-amber-300 bg-amber-50/80 p-3 sm:p-4 dark:border-amber-800 dark:bg-amber-950/40"
+              : "rounded-2xl border border-[var(--line-soft)] bg-[var(--surface-muted)]/40 p-3 sm:p-4"
+          }
+        >
           <button
             type="button"
             className="flex w-full items-center justify-between gap-2 text-left text-sm font-medium"
             onClick={() => setShowCookies((v) => !v)}
           >
             <span>
-              YouTube cookies（雲端防 bot 用）
+              {hasYoutubeUrl && !hasCookiesReady
+                ? "⚠ YouTube 必填：cookies.txt（目前尚未提供）"
+                : "YouTube cookies（雲端防 bot 用）"}
               {cookiesText.trim()
-                ? " · 已貼上"
+                ? " · 已貼上 ✓"
                 : probe?.hasEnvCookies
-                  ? " · 伺服器環境變數已設定"
+                  ? " · 伺服器環境變數已設定 ✓"
                   : ""}
             </span>
             <span className="text-xs text-[var(--muted-foreground)]">
               {showCookies ? "收合" : "展開"}
             </span>
           </button>
+          {hasYoutubeUrl && !hasCookiesReady ? (
+            <p className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-100">
+              你的日誌已證明：沒 cookies 會卡在「Sign in to confirm you&apos;re
+              not a bot」，且不會有下載檔。請先貼上 cookies 再轉換。
+            </p>
+          ) : null}
           {showCookies ? (
             <div className="mt-3 space-y-2">
-              <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
-                Vercel 等資料中心 IP 會被 YouTube 要求「Sign in to confirm
-                you&apos;re not a bot」。請匯出 Netscape 格式的{" "}
-                <code className="rounded bg-black/10 px-1">cookies.txt</code>
-                （需已登入 youtube.com），貼到下方。僅本次請求送到伺服器轉檔，
-                <strong className="font-medium">不會存 localStorage</strong>
-                。亦可在 Vercel 設定環境變數{" "}
+              <ol className="list-decimal space-y-1 pl-4 text-xs leading-relaxed text-[var(--muted-foreground)]">
+                <li>
+                  瀏覽器登入{" "}
+                  <a
+                    href="https://www.youtube.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    youtube.com
+                  </a>
+                </li>
+                <li>
+                  用擴充套件「Get cookies.txt LOCALLY」匯出 Netscape{" "}
+                  <code className="rounded bg-black/10 px-1">cookies.txt</code>
+                </li>
+                <li>用記事本開啟，全選複製，貼到下方文字框</li>
+                <li>再按「轉成 {format}」</li>
+              </ol>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                僅本次請求使用，不存 localStorage。進階可設 Vercel 環境變數{" "}
                 <code className="rounded bg-black/10 px-1">YT_DLP_COOKIES</code>
-                。說明：
+                。{" "}
                 <a
                   href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-1 underline underline-offset-2"
+                  className="underline underline-offset-2"
                 >
-                  匯出 cookies
+                  官方匯出說明
                 </a>
-                。
               </p>
               <textarea
                 value={cookiesText}
                 disabled={busy}
-                rows={5}
+                rows={6}
                 spellCheck={false}
                 autoComplete="off"
                 placeholder={
