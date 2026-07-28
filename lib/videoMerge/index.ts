@@ -40,11 +40,6 @@ export {
   type SubChunk,
 } from "./subtitle";
 
-export {
-  decodeAudioForWhisper,
-  ensureTranscriber,
-  getLoadedWhisperModelId,
-  transcribeAudioToSubtitles,
-  type TranscribeOptions,
-  type TranscribeResult,
-} from "./whisper";
+// Whisper / @huggingface/transformers must not be re-exported from this barrel:
+// Next Client SSR would pull transformers.node.mjs and fail on onnx WASM assets.
+// Import from `@/lib/videoMerge/whisper` only via dynamic import() at call sites.

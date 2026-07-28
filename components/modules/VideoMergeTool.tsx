@@ -32,10 +32,21 @@ import {
   saveAudio,
   saveClips,
   savePreview,
-  transcribeAudioToSubtitles,
   type LoopMode,
   type VideoClip,
 } from "@/lib/videoMerge";
+
+/** Client-only: keep transformers out of the SSR module graph. */
+async function transcribeAudioToSubtitles(
+  ...args: Parameters<
+    typeof import("@/lib/videoMerge/whisper").transcribeAudioToSubtitles
+  >
+) {
+  const { transcribeAudioToSubtitles: run } = await import(
+    "@/lib/videoMerge/whisper"
+  );
+  return run(...args);
+}
 
 const SOURCE_URL = "https://github.com/huang1988pioneer/VideoMerge";
 const DEMO_URL = "https://video-merge-one.vercel.app";

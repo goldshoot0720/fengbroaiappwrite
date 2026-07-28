@@ -3,23 +3,33 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // 動態模式配置 - 支援 API 路由和伺服器端功能
 
-  // face-api / transformers are browser-only (media tools)
-  transpilePackages: ['@vladmandic/face-api', '@huggingface/transformers'],
+  // face-api is browser-only (media tools). Do NOT transpile
+  // @huggingface/transformers — Next Client SSR would pick transformers.node.mjs
+  // and fail resolving onnxruntime WASM/WebGPU assets under Turbopack.
+  transpilePackages: ["@vladmandic/face-api"],
+
+  // Prefer browser build if anything still resolves the package during bundling.
+  turbopack: {
+    resolveAlias: {
+      "@huggingface/transformers":
+        "./node_modules/@huggingface/transformers/dist/transformers.web.js",
+    },
+  },
 
   // 圖片優化設定
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'www.google.com',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "www.google.com",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: '**',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "**",
+        port: "",
+        pathname: "/**",
       },
     ],
   },
@@ -28,36 +38,36 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/pdf.worker.min.mjs',
+        source: "/pdf.worker.min.mjs",
         headers: [
           {
-            key: 'Content-Type',
-            value: 'application/javascript',
+            key: "Content-Type",
+            value: "application/javascript",
           },
         ],
       },
       {
-        source: '/sw.js',
+        source: "/sw.js",
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
           },
           {
-            key: 'Content-Type',
-            value: 'application/javascript; charset=utf-8',
+            key: "Content-Type",
+            value: "application/javascript; charset=utf-8",
           },
         ],
       },
     ];
   },
-  
+
   // 其他配置
   experimental: {
     serverActions: {
-      bodySizeLimit: '50mb',
+      bodySizeLimit: "50mb",
     },
-  }
+  },
 };
 
 export default nextConfig;

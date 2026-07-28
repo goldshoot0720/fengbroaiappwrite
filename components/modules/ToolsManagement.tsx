@@ -56,12 +56,18 @@ import {
   isAutoSamsungLandtopDefaultQuery,
 } from "@/lib/landtopDefaults";
 import { getExportFilename } from "@/lib/utils";
+import dynamic from "next/dynamic";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import ImageFormatConvertTool from "@/components/modules/ImageFormatConvertTool";
-import VideoMergeTool from "@/components/modules/VideoMergeTool";
 import YoutubeBilibiliConvertTool from "@/components/modules/YoutubeBilibiliConvertTool";
 import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
 import ManualPriceTracker from "@/components/modules/ManualPriceTracker";
+
+// Whisper / transformers is browser-only (onnx WASM). Never SSR this tree.
+const VideoMergeTool = dynamic(
+  () => import("@/components/modules/VideoMergeTool"),
+  { ssr: false }
+);
 
 type ToolsTab =
   | "price-compare"
