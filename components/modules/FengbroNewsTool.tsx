@@ -42,59 +42,11 @@ import {
   mergeFengbroNewsSites,
   parseFengbroNewsCsv,
 } from "@/lib/fengbroNewsCsv";
+import type {
+  FengbroNewsSearchResult,
+  TraBentoStoresResult,
+} from "@/lib/fengbroNews/types";
 import { getExportFilename } from "@/lib/utils";
-
-type NewsArticle = {
-  title: string;
-  url: string;
-  siteId: string;
-  siteName: string;
-  domain: string;
-  publishedAt?: string;
-  snippet?: string;
-};
-
-type SiteSearchResult = {
-  siteId: string;
-  siteName: string;
-  domain: string;
-  articles: NewsArticle[];
-  error?: string;
-  source?: string;
-};
-
-type FengbroNewsResult = {
-  query: string;
-  onlyLocked: boolean;
-  siteCount: number;
-  resultCount: number;
-  maxAgeYears?: number;
-  fetchedAt: string;
-  results: NewsArticle[];
-  bySite: SiteSearchResult[];
-  warnings?: string[];
-  exampleNote?: string;
-  error?: string;
-};
-
-type TraBentoStore = {
-  name: string;
-  detail: string;
-  focus?: boolean;
-  stationHint?: string;
-};
-
-type TraBentoStoresResult = {
-  sourceUrl: string;
-  sourceLabel: string;
-  focusOnly: boolean;
-  fetchedAt: string;
-  count: number;
-  stores: TraBentoStore[];
-  live: boolean;
-  warning?: string;
-  error?: string;
-};
 
 const TRA_BENTO_STORE_URL =
   "https://www.railway.gov.tw/tra-tip-web/tip/tip004/tip421/storeLocation";
@@ -139,7 +91,7 @@ export default function FengbroNewsTool() {
   const [query, setQuery] = useState(loadQuery);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<FengbroNewsResult | null>(null);
+  const [result, setResult] = useState<FengbroNewsSearchResult | null>(null);
   const [managerOpen, setManagerOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [searchElapsedSec, setSearchElapsedSec] = useState(0);
@@ -165,8 +117,12 @@ export default function FengbroNewsTool() {
   const [bentoFocusOnly, setBentoFocusOnly] = useState(true);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
-  const lockedSites = useMemo(() => sites.filter((s) => s.locked), [sites]);
-  const lockedCount = lockedSites.length;
+  const lockedCount = useMemo(() => sites.reduce((n, s) => n + (s.locked ? 1 : 0), 0), [sites]);
+  /** Locked sites first so focus management stays scannable. */
+  const displaySites = useMemo(
+    () => [...sites].sort((a, b) => Number(b.locked) - Number(a.locked)),
+    [sites]
+  );
 
   useEffect(() => {
     try {
@@ -346,7 +302,7 @@ export default function FengbroNewsTool() {
           }),
           signal: controller.signal,
         });
-        const data = (await response.json()) as FengbroNewsResult;
+        const data = (await response.json()) as FengbroNewsSearchResult;
         if (!response.ok) {
           throw new Error(data.error || "鋒兄新聞搜尋失敗");
         }
@@ -651,7 +607,7 @@ export default function FengbroNewsTool() {
               </div>
 
               <div className="mt-4 grid gap-2 xl:grid-cols-2">
-                {sites.map((site) => (
+                {displaySites.map((site) => (
                   <div
                     key={site.id}
                     className={`flex min-w-0 items-center justify-between gap-3 rounded-2xl border px-3 py-2 ${
