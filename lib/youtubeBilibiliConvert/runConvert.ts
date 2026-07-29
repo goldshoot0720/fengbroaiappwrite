@@ -42,31 +42,42 @@ export function defaultTimeoutMsPerUrl(): number {
 }
 
 /**
- * Format strings only (no player client). Prefer 1080p → 720p → progressive.
- * See https://github.com/yt-dlp/yt-dlp/issues/12482
+ * Single yt-dlp -f string: prefer 1080 → 720 → progressive 18.
+ * (Internal `/` fallbacks; do not explode into many full runs.)
  */
-function getFormatLadder(
+function getPrimaryFormatSelector(
   format: OutputFormat,
   mp4Quality: Mp4Quality,
   platform: MediaPlatform
-): string[] {
+): string {
   if (format === "MP3") {
     if (platform === "youtube") {
-      return ["bestaudio/best", "best[ext=mp4]/18/best"];
+      return "bestaudio/best[ext=mp4]/18/best";
     }
-    return ["bestaudio/best"];
+    return "bestaudio/best";
   }
   if (mp4Quality === "720p") {
     return [
       "bestvideo*[height<=720]+bestaudio/best[height<=720]",
-      "best[height<=720][ext=mp4]/best[height<=720]/18/best",
-    ];
+      "best[height<=720][ext=mp4]/18/best",
+    ].join("/");
   }
+  // Prefer true 1080, then 720, then progressive 360 (format 18).
   return [
     "bestvideo*[height<=1080]+bestaudio/best[height<=1080]",
     "bestvideo*[height<=720]+bestaudio/best[height<=720]",
-    "best[height<=720][ext=mp4]/best[height<=720]/18/best",
-  ];
+    "best[height<=720][ext=mp4]/18/best",
+  ].join("/");
+}
+
+/** HLS ids from web_safari: 96=1080p, 95=720p, 94=480p, 93=360p. */
+function getHlsFormatSelector(
+  format: OutputFormat,
+  mp4Quality: Mp4Quality
+): string {
+  if (format === "MP3") return "bestaudio/best/18";
+  if (mp4Quality === "720p") return "95/94/93/18/best";
+  return "96/95/94/93/18/best";
 }
 
 type DownloadAttempt = {
@@ -80,8 +91,13 @@ type DownloadAttempt = {
 };
 
 /**
- * Ordered download plans. Cookies+web for high quality; android progressive as
- * serverless fallback when EJS/signature fails (only storyboards left).
+ * Ordered download plans (few full yt-dlp runs).
+ *
+ * Why you often saw only 360p: default web/android under SABR only list
+ * progressive format 18. High-quality clients:
+ *   - tv_embedded / mediaconnect → DASH up to 1080p (verified)
+ *   - web_safari → HLS 96/95/…
+ * Last resort: android progressive 18.
  */
 function getDownloadAttempts(
   format: OutputFormat,
@@ -89,55 +105,60 @@ function getDownloadAttempts(
   platform: MediaPlatform,
   hasCookies: boolean
 ): DownloadAttempt[] {
-  if (platform !== "youtube") {
-    return getFormatLadder(format, mp4Quality, platform).map((f) => ({
-      label: f,
-      formatSelector: f,
-      playerClients: "",
-      useCookies: hasCookies,
-      needsEjs: false,
-    }));
-  }
-
-  const ladder = getFormatLadder(format, mp4Quality, platform);
-  const attempts: DownloadAttempt[] = [];
-
-  // 1) cookies + web/tv/mweb (needs Node + EJS on Vercel)
-  if (hasCookies) {
-    for (const f of ladder) {
-      attempts.push({
-        label: `cookies+web · ${f}`,
-        formatSelector: f,
-        playerClients: "web,tv,mweb",
-        useCookies: true,
-        needsEjs: true,
-      });
-    }
-  }
-
-  // 2) android progressive — often works on datacenter IPs without EJS
+  const primary = getPrimaryFormatSelector(format, mp4Quality, platform);
+  const hls = getHlsFormatSelector(format, mp4Quality);
   const progressive =
     format === "MP3" ? "18/bestaudio/best" : "18/best[ext=mp4]/best";
+
+  if (platform !== "youtube") {
+    return [
+      {
+        label: primary,
+        formatSelector: primary,
+        playerClients: "",
+        useCookies: hasCookies,
+        needsEjs: false,
+      },
+    ];
+  }
+
+  const attempts: DownloadAttempt[] = [];
+
+  // Prefer clients that still expose 720/1080 (not just format 18).
+  for (const client of ["tv_embedded", "mediaconnect"] as const) {
+    attempts.push({
+      label: `${hasCookies ? "cookies+" : ""}${client} · 1080/720 DASH`,
+      formatSelector: primary,
+      playerClients: client,
+      useCookies: hasCookies,
+      needsEjs: true,
+    });
+  }
+
   attempts.push({
-    label: `android · ${progressive}`,
+    label: `${hasCookies ? "cookies+" : ""}web_safari · HLS`,
+    formatSelector: hls,
+    playerClients: "web_safari",
+    useCookies: hasCookies,
+    needsEjs: true,
+  });
+
+  attempts.push({
+    label: `${hasCookies ? "cookies+" : ""}web · fallback`,
+    formatSelector: primary,
+    playerClients: "web,tv,mweb",
+    useCookies: hasCookies,
+    needsEjs: true,
+  });
+
+  // Last resort: 360p progressive (reliable on datacenter IPs)
+  attempts.push({
+    label: `android · progressive 360p`,
     formatSelector: progressive,
     playerClients: "android,ios,tv",
     useCookies: false,
     needsEjs: false,
   });
-
-  // 3) without cookies: still try web ladder with EJS (local deno/node)
-  if (!hasCookies) {
-    for (const f of ladder) {
-      attempts.push({
-        label: `web · ${f}`,
-        formatSelector: f,
-        playerClients: "web,tv,mweb,android",
-        useCookies: false,
-        needsEjs: true,
-      });
-    }
-  }
 
   return attempts;
 }
@@ -480,7 +501,9 @@ export async function convertOneUrl(opts: {
 
   if (format === "MP4") {
     onLog(
-      `畫質策略: 優先 ${mp4Quality === "720p" ? "720p" : "1080p"} → 720p → progressive；client 失敗會改 android`
+      `畫質策略: 目標 ${
+        mp4Quality === "720p" ? "720p" : "1080p"
+      }（client: tv_embedded → mediaconnect → web_safari HLS → web → android 360p）`
     );
   }
   if (platform === "youtube") {
