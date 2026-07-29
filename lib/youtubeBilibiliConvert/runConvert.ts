@@ -49,15 +49,20 @@ function getMp4FormatSelector(mp4Quality: Mp4Quality): string {
     return mp4Quality === "4K" ? 2160 : 1080;
   })();
 
-  if (isServerless()) {
-    // Prefer single progressive file, then merge, then best.
-    return [
-      `best[height<=${maxHeight}][ext=mp4]/best[height<=${maxHeight}]`,
-      `bestvideo*[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`,
-      "best",
-    ].join("/");
-  }
-  return `bestvideo*[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]/best`;
+  // Prefer progressive MP4 first: DASH/SABR streams often 403 even with cookies.
+  // See https://github.com/yt-dlp/yt-dlp/issues/12482
+  return [
+    `best[height<=${maxHeight}][ext=mp4]/best[height<=${maxHeight}]`,
+    `bestvideo*[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`,
+    "18/best",
+  ].join("/");
+}
+
+/** MP3: avoid pure DASH bestaudio (251/140) which often 403 under SABR. */
+function getMp3FormatSelector(platform: MediaPlatform): string | null {
+  if (platform !== "youtube") return null;
+  // 18 = progressive 360p+aac (reliable); then any progressive; then bestaudio/best.
+  return "18/best[ext=mp4]/bestaudio/best";
 }
 
 function buildArgs(opts: {
@@ -94,6 +99,10 @@ function buildArgs(opts: {
     args.push("--format", getMp4FormatSelector(mp4Quality));
     args.push("--merge-output-format", "mp4");
   } else {
+    const mp3Fmt = getMp3FormatSelector(platform);
+    if (mp3Fmt) {
+      args.push("--format", mp3Fmt);
+    }
     args.push("--extract-audio", "--audio-format", "mp3", "--audio-quality", "0");
     // Thumbnail embed needs ffmpeg write; fine locally, skip on serverless to save time.
     if (!isServerless()) {
@@ -116,18 +125,24 @@ function buildArgs(opts: {
   args.push("--output", "%(title).180B [%(id)s].%(ext)s");
   args.push("--no-overwrites");
 
+  // Cookies: request-scoped path wins, else env file path.
+  // Resolved early so YouTube player_client order can prefer cookie-capable clients.
+  const cookiesFile =
+    cookiesPath?.trim() || process.env.YT_DLP_COOKIES_PATH?.trim() || "";
+
   if (platform === "youtube") {
-    // Datacenter IPs often fail on default web client. Prefer clients that
-    // work without browser cookies when possible; fall through order.
+    // android/ios ignore cookies; with cookies prefer web/tv/mweb.
+    // Without cookies prefer android/ios (often bypass bot checks on datacenter IPs).
     // See yt-dlp wiki: android / ios / tv / mweb players.
-    args.push(
-      "--extractor-args",
-      "youtube:player_client=android,ios,tv,mweb,web"
-    );
+    const playerClients = cookiesFile
+      ? "web,tv,mweb"
+      : "android,ios,tv,mweb,web";
+    args.push("--extractor-args", `youtube:player_client=${playerClients}`);
     args.push(
       "--user-agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     );
+    args.push("--referer", "https://www.youtube.com/");
   }
 
   if (platform === "bilibili") {
@@ -142,9 +157,6 @@ function buildArgs(opts: {
     );
   }
 
-  // Cookies: request-scoped path wins, else env file path.
-  const cookiesFile =
-    cookiesPath?.trim() || process.env.YT_DLP_COOKIES_PATH?.trim() || "";
   if (cookiesFile) {
     args.push("--cookies", cookiesFile);
   }
@@ -180,7 +192,7 @@ function annotateLog(line: string, platform: MediaPlatform): string[] {
   }
   if (line.includes("HTTP Error 403") || lower.includes("forbidden")) {
     out.push(
-      "HTTP 403：可能是地區限制、版權、或 IP 被擋。本機或 cookies/proxy 較容易成功。"
+      "HTTP 403：可能是 DASH/SABR 串流被擋、地區限制或 IP。工具已優先 progressive 格式；若仍失敗請更新 yt-dlp、重匯 cookies，或改本機桌面版。"
     );
   }
   if (line.includes("HTTP Error 412") || line.includes("Precondition Failed")) {
