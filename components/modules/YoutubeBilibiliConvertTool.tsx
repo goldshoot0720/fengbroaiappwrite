@@ -19,7 +19,7 @@ const SOURCE_URL =
   "https://github.com/huang1988pioneer/YoutubeBilibiliMP4MP3Converter";
 
 const URL_COUNT_OPTIONS = [1, 3, 7] as const;
-const FORMAT_OPTIONS = ["MP3", "MP4"] as const;
+const FORMAT_OPTIONS = ["MP4", "MP3"] as const;
 const QUALITY_OPTIONS = ["1080p", "720p"] as const;
 
 const SETTINGS_KEY = "fengbro.tools.ytbili.settings";
