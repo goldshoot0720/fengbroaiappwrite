@@ -42,28 +42,20 @@ export function defaultTimeoutMsPerUrl(): number {
 }
 
 /**
- * Format attempts in preference order (few rungs — each is a full yt-dlp run).
- * YouTube DASH/SABR often 403s after selection; convertOneUrl retries next attempt.
- * Prefer 1080p, then 720p, then progressive (format 18) as last resort.
+ * Format strings only (no player client). Prefer 1080p → 720p → progressive.
  * See https://github.com/yt-dlp/yt-dlp/issues/12482
  */
-function getFormatAttempts(
+function getFormatLadder(
   format: OutputFormat,
   mp4Quality: Mp4Quality,
   platform: MediaPlatform
 ): string[] {
   if (format === "MP3") {
     if (platform === "youtube") {
-      return [
-        // Prefer higher-quality audio (may 403 under SABR) then progressive.
-        "bestaudio/best",
-        "best[ext=mp4]/18/best",
-      ];
+      return ["bestaudio/best", "best[ext=mp4]/18/best"];
     }
     return ["bestaudio/best"];
   }
-
-  // MP4: 1080 first (unless locked to 720), then 720, then progressive.
   if (mp4Quality === "720p") {
     return [
       "bestvideo*[height<=720]+bestaudio/best[height<=720]",
@@ -77,17 +69,95 @@ function getFormatAttempts(
   ];
 }
 
+type DownloadAttempt = {
+  label: string;
+  formatSelector: string;
+  /** youtube:player_client=… value */
+  playerClients: string;
+  useCookies: boolean;
+  /** When true, this attempt needs EJS signature solving (web clients). */
+  needsEjs: boolean;
+};
+
+/**
+ * Ordered download plans. Cookies+web for high quality; android progressive as
+ * serverless fallback when EJS/signature fails (only storyboards left).
+ */
+function getDownloadAttempts(
+  format: OutputFormat,
+  mp4Quality: Mp4Quality,
+  platform: MediaPlatform,
+  hasCookies: boolean
+): DownloadAttempt[] {
+  if (platform !== "youtube") {
+    return getFormatLadder(format, mp4Quality, platform).map((f) => ({
+      label: f,
+      formatSelector: f,
+      playerClients: "",
+      useCookies: hasCookies,
+      needsEjs: false,
+    }));
+  }
+
+  const ladder = getFormatLadder(format, mp4Quality, platform);
+  const attempts: DownloadAttempt[] = [];
+
+  // 1) cookies + web/tv/mweb (needs Node + EJS on Vercel)
+  if (hasCookies) {
+    for (const f of ladder) {
+      attempts.push({
+        label: `cookies+web · ${f}`,
+        formatSelector: f,
+        playerClients: "web,tv,mweb",
+        useCookies: true,
+        needsEjs: true,
+      });
+    }
+  }
+
+  // 2) android progressive — often works on datacenter IPs without EJS
+  const progressive =
+    format === "MP3" ? "18/bestaudio/best" : "18/best[ext=mp4]/best";
+  attempts.push({
+    label: `android · ${progressive}`,
+    formatSelector: progressive,
+    playerClients: "android,ios,tv",
+    useCookies: false,
+    needsEjs: false,
+  });
+
+  // 3) without cookies: still try web ladder with EJS (local deno/node)
+  if (!hasCookies) {
+    for (const f of ladder) {
+      attempts.push({
+        label: `web · ${f}`,
+        formatSelector: f,
+        playerClients: "web,tv,mweb,android",
+        useCookies: false,
+        needsEjs: true,
+      });
+    }
+  }
+
+  return attempts;
+}
+
+function resolveNodeRuntimeSpec(): string {
+  // Vercel/Lambda: process.execPath is the node binary yt-dlp can spawn.
+  const p = process.execPath?.trim();
+  if (p) return `node:${p}`;
+  return "node";
+}
+
 function buildArgs(opts: {
   url: string;
   outputDir: string;
   format: OutputFormat;
-  mp4Quality: Mp4Quality;
   ffmpegPath: string;
   platform: MediaPlatform;
   /** Absolute path to a Netscape cookies.txt for yt-dlp --cookies */
   cookiesPath?: string | null;
-  /** Explicit -f string for this attempt */
-  formatSelector: string;
+  attempt: DownloadAttempt;
 }): string[] {
   const {
     url,
@@ -96,7 +166,7 @@ function buildArgs(opts: {
     ffmpegPath,
     platform,
     cookiesPath,
-    formatSelector,
+    attempt,
   } = opts;
   const args: string[] = [];
 
@@ -109,7 +179,7 @@ function buildArgs(opts: {
   args.push("--fragment-retries", "3");
   args.push("--concurrent-fragments", isServerless() ? "1" : "4");
 
-  args.push("--format", formatSelector);
+  args.push("--format", attempt.formatSelector);
 
   if (format === "MP4") {
     args.push("--merge-output-format", "mp4");
@@ -136,19 +206,23 @@ function buildArgs(opts: {
   args.push("--output", "%(title).180B [%(id)s].%(ext)s");
   args.push("--no-overwrites");
 
-  // Cookies: request-scoped path wins, else env file path.
-  // Resolved early so YouTube player_client order can prefer cookie-capable clients.
-  const cookiesFile =
-    cookiesPath?.trim() || process.env.YT_DLP_COOKIES_PATH?.trim() || "";
+  // Prefer explicit path from convertOneUrl; do not re-read env when null
+  // (android fallback intentionally clears cookies).
+  const cookiesFile = cookiesPath?.trim() || "";
 
   if (platform === "youtube") {
-    // android/ios ignore cookies; with cookies prefer web/tv/mweb.
-    // Without cookies prefer android/ios (often bypass bot checks on datacenter IPs).
-    // See yt-dlp wiki: android / ios / tv / mweb players.
-    const playerClients = cookiesFile
-      ? "web,tv,mweb"
-      : "android,ios,tv,mweb,web";
-    args.push("--extractor-args", `youtube:player_client=${playerClients}`);
+    // EJS: standalone yt-dlp binary needs remote challenge scripts + a JS runtime.
+    // Without this on Vercel, web clients only see storyboards ("Only images").
+    // https://github.com/yt-dlp/yt-dlp/wiki/EJS
+    args.push("--remote-components", "ejs:github");
+    args.push("--js-runtimes", resolveNodeRuntimeSpec());
+
+    if (attempt.playerClients) {
+      args.push(
+        "--extractor-args",
+        `youtube:player_client=${attempt.playerClients}`
+      );
+    }
     args.push(
       "--user-agent",
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -168,7 +242,7 @@ function buildArgs(opts: {
     );
   }
 
-  if (cookiesFile) {
+  if (attempt.useCookies && cookiesFile) {
     args.push("--cookies", cookiesFile);
   }
   const proxy = process.env.YT_DLP_PROXY?.trim();
@@ -201,9 +275,22 @@ function annotateLog(line: string, platform: MediaPlatform): string[] {
   ) {
     out.push("平台限流（429）：請稍後再試或使用住宅代理（YT_DLP_PROXY）。");
   }
-  if (line.includes("HTTP Error 403") || lower.includes("forbidden")) {
+  // Avoid false positives from "may yield HTTP Error 403" PO-token warnings.
+  if (
+    /HTTP Error 403:\s*Forbidden/i.test(line) ||
+    (/^ERROR:.*\b403\b/i.test(line) && /forbidden|unable to download/i.test(line))
+  ) {
     out.push(
-      "HTTP 403：可能是 DASH/SABR 串流被擋、地區限制或 IP。工具已優先 progressive 格式；若仍失敗請更新 yt-dlp、重匯 cookies，或改本機桌面版。"
+      "HTTP 403：可能是 DASH/SABR 串流被擋、地區限制或 IP。會自動降畫質／改 android client；若仍失敗請更新 yt-dlp 或改本機桌面版。"
+    );
+  }
+  if (
+    /Signature solving failed/i.test(line) ||
+    /n challenge solving failed/i.test(line) ||
+    /Only images are available/i.test(line)
+  ) {
+    out.push(
+      "YouTube JS challenge 失敗（缺 EJS / Node runtime）。雲端會啟用 --remote-components ejs:github 與 Node，並改試 android progressive。"
     );
   }
   if (line.includes("HTTP Error 412") || line.includes("Precondition Failed")) {
@@ -215,10 +302,11 @@ function annotateLog(line: string, platform: MediaPlatform): string[] {
     platform === "youtube" &&
     (lower.includes("unable to extract") ||
       lower.includes("failed to extract") ||
-      lower.includes("no video formats"))
+      lower.includes("no video formats") ||
+      lower.includes("requested format is not available"))
   ) {
     out.push(
-      "無法解析 YouTube 格式：請更新 yt-dlp，或在自架環境使用 cookies。"
+      "無法解析 YouTube 格式：可能是 JS challenge 未解或 client 被擋。會自動改試其他 client／畫質。"
     );
   }
   return out;
@@ -327,11 +415,22 @@ async function listNewMediaFiles(
 function logsIndicateDownloadBlock(logs: string[]): boolean {
   return logs.some(
     (l) =>
-      /HTTP Error 403/i.test(l) ||
+      /HTTP Error 403:\s*Forbidden/i.test(l) ||
       /HTTP Error 429/i.test(l) ||
       /unable to download video data/i.test(l) ||
       /fragment.*not found/i.test(l) ||
-      / SABR /i.test(l)
+      /requested format is not available/i.test(l) ||
+      /only images are available/i.test(l)
+  );
+}
+
+function logsIndicateJsChallengeFail(logs: string[]): boolean {
+  return logs.some(
+    (l) =>
+      /Signature solving failed/i.test(l) ||
+      /n challenge solving failed/i.test(l) ||
+      /Only images are available/i.test(l) ||
+      /challenge solver script/i.test(l)
   );
 }
 
@@ -369,14 +468,28 @@ export async function convertOneUrl(opts: {
     (await readdir(outputDir)).map((n) => join(outputDir, n))
   );
 
-  const attempts = getFormatAttempts(format, mp4Quality, platform);
+  const resolvedCookies =
+    cookiesPath?.trim() || process.env.YT_DLP_COOKIES_PATH?.trim() || "";
+  const hasCookies = Boolean(resolvedCookies);
+  const attempts = getDownloadAttempts(
+    format,
+    mp4Quality,
+    platform,
+    hasCookies
+  );
+
   if (format === "MP4") {
     onLog(
-      `畫質策略: 優先 ${mp4Quality === "720p" ? "720p" : "1080p"}，其次更低階（失敗自動降級）`
+      `畫質策略: 優先 ${mp4Quality === "720p" ? "720p" : "1080p"} → 720p → progressive；client 失敗會改 android`
+    );
+  }
+  if (platform === "youtube") {
+    onLog(
+      `YouTube JS: --remote-components ejs:github + ${resolveNodeRuntimeSpec()}`
     );
   }
   if (isServerless() && format === "MP4") {
-    onLog("雲端環境：長影片／高畫質可能逾時；失敗會自動改試 720p 或 progressive");
+    onLog("雲端環境：長影片／高畫質可能逾時；EJS 失敗時改 android progressive");
   }
 
   const env: NodeJS.ProcessEnv = {
@@ -386,36 +499,44 @@ export async function convertOneUrl(opts: {
   };
 
   // yt-dlp looks up ffmpeg/ffprobe via PATH or --ffmpeg-location (dir).
+  // Also put Node's directory on PATH so child "node" resolves if needed.
   const pathSep = process.platform === "win32" ? ";" : ":";
   const extraDirs = new Set<string>();
   extraDirs.add(dirname(tools.ffmpeg));
   if (tools.ffprobe) extraDirs.add(dirname(tools.ffprobe));
+  if (process.execPath) extraDirs.add(dirname(process.execPath));
   env.PATH = `${[...extraDirs].join(pathSep)}${pathSep}${env.PATH || ""}`;
 
   let exitCode = 1;
   let files: string[] = [];
-  // Split remaining wall time across attempts (min 45s each when multiple).
+  // Cap concurrent wall-time per attempt; keep room for android fallback.
+  const maxPlan = Math.min(attempts.length, isServerless() ? 4 : 6);
   const perAttemptMs = Math.max(
-    45_000,
-    Math.floor(timeoutMs / Math.max(1, Math.min(attempts.length, 4)))
+    40_000,
+    Math.floor(timeoutMs / Math.max(1, maxPlan))
   );
 
+  let skipNeedsEjs = false;
+
   for (let i = 0; i < attempts.length; i++) {
-    const formatSelector = attempts[i];
+    const attempt = attempts[i];
+    if (skipNeedsEjs && attempt.needsEjs) {
+      onLog(`[跳過] ${attempt.label}（JS challenge 已失敗，改非 EJS client）`);
+      continue;
+    }
+
     const attemptLogsStart = logs.length;
-    onLog(
-      `[畫質嘗試 ${i + 1}/${attempts.length}] -f ${formatSelector}`
-    );
+    onLog(`[嘗試 ${i + 1}/${attempts.length}] ${attempt.label}`);
 
     const args = buildArgs({
       url,
       outputDir,
       format,
-      mp4Quality,
       ffmpegPath: tools.ffmpeg,
       platform,
-      cookiesPath,
-      formatSelector,
+      // Only attach cookies when this attempt wants them (android ignores / can worsen).
+      cookiesPath: attempt.useCookies ? resolvedCookies : null,
+      attempt,
     });
 
     onLog(
@@ -445,15 +566,26 @@ export async function convertOneUrl(opts: {
     }
 
     const attemptSlice = logs.slice(attemptLogsStart);
-    const canRetry =
-      i < attempts.length - 1 &&
-      (logsIndicateDownloadBlock(attemptSlice) ||
-        exitCode !== 0 ||
-        !hasMedia);
-    if (!canRetry) break;
-    onLog(
-      `[畫質嘗試 ${i + 1}] 失敗（exit ${exitCode}），改試下一階畫質…`
-    );
+    if (logsIndicateJsChallengeFail(attemptSlice)) {
+      skipNeedsEjs = true;
+      onLog(
+        "偵測到 JS challenge / 僅有 storyboard → 後續改試 android progressive"
+      );
+    }
+
+    const moreLeft = attempts.slice(i + 1).some((a) => !(skipNeedsEjs && a.needsEjs));
+    if (!moreLeft) break;
+
+    if (
+      logsIndicateDownloadBlock(attemptSlice) ||
+      logsIndicateJsChallengeFail(attemptSlice) ||
+      exitCode !== 0 ||
+      !hasMedia
+    ) {
+      onLog(`[嘗試 ${i + 1}] 失敗（exit ${exitCode}），改下一組…`);
+      continue;
+    }
+    break;
   }
 
   const hasMedia = files.some((f) =>
@@ -462,7 +594,7 @@ export async function convertOneUrl(opts: {
 
   if (!hasMedia && exitCode !== 0 && platform === "youtube" && isServerless()) {
     onLog(
-      "提示：Vercel 等雲端 IP 經常無法完成 YouTube 下載。工具鏈已就緒不代表平台允許；請改本機或自架。"
+      "提示：Vercel 等雲端 IP 經常無法完成 YouTube 下載。若 android progressive 仍失敗，請用本機桌面版或自架 + 更新 yt-dlp。"
     );
   }
 
