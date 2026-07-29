@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   ExternalLink,
+  FileUp,
   Loader2,
   Music2,
   Trash2,
@@ -92,7 +93,9 @@ export default function YoutubeBilibiliConvertTool() {
   const [hydrated, setHydrated] = useState(false);
   /** Netscape cookies.txt — memory only, never persisted (session secret). */
   const [cookiesText, setCookiesText] = useState("");
+  const [cookiesFileName, setCookiesFileName] = useState<string | null>(null);
   const [showCookies, setShowCookies] = useState(false);
+  const cookiesFileRef = useRef<HTMLInputElement>(null);
 
   // Restore settings
   useEffect(() => {
@@ -270,9 +273,10 @@ export default function YoutubeBilibiliConvertTool() {
         "1. 用 Chrome/Edge 登入 https://www.youtube.com",
         "2. 安裝擴充套件「Get cookies.txt LOCALLY」（或同等工具）",
         "3. 在 youtube.com 頁面匯出 Netscape cookies.txt",
-        "4. 將檔案內容全部貼到下方「YouTube cookies」文字框",
+        "4. 點「選擇 cookies.txt 檔案」載入（或全選貼到文字框）",
         "5. 再按一次「轉成 MP4/MP3」",
         "",
+        "本機開發也可設環境變數 YT_DLP_COOKIES_PATH 指向 cookies 檔路徑。",
         "不想貼 cookies → 請用本機桌面版：",
         SOURCE_URL,
       ]);
@@ -288,7 +292,9 @@ export default function YoutubeBilibiliConvertTool() {
       } ——`,
       ...list.map((u, i) => `[${i + 1}] ${u}`),
       cookiesText.trim()
-        ? "cookies: 本次請求已附帶（來自文字框）"
+        ? `cookies: 本次請求已附帶${
+            cookiesFileName ? `（檔案 ${cookiesFileName}）` : "（文字框）"
+          }`
         : probe?.hasEnvCookies
           ? "cookies: 使用伺服器環境變數"
           : "cookies: 未提供",
@@ -327,7 +333,7 @@ export default function YoutubeBilibiliConvertTool() {
           if (data.needCookies) {
             setShowCookies(true);
             appendLog([
-              "→ 請展開「YouTube cookies」貼上 Netscape cookies.txt 後重試。",
+              "→ 請「選擇 cookies.txt 檔案」或貼上 Netscape cookies.txt 後重試。",
               "  匯出：瀏覽器擴充套件 Get cookies.txt LOCALLY，或見 yt-dlp wiki。",
             ]);
           }
@@ -392,12 +398,54 @@ export default function YoutubeBilibiliConvertTool() {
   }, [
     appendLog,
     busy,
+    cookiesFileName,
     cookiesText,
     format,
     mp4Quality,
     probe?.hasEnvCookies,
     visibleUrls,
   ]);
+
+  const loadCookiesFromFile = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const trimmed = text.trim();
+        if (trimmed.length < 20) {
+          setStatus("cookies 檔案內容太短，請重新匯出 Netscape cookies.txt");
+          appendLog([
+            `讀取失敗：${file.name} 內容過短（${trimmed.length} 字元）`,
+          ]);
+          return;
+        }
+        const looksOk =
+          /# Netscape|# HTTP Cookie File/i.test(trimmed) ||
+          (/youtube\.com|google\.com/i.test(trimmed) && /\t/.test(trimmed)) ||
+          /^\s*[\w.-]+=/.test(trimmed);
+        if (!looksOk) {
+          setStatus("檔案不像 Netscape cookies.txt，請用擴充套件重新匯出");
+          appendLog([
+            `讀取失敗：${file.name} 格式不像 cookies.txt`,
+            "請用「Get cookies.txt LOCALLY」在 youtube.com 匯出 Netscape 格式。",
+          ]);
+          return;
+        }
+        setCookiesText(text.endsWith("\n") ? text : `${text}\n`);
+        setCookiesFileName(file.name);
+        setShowCookies(true);
+        setStatus(`已載入 cookies：${file.name}`);
+        appendLog([
+          `cookies 已從檔案載入：${file.name}（${trimmed.length} 字元，僅本次請求使用）`,
+        ]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setStatus(`讀取 cookies 檔失敗：${msg}`);
+        appendLog([`讀取 cookies 檔失敗：${msg}`]);
+      }
+    },
+    [appendLog]
+  );
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -553,7 +601,9 @@ export default function YoutubeBilibiliConvertTool() {
                 ? "⚠ YouTube 必填：cookies.txt（目前尚未提供）"
                 : "YouTube cookies（雲端防 bot 用）"}
               {cookiesText.trim()
-                ? " · 已貼上 ✓"
+                ? cookiesFileName
+                  ? ` · 已載入 ${cookiesFileName} ✓`
+                  : " · 已貼上 ✓"
                 : probe?.hasEnvCookies
                   ? " · 伺服器環境變數已設定 ✓"
                   : ""}
@@ -565,7 +615,8 @@ export default function YoutubeBilibiliConvertTool() {
           {hasYoutubeUrl && !hasCookiesReady ? (
             <p className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-100">
               你的日誌已證明：沒 cookies 會卡在「Sign in to confirm you&apos;re
-              not a bot」，且不會有下載檔。請先貼上 cookies 再轉換。
+              not a bot」，且不會有下載檔。請先用「選擇 cookies.txt
+              檔案」或貼上內容再轉換。
             </p>
           ) : null}
           {showCookies ? (
@@ -586,11 +637,21 @@ export default function YoutubeBilibiliConvertTool() {
                   用擴充套件「Get cookies.txt LOCALLY」匯出 Netscape{" "}
                   <code className="rounded bg-black/10 px-1">cookies.txt</code>
                 </li>
-                <li>用記事本開啟，全選複製，貼到下方文字框</li>
+                <li>
+                  點下方「選擇 cookies.txt 檔案」（例如{" "}
+                  <code className="rounded bg-black/10 px-1">
+                    Downloads\cookies.txt
+                  </code>
+                  ）或貼到文字框
+                </li>
                 <li>再按「轉成 {format}」</li>
               </ol>
               <p className="text-xs text-[var(--muted-foreground)]">
-                僅本次請求使用，不存 localStorage。進階可設 Vercel 環境變數{" "}
+                僅本次請求使用，不存 localStorage。本機可設{" "}
+                <code className="rounded bg-black/10 px-1">
+                  YT_DLP_COOKIES_PATH
+                </code>
+                ；雲端可設{" "}
                 <code className="rounded bg-black/10 px-1">YT_DLP_COOKIES</code>
                 。{" "}
                 <a
@@ -602,6 +663,49 @@ export default function YoutubeBilibiliConvertTool() {
                   官方匯出說明
                 </a>
               </p>
+              <input
+                ref={cookiesFileRef}
+                type="file"
+                accept=".txt,text/plain"
+                className="hidden"
+                disabled={busy}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  void loadCookiesFromFile(f);
+                  // allow re-selecting the same file
+                  e.target.value = "";
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="default"
+                  disabled={busy}
+                  className="gap-1.5"
+                  onClick={() => cookiesFileRef.current?.click()}
+                >
+                  <FileUp size={14} />
+                  選擇 cookies.txt 檔案
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || !cookiesText}
+                  onClick={() => {
+                    setCookiesText("");
+                    setCookiesFileName(null);
+                  }}
+                >
+                  清除 cookies
+                </Button>
+              </div>
+              {cookiesFileName ? (
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                  已載入檔案：{cookiesFileName}
+                </p>
+              ) : null}
               <textarea
                 value={cookiesText}
                 disabled={busy}
@@ -609,22 +713,14 @@ export default function YoutubeBilibiliConvertTool() {
                 spellCheck={false}
                 autoComplete="off"
                 placeholder={
-                  "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\t..."
+                  "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\t...\n（也可直接貼上，或用上方按鈕選檔）"
                 }
-                onChange={(e) => setCookiesText(e.target.value)}
+                onChange={(e) => {
+                  setCookiesText(e.target.value);
+                  if (!e.target.value.trim()) setCookiesFileName(null);
+                }}
                 className="w-full rounded-lg border border-[var(--line-soft)] bg-background px-3 py-2 font-mono text-[11px] leading-relaxed"
               />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={busy || !cookiesText}
-                  onClick={() => setCookiesText("")}
-                >
-                  清除 cookies
-                </Button>
-              </div>
             </div>
           ) : null}
         </div>
