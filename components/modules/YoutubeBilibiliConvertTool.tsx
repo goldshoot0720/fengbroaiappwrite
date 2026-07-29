@@ -23,6 +23,10 @@ const FORMAT_OPTIONS = ["MP3", "MP4"] as const;
 const QUALITY_OPTIONS = ["1080p", "720p"] as const;
 
 const SETTINGS_KEY = "fengbro.tools.ytbili.settings";
+/** Browser-local cookies.txt cache (this device only; never sent except on convert). */
+const COOKIES_CACHE_KEY = "fengbro.tools.ytbili.cookies";
+/** Cap cache size (~512KB) to match API body limit. */
+const MAX_COOKIES_CACHE_CHARS = 512_000;
 
 type ToolsProbe = {
   available: boolean;
@@ -41,6 +45,59 @@ type SavedSettings = {
   mp4Quality: "1080p" | "720p" | "4K";
   urls?: string[];
 };
+
+type CookiesCache = {
+  text: string;
+  fileName?: string | null;
+  savedAt?: string;
+};
+
+function readCookiesCache(): CookiesCache | null {
+  try {
+    const raw = localStorage.getItem(COOKIES_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CookiesCache;
+    if (typeof parsed?.text !== "string" || parsed.text.trim().length < 20) {
+      return null;
+    }
+    if (parsed.text.length > MAX_COOKIES_CACHE_CHARS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCookiesCache(text: string, fileName: string | null): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    try {
+      localStorage.removeItem(COOKIES_CACHE_KEY);
+    } catch {
+      /* ignore */
+    }
+    return true;
+  }
+  if (trimmed.length > MAX_COOKIES_CACHE_CHARS) return false;
+  try {
+    const payload: CookiesCache = {
+      text: text.endsWith("\n") ? text : `${text}\n`,
+      fileName: fileName || null,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(COOKIES_CACHE_KEY, JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearCookiesCache(): void {
+  try {
+    localStorage.removeItem(COOKIES_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -92,13 +149,14 @@ export default function YoutubeBilibiliConvertTool() {
   const [probe, setProbe] = useState<ToolsProbe | null>(null);
   const [probeLoading, setProbeLoading] = useState(true);
   const [hydrated, setHydrated] = useState(false);
-  /** Netscape cookies.txt — memory only, never persisted (session secret). */
+  /** Netscape cookies.txt — cached in this browser via localStorage. */
   const [cookiesText, setCookiesText] = useState("");
   const [cookiesFileName, setCookiesFileName] = useState<string | null>(null);
+  const [cookiesCachedAt, setCookiesCachedAt] = useState<string | null>(null);
   const [showCookies, setShowCookies] = useState(false);
   const cookiesFileRef = useRef<HTMLInputElement>(null);
 
-  // Restore settings
+  // Restore settings + cookies cache
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
@@ -127,6 +185,25 @@ export default function YoutubeBilibiliConvertTool() {
     } catch {
       /* ignore */
     }
+
+    const cached = readCookiesCache();
+    if (cached) {
+      setCookiesText(cached.text);
+      setCookiesFileName(cached.fileName || "cookies.txt");
+      setCookiesCachedAt(cached.savedAt || null);
+      setShowCookies(false);
+      setStatus(
+        `已從本機快取還原 cookies${
+          cached.fileName ? `（${cached.fileName}）` : ""
+        }`
+      );
+      setLogLines((prev) => [
+        ...prev,
+        `cookies 本機快取已還原${
+          cached.fileName ? `：${cached.fileName}` : ""
+        }（${cached.text.trim().length} 字元，此裝置瀏覽器）`,
+      ]);
+    }
     setHydrated(true);
   }, []);
 
@@ -144,6 +221,20 @@ export default function YoutubeBilibiliConvertTool() {
       /* ignore */
     }
   }, [format, hydrated, mp4Quality, urlCount, urls]);
+
+  // Persist cookies.txt to browser cache whenever content changes.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!cookiesText.trim()) {
+      clearCookiesCache();
+      setCookiesCachedAt(null);
+      return;
+    }
+    const ok = writeCookiesCache(cookiesText, cookiesFileName);
+    if (ok) {
+      setCookiesCachedAt(new Date().toISOString());
+    }
+  }, [cookiesFileName, cookiesText, hydrated]);
 
   const refreshProbe = useCallback(async () => {
     setProbeLoading(true);
@@ -435,12 +526,31 @@ export default function YoutubeBilibiliConvertTool() {
           ]);
           return;
         }
-        setCookiesText(text.endsWith("\n") ? text : `${text}\n`);
+        const normalized = text.endsWith("\n") ? text : `${text}\n`;
+        if (normalized.length > MAX_COOKIES_CACHE_CHARS) {
+          setStatus(
+            `cookies 過長（>${MAX_COOKIES_CACHE_CHARS} 字元），無法快取`
+          );
+          appendLog([
+            `讀取失敗：${file.name} 超過快取上限 ${MAX_COOKIES_CACHE_CHARS} 字元`,
+          ]);
+          return;
+        }
+        setCookiesText(normalized);
         setCookiesFileName(file.name);
         setShowCookies(true);
-        setStatus(`已載入 cookies：${file.name}`);
+        const cached = writeCookiesCache(normalized, file.name);
+        if (cached) setCookiesCachedAt(new Date().toISOString());
+        setStatus(
+          cached
+            ? `已載入並快取 cookies：${file.name}`
+            : `已載入 cookies：${file.name}（本機快取寫入失敗）`
+        );
         appendLog([
-          `cookies 已從檔案載入：${file.name}（${trimmed.length} 字元，僅本次請求使用）`,
+          `cookies 已從檔案載入：${file.name}（${trimmed.length} 字元）`,
+          cached
+            ? "已快取到本機瀏覽器（鋒兄工具 · 此裝置 localStorage），下次開啟可直接用。"
+            : "未能寫入本機快取（可能空間不足）；本次仍可用。",
         ]);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -450,6 +560,15 @@ export default function YoutubeBilibiliConvertTool() {
     },
     [appendLog]
   );
+
+  const clearCookies = useCallback(() => {
+    setCookiesText("");
+    setCookiesFileName(null);
+    setCookiesCachedAt(null);
+    clearCookiesCache();
+    setStatus("已清除 cookies 與本機快取");
+    appendLog(["已清除 cookies.txt 本機快取"]);
+  }, [appendLog]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -606,8 +725,8 @@ export default function YoutubeBilibiliConvertTool() {
                 : "YouTube cookies（雲端防 bot 用）"}
               {cookiesText.trim()
                 ? cookiesFileName
-                  ? ` · 已載入 ${cookiesFileName} ✓`
-                  : " · 已貼上 ✓"
+                  ? ` · 已快取 ${cookiesFileName} ✓`
+                  : " · 已快取 ✓"
                 : probe?.hasEnvCookies
                   ? " · 伺服器環境變數已設定 ✓"
                   : ""}
@@ -620,7 +739,7 @@ export default function YoutubeBilibiliConvertTool() {
             <p className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-100">
               你的日誌已證明：沒 cookies 會卡在「Sign in to confirm you&apos;re
               not a bot」，且不會有下載檔。請先用「選擇 cookies.txt
-              檔案」或貼上內容再轉換。
+              檔案」或貼上內容（會自動快取到本機瀏覽器）。
             </p>
           ) : null}
           {showCookies ? (
@@ -646,16 +765,22 @@ export default function YoutubeBilibiliConvertTool() {
                   <code className="rounded bg-black/10 px-1">
                     Downloads\cookies.txt
                   </code>
-                  ）或貼到文字框
+                  ）或貼到文字框 →{" "}
+                  <strong className="font-medium text-foreground">
+                    自動快取到本機
+                  </strong>
                 </li>
+                <li>下次開啟鋒兄工具可直接轉換，不必重選檔</li>
                 <li>再按「轉成 {format}」</li>
               </ol>
               <p className="text-xs text-[var(--muted-foreground)]">
-                僅本次請求使用，不存 localStorage。本機可設{" "}
+                快取存在<strong className="font-medium">此裝置瀏覽器</strong>
+                （localStorage），不上傳伺服器；只有按轉換時才會附在請求裡。過期請重匯 cookies
+                並覆蓋快取。進階：本機{" "}
                 <code className="rounded bg-black/10 px-1">
                   YT_DLP_COOKIES_PATH
                 </code>
-                ；雲端可設{" "}
+                ／雲端{" "}
                 <code className="rounded bg-black/10 px-1">YT_DLP_COOKIES</code>
                 。{" "}
                 <a
@@ -697,17 +822,19 @@ export default function YoutubeBilibiliConvertTool() {
                   size="sm"
                   variant="outline"
                   disabled={busy || !cookiesText}
-                  onClick={() => {
-                    setCookiesText("");
-                    setCookiesFileName(null);
-                  }}
+                  onClick={clearCookies}
                 >
-                  清除 cookies
+                  清除 cookies 快取
                 </Button>
               </div>
-              {cookiesFileName ? (
+              {cookiesText.trim() ? (
                 <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                  已載入檔案：{cookiesFileName}
+                  本機快取中
+                  {cookiesFileName ? `：${cookiesFileName}` : ""}
+                  {cookiesCachedAt
+                    ? ` · ${new Date(cookiesCachedAt).toLocaleString()}`
+                    : ""}
+                  （{cookiesText.trim().length.toLocaleString()} 字元）
                 </p>
               ) : null}
               <textarea
@@ -717,11 +844,16 @@ export default function YoutubeBilibiliConvertTool() {
                 spellCheck={false}
                 autoComplete="off"
                 placeholder={
-                  "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\t...\n（也可直接貼上，或用上方按鈕選檔）"
+                  "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\t...\n（選檔或貼上後會自動快取到本機瀏覽器）"
                 }
                 onChange={(e) => {
                   setCookiesText(e.target.value);
-                  if (!e.target.value.trim()) setCookiesFileName(null);
+                  if (!e.target.value.trim()) {
+                    setCookiesFileName(null);
+                    setCookiesCachedAt(null);
+                  } else if (!cookiesFileName) {
+                    setCookiesFileName("cookies.txt");
+                  }
                 }}
                 className="w-full rounded-lg border border-[var(--line-soft)] bg-background px-3 py-2 font-mono text-[11px] leading-relaxed"
               />
