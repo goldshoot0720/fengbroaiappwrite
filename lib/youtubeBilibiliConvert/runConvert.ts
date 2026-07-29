@@ -43,7 +43,8 @@ export function defaultTimeoutMsPerUrl(): number {
 
 /**
  * Single yt-dlp -f string: prefer 1080 → 720 → progressive 18.
- * (Internal `/` fallbacks; do not explode into many full runs.)
+ * Prefer m4a/AAC audio when merging: Opus-in-MP4 is silent in many players
+ * (Windows Movies & TV, some browsers). Format 18 already has AAC.
  */
 function getPrimaryFormatSelector(
   format: OutputFormat,
@@ -56,16 +57,20 @@ function getPrimaryFormatSelector(
     }
     return "bestaudio/best";
   }
-  if (mp4Quality === "720p") {
-    return [
-      "bestvideo*[height<=720]+bestaudio/best[height<=720]",
-      "best[height<=720][ext=mp4]/18/best",
+
+  // bv + ba[m4a] first so merged MP4 has AAC audio with sound.
+  const at = (h: number) =>
+    [
+      `bestvideo*[height<=${h}]+bestaudio[ext=m4a]/bestaudio[acodec*=mp4a]`,
+      `bestvideo*[height<=${h}]+bestaudio/best[height<=${h}]`,
     ].join("/");
+
+  if (mp4Quality === "720p") {
+    return [at(720), "best[height<=720][ext=mp4]/18/best"].join("/");
   }
-  // Prefer true 1080, then 720, then progressive 360 (format 18).
   return [
-    "bestvideo*[height<=1080]+bestaudio/best[height<=1080]",
-    "bestvideo*[height<=720]+bestaudio/best[height<=720]",
+    at(1080),
+    at(720),
     "best[height<=720][ext=mp4]/18/best",
   ].join("/");
 }
@@ -204,6 +209,14 @@ function buildArgs(opts: {
 
   if (format === "MP4") {
     args.push("--merge-output-format", "mp4");
+    // Prefer AAC when selecting streams (avoids silent Opus-in-MP4).
+    args.push("-S", "res,vcodec:h264,acodec:m4a");
+    // If Merger still gets non-AAC audio, re-encode audio to AAC (copy video).
+    // Windows / QuickTime often play Opus-in-MP4 as silent video.
+    args.push(
+      "--postprocessor-args",
+      "Merger+ffmpeg_o:-c:v copy -c:a aac -b:a 192k -movflags +faststart"
+    );
   } else {
     args.push("--extract-audio", "--audio-format", "mp3", "--audio-quality", "0");
     // Thumbnail embed needs ffmpeg write; fine locally, skip on serverless to save time.
