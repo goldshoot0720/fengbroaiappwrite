@@ -111,33 +111,6 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-function filenameFromDisposition(header: string | null, fallback: string): string {
-  if (!header) return fallback;
-  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(header);
-  if (utf8?.[1]) {
-    try {
-      return decodeURIComponent(utf8[1]);
-    } catch {
-      /* fall through */
-    }
-  }
-  const plain = /filename="([^"]+)"/i.exec(header);
-  if (plain?.[1]) return plain[1];
-  return fallback;
-}
-
-function decodeLogHeader(header: string | null): string[] {
-  if (!header) return [];
-  try {
-    const bin = atob(header.replace(/-/g, "+").replace(/_/g, "/"));
-    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-    const text = new TextDecoder().decode(bytes);
-    return text.split(/\r?\n/).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
 export default function YoutubeBilibiliConvertTool() {
   const [urlCount, setUrlCount] = useState<number>(1);
   const [urls, setUrls] = useState<string[]>(() => Array(7).fill(""));
@@ -155,6 +128,7 @@ export default function YoutubeBilibiliConvertTool() {
   const [cookiesCachedAt, setCookiesCachedAt] = useState<string | null>(null);
   const [showCookies, setShowCookies] = useState(false);
   const cookiesFileRef = useRef<HTMLInputElement>(null);
+  const logPreRef = useRef<HTMLPreElement>(null);
 
   // Restore settings + cookies cache
   useEffect(() => {
@@ -334,9 +308,16 @@ export default function YoutubeBilibiliConvertTool() {
   const appendLog = useCallback((lines: string[]) => {
     setLogLines((prev) => {
       const next = [...prev, ...lines];
-      return next.length > 400 ? next.slice(-400) : next;
+      return next.length > 800 ? next.slice(-800) : next;
     });
   }, []);
+
+  // Auto-scroll log panel while streaming.
+  useEffect(() => {
+    const el = logPreRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [logLines]);
 
   const runConvert = useCallback(async () => {
     if (busy) return;
@@ -379,7 +360,7 @@ export default function YoutubeBilibiliConvertTool() {
     }
 
     setBusy(true);
-    setStatus(`正在轉換 1/${list.length}…`);
+    setStatus(`正在轉換 1/${list.length}…（即時日誌）`);
     appendLog([
       "",
       `—— 開始轉換 ${list.length} 個 → ${format}${
@@ -393,25 +374,28 @@ export default function YoutubeBilibiliConvertTool() {
         : probe?.hasEnvCookies
           ? "cookies: 使用伺服器環境變數"
           : "cookies: 未提供",
+      "（串流模式：日誌會邊轉邊顯示）",
     ]);
 
     try {
       const res = await fetch("/api/youtube-bilibili-convert", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/x-ndjson",
+        },
         body: JSON.stringify({
           urls: list,
           format,
           mp4Quality,
+          stream: true,
           ...(cookiesText.trim() ? { cookies: cookiesText } : {}),
         }),
       });
 
-      const logHeader = res.headers.get("X-Convert-Logs");
-      const successN = res.headers.get("X-Convert-Success");
-      const totalN = res.headers.get("X-Convert-Total");
-
-      if (!res.ok) {
+      // Non-stream error (tool missing, validation…)
+      const ct = res.headers.get("Content-Type") || "";
+      if (!res.ok && !ct.includes("ndjson")) {
         let message = `轉換失敗（HTTP ${res.status}）`;
         try {
           const data = (await res.json()) as {
@@ -425,15 +409,8 @@ export default function YoutubeBilibiliConvertTool() {
           if (data.logs?.length) appendLog(data.logs);
           if (data.installHint?.length) appendLog(data.installHint);
           if (data.validationErrors?.length) appendLog(data.validationErrors);
-          if (data.needCookies) {
-            setShowCookies(true);
-            appendLog([
-              "→ 請「選擇 cookies.txt 檔案」或貼上 Netscape cookies.txt 後重試。",
-              "  匯出：瀏覽器擴充套件 Get cookies.txt LOCALLY，或見 yt-dlp wiki。",
-            ]);
-          }
+          if (data.needCookies) setShowCookies(true);
         } catch {
-          // 504/HTML 等非 JSON 回應
           if (res.status === 504 || res.status === 502 || res.status === 524) {
             message =
               "伺服器逾時（雲端下載 YouTube 常卡住）。沒有產生檔案可下載。";
@@ -444,41 +421,133 @@ export default function YoutubeBilibiliConvertTool() {
         return;
       }
 
-      const headerLogs = decodeLogHeader(logHeader);
-      if (headerLogs.length) appendLog(headerLogs);
-
-      const blob = await res.blob();
-      if (!blob || blob.size < 64) {
-        setStatus("伺服器回傳空檔，未產生可下載內容");
-        appendLog([
-          "—— 結束：回應幾乎是空的，沒有檔案可下載 ——",
-          "常見原因：YouTube 擋雲端 IP、函式逾時、或轉檔中途失敗。",
-        ]);
+      if (!res.body) {
+        setStatus("伺服器未回傳串流內容");
+        appendLog(["—— 結束：沒有可讀取的串流 ——"]);
         return;
       }
 
-      const disp = res.headers.get("Content-Disposition");
-      const fallback =
-        blob.type === "application/zip"
-          ? getExportFilename(`youtube-bilibili-${format.toLowerCase()}`, "zip")
-          : getExportFilename(
-              `youtube-bilibili`,
-              format === "MP3" ? "mp3" : "mp4"
-            );
-      const name = filenameFromDisposition(disp, fallback);
-      downloadBlob(blob, name);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let carry = "";
+      let fileMeta: {
+        filename: string;
+        mime: string;
+        size: number;
+        success: number;
+        total: number;
+      } | null = null;
+      const fileParts: Uint8Array[] = [];
+      let gotError = false;
 
-      const ok = successN || "?";
-      const total = totalN || String(list.length);
-      setStatus(
-        ok === total
-          ? `完成，已輸出 ${ok} 個 ${format}（已開始下載 ${name}）`
-          : `完成 ${ok}/${total}，已開始下載 ${name}；請查看記錄`
-      );
-      appendLog([
-        `下載：${name}（${(blob.size / 1024 / 1024).toFixed(2)} MB）`,
-        "若瀏覽器沒跳出檔案，請檢查下載列／是否封鎖彈出下載。",
-      ]);
+      const b64ToBytes = (b64: string): Uint8Array => {
+        const bin = atob(b64);
+        const out = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        carry += decoder.decode(value, { stream: true });
+        const lines = carry.split("\n");
+        carry = lines.pop() ?? "";
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) continue;
+          let ev: {
+            type?: string;
+            line?: string;
+            message?: string;
+            error?: string;
+            needCookies?: boolean;
+            filename?: string;
+            mime?: string;
+            size?: number;
+            success?: number;
+            total?: number;
+            data?: string;
+          };
+          try {
+            ev = JSON.parse(line) as typeof ev;
+          } catch {
+            appendLog([line]);
+            continue;
+          }
+
+          if (ev.type === "log" && ev.line) {
+            appendLog([ev.line]);
+          } else if (ev.type === "status" && ev.message) {
+            setStatus(ev.message);
+          } else if (ev.type === "file_start") {
+            fileMeta = {
+              filename: String(ev.filename || "download.bin"),
+              mime: String(ev.mime || "application/octet-stream"),
+              size: Number(ev.size) || 0,
+              success: Number(ev.success) || 0,
+              total: Number(ev.total) || list.length,
+            };
+            setStatus(`接收檔案：${fileMeta.filename}…`);
+            appendLog([
+              `打包完成，開始接收 ${fileMeta.filename}（${(
+                fileMeta.size /
+                1024 /
+                1024
+              ).toFixed(2)} MB）`,
+            ]);
+          } else if (ev.type === "file_chunk" && ev.data) {
+            fileParts.push(b64ToBytes(ev.data));
+          } else if (ev.type === "file_end") {
+            if (!fileMeta || !fileParts.length) {
+              setStatus("接收檔案失敗（內容為空）");
+              appendLog(["—— 結束：檔案內容為空 ——"]);
+              gotError = true;
+              continue;
+            }
+            const blob = new Blob(fileParts as BlobPart[], {
+              type: fileMeta.mime,
+            });
+            downloadBlob(blob, fileMeta.filename);
+            const ok = fileMeta.success;
+            const total = fileMeta.total;
+            setStatus(
+              ok === total
+                ? `完成，已輸出 ${ok} 個 ${format}（已開始下載 ${fileMeta.filename}）`
+                : `完成 ${ok}/${total}，已開始下載 ${fileMeta.filename}`
+            );
+            appendLog([
+              `下載：${fileMeta.filename}（${(blob.size / 1024 / 1024).toFixed(2)} MB）`,
+              "若瀏覽器沒跳出檔案，請檢查下載列／是否封鎖彈出下載。",
+            ]);
+          } else if (ev.type === "error") {
+            gotError = true;
+            const message = ev.error || "轉換失敗";
+            setStatus(`${message}（未產生下載檔）`);
+            appendLog([message, "—— 結束：轉換失敗，沒有檔案可下載 ——"]);
+            if (ev.needCookies) {
+              setShowCookies(true);
+              appendLog([
+                "→ 請「選擇 cookies.txt 檔案」或貼上 Netscape cookies.txt 後重試。",
+              ]);
+            }
+          } else if (ev.type === "done" && !gotError) {
+            appendLog(["—— 串流結束 ——"]);
+          }
+        }
+      }
+
+      if (carry.trim()) {
+        try {
+          const ev = JSON.parse(carry) as { type?: string; error?: string };
+          if (ev.type === "error" && ev.error) {
+            setStatus(`${ev.error}（未產生下載檔）`);
+            appendLog([ev.error]);
+          }
+        } catch {
+          /* ignore trailing garbage */
+        }
+      }
     } catch (err) {
       const raw = err instanceof Error ? err.message : "轉換時發生錯誤";
       const message =
@@ -965,8 +1034,13 @@ export default function YoutubeBilibiliConvertTool() {
             清空記錄
           </Button>
         </div>
-        <pre className="max-h-72 min-h-[140px] overflow-auto rounded-xl bg-black/85 p-3 text-[11px] leading-relaxed text-emerald-100">
-          {logLines.length ? logLines.join("\n") : "（尚無記錄）"}
+        <pre
+          ref={logPreRef}
+          className="max-h-72 min-h-[140px] overflow-auto rounded-xl bg-black/85 p-3 text-[11px] leading-relaxed text-emerald-100"
+        >
+          {logLines.length
+            ? logLines.join("\n")
+            : "（尚無記錄 — 轉換時會即時顯示 yt-dlp 訊息）"}
         </pre>
         <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
           功能參考{" "}

@@ -476,6 +476,8 @@ export async function convertOneUrl(opts: {
   mp4Quality: Mp4Quality;
   timeoutMs?: number;
   cookiesPath?: string | null;
+  /** Live log sink (e.g. NDJSON stream to browser). */
+  onLogLine?: (line: string) => void;
 }): Promise<ConvertOneResult> {
   const { tools, url, outputDir, format, mp4Quality, cookiesPath } = opts;
   const timeoutMs = opts.timeoutMs ?? defaultTimeoutMsPerUrl();
@@ -485,15 +487,22 @@ export async function convertOneUrl(opts: {
   const onLog = (line: string) => {
     for (const l of annotateLog(line, platform)) {
       logs.push(l);
+      try {
+        opts.onLogLine?.(l);
+      } catch {
+        /* ignore sink errors */
+      }
     }
   };
 
   if (!tools.ytDlp || !tools.ffmpeg) {
+    const failLogs = ["找不到 yt-dlp 或 ffmpeg", ...tools.installHint];
+    for (const l of failLogs) onLog(l);
     return {
       url,
       ok: false,
       exitCode: 127,
-      logs: ["找不到 yt-dlp 或 ffmpeg", ...tools.installHint],
+      logs: failLogs,
       files: [],
     };
   }
@@ -651,22 +660,33 @@ export async function convertUrls(opts: {
   mp4Quality: Mp4Quality;
   timeoutMsPerUrl?: number;
   cookiesPath?: string | null;
+  /** Live log sink for streaming responses. */
+  onLogLine?: (line: string) => void;
 }): Promise<ConvertBatchResult> {
   const results: ConvertOneResult[] = [];
   const allFiles: string[] = [];
   const logs: string[] = [];
   const timeoutMsPerUrl = opts.timeoutMsPerUrl ?? defaultTimeoutMsPerUrl();
 
-  logs.push(
+  const emit = (line: string) => {
+    logs.push(line);
+    try {
+      opts.onLogLine?.(line);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  emit(
     `yt-dlp: ${opts.tools.ytDlp || "找不到"}${
       opts.tools.ytDlpSource ? ` (${opts.tools.ytDlpSource})` : ""
     }`
   );
-  logs.push(`ffmpeg: ${opts.tools.ffmpeg || "找不到"}`);
-  logs.push(`ffprobe: ${opts.tools.ffprobe || "找不到"}`);
-  logs.push(`輸出格式: ${opts.format}`);
-  if (opts.format === "MP4") logs.push(`MP4 畫質: ${opts.mp4Quality}`);
-  logs.push(
+  emit(`ffmpeg: ${opts.tools.ffmpeg || "找不到"}`);
+  emit(`ffprobe: ${opts.tools.ffprobe || "找不到"}`);
+  emit(`輸出格式: ${opts.format}`);
+  if (opts.format === "MP4") emit(`MP4 畫質: ${opts.mp4Quality}`);
+  emit(
     `cookies: ${
       opts.cookiesPath
         ? "已提供（本次請求）"
@@ -678,16 +698,16 @@ export async function convertUrls(opts: {
     }`
   );
   if (isServerless()) {
-    logs.push(
+    emit(
       `執行環境: serverless（每支約 ${Math.round(timeoutMsPerUrl / 1000)}s 上限；YouTube 常擋資料中心 IP）`
     );
   }
-  logs.push(`準備轉換 ${opts.urls.length} 個項目`);
+  emit(`準備轉換 ${opts.urls.length} 個項目`);
 
   for (let i = 0; i < opts.urls.length; i++) {
     const url = opts.urls[i];
-    logs.push("");
-    logs.push(`[${i + 1}/${opts.urls.length}] ${url}`);
+    emit("");
+    emit(`[${i + 1}/${opts.urls.length}] ${url}`);
     const one = await convertOneUrl({
       tools: opts.tools,
       url,
@@ -696,13 +716,17 @@ export async function convertUrls(opts: {
       mp4Quality: opts.mp4Quality,
       timeoutMs: timeoutMsPerUrl,
       cookiesPath: opts.cookiesPath,
+      onLogLine: opts.onLogLine,
     });
     results.push(one);
+    // Detail lines already streamed via onLogLine; keep batch.logs complete for non-stream API.
     logs.push(...one.logs);
     if (!one.ok) {
-      logs.push(`[${i + 1}/${opts.urls.length}] 轉換失敗，結束碼 ${one.exitCode}`);
+      emit(
+        `[${i + 1}/${opts.urls.length}] 轉換失敗，結束碼 ${one.exitCode}`
+      );
     } else {
-      logs.push(
+      emit(
         `[${i + 1}/${opts.urls.length}] 完成：${one.files
           .map((f) => f.split(/[/\\]/).pop())
           .join(", ")}`
