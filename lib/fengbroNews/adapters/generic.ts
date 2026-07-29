@@ -5,7 +5,9 @@ import type { FengbroNewsSiteConfig } from "@/lib/fengbroNewsSites";
 import { MAX_LIST_URL_TRIES } from "../constants";
 import { extractArticlesFromText } from "../extract";
 import { fetchPageText } from "../fetch";
-import { searchGoogleNewsRss } from "../googleNews";
+import { prefersGoogleNewsFirst, searchGoogleNewsRss } from "../googleNews";
+import type { FengbroNewsSearchOptions } from "../options";
+import { isSearchAborted } from "../options";
 import type { NewsArticle, SiteSearchResult } from "../types";
 
 type CandidateCtx = {
@@ -156,19 +158,70 @@ function buildGenericCandidateUrls(site: FengbroNewsSiteConfig, query: string): 
 /**
  * Generic: prefer searchUrlTemplate with {q}; otherwise scan homeUrl / list page
  * and filter anchors whose title contains the keyword.
+ * Bot-blocked hosts try Google News RSS first.
  */
-export async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
-  const uniqueUrls = buildGenericCandidateUrls(site, query);
+export async function searchGenericKeywordUrl(
+  site: FengbroNewsSiteConfig,
+  query: string,
+  options?: FengbroNewsSearchOptions
+): Promise<SiteSearchResult> {
+  if (isSearchAborted(options?.signal)) {
+    return {
+      siteId: site.id,
+      siteName: site.name,
+      domain: site.domain,
+      articles: [],
+      error: "搜尋已取消",
+      source: site.homeUrl,
+    };
+  }
+
   const articles: NewsArticle[] = [];
   const seen = new Set<string>();
   const sources: string[] = [];
   let lastError = "";
+  let usedGoogleFirst = false;
 
+  // Known bot-walled publishers: RSS first, skip slow direct scrape when hits exist
+  if (prefersGoogleNewsFirst(site.domain)) {
+    usedGoogleFirst = true;
+    const rss = await searchGoogleNewsRss(site, query, seen, options);
+    if (rss.articles.length) {
+      return {
+        siteId: site.id,
+        siteName: site.name,
+        domain: site.domain,
+        articles: rss.articles,
+        source: rss.source,
+      };
+    }
+    if (rss.error) lastError = rss.error;
+  }
+
+  if (isSearchAborted(options?.signal)) {
+    return {
+      siteId: site.id,
+      siteName: site.name,
+      domain: site.domain,
+      articles: [],
+      error: "搜尋已取消",
+      source: site.homeUrl,
+    };
+  }
+
+  const uniqueUrls = buildGenericCandidateUrls(site, query);
   for (let i = 0; i < uniqueUrls.length; i++) {
+    if (isSearchAborted(options?.signal)) {
+      lastError = "搜尋已取消";
+      break;
+    }
     const listUrl = uniqueUrls[i];
     try {
       // Only first URL may use jina (slow); rest are direct + Google News fallback
-      const page = await fetchPageText(listUrl, { allowJina: i === 0 });
+      const page = await fetchPageText(listUrl, {
+        allowJina: i === 0,
+        signal: options?.signal,
+      });
       if (page.error && !page.text) {
         lastError = page.error;
         continue;
@@ -182,9 +235,9 @@ export async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query
     }
   }
 
-  // Fallback: Google News RSS when direct site is blocked or empty
-  if (articles.length === 0) {
-    const rss = await searchGoogleNewsRss(site, query, seen);
+  // Fallback: Google News when direct empty (skip if already tried first)
+  if (articles.length === 0 && !usedGoogleFirst) {
+    const rss = await searchGoogleNewsRss(site, query, seen, options);
     if (rss.articles.length) {
       return {
         siteId: site.id,
@@ -204,8 +257,7 @@ export async function searchGenericKeywordUrl(site: FengbroNewsSiteConfig, query
     articles,
     error:
       articles.length === 0
-        ? // Prefer "no match" when we did load a page (avoid stale "fetch failed" after jina/reader)
-          sources.length > 0
+        ? sources.length > 0
           ? "此來源未找到標題符合的文章（近三年內）"
           : lastError || "此來源未找到標題符合的文章（近三年內）"
         : undefined,

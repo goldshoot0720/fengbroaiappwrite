@@ -18,40 +18,72 @@ import {
   SITE_SEARCH_TIMEOUT_MS,
 } from "./constants";
 import { filterArticlesByMaxAge, inferArticleDate } from "./dates";
-import { mapPool, withTimeout } from "./fetch";
+import { mapPool } from "./fetch";
+import {
+  abortedSiteResult,
+  createSiteAbortController,
+  isSearchAborted,
+  type FengbroNewsSearchOptions,
+} from "./options";
 import type { NewsArticle, SiteSearchResult } from "./types";
 
-export async function searchSiteInner(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
+export async function searchSiteInner(
+  site: FengbroNewsSiteConfig,
+  query: string,
+  options?: FengbroNewsSearchOptions
+): Promise<SiteSearchResult> {
+  if (isSearchAborted(options?.signal)) {
+    return abortedSiteResult(site, "cancelled");
+  }
+
   switch (site.adapter) {
     case "tycg-traffic":
-      return await searchTycgTraffic(site, query);
+      return await searchTycgTraffic(site, query, options);
     case "rb-nreo":
-      return await searchRbNreo(site, query);
+      return await searchRbNreo(site, query, options);
     case "tycg-zhongli":
-      return await searchTycgZhongli(site, query);
+      return await searchTycgZhongli(site, query, options);
     case "youtube-channel":
-      return await searchYouTubeChannel(site, query);
+      return await searchYouTubeChannel(site, query, options);
     case "generic-keyword-url":
     default:
       // Auto-route YouTube URLs even if adapter was stored as generic
       if (/youtube\.com|youtu\.be/i.test(site.homeUrl || site.domain)) {
-        return await searchYouTubeChannel(site, query);
+        return await searchYouTubeChannel(site, query, options);
       }
-      return await searchGenericKeywordUrl(site, query);
+      return await searchGenericKeywordUrl(site, query, options);
   }
 }
 
-export async function searchSite(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
+export async function searchSite(
+  site: FengbroNewsSiteConfig,
+  query: string,
+  parentSignal?: AbortSignal
+): Promise<SiteSearchResult> {
+  if (isSearchAborted(parentSignal)) {
+    return abortedSiteResult(site, "cancelled");
+  }
+
+  const siteAbort = createSiteAbortController(parentSignal, SITE_SEARCH_TIMEOUT_MS);
   try {
-    return await withTimeout(searchSiteInner(site, query), SITE_SEARCH_TIMEOUT_MS, () => ({
-      siteId: site.id,
-      siteName: site.name,
-      domain: site.domain,
-      articles: [] as NewsArticle[],
-      error: `此來源搜尋逾時（>${Math.round(SITE_SEARCH_TIMEOUT_MS / 1000)}s）`,
-      source: site.homeUrl,
-    }));
+    const result = await searchSiteInner(site, query, { signal: siteAbort.signal });
+    if (isSearchAborted(siteAbort.signal) && result.articles.length === 0) {
+      // Distinguish client disconnect vs per-site timeout
+      if (isSearchAborted(parentSignal) && !siteAbort.didTimeout()) {
+        return abortedSiteResult(site, "cancelled");
+      }
+      if (siteAbort.didTimeout()) {
+        return abortedSiteResult(site, "timeout");
+      }
+    }
+    return result;
   } catch (error) {
+    if (isSearchAborted(siteAbort.signal)) {
+      return abortedSiteResult(
+        site,
+        isSearchAborted(parentSignal) && !siteAbort.didTimeout() ? "cancelled" : "timeout"
+      );
+    }
     return {
       siteId: site.id,
       siteName: site.name,
@@ -59,6 +91,8 @@ export async function searchSite(site: FengbroNewsSiteConfig, query: string): Pr
       articles: [],
       error: error instanceof Error ? error.message : "搜尋失敗",
     };
+  } finally {
+    siteAbort.cleanup();
   }
 }
 
@@ -106,8 +140,19 @@ export async function handleSearch(request: NextRequest, body: unknown = null) {
     );
   }
 
-  // Bounded concurrency: 30+ locked sources must not open 30+ hanging fetches at once
-  const bySiteRaw = await mapPool(sites, SITE_CONCURRENCY, (site) => searchSite(site, query));
+  // Cancel in-flight scrapes when the client disconnects / aborts the request
+  const requestSignal = request.signal;
+
+  const bySiteRaw = await mapPool(
+    sites,
+    SITE_CONCURRENCY,
+    (site) => searchSite(site, query, requestSignal),
+    {
+      signal: requestSignal,
+      onAborted: (site) => abortedSiteResult(site, "cancelled"),
+    }
+  );
+
   const bySite = bySiteRaw.map((siteResult) => {
     const before = siteResult.articles.length;
     const articles = filterArticlesByMaxAge(siteResult.articles);
@@ -164,4 +209,3 @@ export async function handleSearch(request: NextRequest, body: unknown = null) {
         : undefined,
   });
 }
-

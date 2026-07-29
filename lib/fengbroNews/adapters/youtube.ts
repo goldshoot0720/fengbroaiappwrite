@@ -8,6 +8,8 @@ import {
   pickXml,
   titleMatches,
 } from "../html";
+import type { FengbroNewsSearchOptions } from "../options";
+import { isSearchAborted } from "../options";
 import type { NewsArticle, SiteSearchResult } from "../types";
 
 export type YouTubeVideoHit = {
@@ -187,7 +189,23 @@ export function getYouTubeChannelSearchUrl(homeUrl: string, query: string): stri
 }
 
 /** YouTube channel — prefer channel search, then recent feed/list (or /shorts tab). */
-export async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
+export async function searchYouTubeChannel(
+  site: FengbroNewsSiteConfig,
+  query: string,
+  options?: FengbroNewsSearchOptions
+): Promise<SiteSearchResult> {
+  if (isSearchAborted(options?.signal)) {
+    return {
+      siteId: site.id,
+      siteName: site.name,
+      domain: site.domain,
+      articles: [],
+      error: "搜尋已取消",
+      source: site.homeUrl,
+    };
+  }
+
+  const signal = options?.signal;
   const tab = getYouTubeChannelTab(site.homeUrl);
   const videosPageUrl = getYouTubeVideosPageUrl(site.homeUrl);
   const searchPageUrl = getYouTubeChannelSearchUrl(site.homeUrl, query);
@@ -197,8 +215,8 @@ export async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: s
   let hits: YouTubeVideoHit[] = [];
 
   // Shorts: list /shorts first (channel search mixes long-form)
-  if (tab === "shorts") {
-    const page = await fetchText(videosPageUrl);
+  if (tab === "shorts" && !isSearchAborted(signal)) {
+    const page = await fetchText(videosPageUrl, { signal });
     if (page.ok && page.text.length > 2000) {
       html = page.text;
       hits = parseYouTubeVideosFromHtml(html);
@@ -208,8 +226,8 @@ export async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: s
   }
 
   // 1) Channel search (skip for shorts once list page already returned items)
-  if (hits.length < 3 && !(tab === "shorts" && hits.length > 0)) {
-    const page = await fetchText(searchPageUrl);
+  if (hits.length < 3 && !(tab === "shorts" && hits.length > 0) && !isSearchAborted(signal)) {
+    const page = await fetchText(searchPageUrl, { signal });
     if (page.ok && page.text.length > 5000) {
       if (!html) html = page.text;
       const searchHits = parseYouTubeVideosFromHtml(page.text);
@@ -225,8 +243,8 @@ export async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: s
   }
 
   // 2) Recent videos + Atom feed (non-shorts only; keep path short under site timeout)
-  if (hits.length < 3 && tab !== "shorts") {
-    const page = await fetchText(videosPageUrl);
+  if (hits.length < 3 && tab !== "shorts" && !isSearchAborted(signal)) {
+    const page = await fetchText(videosPageUrl, { signal });
     if (page.ok) {
       if (!html) html = page.text;
       channelId = channelId || resolveYouTubeChannelIdFromHtml(page.text);
@@ -241,10 +259,11 @@ export async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: s
     }
   }
 
-  if (channelId && hits.length === 0 && tab !== "shorts") {
+  if (channelId && hits.length === 0 && tab !== "shorts" && !isSearchAborted(signal)) {
     const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
     const feed = await fetchText(feedUrl, {
       headers: { accept: "application/atom+xml,application/xml,text/xml,*/*" },
+      signal,
     });
     if (feed.ok && feed.text.includes("<entry>")) {
       hits = parseYouTubeFeedEntries(feed.text);
@@ -253,9 +272,9 @@ export async function searchYouTubeChannel(site: FengbroNewsSiteConfig, query: s
   }
 
   // 3) jina only as last resort when completely empty (slow path)
-  if (hits.length === 0) {
+  if (hits.length === 0 && !isSearchAborted(signal)) {
     const fallbackUrl = tab === "shorts" ? videosPageUrl : searchPageUrl;
-    const via = await fetchViaJina(fallbackUrl);
+    const via = await fetchViaJina(fallbackUrl, { signal });
     if (via.ok) {
       const mdHits: YouTubeVideoHit[] = [];
       const re =

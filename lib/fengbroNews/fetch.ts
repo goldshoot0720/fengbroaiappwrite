@@ -56,10 +56,30 @@ export function mergeAbortSignals(a?: AbortSignal | null, b?: AbortSignal | null
   return controller.signal;
 }
 
+function isAbortLike(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    name === "TimeoutError" ||
+    name === "AbortError" ||
+    /aborted|timeout/i.test(message)
+  );
+}
+
 export async function fetchText(
   url: string,
   init?: RequestInit & { timeoutMs?: number }
 ): Promise<{ ok: boolean; status: number; text: string; finalUrl: string; error?: string }> {
+  if (init?.signal?.aborted) {
+    return {
+      ok: false,
+      status: 0,
+      text: "",
+      finalUrl: url,
+      error: "已取消",
+    };
+  }
+
   const timeoutMs = init?.timeoutMs ?? FETCH_TIMEOUT_MS;
   const timeoutSignal =
     typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
@@ -80,42 +100,58 @@ export async function fetchText(
     const text = await res.text();
     return { ok: res.ok, status: res.status, text, finalUrl: res.url };
   } catch (error) {
-    const name = error instanceof Error ? error.name : "";
     const message = error instanceof Error ? error.message : "fetch failed";
-    const timedOut =
-      name === "TimeoutError" ||
-      name === "AbortError" ||
-      /aborted|timeout/i.test(message);
+    const timedOut = isAbortLike(error);
+    const cancelled = init?.signal?.aborted;
     return {
       ok: false,
       status: 0,
       text: "",
       finalUrl: url,
-      error: timedOut ? `逾時 ${Math.round(timeoutMs / 1000)}s` : message,
+      error: cancelled ? "已取消" : timedOut ? `逾時 ${Math.round(timeoutMs / 1000)}s` : message,
     };
   }
 }
 
-export async function fetchViaJina(targetHttpsUrl: string) {
+export async function fetchViaJina(
+  targetHttpsUrl: string,
+  options?: { signal?: AbortSignal }
+) {
   const url = targetHttpsUrl.startsWith("http")
     ? `${JINA_PREFIX}${targetHttpsUrl.replace(/^https?:\/\//i, "")}`
     : `${JINA_PREFIX}${targetHttpsUrl}`;
   return fetchText(url, {
     headers: { accept: "text/plain" },
     timeoutMs: JINA_TIMEOUT_MS,
+    signal: options?.signal,
   });
 }
 
 /** Run async work over items with a concurrency limit. */
-export async function mapPool<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
+export async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+  options?: {
+    signal?: AbortSignal;
+    /** Used for queue items not started when signal aborts. */
+    onAborted?: (item: T, index: number) => R;
+  }
+): Promise<R[]> {
   const results = new Array<R>(items.length);
   let next = 0;
-  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+  const runners = Array.from({ length: Math.min(concurrency, items.length || 1) }, async () => {
     while (next < items.length) {
+      if (options?.signal?.aborted && options.onAborted) {
+        const i = next++;
+        results[i] = options.onAborted(items[i], i);
+        continue;
+      }
       const i = next++;
       results[i] = await worker(items[i], i);
     }
   });
+  if (items.length === 0) return results;
   await Promise.all(runners);
   return results;
 }
@@ -136,10 +172,11 @@ export async function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout:
 
 export async function fetchPageText(
   url: string,
-  options?: { allowJina?: boolean }
+  options?: { allowJina?: boolean; signal?: AbortSignal }
 ): Promise<{ text: string; source: string; error?: string }> {
   const allowJina = options?.allowJina !== false;
-  const direct = await fetchText(url);
+  const signal = options?.signal;
+  const direct = await fetchText(url, { signal });
   if (
     direct.ok &&
     direct.text.length > 800 &&
@@ -154,8 +191,8 @@ export async function fetchPageText(
     return { text: direct.text, source: url };
   }
 
-  if (allowJina) {
-    const via = await fetchViaJina(url);
+  if (allowJina && !signal?.aborted) {
+    const via = await fetchViaJina(url, { signal });
     if (via.ok && via.text.length >= 200) {
       return { text: via.text, source: `${url} (via reader)` };
     }
@@ -171,4 +208,3 @@ export async function fetchPageText(
     error: direct.error || `HTTP ${direct.status || 0}`,
   };
 }
-

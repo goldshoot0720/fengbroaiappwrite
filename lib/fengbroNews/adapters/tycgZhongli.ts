@@ -3,11 +3,28 @@
 import type { FengbroNewsSiteConfig } from "@/lib/fengbroNewsSites";
 import { fetchText } from "../fetch";
 import { stripTags, titleMatches } from "../html";
+import type { FengbroNewsSearchOptions } from "../options";
+import { isSearchAborted } from "../options";
 import type { NewsArticle, SiteSearchResult } from "../types";
 import { absoluteUrl, canonicalizeUrl } from "../url";
 
 /** 中壢區公所 — paginated News.aspx list, filter by title */
-export async function searchTycgZhongli(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
+export async function searchTycgZhongli(
+  site: FengbroNewsSiteConfig,
+  query: string,
+  options?: FengbroNewsSearchOptions
+): Promise<SiteSearchResult> {
+  if (isSearchAborted(options?.signal)) {
+    return {
+      siteId: site.id,
+      siteName: site.name,
+      domain: site.domain,
+      articles: [],
+      error: "搜尋已取消",
+      source: site.homeUrl,
+    };
+  }
+
   const baseList = "https://www.zhongli.tycg.gov.tw/News.aspx?n=5605&sms=10728";
   const articles: NewsArticle[] = [];
   const seen = new Set<string>();
@@ -16,16 +33,18 @@ export async function searchTycgZhongli(site: FengbroNewsSiteConfig, query: stri
   const maxPages = 12;
 
   for (let page = 1; page <= maxPages; page++) {
+    if (isSearchAborted(options?.signal)) {
+      lastError = "搜尋已取消";
+      break;
+    }
     const listUrl = `${baseList}&page=${page}&PageSize=20`;
-    const { ok, status, text } = await fetchText(listUrl);
+    const { ok, status, text, error } = await fetchText(listUrl, { signal: options?.signal });
     pagesScanned += 1;
     if (!ok) {
-      lastError = `HTTP ${status} on page ${page}`;
+      lastError = error || `HTTP ${status} on page ${page}`;
       break;
     }
 
-    // <a href="News_Content.aspx?n=5605&s=1616891" ...>115/05/05-115/07/22中新地下道...</a>
-    // sometimes also includes sms=
     const re = /href="(News_Content\.aspx\?[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
     let m: RegExpExecArray | null;
     let pageHits = 0;
@@ -35,7 +54,6 @@ export async function searchTycgZhongli(site: FengbroNewsSiteConfig, query: stri
       pageHits += 1;
       if (!titleMatches(title, query)) continue;
       let href = m[1];
-      // Ensure sms is present for stable deep links when missing
       if (!/[?&]sms=/.test(href) && /[?&]n=5605/.test(href)) {
         href = href.includes("?") ? `${href}&sms=10728` : `${href}?sms=10728`;
       }
@@ -51,9 +69,7 @@ export async function searchTycgZhongli(site: FengbroNewsSiteConfig, query: stri
       });
     }
 
-    // No more list rows
     if (pageHits === 0) break;
-    // Early exit if we already found matches and later pages rarely needed for demo
     if (articles.length > 0 && page >= 10) break;
   }
 
@@ -66,4 +82,3 @@ export async function searchTycgZhongli(site: FengbroNewsSiteConfig, query: stri
     source: `${baseList} (scanned ${pagesScanned} pages)`,
   };
 }
-

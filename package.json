@@ -8,6 +8,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "test:unit": "node --import ./tests/unit/register-ts-paths.mjs --experimental-strip-types --test tests/unit/*.test.mjs",
     "ship": "node scripts/auto-ship.mjs"
   },
   "dependencies": {

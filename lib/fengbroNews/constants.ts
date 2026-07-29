@@ -21,3 +21,26 @@ export const SITE_CONCURRENCY = 5;
 
 /** Max list/search URLs tried per generic source (then Google News). */
 export const MAX_LIST_URL_TRIES = 2;
+
+/**
+ * Publishers that often block datacenter scrapers (Incapsula / bot walls).
+ * Generic adapter tries Google News RSS first for these hosts.
+ */
+export const PREFER_GOOGLE_NEWS_HOSTS = [
+  "chinatimes.com",
+  "udn.com",
+  "storm.mg",
+  "ctee.com.tw",
+  "businesstoday.com.tw",
+  "leho.com.tw",
+  "bella.tw",
+  "yahoo.com",
+  "housefun.com.tw",
+  "myhousing.com.tw",
+  "annewsmedia.com",
+  "hakkanews.tw",
+  "thehubnews.net",
+  "tyenews.com",
+  "homeplus.net.tw",
+  "ltn.com.tw",
+] as const;

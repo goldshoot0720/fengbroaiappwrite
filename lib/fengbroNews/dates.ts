@@ -31,11 +31,20 @@ export function parseFlexibleDate(raw: string): Date | null {
   const text = normalizeSpace(raw);
   if (!text) return null;
 
-  // ISO / RFC
+  // ROC slash first: Date.parse("115/05/05") wrongly yields year 115
+  const rocEarly =
+    text.match(/^([1-9]\d{2})[./\-](0?[1-9]|1[0-2])[./\-](0?[1-9]|[12]\d|3[01])/) ||
+    text.match(/\b([1-9]\d{2})[./\-年](0?[1-9]|1[0-2])[./\-月](0?[1-9]|[12]\d|3[01])日?\b/);
+  if (rocEarly && Number(rocEarly[1]) < 200) {
+    const d = parseRocDate(Number(rocEarly[1]), Number(rocEarly[2]), Number(rocEarly[3]));
+    if (d) return d;
+  }
+
+  // ISO / RFC (avoid short ambiguous strings already handled as ROC)
   const iso = Date.parse(text);
   if (Number.isFinite(iso) && text.length >= 8) {
     const d = new Date(iso);
-    if (!Number.isNaN(d.getTime())) return d;
+    if (!Number.isNaN(d.getTime()) && d.getFullYear() >= 1990) return d;
   }
 
   // Unix seconds in pure digits (10–11 digits)

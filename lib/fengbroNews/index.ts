@@ -21,7 +21,9 @@ export {
   MAX_LIST_URL_TRIES,
   MAX_NEWS_AGE_MS,
   MAX_NEWS_AGE_YEARS,
+  PREFER_GOOGLE_NEWS_HOSTS,
   SITE_CONCURRENCY,
   SITE_SEARCH_TIMEOUT_MS,
 } from "./constants";
+export { prefersGoogleNewsFirst } from "./googleNews";
 export { handleSearch } from "./search";

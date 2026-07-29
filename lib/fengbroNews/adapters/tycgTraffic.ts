@@ -3,28 +3,44 @@
 import type { FengbroNewsSiteConfig } from "@/lib/fengbroNewsSites";
 import { fetchText } from "../fetch";
 import { stripTags, titleMatches } from "../html";
+import type { FengbroNewsSearchOptions } from "../options";
+import { isSearchAborted } from "../options";
 import type { NewsArticle, SiteSearchResult } from "../types";
 import { absoluteUrl, canonicalizeUrl } from "../url";
 
 /** 桃園市政府交通局 — list.aspx?key= */
-export async function searchTycgTraffic(site: FengbroNewsSiteConfig, query: string): Promise<SiteSearchResult> {
+export async function searchTycgTraffic(
+  site: FengbroNewsSiteConfig,
+  query: string,
+  options?: FengbroNewsSearchOptions
+): Promise<SiteSearchResult> {
+  if (isSearchAborted(options?.signal)) {
+    return {
+      siteId: site.id,
+      siteName: site.name,
+      domain: site.domain,
+      articles: [],
+      error: "搜尋已取消",
+      source: site.homeUrl,
+    };
+  }
+
   const key = encodeURIComponent(query);
   const listUrl = `https://traffic.tycg.gov.tw/businessd/post/list.aspx?key=${key}&uid=0&cid=0&con=1`;
-  const { ok, status, text } = await fetchText(listUrl);
+  const { ok, status, text } = await fetchText(listUrl, { signal: options?.signal });
   if (!ok) {
     return {
       siteId: site.id,
       siteName: site.name,
       domain: site.domain,
       articles: [],
-      error: `HTTP ${status}`,
+      error: status ? `HTTP ${status}` : "已取消或逾時",
       source: listUrl,
     };
   }
 
   const articles: NewsArticle[] = [];
   const seen = new Set<string>();
-  // e.g. href="upt.aspx?p0=106052&...">CJ17 標...中新地下道...</a>
   const re = /href="((?:upt|plus)\.aspx\?[^"]*p0=\d+[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
@@ -50,4 +66,3 @@ export async function searchTycgTraffic(site: FengbroNewsSiteConfig, query: stri
     source: listUrl,
   };
 }
-
