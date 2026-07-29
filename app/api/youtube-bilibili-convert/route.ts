@@ -25,7 +25,10 @@ function normalizeFormat(v: unknown): OutputFormat {
 }
 
 function normalizeQuality(v: unknown): Mp4Quality {
-  return String(v || "") === "4K" ? "4K" : "1080p";
+  const s = String(v || "").trim();
+  // Legacy "4K" maps to 1080p (highest supported ladder).
+  if (s === "720p") return "720p";
+  return "1080p";
 }
 
 function asciiFallback(name: string): string {
@@ -140,7 +143,7 @@ export async function GET() {
  * Body: {
  *   urls: string[],
  *   format?: "MP3"|"MP4",
- *   mp4Quality?: "1080p"|"4K",
+ *   mp4Quality?: "1080p"|"720p",
  *   cookies?: string  // Netscape cookies.txt (optional; helps YouTube bot check)
  * }
  */

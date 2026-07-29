@@ -10,7 +10,8 @@ import type { ConvertTools } from "./resolveTools";
 import { detectPlatform, type MediaPlatform } from "./url";
 
 export type OutputFormat = "MP3" | "MP4";
-export type Mp4Quality = "1080p" | "4K";
+/** Preferred MP4 height ladder: 1080p first, then 720p. */
+export type Mp4Quality = "1080p" | "720p";
 
 export type ConvertOneResult = {
   url: string;
@@ -40,29 +41,40 @@ export function defaultTimeoutMsPerUrl(): number {
   return 10 * 60 * 1000;
 }
 
-function getMp4FormatSelector(mp4Quality: Mp4Quality): string {
-  const maxHeight = (() => {
-    if (isServerless()) {
-      // 4K/1080p often OOM or time out on Hobby; cap for cloud.
-      return mp4Quality === "4K" ? 1080 : 720;
+/**
+ * Format attempts in preference order (few rungs — each is a full yt-dlp run).
+ * YouTube DASH/SABR often 403s after selection; convertOneUrl retries next attempt.
+ * Prefer 1080p, then 720p, then progressive (format 18) as last resort.
+ * See https://github.com/yt-dlp/yt-dlp/issues/12482
+ */
+function getFormatAttempts(
+  format: OutputFormat,
+  mp4Quality: Mp4Quality,
+  platform: MediaPlatform
+): string[] {
+  if (format === "MP3") {
+    if (platform === "youtube") {
+      return [
+        // Prefer higher-quality audio (may 403 under SABR) then progressive.
+        "bestaudio/best",
+        "best[ext=mp4]/18/best",
+      ];
     }
-    return mp4Quality === "4K" ? 2160 : 1080;
-  })();
+    return ["bestaudio/best"];
+  }
 
-  // Prefer progressive MP4 first: DASH/SABR streams often 403 even with cookies.
-  // See https://github.com/yt-dlp/yt-dlp/issues/12482
+  // MP4: 1080 first (unless locked to 720), then 720, then progressive.
+  if (mp4Quality === "720p") {
+    return [
+      "bestvideo*[height<=720]+bestaudio/best[height<=720]",
+      "best[height<=720][ext=mp4]/best[height<=720]/18/best",
+    ];
+  }
   return [
-    `best[height<=${maxHeight}][ext=mp4]/best[height<=${maxHeight}]`,
-    `bestvideo*[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`,
-    "18/best",
-  ].join("/");
-}
-
-/** MP3: avoid pure DASH bestaudio (251/140) which often 403 under SABR. */
-function getMp3FormatSelector(platform: MediaPlatform): string | null {
-  if (platform !== "youtube") return null;
-  // 18 = progressive 360p+aac (reliable); then any progressive; then bestaudio/best.
-  return "18/best[ext=mp4]/bestaudio/best";
+    "bestvideo*[height<=1080]+bestaudio/best[height<=1080]",
+    "bestvideo*[height<=720]+bestaudio/best[height<=720]",
+    "best[height<=720][ext=mp4]/best[height<=720]/18/best",
+  ];
 }
 
 function buildArgs(opts: {
@@ -74,15 +86,17 @@ function buildArgs(opts: {
   platform: MediaPlatform;
   /** Absolute path to a Netscape cookies.txt for yt-dlp --cookies */
   cookiesPath?: string | null;
+  /** Explicit -f string for this attempt */
+  formatSelector: string;
 }): string[] {
   const {
     url,
     outputDir,
     format,
-    mp4Quality,
     ffmpegPath,
     platform,
     cookiesPath,
+    formatSelector,
   } = opts;
   const args: string[] = [];
 
@@ -95,14 +109,11 @@ function buildArgs(opts: {
   args.push("--fragment-retries", "3");
   args.push("--concurrent-fragments", isServerless() ? "1" : "4");
 
+  args.push("--format", formatSelector);
+
   if (format === "MP4") {
-    args.push("--format", getMp4FormatSelector(mp4Quality));
     args.push("--merge-output-format", "mp4");
   } else {
-    const mp3Fmt = getMp3FormatSelector(platform);
-    if (mp3Fmt) {
-      args.push("--format", mp3Fmt);
-    }
     args.push("--extract-audio", "--audio-format", "mp3", "--audio-quality", "0");
     // Thumbnail embed needs ffmpeg write; fine locally, skip on serverless to save time.
     if (!isServerless()) {
@@ -313,6 +324,17 @@ async function listNewMediaFiles(
   return out;
 }
 
+function logsIndicateDownloadBlock(logs: string[]): boolean {
+  return logs.some(
+    (l) =>
+      /HTTP Error 403/i.test(l) ||
+      /HTTP Error 429/i.test(l) ||
+      /unable to download video data/i.test(l) ||
+      /fragment.*not found/i.test(l) ||
+      / SABR /i.test(l)
+  );
+}
+
 export async function convertOneUrl(opts: {
   tools: ConvertTools;
   url: string;
@@ -347,27 +369,15 @@ export async function convertOneUrl(opts: {
     (await readdir(outputDir)).map((n) => join(outputDir, n))
   );
 
-  const args = buildArgs({
-    url,
-    outputDir,
-    format,
-    mp4Quality,
-    ffmpegPath: tools.ffmpeg,
-    platform,
-    cookiesPath,
-  });
-
-  if (isServerless() && format === "MP4" && mp4Quality !== "1080p") {
+  const attempts = getFormatAttempts(format, mp4Quality, platform);
+  if (format === "MP4") {
     onLog(
-      `雲端環境已自動限制畫質（請求 ${mp4Quality} → 實際上限約 720p～1080p）以避免逾時/OOM`
+      `畫質策略: 優先 ${mp4Quality === "720p" ? "720p" : "1080p"}，其次更低階（失敗自動降級）`
     );
-  } else if (isServerless() && format === "MP4") {
-    onLog("雲端環境 MP4 建議使用較短影片；畫質已偏向 720p progressive 以降低失敗率");
   }
-
-  onLog(
-    `$ yt-dlp ${args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(" ")}`
-  );
+  if (isServerless() && format === "MP4") {
+    onLog("雲端環境：長影片／高畫質可能逾時；失敗會自動改試 720p 或 progressive");
+  }
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -383,22 +393,72 @@ export async function convertOneUrl(opts: {
   env.PATH = `${[...extraDirs].join(pathSep)}${pathSep}${env.PATH || ""}`;
 
   let exitCode = 1;
-  try {
-    exitCode = await runProcess(
-      tools.ytDlp,
-      args,
-      env,
-      timeoutMs,
-      onLog,
-      idleTimeoutMs
+  let files: string[] = [];
+  // Split remaining wall time across attempts (min 45s each when multiple).
+  const perAttemptMs = Math.max(
+    45_000,
+    Math.floor(timeoutMs / Math.max(1, Math.min(attempts.length, 4)))
+  );
+
+  for (let i = 0; i < attempts.length; i++) {
+    const formatSelector = attempts[i];
+    const attemptLogsStart = logs.length;
+    onLog(
+      `[畫質嘗試 ${i + 1}/${attempts.length}] -f ${formatSelector}`
     );
-  } catch (err) {
-    onLog(err instanceof Error ? err.message : String(err));
-    return { url, ok: false, exitCode: 1, logs, files: [] };
+
+    const args = buildArgs({
+      url,
+      outputDir,
+      format,
+      mp4Quality,
+      ffmpegPath: tools.ffmpeg,
+      platform,
+      cookiesPath,
+      formatSelector,
+    });
+
+    onLog(
+      `$ yt-dlp ${args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(" ")}`
+    );
+
+    try {
+      exitCode = await runProcess(
+        tools.ytDlp,
+        args,
+        env,
+        perAttemptMs,
+        onLog,
+        idleTimeoutMs
+      );
+    } catch (err) {
+      onLog(err instanceof Error ? err.message : String(err));
+      exitCode = 1;
+    }
+
+    files = await listNewMediaFiles(outputDir, beforeNames);
+    const hasMedia = files.some((f) =>
+      /\.(mp3|mp4|m4a|webm|mkv|opus)$/i.test(f)
+    );
+    if (exitCode === 0 && hasMedia) {
+      return { url, ok: true, exitCode, logs, files };
+    }
+
+    const attemptSlice = logs.slice(attemptLogsStart);
+    const canRetry =
+      i < attempts.length - 1 &&
+      (logsIndicateDownloadBlock(attemptSlice) ||
+        exitCode !== 0 ||
+        !hasMedia);
+    if (!canRetry) break;
+    onLog(
+      `[畫質嘗試 ${i + 1}] 失敗（exit ${exitCode}），改試下一階畫質…`
+    );
   }
 
-  const files = await listNewMediaFiles(outputDir, beforeNames);
-  const hasMedia = files.some((f) => /\.(mp3|mp4|m4a|webm|mkv|opus)$/i.test(f));
+  const hasMedia = files.some((f) =>
+    /\.(mp3|mp4|m4a|webm|mkv|opus)$/i.test(f)
+  );
 
   if (!hasMedia && exitCode !== 0 && platform === "youtube" && isServerless()) {
     onLog(

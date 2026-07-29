@@ -20,7 +20,7 @@ const SOURCE_URL =
 
 const URL_COUNT_OPTIONS = [1, 3, 7] as const;
 const FORMAT_OPTIONS = ["MP3", "MP4"] as const;
-const QUALITY_OPTIONS = ["1080p", "4K"] as const;
+const QUALITY_OPTIONS = ["1080p", "720p"] as const;
 
 const SETTINGS_KEY = "fengbro.tools.ytbili.settings";
 
@@ -37,7 +37,8 @@ type ToolsProbe = {
 type SavedSettings = {
   urlCount: number;
   format: "MP3" | "MP4";
-  mp4Quality: "1080p" | "4K";
+  /** Current: 1080p | 720p. Legacy "4K" is remapped on load. */
+  mp4Quality: "1080p" | "720p" | "4K";
   urls?: string[];
 };
 
@@ -84,7 +85,7 @@ export default function YoutubeBilibiliConvertTool() {
   const [urlCount, setUrlCount] = useState<number>(1);
   const [urls, setUrls] = useState<string[]>(() => Array(7).fill(""));
   const [format, setFormat] = useState<"MP3" | "MP4">("MP3");
-  const [mp4Quality, setMp4Quality] = useState<"1080p" | "4K">("1080p");
+  const [mp4Quality, setMp4Quality] = useState<"1080p" | "720p">("1080p");
   const [status, setStatus] = useState("準備就緒");
   const [logLines, setLogLines] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -107,8 +108,11 @@ export default function YoutubeBilibiliConvertTool() {
           setUrlCount(s.urlCount);
         }
         if (s.format === "MP3" || s.format === "MP4") setFormat(s.format);
-        if (s.mp4Quality === "1080p" || s.mp4Quality === "4K") {
+        if (s.mp4Quality === "1080p" || s.mp4Quality === "720p") {
           setMp4Quality(s.mp4Quality);
+        } else if (s.mp4Quality === "4K") {
+          // legacy setting → highest ladder step
+          setMp4Quality("1080p");
         }
         if (Array.isArray(s.urls) && s.urls.length) {
           setUrls((prev) => {
@@ -751,7 +755,7 @@ export default function YoutubeBilibiliConvertTool() {
           {format === "MP4" ? (
             <div className="space-y-2">
               <label className="text-xs font-medium text-[var(--muted-foreground)]">
-                MP4 畫質
+                MP4 畫質（優先 1080p，失敗自動降 720p）
               </label>
               <div className="flex gap-2">
                 {QUALITY_OPTIONS.map((q) => (
