@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import {
   buildCnbcQuoteSourceUrl,
   buildYahooQuoteSourceUrl,
+  getJapanYahooLocalDisplayName,
   isJapanYahooQuoteTarget,
   isTaiwanYahooQuoteTarget,
   parseJapanYahooQuotePageTitle,
   parseTaiwanYahooQuotePageTitle,
   pickYahooChartName,
+  resolveYahooChartSymbol,
 } from "@/lib/fengbroFinanceCustom";
 
 export const dynamic = "force-dynamic";
@@ -533,8 +535,11 @@ function toNumberList(value: unknown) {
 
 function getYahooHistorySymbol(instrument: FinanceInstrument) {
   if (YAHOO_HISTORY_SYMBOLS[instrument.id]) return YAHOO_HISTORY_SYMBOLS[instrument.id];
-  if (instrument.provider === "yahoo") return instrument.symbol;
-  if (/^[A-Z0-9.-]+$/.test(instrument.symbol)) return instrument.symbol;
+  // Japan Yahoo local codes (e.g. 998407.O) → global chart symbols (^N225)
+  if (instrument.provider === "yahoo") return resolveYahooChartSymbol(instrument.symbol);
+  if (/^[A-Z0-9.^@=_\-+%]+$/i.test(instrument.symbol)) {
+    return resolveYahooChartSymbol(instrument.symbol);
+  }
   return "";
 }
 
@@ -817,10 +822,12 @@ function isTickerLikeName(name: string, symbol: string) {
 }
 
 async function fetchYahooInstrument(instrument: FinanceInstrument) {
+  // Chart API symbol may differ from display/source symbol (Japan 998407.O → ^N225).
+  const chartSymbol = resolveYahooChartSymbol(instrument.symbol);
   const isUsListed =
-    !/\.(TW|KS|T|HK|L|TO|AX)$/i.test(instrument.symbol) &&
-    !instrument.symbol.startsWith("^") &&
-    !instrument.symbol.includes("=");
+    !/\.(TW|KS|T|HK|L|TO|AX)$/i.test(chartSymbol) &&
+    !chartSymbol.startsWith("^") &&
+    !chartSymbol.includes("=");
   // Use 1d quote window for latest session price — never range=1y for the live quote.
   // With range=1y, chartPreviousClose is ~1 year ago and must not be treated as previous close.
   const params = new URLSearchParams({
@@ -831,7 +838,7 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     region: isUsListed ? "US" : "TW",
   });
 
-  const response = await fetch(`${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(instrument.symbol)}?${params.toString()}`, {
+  const response = await fetch(`${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(chartSymbol)}?${params.toString()}`, {
     headers: FETCH_BROWSER_HEADERS,
     cache: "no-store",
   });
@@ -926,6 +933,12 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const chartName = pickYahooChartName(meta);
   let displayName = chartName || instrument.name;
   let name = instrument.name;
+  // Japan-local index codes: fixed 代稱 (日経平均) when chart returns English "Nikkei 225".
+  const japanLocalName = getJapanYahooLocalDisplayName(instrument.symbol);
+  if (japanLocalName && isTickerLikeName(instrument.name, instrument.symbol)) {
+    displayName = japanLocalName;
+    name = japanLocalName;
+  }
   const preferTwChinese = isTaiwanYahooQuoteTarget(instrument.symbol, {
     group: instrument.group,
     sourceUrl: instrument.sourceUrl,
@@ -940,7 +953,11 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
       displayName = chineseName;
       name = chineseName;
     }
-  } else if (preferJpJapanese && isTickerLikeName(instrument.name, instrument.symbol)) {
+  } else if (
+    !japanLocalName &&
+    preferJpJapanese &&
+    isTickerLikeName(instrument.name, instrument.symbol)
+  ) {
     const japaneseName = await resolveJapanYahooJapaneseName(instrument.symbol, instrument.sourceUrl);
     if (japaneseName) {
       displayName = japaneseName;

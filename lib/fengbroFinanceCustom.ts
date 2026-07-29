@@ -307,6 +307,46 @@ const TAIWAN_YAHOO_STOCK_HOST = "tw.stock.yahoo.com";
 /** Yahoo!ファイナンス (Japan Yahoo Finance) host. */
 const JAPAN_YAHOO_FINANCE_HOST = "finance.yahoo.co.jp";
 
+/**
+ * Yahoo!ファイナンス Japan uses local index codes that global
+ * query1.finance.yahoo.com does not recognize (404 / Not Found).
+ * Map local code → chart API symbol for price/history fetches.
+ * Keep the local code for display and finance.yahoo.co.jp source links.
+ *
+ * @see https://finance.yahoo.co.jp/quote/998407.O (日経平均)
+ * @see https://finance.yahoo.com/quote/%5EN225
+ */
+const JAPAN_YAHOO_LOCAL_TO_CHART_SYMBOL: Record<string, string> = {
+  "998407.O": "^N225", // 日経平均株価
+};
+
+/** Friendly 代稱 when Japan index title scrape is unavailable. */
+const JAPAN_YAHOO_LOCAL_DISPLAY_NAME: Record<string, string> = {
+  "998407.O": "日経平均株価",
+};
+
+/**
+ * Symbol to use with Yahoo chart API (query1.finance.yahoo.com).
+ * Japan-local index codes (e.g. 998407.O) map to global codes (^N225).
+ */
+export function resolveYahooChartSymbol(symbol: string): string {
+  const s = symbol.trim().toUpperCase();
+  if (!s) return s;
+  return JAPAN_YAHOO_LOCAL_TO_CHART_SYMBOL[s] || s;
+}
+
+/** True when symbol is a Japan Yahoo-only local index code. */
+export function isJapanYahooLocalIndexSymbol(symbol: string): boolean {
+  const s = symbol.trim().toUpperCase();
+  return Boolean(s && JAPAN_YAHOO_LOCAL_TO_CHART_SYMBOL[s]);
+}
+
+/** Optional fixed display name for Japan-local index codes. */
+export function getJapanYahooLocalDisplayName(symbol: string): string | undefined {
+  const s = symbol.trim().toUpperCase();
+  return JAPAN_YAHOO_LOCAL_DISPLAY_NAME[s];
+}
+
 function ensureHttps(input: string) {
   return /^https?:\/\//i.test(input) ? input : `https://${input}`;
 }
@@ -493,7 +533,7 @@ export function guessFinanceGroup(
   if (/\.KS$/i.test(s) || /\.KQ$/i.test(s)) return "korea";
 
   // Japan
-  if (s === ".N225" || s === "^N225") return "japan";
+  if (s === ".N225" || s === "^N225" || isJapanYahooLocalIndexSymbol(s)) return "japan";
   if (/\.T$/i.test(s)) return "japan";
   if (fromJapanYahoo) return "japan";
 
@@ -551,11 +591,13 @@ export function isJapanYahooQuoteTarget(
   const s = symbol.trim().toUpperCase();
   if (!s) return false;
   if (options?.group === "japan") {
-    if (/\.T$/i.test(s) || s === ".N225" || s === "^N225") return true;
+    if (/\.T$/i.test(s) || s === ".N225" || s === "^N225" || isJapanYahooLocalIndexSymbol(s)) {
+      return true;
+    }
   }
   // Tokyo Stock Exchange common suffix
   if (/\.T$/i.test(s)) return true;
-  if (s === ".N225" || s === "^N225") return true;
+  if (s === ".N225" || s === "^N225" || isJapanYahooLocalIndexSymbol(s)) return true;
   return false;
 }
 

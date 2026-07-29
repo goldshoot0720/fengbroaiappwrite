@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import {
   buildYahooQuoteSourceUrl,
+  getJapanYahooLocalDisplayName,
   isJapanYahooQuoteTarget,
   isTaiwanYahooQuoteTarget,
   parseFinanceQuoteInput,
   parseJapanYahooQuotePageTitle,
   parseTaiwanYahooQuotePageTitle,
   pickYahooChartName,
+  resolveYahooChartSymbol,
 } from "@/lib/fengbroFinanceCustom";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +75,8 @@ async function resolveYahooChartName(
   symbol: string,
   options: { preferTw?: boolean; preferJp?: boolean }
 ) {
+  // Japan-local index codes (998407.O) → global chart symbols (^N225)
+  const chartSymbol = resolveYahooChartSymbol(symbol);
   const params = new URLSearchParams({
     range: "1d",
     interval: "1d",
@@ -81,7 +85,7 @@ async function resolveYahooChartName(
   });
 
   const response = await fetch(
-    `${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(symbol)}?${params.toString()}`,
+    `${YAHOO_CHART_ENDPOINT}/${encodeURIComponent(chartSymbol)}?${params.toString()}`,
     {
       headers: {
         ...FETCH_BROWSER_HEADERS,
@@ -129,10 +133,23 @@ export async function GET(request: Request) {
   const preferJp = isJapanYahooQuoteTarget(symbol, { sourceUrl, marketHint });
 
   let name: string | null = null;
-  let resolvedFrom: "taiwan-yahoo-page" | "japan-yahoo-page" | "yahoo-chart" | "symbol" =
-    "symbol";
+  let resolvedFrom:
+    | "taiwan-yahoo-page"
+    | "japan-yahoo-page"
+    | "japan-local-map"
+    | "yahoo-chart"
+    | "symbol" = "symbol";
 
-  if (provider === "yahoo" && preferTw) {
+  // Known Japan Yahoo local index codes (e.g. 998407.O → 日経平均株価)
+  if (provider === "yahoo") {
+    const localName = getJapanYahooLocalDisplayName(symbol);
+    if (localName) {
+      name = localName;
+      resolvedFrom = "japan-local-map";
+    }
+  }
+
+  if (!name && provider === "yahoo" && preferTw) {
     try {
       name = await resolveTaiwanYahooPageName(symbol, sourceUrl);
       if (name) resolvedFrom = "taiwan-yahoo-page";
