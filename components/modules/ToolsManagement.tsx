@@ -46,6 +46,7 @@ import {
 import {
   DOWNFALL_INDEX_BASELINE_HISTORY,
   buildDownfallIndexHistory,
+  filterRecentDownfallIndexHistory,
   getDownfallIndexVideoSamples,
   isDownfallIndexChannel,
   normalizeDownfallIndexUpdatePublishedAt,
@@ -1982,6 +1983,7 @@ function FengbroTubeSection({
               const henrenChannel = result.downfallChannel || result.channels.find(c => c.sourceUrl.includes("henren778"));
               let downfallIndexUpdate = henrenChannel ? getChannelDownfallIndexUpdate(henrenChannel) : null;
               const historyEntries = getAllChannelDownfallIndexUpdates(henrenChannel);
+              const chartHistoryEntries = filterRecentDownfallIndexHistory(historyEntries, 3);
               const videoSamples = getChannelDownfallVideoSamples(henrenChannel);
               const videoSampleCount = videoSamples.length;
               const historySampleCount = historyEntries.length;
@@ -2033,7 +2035,7 @@ function FengbroTubeSection({
                 lastUpdated: downfallIndexUpdate.publishedAt || new Date().toISOString(),
                 recordTag: null,
                 historyRanges: {
-                  "1y": historyEntries
+                  "3y": chartHistoryEntries
                 }
               };
 
@@ -2117,9 +2119,9 @@ function FengbroTubeSection({
                     ) : null}
                   </div>
                   
-                  {historyEntries.length > 1 && (
+                  {chartHistoryEntries.length > 1 && (
                     <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
-                      <FinanceHistoryChart quote={pseudoQuote} rangeKey="1y" label="倒台指數走勢圖" />
+                      <FinanceHistoryChart quote={pseudoQuote} rangeKey="3y" label="近三年倒台指數走勢圖" />
                     </div>
                   )}
                 </div>

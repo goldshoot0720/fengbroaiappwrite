@@ -166,6 +166,19 @@ export function buildDownfallIndexHistory<TVideo extends DownfallIndexVideoInput
   return [...byPrice.values()].sort((a, b) => getTime(a.date) - getTime(b.date));
 }
 
+export function filterRecentDownfallIndexHistory(
+  history: Array<{ date: string; price: number | null | undefined }>,
+  years: number,
+  now = Date.now()
+) {
+  const cutoff = now - Math.max(0, years) * 365 * 24 * 60 * 60 * 1000;
+  return history.filter((entry): entry is DownfallIndexHistoryEntry => {
+    if (typeof entry.price !== "number" || !Number.isFinite(entry.price)) return false;
+    const time = getTime(entry.date);
+    return time >= cutoff && time <= now;
+  });
+}
+
 function normalizeDigits(value: string) {
   return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
 }
