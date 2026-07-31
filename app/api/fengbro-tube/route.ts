@@ -6,6 +6,11 @@ import {
   isBrokenFengbroTubeTitle,
   normalizeFengbroTubeChannels,
 } from "@/lib/fengbroTubeChannels";
+import {
+  applyKnownDownfallIndexPublishedAt,
+  isDownfallIndexChannel,
+  resolveDownfallIndexForVideo,
+} from "@/lib/downfallIndex";
 
 export const dynamic = "force-dynamic";
 
@@ -181,90 +186,6 @@ function parseRelativePublishedAt(value: string, now = Date.now()) {
   const unitMs = msByUnit[unit];
   if (!unitMs) return "";
   return new Date(now - amount * unitMs).toISOString();
-}
-
-function normalizeDigits(value: string) {
-  return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
-}
-
-function extractDownfallIndex(title: string) {
-  const normalizedTitle = normalizeDigits(title);
-  const numberPattern = "([0-9]+(?:\\.[0-9]+)?)";
-  const formatIndex = (value: string) => Number(value).toFixed(2);
-  const movementUnits = "飆至|飙至|升至|漲至|涨至|達到|达到|衝到|冲到|升到|達|达|突破|破|到|至";
-  const isPlausibleIndex = (raw: string, nextText = "") => {
-    const value = Number(raw);
-    if (!Number.isFinite(value) || value < 1 || value > 100) return false;
-    // avoid "6月" / "2026年" false positives
-    if (/^[月日號号年]/.test(nextText)) return false;
-    if (value >= 40) return true;
-    return raw.includes(".");
-  };
-
-  // e.g. 倒台指數6月飆至70.58 / 「倒台指數」11月飆至68.28 / 衝到69.39
-  const movementNearLabel = normalizedTitle.match(
-    new RegExp(`倒台指[數数][」』"']?.{0,40}?(?:${movementUnits})\\s*${numberPattern}`)
-  );
-  if (movementNearLabel?.[1]) {
-    const full = movementNearLabel[0];
-    const num = movementNearLabel[1];
-    const nextText = full.slice(full.lastIndexOf(num) + num.length);
-    if (isPlausibleIndex(num, nextText)) return formatIndex(num);
-  }
-
-  // e.g. 解讀「中共倒台指數」67
-  const indexAfterLabel = normalizedTitle.match(
-    new RegExp(`倒台指[數数][」』"']?\\s*${numberPattern}(?![月日號号年])`)
-  );
-  if (indexAfterLabel?.[1] && isPlausibleIndex(indexAfterLabel[1])) {
-    return formatIndex(indexAfterLabel[1]);
-  }
-
-  const labelMatch = /倒台指[數数]/.exec(normalizedTitle);
-  if (labelMatch) {
-    const afterLabelText = normalizedTitle.slice(
-      labelMatch.index + labelMatch[0].length,
-      labelMatch.index + labelMatch[0].length + 80
-    );
-    const movementValue = afterLabelText.match(new RegExp(`(?:${movementUnits})\\s*${numberPattern}`));
-    if (movementValue?.[1] && isPlausibleIndex(movementValue[1])) return formatIndex(movementValue[1]);
-
-    const afterLabelNumbers = [...afterLabelText.matchAll(new RegExp(numberPattern, "g"))];
-    const firstNonDateNumber = afterLabelNumbers.find((match) => {
-      const nextText = afterLabelText.slice((match.index || 0) + match[0].length).trimStart();
-      return isPlausibleIndex(match[1], nextText);
-    });
-    if (firstNonDateNumber?.[1]) return formatIndex(firstNonDateNumber[1]);
-  }
-  const beforeLabel = normalizedTitle.match(new RegExp(`${numberPattern}\\s*(?:分|%|％)?\\s*倒台指[數数]`));
-  if (beforeLabel?.[1] && isPlausibleIndex(beforeLabel[1])) return formatIndex(beforeLabel[1]);
-  return "";
-}
-
-function isHenrenChannel(sourceUrl: string, title: string) {
-  return /henren778/i.test(sourceUrl) || /一[個个]狠人/.test(title);
-}
-
-/** Thumbnail-only values (number not present in title) with verified air dates. */
-const KNOWN_DOWNFALL_INDEX_BY_VIDEO_ID: Record<string, { value: string; publishedAt: string }> = {
-  // 本月「倒台指數」再度上行… thumbnail 67.44 · first Saturday of Oct 2025
-  sticRfV28VM: { value: "67.44", publishedAt: "2025-10-04T00:00:00.000Z" },
-};
-
-function resolveDownfallIndexForVideo(video: TubeVideoEntry) {
-  const fromTitle = extractDownfallIndex(video.title);
-  if (fromTitle) {
-    return {
-      value: fromTitle,
-      publishedAt: video.publishedAt || video.updatedAt || "",
-    };
-  }
-  const known = KNOWN_DOWNFALL_INDEX_BY_VIDEO_ID[video.videoId];
-  if (!known) return null;
-  return {
-    value: known.value,
-    publishedAt: video.publishedAt || video.updatedAt || known.publishedAt,
-  };
 }
 
 function getVideosPageUrl(sourceUrl: string) {
@@ -639,19 +560,10 @@ async function fetchChannel(channel: FengbroTubeChannelConfig) {
   let downfallIndexVideo: { video: TubeVideoEntry; value: string } | null = null;
   const resolvedTitle = getChannelTitle(channel, title || feed.feedTitle);
 
-  if (isHenrenChannel(sourceUrl, resolvedTitle)) {
+  if (isDownfallIndexChannel(sourceUrl, resolvedTitle)) {
     // Channel search returns historical 倒台指數 episodes that may not appear in latest /videos.
     const searchVideos = await fetchChannelSearchVideos(sourceUrl, "倒台指數");
-    const combined = mergeTubeVideos(videos, searchVideos).map((video) => {
-      const known = KNOWN_DOWNFALL_INDEX_BY_VIDEO_ID[video.videoId];
-      if (!known) return video;
-      // Prefer verified air date over noisy relative scrape times (e.g. "9 個月前").
-      return {
-        ...video,
-        publishedAt: known.publishedAt,
-        updatedAt: video.updatedAt || known.publishedAt,
-      };
-    });
+    const combined = mergeTubeVideos(videos, searchVideos).map(applyKnownDownfallIndexPublishedAt);
 
     const downfallItems = combined
       .map((video) => {
@@ -807,7 +719,7 @@ function getLatestChannelTime(channel: { videos: Array<{ publishedAt: string; up
 async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
   const uniqueChannels = normalizeFengbroTubeChannels(channelsConfig);
   const henrenConfig = { alias: "一个狠人", sourceUrl: "https://www.youtube.com/@henren778/videos" };
-  const hasHenren = uniqueChannels.some(c => isHenrenChannel(c.sourceUrl, c.alias));
+  const hasHenren = uniqueChannels.some(c => isDownfallIndexChannel(c.sourceUrl, c.alias));
   
   const allChannels = [...uniqueChannels];
   if (!hasHenren) {
@@ -828,7 +740,7 @@ async function buildTubeResult(channelsConfig: FengbroTubeChannelConfig[]) {
     };
   });
 
-  const downfallChannel = allFetchedChannels.find(c => isHenrenChannel(c.sourceUrl, c.title)) || null;
+  const downfallChannel = allFetchedChannels.find(c => isDownfallIndexChannel(c.sourceUrl, c.title)) || null;
   const channels = allFetchedChannels.filter(c => uniqueChannels.some(req => req.sourceUrl === c.sourceUrl));
 
   channels.sort((left, right) => getLatestChannelTime(right) - getLatestChannelTime(left));
