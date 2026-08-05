@@ -34,6 +34,7 @@
 | 文件 | PDF | 內建 PDF Viewer |
 | 文件 | DOC、DOCX | Office Web Viewer |
 | 試算表 | XLS、XLSX | Office Web Viewer |
+| 試算表 | CSV | 表格預覽（含引號欄位）+ 純文字編輯；大檔預覽前 500 列 |
 | 簡報 | PPT、PPTX | Office Web Viewer |
 | 文字 | TXT、MD | 內建文字預覽 + 編輯 |
 | 程式碼 | JS、TS、HTML、CSS、JSON、XML、Python、Java | 語法高亮 + 編輯 |

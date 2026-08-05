@@ -27,6 +27,7 @@ const getLanguageFromFileName = (fileName: string): string => {
     'xml': 'xml',
     'md': 'markdown',
     'txt': 'plaintext',
+    'csv': 'plaintext',
     'py': 'python',
     'java': 'java',
     'cpp': 'cpp',

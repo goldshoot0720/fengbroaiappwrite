@@ -454,6 +454,7 @@ docker run -p 3000:3000 \
 | 文件 | PDF | 內建 PDF Viewer |
 | 文件 | DOC、DOCX | Office Web Viewer |
 | 試算表 | XLS、XLSX | Office Web Viewer |
+| 試算表 | CSV | 表格預覽 + 純文字編輯 |
 | 簡報 | PPT、PPTX | Office Web Viewer |
 | 文字 | TXT、MD | 文字預覽 + 編輯 |
 | 程式碼 | JS、TS、HTML、CSS、JSON、XML | 語法高亮 + 編輯 |

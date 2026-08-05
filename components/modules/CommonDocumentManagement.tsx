@@ -96,6 +96,10 @@ function addAppwriteConfigToUrl(url: string): string {
   return paramString ? `${url}${separator}${paramString}` : url;
 }
 
+// Shared accept list for document file uploads (keep in sync with canPreviewFile)
+const DOCUMENT_UPLOAD_ACCEPT =
+  '.pdf,.txt,.md,.csv,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.mov,.avi,.mkv,.mp3,.wav,.m4a,.ogg,text/csv';
+
 // Get file extension from filetype or filename
 function getFileExtension(filename: string, filetype?: string): string {
   if (filetype) return filetype.toLowerCase();
@@ -114,6 +118,8 @@ function getFileTypeInfo(filename: string, filetype?: string): { color: string; 
     case 'xls':
     case 'xlsx':
       return { color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-900/30', label: 'Excel' };
+    case 'csv':
+      return { color: 'text-emerald-600', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30', label: 'CSV' };
     case 'ppt':
     case 'pptx':
       return { color: 'text-orange-600', bgColor: 'bg-orange-100 dark:bg-orange-900/30', label: 'PPT' };
@@ -190,7 +196,8 @@ function canEditFile(filename: string, filetype?: string): boolean {
 function getCodeLanguage(ext: string): string {
   const langMap: Record<string, string> = {
     'js': 'javascript', 'jsx': 'javascript', 'ts': 'typescript', 'tsx': 'typescript',
-    'json': 'json', 'xml': 'xml', 'html': 'html', 'htm': 'html', 'css': 'css', 'md': 'markdown'
+    'json': 'json', 'xml': 'xml', 'html': 'html', 'htm': 'html', 'css': 'css', 'md': 'markdown',
+    'csv': 'plaintext',
   };
   return langMap[ext] || 'text';
 }
@@ -1105,7 +1112,7 @@ export default function CommonDocumentManagement() {
           <Input placeholder="分類" value={inlineCreateForm.category} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
           <Textarea placeholder="備註" value={inlineCreateForm.note} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, note: e.target.value })} className="rounded-lg text-sm h-20 resize-none" />
           <Input placeholder="參考" value={inlineCreateForm.ref} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
-          <Input placeholder="檔案類型 (pdf, md, mp4...)" value={inlineCreateForm.filetype} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, filetype: e.target.value })} className="h-9 rounded-lg text-sm" />
+          <Input placeholder="檔案類型 (pdf, csv, md...)" value={inlineCreateForm.filetype} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, filetype: e.target.value })} className="h-9 rounded-lg text-sm" />
           <Input placeholder="文件 URL" value={inlineCreateForm.file} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, file: e.target.value })} className="h-9 rounded-lg text-sm" />
           <Input placeholder="封面圖 URL" value={inlineCreateForm.cover} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, cover: e.target.value })} className="h-9 rounded-lg text-sm" />
           <Input placeholder="Hash（選填）" value={inlineCreateForm.hash} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, hash: e.target.value })} className="h-9 rounded-lg text-sm" />
@@ -1564,7 +1571,7 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
           />
           {/* 檔案類型 */}
           <Input
-            placeholder="檔案類型 (例: pdf, docx, mp4)"
+            placeholder="檔案類型 (例: pdf, csv, docx)"
             value={inlineEditForm.filetype}
             onChange={(e) => setInlineEditForm({ ...inlineEditForm, filetype: e.target.value })}
             className="h-9 rounded-lg text-sm"
@@ -1575,7 +1582,7 @@ function DocumentCard({ document, onEdit, onDelete, onPreview, onEditContent, in
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg"
+                accept={DOCUMENT_UPLOAD_ACCEPT}
                 className="hidden"
                 id={`card-file-upload-${document.$id}`}
                 onChange={async (e) => {
@@ -2060,7 +2067,7 @@ function DocumentTableRow({
               <Input
                 value={inlineEditForm.filetype}
                 onChange={(e) => setInlineEditForm({ ...inlineEditForm, filetype: e.target.value })}
-                placeholder="檔案類型 (例: pdf, docx, mp4)"
+                placeholder="檔案類型 (例: pdf, csv, docx)"
                 className="h-9 text-sm"
               />
               <Input
@@ -2074,7 +2081,7 @@ function DocumentTableRow({
               <div className="flex gap-2">
                 <input
                   type="file"
-                  accept=".pdf,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg"
+                  accept={DOCUMENT_UPLOAD_ACCEPT}
                   className="hidden"
                   id={`table-file-upload-${document.$id}`}
                   onChange={async (e) => {
@@ -2454,7 +2461,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
 
     const validExtensions = [
       // Documents
-      '.pdf', '.txt', '.md', '.json', '.xml', '.html', '.htm', '.css', '.js', '.ts', '.jsx', '.tsx',
+      '.pdf', '.txt', '.md', '.csv', '.json', '.xml', '.html', '.htm', '.css', '.js', '.ts', '.jsx', '.tsx',
       // Office
       '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
       // Archives
@@ -2466,7 +2473,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
     ];
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!validExtensions.includes(ext)) {
-      alert('只支援 PDF, 文字檔, 程式碼, Office 文件, 壓縮檔, 圖片, 影音 格式');
+      alert('只支援 PDF、CSV、文字檔、程式碼、Office 文件、壓縮檔、圖片、影音 格式');
       return;
     }
 
@@ -2635,7 +2642,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
             <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
               <input
                 type="file"
-                accept=".pdf,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.mov,.avi,.mkv,.mp3,.wav,.m4a,.ogg"
+                accept={DOCUMENT_UPLOAD_ACCEPT}
                 multiple={!document}
                 onChange={handleFileSelect}
                 className="hidden"
@@ -2647,7 +2654,7 @@ function DocumentFormModal({ document, existingDocuments, onClose, onSuccess }: 
                   {selectedFiles.length > 1 ? `已選擇 ${selectedFiles.length} 個檔案` : selectedFiles[0]?.name || '點擊或拖曳上傳文件'}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  可重複選檔累加；也可按住 Ctrl 或 Shift 多選。支援 PDF, 文字檔, 程式碼, Office, 壓縮檔, 圖片, 影音 (最大 50MB)
+                  可重複選檔累加；也可按住 Ctrl 或 Shift 多選。支援 PDF、CSV、文字檔、程式碼、Office、壓縮檔、圖片、影音 (最大 50MB)
                 </p>
               </label>
             </div>
@@ -3107,17 +3114,18 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
         );
       }
 
-      // Show CSV preview for .csv files
+      // Show CSV preview for .csv files (table view; edit mode uses CodeEditor)
       if (ext === 'csv') {
-        const rows = txtContent.split('\n').filter(line => line.trim());
+        const CSV_PREVIEW_MAX_ROWS = 500;
+        const rows = txtContent.split(/\r?\n/).filter(line => line.trim());
         const parseRow = (row: string) => {
-          const cells = [];
+          const cells: string[] = [];
           let inQuotes = false;
           let currentCell = '';
           for (let i = 0; i < row.length; i++) {
             const char = row[i];
             if (char === '"') {
-              if (inQuotes && row[i+1] === '"') {
+              if (inQuotes && row[i + 1] === '"') {
                 currentCell += '"';
                 i++;
               } else {
@@ -3133,25 +3141,60 @@ function DocumentPreviewModal({ document, onClose, openInEditMode = false }: { d
           cells.push(currentCell);
           return cells;
         };
+
+        if (rows.length === 0) {
+          return (
+            <div className="flex flex-col items-center justify-center h-full p-8 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400">
+              <p className="text-sm">此 CSV 檔案沒有可顯示的內容</p>
+            </div>
+          );
+        }
+
         const parsedRows = rows.map(parseRow);
+        const header = parsedRows[0] || [];
+        const dataRows = parsedRows.slice(1);
+        const visibleDataRows = dataRows.slice(0, CSV_PREVIEW_MAX_ROWS);
+        const colCount = Math.max(header.length, ...visibleDataRows.map((r) => r.length), 1);
+
         return (
           <div className="h-full overflow-auto bg-white dark:bg-gray-900">
+            <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-gray-200 bg-emerald-50/90 px-4 py-2 text-xs text-emerald-800 backdrop-blur dark:border-gray-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+              <span>
+                CSV 表格預覽 · {dataRows.length} 列資料 · {colCount} 欄
+                {dataRows.length > CSV_PREVIEW_MAX_ROWS ? `（僅顯示前 ${CSV_PREVIEW_MAX_ROWS} 列）` : ''}
+              </span>
+              <span className="text-emerald-700/80 dark:text-emerald-300/80">可切換「編輯」以純文字修改</span>
+            </div>
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-              <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 shadow-sm z-10">
+              <thead className="bg-gray-50 dark:bg-gray-800 sticky top-9 shadow-sm z-10">
                 <tr>
-                  {parsedRows[0]?.map((header, i) => (
-                    <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{header}</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 w-12">#</th>
+                  {Array.from({ length: colCount }, (_, i) => (
+                    <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {header[i] ?? `欄${i + 1}`}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-                {parsedRows.slice(1).map((row, i) => (
-                  <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                    {row.map((cell, j) => (
-                      <td key={j} className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">{cell}</td>
-                    ))}
+                {visibleDataRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={colCount + 1} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                      只有表頭，沒有資料列
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  visibleDataRows.map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <td className="px-3 py-3 text-xs text-gray-400 tabular-nums">{i + 1}</td>
+                      {Array.from({ length: colCount }, (_, j) => (
+                        <td key={j} className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
+                          {row[j] ?? ''}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
