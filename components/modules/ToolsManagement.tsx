@@ -64,7 +64,8 @@ import {
   isAutoAppleLandtopDefaultQuery,
   isAutoSamsungLandtopDefaultQuery,
 } from "@/lib/landtopDefaults";
-import { getExportFilename } from "@/lib/utils";
+import { getExportFilename, getProxiedMediaUrl } from "@/lib/utils";
+import { useImages } from "@/hooks";
 import dynamic from "next/dynamic";
 import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
 import ImageFormatConvertTool from "@/components/modules/ImageFormatConvertTool";
@@ -874,8 +875,28 @@ const FINANCE_VIDEO_MAX_MS = 180_000;
 
 function isFinanceMediaVideo(url?: string | null) {
   if (!url) return false;
-  const path = url.split("?")[0]?.toLowerCase() || "";
-  return path.endsWith(".mp4") || path.endsWith(".webm") || path.endsWith(".mov");
+  // Prefer original file path (Appwrite / media-proxy query may hide extension).
+  try {
+    const parsed = new URL(url, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    const proxied = parsed.searchParams.get("url");
+    if (proxied) {
+      const nestedPath = new URL(proxied).pathname.toLowerCase();
+      if (nestedPath.endsWith(".mp4") || nestedPath.endsWith(".webm") || nestedPath.endsWith(".mov")) {
+        return true;
+      }
+    }
+    const path = parsed.pathname.toLowerCase();
+    return path.endsWith(".mp4") || path.endsWith(".webm") || path.endsWith(".mov");
+  } catch {
+    const path = url.split("?")[0]?.toLowerCase() || "";
+    return path.endsWith(".mp4") || path.endsWith(".webm") || path.endsWith(".mov");
+  }
+}
+
+/** Display URL: Appwrite Storage goes through media-proxy (auth / CORS). */
+function getFinanceDisplayMediaUrl(url?: string | null) {
+  if (!url) return "";
+  return getProxiedMediaUrl(url) || url;
 }
 
 function FinanceImageCarousel({
@@ -903,6 +924,7 @@ function FinanceImageCarousel({
 
   const activeIndex = images.length > 0 ? index % images.length : 0;
   const activeUrl = images[activeIndex];
+  const displayUrl = getFinanceDisplayMediaUrl(activeUrl);
   const isVideo = isFinanceMediaVideo(activeUrl);
 
   const clearVideoFallback = useCallback(() => {
@@ -962,7 +984,7 @@ function FinanceImageCarousel({
         {isVideo ? (
           <video
             key={activeUrl}
-            src={activeUrl}
+            src={displayUrl}
             className={`h-full w-full ${objectClass}`}
             autoPlay
             muted
@@ -980,7 +1002,7 @@ function FinanceImageCarousel({
         ) : (
           <img
             key={activeUrl}
-            src={activeUrl}
+            src={displayUrl}
             alt={alt || `${quote.name} image ${activeIndex + 1}`}
             className={`h-full w-full ${objectClass}`}
             loading="lazy"
@@ -2187,7 +2209,69 @@ function FengbroFinanceSection({
   /** 已新增標的 chips：預設折疊；進入編輯時自動展開 */
   const [customListOpen, setCustomListOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  /** 從鋒兄圖片（Appwrite Storage）挑選標的配圖 */
+  const [storagePickerOpen, setStoragePickerOpen] = useState(false);
+  const [storagePickerQuery, setStoragePickerQuery] = useState("");
   const financeCsvInputRef = useRef<HTMLInputElement>(null);
+  const {
+    images: storageImages,
+    loading: storageImagesLoading,
+    error: storageImagesError,
+    loadImages: loadStorageImages,
+  } = useImages(storagePickerOpen && customFormOpen);
+
+  const selectedDraftImageUrls = useMemo(
+    () =>
+      (customDraft.imageUrlsText || "")
+        .split(/[\n,]+/)
+        .map((part) => part.trim())
+        .filter(Boolean),
+    [customDraft.imageUrlsText]
+  );
+
+  const filteredStorageImages = useMemo(() => {
+    const q = storagePickerQuery.trim().toLowerCase();
+    const withFile = storageImages.filter((img) => typeof img.file === "string" && img.file.trim());
+    if (!q) return withFile.slice(0, 48);
+    return withFile
+      .filter((img) => {
+        const hay = `${img.name || ""} ${img.note || ""} ${img.category || ""} ${img.ref || ""}`.toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, 48);
+  }, [storageImages, storagePickerQuery]);
+
+  const appendDraftImageUrl = useCallback(
+    (url: string) => {
+      const trimmed = url.trim();
+      if (!trimmed) return;
+      const existing = (customDraft.imageUrlsText || "")
+        .split(/[\n,]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (existing.includes(trimmed) || existing.length >= 9) return;
+      onCustomDraftChange({
+        ...customDraft,
+        imageUrlsText: [...existing, trimmed].join("\n"),
+      });
+    },
+    [customDraft, onCustomDraftChange]
+  );
+
+  const removeDraftImageUrl = useCallback(
+    (url: string) => {
+      const next = (customDraft.imageUrlsText || "")
+        .split(/[\n,]+/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .filter((item) => item !== url);
+      onCustomDraftChange({
+        ...customDraft,
+        imageUrlsText: next.join("\n"),
+      });
+    },
+    [customDraft, onCustomDraftChange]
+  );
 
   /** Map quote id (`custom-…`) back to the editable local instrument. */
   const findCustomInstrumentByQuoteId = useCallback(
@@ -2249,6 +2333,10 @@ function FengbroFinanceSection({
       setCustomListOpen(true);
     }
   }, [isEditingCustom]);
+
+  useEffect(() => {
+    if (!customFormOpen) setStoragePickerOpen(false);
+  }, [customFormOpen]);
   /** Last name we auto-filled from resolve-name (so we can replace it when the symbol changes). */
   const autofilledNameRef = useRef<string>("");
   const customDraftRef = useRef(customDraft);
@@ -2586,19 +2674,138 @@ function FengbroFinanceSection({
             </div>
 
             <div className="grid gap-3 border-t border-slate-200/80 pt-4 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="space-y-1.5 text-sm sm:col-span-2 lg:col-span-1">
-                <span className="font-medium text-foreground">圖片網址（可選）</span>
+              <div className="space-y-1.5 text-sm sm:col-span-2 lg:col-span-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-foreground">圖片網址（可選）</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => {
+                      setStoragePickerOpen((open) => {
+                        const next = !open;
+                        if (next) void loadStorageImages(true);
+                        return next;
+                      });
+                    }}
+                  >
+                    {storagePickerOpen ? "收合鋒兄圖片" : "從鋒兄圖片選取"}
+                  </Button>
+                </div>
                 <textarea
                   value={customDraft.imageUrlsText || ""}
                   onChange={(event) =>
                     onCustomDraftChange({ ...customDraft, imageUrlsText: event.target.value })
                   }
                   rows={3}
-                  placeholder={"每行一張圖片 URL\nhttps://example.com/chart.png"}
+                  placeholder={
+                    "每行一張圖片 URL（可貼 Appwrite Storage）\nhttps://…/storage/buckets/…/files/…/view?project=…"
+                  }
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
-                <span className="block text-[11px] text-muted-foreground">最多 9 張，會顯示在報價卡片輪播。</span>
-              </label>
+                {selectedDraftImageUrls.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {selectedDraftImageUrls.map((url) => (
+                      <span
+                        key={url}
+                        className="group relative inline-flex h-14 w-14 overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                        title={url}
+                      >
+                        <img
+                          src={getFinanceDisplayMediaUrl(url)}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeDraftImageUrl(url)}
+                          className="absolute inset-x-0 bottom-0 bg-black/55 py-0.5 text-[10px] font-medium text-white opacity-0 transition group-hover:opacity-100"
+                          aria-label="移除圖片"
+                        >
+                          移除
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {storagePickerOpen ? (
+                  <div className="mt-2 space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={storagePickerQuery}
+                        onChange={(event) => setStoragePickerQuery(event.target.value)}
+                        placeholder="搜尋鋒兄圖片名稱…"
+                        className="h-8 min-w-[10rem] flex-1 rounded-lg border border-emerald-100 bg-white px-2.5 text-xs outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => void loadStorageImages(true)}
+                        disabled={storageImagesLoading}
+                      >
+                        {storageImagesLoading ? "載入中…" : "重新整理"}
+                      </Button>
+                    </div>
+                    {storageImagesError ? (
+                      <p className="text-[11px] text-red-600">{storageImagesError}</p>
+                    ) : null}
+                    {storageImagesLoading && storageImages.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground">載入 Appwrite 圖片中…</p>
+                    ) : filteredStorageImages.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        尚無可選圖片。請先到「鋒兄圖片」上傳，或確認 Appwrite 設定。
+                      </p>
+                    ) : (
+                      <div className="grid max-h-52 grid-cols-4 gap-1.5 overflow-y-auto sm:grid-cols-5">
+                        {filteredStorageImages.map((img) => {
+                          const fileUrl = img.file.trim();
+                          const selected = selectedDraftImageUrls.includes(fileUrl);
+                          const atLimit = selectedDraftImageUrls.length >= 9 && !selected;
+                          return (
+                            <button
+                              key={img.$id}
+                              type="button"
+                              disabled={atLimit}
+                              title={img.name || fileUrl}
+                              onClick={() => {
+                                if (selected) removeDraftImageUrl(fileUrl);
+                                else appendDraftImageUrl(fileUrl);
+                              }}
+                              className={`relative aspect-square overflow-hidden rounded-lg border bg-white transition ${
+                                selected
+                                  ? "border-emerald-500 ring-2 ring-emerald-300"
+                                  : "border-slate-200 hover:border-emerald-300"
+                              } ${atLimit ? "cursor-not-allowed opacity-40" : ""}`}
+                            >
+                              <img
+                                src={getFinanceDisplayMediaUrl(fileUrl)}
+                                alt={img.name || "storage image"}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                              {selected ? (
+                                <span className="absolute inset-x-0 bottom-0 bg-emerald-600/90 py-0.5 text-center text-[9px] font-semibold text-white">
+                                  已選
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-emerald-900/70">
+                      點選加入 Appwrite Storage 網址（最多 9 張）。顯示時會經 media-proxy 載入。
+                    </p>
+                  </div>
+                ) : null}
+                <span className="block text-[11px] text-muted-foreground">
+                  最多 9 張，支援外部 URL 或 Appwrite Storage，顯示於報價卡片輪播。
+                </span>
+              </div>
               <label className="space-y-1.5 text-sm">
                 <span className="font-medium text-foreground">YouTube（可選）</span>
                 <input
