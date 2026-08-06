@@ -5,8 +5,14 @@
  * name,symbol,provider,group,imageUrls,youtubeUrl,bilibiliUrl,relatedLinks,featured
  *
  * Multi-value cells use `;` as separator:
- * - imageUrls: url1;url2
+ * - imageUrls: url1;url2  (supports external https and Appwrite Storage view URLs)
  * - relatedLinks: url  or  標籤|url  (multiple joined with `;`)
+ *
+ * imageUrls notes:
+ * - Prefer full Appwrite Storage URLs
+ *   (`https://…/storage/buckets/{bucket}/files/{fileId}/view?project=…`)
+ * - media-proxy URLs are unwrapped on import/export so API keys are not written to CSV
+ * - Cells with `;`, quotes, or commas are quoted per RFC-style CSV escaping
  */
 
 import {
@@ -68,7 +74,16 @@ const MAX_CUSTOM_INSTRUMENTS = 30;
 export function escapeFinanceCsvValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   const stringValue = String(value);
-  if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n")) {
+  // Always quote when field has `;` (our multi-value sep), `?`/`&` (Appwrite query),
+  // commas, quotes, or newlines — safer for Excel re-save of Storage URLs.
+  if (
+    stringValue.includes(",") ||
+    stringValue.includes('"') ||
+    stringValue.includes("\n") ||
+    stringValue.includes(";") ||
+    stringValue.includes("?") ||
+    stringValue.includes("&")
+  ) {
     return `"${stringValue.replace(/"/g, '""')}"`;
   }
   return stringValue;
@@ -80,7 +95,8 @@ function relatedLinksToCsvCell(instrument: CustomFinanceInstrument): string {
   return formatFinanceRelatedLinksText(instrument.relatedLinks).replace(/\n+/g, ";");
 }
 
-function imageUrlsToCsvCell(instrument: CustomFinanceInstrument): string {
+/** Join image URLs for CSV (canonical Appwrite Storage / https only). */
+export function imageUrlsToCsvCell(instrument: CustomFinanceInstrument): string {
   const urls = normalizeFinanceImageUrls(
     instrument.imageUrls?.length
       ? instrument.imageUrls
@@ -256,7 +272,8 @@ export function parseFinanceCustomCsv(text: string): {
       continue;
     }
 
-    const imageUrlsRaw = cell("imageUrls").replace(/;/g, "\n");
+    // Keep `;` / newlines; normalizeFinanceImageUrls understands both and Appwrite Storage URLs.
+    const imageUrlsRaw = cell("imageUrls");
     const relatedLinksRaw = cell("relatedLinks").replace(/;/g, "\n");
     const featured = parseFeaturedFlag(cell("featured"));
 
@@ -264,12 +281,13 @@ export function parseFinanceCustomCsv(text: string): {
     const provider = providerRaw === "cnbc" ? "cnbc" : "yahoo";
     const group = migrateFinanceGroup(cell("group") || "other");
 
+    const imageUrls = normalizeFinanceImageUrls(imageUrlsRaw);
     const normalized = normalizeCustomFinanceInstrument({
       name: cell("name") || symbol,
       symbol,
       provider,
       group,
-      imageUrlsText: imageUrlsRaw,
+      imageUrls,
       youtubeUrl: cell("youtubeUrl"),
       bilibiliUrl: cell("bilibiliUrl"),
       relatedLinks: normalizeFinanceRelatedLinks(relatedLinksRaw),

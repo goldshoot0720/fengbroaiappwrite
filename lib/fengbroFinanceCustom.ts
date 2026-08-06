@@ -75,6 +75,8 @@ export function buildCustomFinanceQuoteId(
 
 const MAX_CUSTOM_IMAGE_URLS = 9;
 const MAX_CUSTOM_RELATED_LINKS = 9;
+/** Appwrite Storage view URLs with long project/query need more headroom than generic links. */
+const MAX_FINANCE_IMAGE_URL_LEN = 1200;
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -83,6 +85,71 @@ function isHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** True when URL points at Appwrite Storage (absolute or path-style). */
+export function isAppwriteStorageUrl(value: string): boolean {
+  return /\/storage\/buckets\//i.test(value);
+}
+
+/**
+ * Unwrap `/api/media-proxy?url=…` (absolute or site-relative) back to the inner media URL.
+ * Keeps Appwrite Storage URLs portable in localStorage / CSV (no embedded API key).
+ */
+export function unwrapFinanceMediaProxyUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || !trimmed.includes("media-proxy")) return trimmed;
+  try {
+    const parsed = new URL(trimmed, "http://localhost");
+    if (!parsed.pathname.includes("/api/media-proxy")) return trimmed;
+    const inner = parsed.searchParams.get("url");
+    if (inner?.trim()) return inner.trim();
+  } catch {
+    // fall through to regex
+  }
+  const match = trimmed.match(/[?&]url=([^&]+)/i);
+  if (match?.[1]) {
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }
+  return trimmed;
+}
+
+/**
+ * Canonical image URL for 鋒兄金融 (storage / CSV / draft).
+ * - Unwraps media-proxy so exports do not leak `_key`
+ * - Accepts absolute http(s) Appwrite Storage URLs
+ * - Rejects bare relative paths that cannot be resolved without endpoint config
+ */
+export function canonicalizeFinanceImageUrl(value: unknown, maxLen = MAX_FINANCE_IMAGE_URL_LEN): string | undefined {
+  if (typeof value !== "string") return undefined;
+  let trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  // Prefer original storage URL over proxied form
+  trimmed = unwrapFinanceMediaProxyUrl(trimmed);
+
+  // Absolute Appwrite / external http(s)
+  if (/^https?:\/\//i.test(trimmed)) {
+    if (trimmed.length > maxLen) return undefined;
+    return isHttpUrl(trimmed) ? trimmed : undefined;
+  }
+
+  // Protocol-relative //host/…
+  if (trimmed.startsWith("//")) {
+    const withProtocol = `https:${trimmed}`;
+    if (withProtocol.length > maxLen) return undefined;
+    return isHttpUrl(withProtocol) ? withProtocol : undefined;
+  }
+
+  // Site-relative Appwrite path (/v1/storage/buckets/… or /storage/buckets/…)
+  // Keep as-is only if it already looks like a full Appwrite path we can proxy later;
+  // without host it cannot round-trip across machines, so still require http(s) for storage.
+  // (Users should paste full Storage view URLs from 鋒兄圖片.)
+  return undefined;
 }
 
 /** Normalize optional http(s) URL; empty / invalid → undefined. */
@@ -94,26 +161,55 @@ export function normalizeOptionalHttpUrl(value: unknown, maxLen = 500): string |
   return isHttpUrl(withProtocol) ? withProtocol : undefined;
 }
 
-/** Parse draft textarea / stored list into clean http(s) image URLs. */
+/**
+ * Split a multi-image cell / textarea into raw URL candidates.
+ * Prefer `;` and newlines (CSV multi-value). Avoid naive comma-split that could
+ * mangle rare URLs; only split on comma when the next token starts a new http(s) URL.
+ */
+export function splitFinanceImageUrlList(input: string): string[] {
+  const text = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  if (!text) return [];
+
+  if (/[;\n]/.test(text)) {
+    return text
+      .split(/[;\n]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+
+  // Single token, or comma-separated full URLs (legacy paste)
+  if (/,/.test(text) && /https?:\/\//i.test(text)) {
+    return text
+      .split(/,\s*(?=https?:\/\/)/i)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+
+  return [text];
+}
+
+/** Parse draft textarea / stored list / CSV cell into clean image URLs (incl. Appwrite Storage). */
 export function normalizeFinanceImageUrls(input: unknown): string[] {
   const rawList: string[] = [];
   if (typeof input === "string") {
-    rawList.push(
-      ...input
-        .split(/[\n,]+/)
-        .map((part) => part.trim())
-        .filter(Boolean)
-    );
+    rawList.push(...splitFinanceImageUrlList(input));
   } else if (Array.isArray(input)) {
     for (const item of input) {
-      if (typeof item === "string" && item.trim()) rawList.push(item.trim());
+      if (typeof item === "string" && item.trim()) {
+        // Array entries may themselves be multi-value cells
+        if (/[;\n]/.test(item) || (/https?:\/\//i.test(item) && item.includes(","))) {
+          rawList.push(...splitFinanceImageUrlList(item));
+        } else {
+          rawList.push(item.trim());
+        }
+      }
     }
   }
 
   const seen = new Set<string>();
   const urls: string[] = [];
   for (const raw of rawList) {
-    const url = normalizeOptionalHttpUrl(raw, 800);
+    const url = canonicalizeFinanceImageUrl(raw, MAX_FINANCE_IMAGE_URL_LEN);
     if (!url || seen.has(url)) continue;
     seen.add(url);
     urls.push(url);

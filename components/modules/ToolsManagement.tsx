@@ -3092,7 +3092,7 @@ function FengbroFinanceSection({
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700/80">FengBro Finance</p>
               <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄金融</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                自訂指數／股票報價監控；可輸出／輸入 CSV 備份追蹤清單，觸及新高或新低時自動標註。
+                自訂指數／股票報價監控；CSV 會一併匯出／匯入圖片網址（含 Appwrite Storage），觸及新高或新低時自動標註。
               </p>
             </div>
           </div>
@@ -3118,7 +3118,7 @@ function FengbroFinanceSection({
               variant="outline"
               onClick={onExportCustomCsv}
               className="gap-2 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
-              title="匯出自訂指數／股票為 CSV"
+              title="匯出自訂指數／股票為 CSV（含 imageUrls：外部圖或 Appwrite Storage）"
             >
               <Download size={16} />
               輸出 CSV
@@ -3128,7 +3128,7 @@ function FengbroFinanceSection({
               variant="outline"
               onClick={() => financeCsvInputRef.current?.click()}
               className="gap-2 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
-              title="從 CSV 匯入自訂指數／股票（同代號覆蓋合併）"
+              title="從 CSV 匯入自訂指數／股票（同代號覆蓋；imageUrls 支援 Appwrite Storage）"
             >
               <Upload size={16} />
               輸入 CSV

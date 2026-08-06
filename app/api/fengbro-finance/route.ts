@@ -5,6 +5,7 @@ import {
   getJapanYahooLocalDisplayName,
   isJapanYahooQuoteTarget,
   isTaiwanYahooQuoteTarget,
+  normalizeFinanceImageUrls,
   parseJapanYahooQuotePageTitle,
   parseTaiwanYahooQuotePageTitle,
   pickYahooChartName,
@@ -69,27 +70,6 @@ function normalizeOptionalHttpUrl(value: unknown, maxLen = 500): string | undefi
   } catch {
     return undefined;
   }
-}
-
-function normalizeImageUrls(input: unknown): string[] {
-  const raw: string[] = [];
-  if (typeof input === "string") {
-    raw.push(...input.split(/[\n,]+/).map((part) => part.trim()).filter(Boolean));
-  } else if (Array.isArray(input)) {
-    for (const item of input) {
-      if (typeof item === "string" && item.trim()) raw.push(item.trim());
-    }
-  }
-  const seen = new Set<string>();
-  const urls: string[] = [];
-  for (const item of raw) {
-    const url = normalizeOptionalHttpUrl(item, 800);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    urls.push(url);
-    if (urls.length >= 9) break;
-  }
-  return urls;
 }
 
 function guessRelatedLinkLabel(url: string): string {
@@ -250,7 +230,7 @@ function normalizeCustomFinanceInstrument(input: CustomFinanceInstrumentInput, i
       : symbol;
   const idBase = slugifyInstrumentId(`${provider}-${symbol}`) || `custom-${index + 1}`;
 
-  const imageUrls = normalizeImageUrls(
+  const imageUrls = normalizeFinanceImageUrls(
     Array.isArray(input.imageUrls) && input.imageUrls.length > 0
       ? input.imageUrls
       : input.imageUrl
