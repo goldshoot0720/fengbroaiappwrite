@@ -179,6 +179,51 @@ export function filterRecentDownfallIndexHistory(
   });
 }
 
+export type DownfallIndexPublishGap = {
+  days: number;
+  previous: DownfallIndexHistoryEntry;
+  latest: DownfallIndexHistoryEntry;
+};
+
+/**
+ * Days between the two most recent 倒台指數 releases (rounded).
+ * Expects history sorted by date ascending (as from buildDownfallIndexHistory).
+ */
+export function getLastTwoDownfallIndexPublishGap(
+  history: Array<{ date: string; price: number | null | undefined }>
+): DownfallIndexPublishGap | null {
+  const dated = history
+    .filter((entry): entry is DownfallIndexHistoryEntry => {
+      if (typeof entry.price !== "number" || !Number.isFinite(entry.price)) return false;
+      return getTime(entry.date) > 0;
+    })
+    .sort((a, b) => getTime(a.date) - getTime(b.date));
+
+  if (dated.length < 2) return null;
+
+  const previous = dated[dated.length - 2];
+  const latest = dated[dated.length - 1];
+  const gapMs = getTime(latest.date) - getTime(previous.date);
+  if (gapMs < 0) return null;
+
+  return {
+    days: Math.round(gapMs / (24 * 60 * 60 * 1000)),
+    previous,
+    latest,
+  };
+}
+
+/** Human-readable label for publish gap, e.g. "42 天" or "65 天（約 2 個月又 5 天）". */
+export function formatDownfallIndexPublishGapDays(days: number) {
+  if (!Number.isFinite(days) || days < 0) return "";
+  const wholeDays = Math.round(days);
+  if (wholeDays < 30) return `${wholeDays} 天`;
+  const months = Math.floor(wholeDays / 30);
+  const remDays = wholeDays % 30;
+  if (remDays === 0) return `${wholeDays} 天（約 ${months} 個月）`;
+  return `${wholeDays} 天（約 ${months} 個月又 ${remDays} 天）`;
+}
+
 function normalizeDigits(value: string) {
   return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
 }

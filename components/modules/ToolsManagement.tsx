@@ -47,7 +47,9 @@ import {
   DOWNFALL_INDEX_BASELINE_HISTORY,
   buildDownfallIndexHistory,
   filterRecentDownfallIndexHistory,
+  formatDownfallIndexPublishGapDays,
   getDownfallIndexVideoSamples,
+  getLastTwoDownfallIndexPublishGap,
   isDownfallIndexChannel,
   normalizeDownfallIndexUpdatePublishedAt,
   resolveDownfallIndexForVideo,
@@ -2011,6 +2013,10 @@ function FengbroTubeSection({
               const historySampleCount = historyEntries.length;
               const hardcodedSampleCount = DOWNFALL_INDEX_BASELINE_HISTORY.length;
               const isHistoryFallback = !downfallIndexUpdate && historyEntries.length > 0;
+              const publishGap = getLastTwoDownfallIndexPublishGap(historyEntries);
+              const publishGapLabel = publishGap
+                ? formatDownfallIndexPublishGapDays(publishGap.days)
+                : "";
 
               if (isHistoryFallback) {
                  const lastEntry = historyEntries[historyEntries.length - 1];
@@ -2038,6 +2044,9 @@ function FengbroTubeSection({
                 videoSampleCount > 0
                   ? `${historySampleCount}（近期影片 ${videoSampleCount} + 歷史基線 ${hardcodedSampleCount}）`
                   : `${historySampleCount}（歷史基線 ${hardcodedSampleCount}）`;
+              const previousPublishLabel = publishGap
+                ? formatDownfallDateTime(publishGap.previous.date)
+                : "";
               
               const pseudoQuote: FengbroFinanceQuote = {
                 id: "downfall-index",
@@ -2069,9 +2078,23 @@ function FengbroTubeSection({
                       <span className="text-4xl font-black tracking-tighter text-amber-600">
                         {downfallIndexUpdate.value}
                       </span>
-                      <span className="mt-1 rounded-full border border-amber-200 bg-amber-100/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
-                        樣本數 {historySampleCount}
-                      </span>
+                      <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+                        <span className="rounded-full border border-amber-200 bg-amber-100/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                          樣本數 {historySampleCount}
+                        </span>
+                        {publishGapLabel ? (
+                          <span
+                            className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[11px] font-semibold text-orange-800"
+                            title={
+                              previousPublishLabel
+                                ? `上次發布：${publishGap!.previous.price.toFixed(2)}（${previousPublishLabel}）→ 本次：${publishGap!.latest.price.toFixed(2)}`
+                                : undefined
+                            }
+                          >
+                            最近兩次間隔 {publishGapLabel}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="mt-4 space-y-2 rounded-2xl border border-amber-100 bg-white/90 px-3 py-3 text-left text-xs text-amber-900/80">
@@ -2081,6 +2104,19 @@ function FengbroTubeSection({
                           {sampleCountLabel}
                         </span>
                       </div>
+                      {publishGap ? (
+                        <div className="flex items-start gap-2">
+                          <span className="shrink-0 font-semibold text-amber-700">發布間隔</span>
+                          <span className="min-w-0 font-medium text-amber-800">
+                            最近兩次 {publishGapLabel}
+                            <span className="mt-0.5 block text-[11px] font-normal text-amber-600/80">
+                              上次 {publishGap.previous.price.toFixed(2)}（{previousPublishLabel}）
+                              {" → "}
+                              本次 {publishGap.latest.price.toFixed(2)}（{publishedLabel}）
+                            </span>
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="flex items-start gap-2">
                         <span className="shrink-0 font-semibold text-amber-700">來源頻道</span>
                         <a
