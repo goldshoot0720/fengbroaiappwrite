@@ -28,6 +28,10 @@
 sidebar-edge-*-check.png
 .claude/settings.local.json
 
+# local RIS open-data probe dumps (do not ship)
+scratch/ris-ODRP*.json
+scratch/ris-odrp*.bin
+
 # Impeccable local overrides / live runtime
 .impeccable/config.local.json
 .impeccable/live/server.json
