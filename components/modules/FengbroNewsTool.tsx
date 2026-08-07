@@ -38,6 +38,7 @@ import {
 import type { FengbroNewsSearchResult } from "@/lib/fengbroNews/types";
 import { getExportFilename } from "@/lib/utils";
 import { NewsSitesManager } from "@/components/modules/fengbro-news/NewsSitesManager";
+import { PopulationStatsPanel } from "@/components/modules/fengbro-news/PopulationStatsPanel";
 import { TraBentoStoresPanel } from "@/components/modules/fengbro-news/TraBentoStoresPanel";
 
 function loadSites(): FengbroNewsSiteConfig[] {
@@ -667,6 +668,8 @@ export default function FengbroNewsTool() {
       </DataCard>
 
       <TraBentoStoresPanel />
+
+      <PopulationStatsPanel />
     </div>
   );
 }
