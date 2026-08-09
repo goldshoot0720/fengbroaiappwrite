@@ -48,6 +48,8 @@ interface FriendlyAiCrudShellProps {
   summaries?: WorkbenchSummaryItem[];
   /** A stable key used to isolate recent-search history per module (e.g. "food", "music"). Defaults to the `title` prop. */
   recentSearchKey?: string;
+  /** Historical localStorage keys to merge into `recentSearchKey` once. */
+  legacyRecentSearchKeys?: readonly string[];
 }
 
 const toneStyles: Record<Tone, string> = {
@@ -77,10 +79,11 @@ export function FriendlyAiCrudShell({
   suggestions = [],
   summaries = [],
   recentSearchKey,
+  legacyRecentSearchKeys,
 }: FriendlyAiCrudShellProps) {
   const storageKey = recentSearchKey || title;
   const { items: recentSearches, addSearch, removeSearch, clearAll } =
-    useRecentSearches(storageKey);
+    useRecentSearches(storageKey, legacyRecentSearchKeys);
 
   const [isRecentOpen, setIsRecentOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);

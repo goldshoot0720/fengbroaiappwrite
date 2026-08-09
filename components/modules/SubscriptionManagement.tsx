@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -82,8 +82,7 @@ function SubscriptionPriceDisplay({
 }
 
 const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
-const SUBSCRIPTION_RECENT_SEARCHES_KEY = "fengbro.subscription.recentSearches";
-const SUBSCRIPTION_RECENT_SEARCH_LIMIT = 37;
+const LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS = ["fengbro.subscription.recentSearches"];
 const SUBSCRIPTION_VOICE_HELP =
   "可說：匯出 CSV、重新整理、全選、新增訂閱 Netflix 100 元、已過期、編輯第一筆、刪除選取。說完會自動結束；安全操作直接執行。";
 
@@ -461,7 +460,6 @@ export default function SubscriptionManagement() {
   } = useSubscriptions();
   const [initializingTable, setInitializingTable] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [renewalFilter, setRenewalFilter] = useState<"all" | "renewing" | "stopped">("all");
   const [dueFilter, setDueFilter] = useState<"all" | "expired" | "7days" | "30days" | "nodate">("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
@@ -515,40 +513,6 @@ export default function SubscriptionManagement() {
   const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
 
-  const addRecentSearch = useCallback((query: string) => {
-    const normalized = query.trim();
-    if (!normalized) return;
-
-    setRecentSearches((prev) => {
-      const next = [normalized, ...prev.filter((item) => item.toLowerCase() !== normalized.toLowerCase())].slice(0, SUBSCRIPTION_RECENT_SEARCH_LIMIT);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(SUBSCRIPTION_RECENT_SEARCHES_KEY, JSON.stringify(next));
-      }
-      return next;
-    });
-  }, []);
-
-  const removeRecentSearch = useCallback((query: string) => {
-    setRecentSearches((prev) => {
-      const next = prev.filter((item) => item !== query);
-      if (typeof window !== "undefined") {
-        if (next.length > 0) {
-          localStorage.setItem(SUBSCRIPTION_RECENT_SEARCHES_KEY, JSON.stringify(next));
-        } else {
-          localStorage.removeItem(SUBSCRIPTION_RECENT_SEARCHES_KEY);
-        }
-      }
-      return next;
-    });
-  }, []);
-
-  const clearRecentSearches = useCallback(() => {
-    setRecentSearches([]);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(SUBSCRIPTION_RECENT_SEARCHES_KEY);
-    }
-  }, []);
-
   useEffect(() => {
     if (!bulkDeleteOpen || isDeleting) return;
     const focusTimer = window.setTimeout(() => {
@@ -557,25 +521,6 @@ export default function SubscriptionManagement() {
     }, 80);
     return () => window.clearTimeout(focusTimer);
   }, [bulkDeleteOpen, isDeleting]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(SUBSCRIPTION_RECENT_SEARCHES_KEY) || "[]");
-      if (Array.isArray(saved)) {
-        setRecentSearches(saved.filter((item): item is string => typeof item === "string").slice(0, SUBSCRIPTION_RECENT_SEARCH_LIMIT));
-      }
-    } catch {
-      setRecentSearches([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    const query = searchQuery.trim();
-    if (!query) return;
-    const timer = window.setTimeout(() => addRecentSearch(query), 800);
-    return () => window.clearTimeout(timer);
-  }, [addRecentSearch, searchQuery]);
 
   const monthOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1763,50 +1708,8 @@ export default function SubscriptionManagement() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onClearSearch={() => setSearchQuery("")}
-        searchExtras={
-          recentSearches.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-slate-500 dark:text-slate-400">最近搜尋</span>
-              {recentSearches.map((item) => (
-                <span
-                  key={item}
-                  className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery(item);
-                      addRecentSearch(item);
-                    }}
-                    className="px-3 py-1"
-                  >
-                    {item}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`移除最近搜尋 ${item}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      removeRecentSearch(item);
-                    }}
-                    className="border-l border-slate-200 px-1.5 py-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:border-slate-700 dark:hover:bg-red-950/30"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-              <button
-                type="button"
-                onClick={clearRecentSearches}
-                className="rounded-full px-2 py-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800"
-              >
-                清除
-              </button>
-            </div>
-          ) : (
-            <div className="text-xs text-slate-400 dark:text-slate-500">最近搜尋會在這裡顯示。</div>
-          )
-        }
+        recentSearchKey="subscription-management"
+        legacyRecentSearchKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
         intro={
           <div className="space-y-4">
             <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
