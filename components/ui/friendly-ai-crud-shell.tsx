@@ -112,10 +112,14 @@ export function FriendlyAiCrudShell({
   }, [addSearch, searchQuery]);
 
   const handleClearSearch = useCallback(() => {
-    onClearSearch?.();
+    if (onClearSearch) {
+      onClearSearch();
+    } else {
+      onSearchChange("");
+    }
     setIsRecentOpen(false);
     inputRef.current?.focus();
-  }, [onClearSearch]);
+  }, [onClearSearch, onSearchChange]);
 
   /** Pick a recent search item. */
   const handlePickRecent = useCallback(
@@ -194,7 +198,7 @@ export function FriendlyAiCrudShell({
                     placeholder={searchPlaceholder}
                     className="h-11 rounded-xl border-slate-200 bg-white pl-10 pr-10 dark:border-slate-700 dark:bg-slate-950"
                   />
-                  {searchQuery && onClearSearch ? (
+                  {searchQuery ? (
                     <button
                       type="button"
                       onClick={handleClearSearch}
