@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,7 +29,7 @@ import {
   resolveMultipartFileBlob,
   uploadFileInParts,
 } from "@/lib/fileMultipart";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List, X } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Search, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, ArchiveRestore, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List, X } from "lucide-react";
 import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -84,6 +84,13 @@ const NOTE_TEMPLATES: Record<string, { title: string; category: string; content:
 
 type NoteFilterMode = "all" | "recent" | "pinned" | "withFiles";
 type NoteViewMode = "card" | "list";
+
+const NOTES_TRASH_KEY = "fengbro.notes.trash";
+
+type TrashedArticle = {
+  article: Article;
+  deletedAt: string;
+};
 
 function summarizeContent(content: string) {
   const normalized = (content || "").replace(/\s+/g, " ").trim();
@@ -299,6 +306,8 @@ export default function NotesManagement() {
 
   // Select all / batch delete states
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashedArticles, setTrashedArticles] = useState<TrashedArticle[]>([]);
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [batchDeleteProgress, setBatchDeleteProgress] = useState({ current: 0, total: 0 });
   const [batchCategory, setBatchCategory] = useState("");
@@ -317,6 +326,24 @@ export default function NotesManagement() {
   const [editSelectedFile3, setEditSelectedFile3] = useState<File | null>(null);
   const [editUploadingFile, setEditUploadingFile] = useState<number | null>(null);
   const [editUploadProgress, setEditUploadProgress] = useState<number>(0);
+
+  const saveTrash = useCallback((items: TrashedArticle[]) => {
+    setTrashedArticles(items);
+    window.localStorage.setItem(NOTES_TRASH_KEY, JSON.stringify(items));
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved: unknown = JSON.parse(window.localStorage.getItem(NOTES_TRASH_KEY) || "[]");
+      if (Array.isArray(saved)) {
+        setTrashedArticles(saved.filter((item): item is TrashedArticle =>
+          Boolean(item && typeof item === "object" && "article" in item && "deletedAt" in item)
+        ));
+      }
+    } catch {
+      setTrashedArticles([]);
+    }
+  }, []);
 
   // 取得已存在的不重複標題用於下拉選單
   const existingTitles = useMemo(() => {
@@ -663,7 +690,66 @@ export default function NotesManagement() {
     }
   };
 
+  const moveToTrash = async (article: Article) => {
+    await deleteArticle(article.$id);
+    setTrashedArticles((previous) => {
+      const next = [
+        { article, deletedAt: new Date().toISOString() },
+        ...previous.filter((item) => item.article.$id !== article.$id),
+      ];
+      window.localStorage.setItem(NOTES_TRASH_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handleDelete = async (id: string, title: string) => {
+    const article = articles.find((item) => item.$id === id);
+    if (!article || !confirm(`確定將筆記「${title}」移到垃圾桶嗎？可在垃圾桶中還原。`)) return;
+    try {
+      await moveToTrash(article);
+      setSelectedIds((previous) => {
+        const next = new Set(previous);
+        next.delete(id);
+        return next;
+      });
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : "移入垃圾桶失敗");
+    }
+  };
+
+  const restoreFromTrash = async (item: TrashedArticle) => {
+    try {
+      const { article } = item;
+      await createArticle({
+        title: article.title,
+        content: article.content,
+        newDate: article.newDate,
+        category: article.category || "",
+        url1: article.url1 || "",
+        url2: article.url2 || "",
+        url3: article.url3 || "",
+        file1: article.file1 || "",
+        file1name: article.file1name || "",
+        file1type: article.file1type || "",
+        file2: article.file2 || "",
+        file2name: article.file2name || "",
+        file2type: article.file2type || "",
+        file3: article.file3 || "",
+        file3name: article.file3name || "",
+        file3type: article.file3type || "",
+      });
+      saveTrash(trashedArticles.filter((candidate) => candidate.article.$id !== article.$id));
+    } catch (restoreError) {
+      alert(restoreError instanceof Error ? restoreError.message : "還原筆記失敗");
+    }
+  };
+
+  const clearTrash = () => {
+    if (!confirm(`確定永久清空垃圾桶中的 ${trashedArticles.length} 篇筆記嗎？此操作無法復原。`)) return;
+    saveTrash([]);
+  };
+
+  const legacyDelete = async (id: string, title: string) => {
     if (!confirm(`確定刪除筆記「${title}」嗎？\n\n目前這一版仍是直接刪除，尚未提供垃圾桶復原。`)) return;
     try {
       await deleteArticle(id);
@@ -692,7 +778,7 @@ export default function NotesManagement() {
   };
 
   // 批次刪除選取的筆記
-  const handleBatchDelete = async () => {
+  const legacyBatchDelete = async () => {
     if (selectedIds.size === 0) return;
 
     const confirmText = "DELETE article";
@@ -726,6 +812,33 @@ export default function NotesManagement() {
     setSelectedIds(new Set());
     await loadArticles(true);
     alert(`批次刪除完成！\n成功: ${successCount} 篇\n失敗: ${failCount} 篇`);
+  };
+
+  const handleBatchDelete = async () => {
+    const selectedArticles = articles.filter((article) => selectedIds.has(article.$id));
+    if (selectedArticles.length === 0) return;
+    if (!confirm(`確定將選取的 ${selectedArticles.length} 篇筆記移到垃圾桶嗎？可在垃圾桶中還原。`)) return;
+
+    setBatchDeleting(true);
+    setBatchDeleteProgress({ current: 0, total: selectedArticles.length });
+
+    let successCount = 0;
+    let failCount = 0;
+    for (let index = 0; index < selectedArticles.length; index += 1) {
+      const article = selectedArticles[index];
+      setBatchDeleteProgress({ current: index + 1, total: selectedArticles.length });
+      try {
+        await moveToTrash(article);
+        successCount += 1;
+      } catch {
+        failCount += 1;
+      }
+    }
+
+    setBatchDeleting(false);
+    setBatchDeleteProgress({ current: 0, total: 0 });
+    setSelectedIds(new Set());
+    alert(`已移入垃圾桶：${successCount} 篇${failCount > 0 ? `；失敗：${failCount} 篇` : ""}`);
   };
 
   const handleBatchCategorize = async (nextCategory: string) => {
@@ -1366,6 +1479,9 @@ export default function NotesManagement() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button onClick={() => loadArticles(true)} variant="outline" className="rounded-xl flex items-center gap-2 h-12" disabled={loading}>
               <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 重新整理
+            </Button>
+            <Button onClick={() => setTrashOpen(true)} variant="outline" className="rounded-xl flex items-center gap-2 h-12">
+              <Trash2 size={18} /> 垃圾桶{trashedArticles.length > 0 ? ` (${trashedArticles.length})` : ""}
             </Button>
             <Button
               onClick={() => setIsFormCollapsed(false)}
@@ -2573,6 +2689,42 @@ export default function NotesManagement() {
           </div>
         )}
       </DataCard>
+
+      {trashOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="notes-trash-title">
+          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 p-5 dark:border-gray-700">
+              <div>
+                <h3 id="notes-trash-title" className="text-lg font-bold text-gray-900 dark:text-gray-100">筆記垃圾桶</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">移入的筆記可在此還原；清空後無法復原。</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setTrashOpen(false)}>關閉</Button>
+            </div>
+            <div className="max-h-[52vh] space-y-2 overflow-y-auto p-5">
+              {trashedArticles.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">垃圾桶目前是空的。</p>
+              ) : trashedArticles.map((item) => (
+                <div key={item.article.$id} className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-gray-900 dark:text-gray-100">{item.article.title}</div>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">移入時間：{new Date(item.deletedAt).toLocaleString("zh-TW")}</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void restoreFromTrash(item)}>
+                    <ArchiveRestore className="mr-1 h-4 w-4" />
+                    還原
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end border-t border-gray-200 p-4 dark:border-gray-700">
+              <Button variant="outline" disabled={trashedArticles.length === 0} onClick={clearTrash} className="text-red-600 hover:text-red-700">
+                <Trash2 className="mr-1 h-4 w-4" />
+                清空垃圾桶
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
