@@ -34,6 +34,7 @@ interface FriendlyAiCrudShellProps {
   searchPlaceholder: string;
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  onClearSearch?: () => void;
   intro?: ReactNode;
   workspaceCountText?: string;
   workspaceDescription?: string;
@@ -63,6 +64,7 @@ export function FriendlyAiCrudShell({
   searchPlaceholder,
   searchQuery,
   onSearchChange,
+  onClearSearch,
   intro,
   workspaceCountText,
   workspaceDescription,
@@ -108,6 +110,12 @@ export function FriendlyAiCrudShell({
     }
     setIsRecentOpen(false);
   }, [addSearch, searchQuery]);
+
+  const handleClearSearch = useCallback(() => {
+    onClearSearch?.();
+    setIsRecentOpen(false);
+    inputRef.current?.focus();
+  }, [onClearSearch]);
 
   /** Pick a recent search item. */
   const handlePickRecent = useCallback(
@@ -184,8 +192,19 @@ export function FriendlyAiCrudShell({
                       }
                     }}
                     placeholder={searchPlaceholder}
-                    className="h-11 rounded-xl border-slate-200 bg-white pl-10 pr-3 dark:border-slate-700 dark:bg-slate-950"
+                    className="h-11 rounded-xl border-slate-200 bg-white pl-10 pr-10 dark:border-slate-700 dark:bg-slate-950"
                   />
+                  {searchQuery && onClearSearch ? (
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      aria-label="清除搜尋內容"
+                      title="清除搜尋內容"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
                 </div>
 
                 {/* Submit / search button */}

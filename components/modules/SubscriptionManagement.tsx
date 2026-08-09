@@ -1762,6 +1762,7 @@ export default function SubscriptionManagement() {
         searchPlaceholder="搜尋服務名稱、網站、帳號、備註、幣別..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        onClearSearch={() => setSearchQuery("")}
         searchExtras={
           recentSearches.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 text-xs">
