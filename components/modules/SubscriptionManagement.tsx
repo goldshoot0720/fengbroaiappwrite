@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArchiveRestore, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -82,6 +82,7 @@ function SubscriptionPriceDisplay({
 }
 
 const SUBSCRIPTION_DELETE_CONFIRMATION = "DELETE subscription";
+const SUBSCRIPTION_TRASH_KEY = "fengbro.subscription.trash";
 const LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS = ["fengbro.subscription.recentSearches"];
 const SUBSCRIPTION_VOICE_HELP =
   "可說：匯出 CSV、重新整理、全選、新增訂閱 Netflix 100 元、已過期、編輯第一筆、刪除選取。說完會自動結束；安全操作直接執行。";
@@ -92,6 +93,11 @@ type VoiceCommand = {
   action: string;
   summary: string;
   risk: VoiceCommandRisk;
+};
+
+type TrashedSubscription = {
+  subscription: Subscription;
+  deletedAt: string;
 };
 
 function AccountComboBox({
@@ -471,6 +477,8 @@ export default function SubscriptionManagement() {
   const [shiftingId, setShiftingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashedSubscriptions, setTrashedSubscriptions] = useState<TrashedSubscription[]>([]);
   const [bulkDeleteInput, setBulkDeleteInput] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
@@ -509,6 +517,24 @@ export default function SubscriptionManagement() {
   });
   const importInputRef = useRef<HTMLInputElement>(null);
   const bulkDeleteInputRef = useRef<HTMLInputElement>(null);
+
+  const saveTrash = useCallback((items: TrashedSubscription[]) => {
+    setTrashedSubscriptions(items);
+    window.localStorage.setItem(SUBSCRIPTION_TRASH_KEY, JSON.stringify(items));
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved: unknown = JSON.parse(window.localStorage.getItem(SUBSCRIPTION_TRASH_KEY) || "[]");
+      if (Array.isArray(saved)) {
+        setTrashedSubscriptions(saved.filter((item): item is TrashedSubscription =>
+          Boolean(item && typeof item === "object" && "subscription" in item && "deletedAt" in item)
+        ));
+      }
+    } catch {
+      setTrashedSubscriptions([]);
+    }
+  }, []);
 
   const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
   const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
@@ -1181,18 +1207,52 @@ export default function SubscriptionManagement() {
     }
   };
 
+  const moveToTrash = async (subscription: Subscription) => {
+    await deleteSubscription(subscription.$id);
+    setTrashedSubscriptions((previous) => {
+      const next = [{ subscription, deletedAt: new Date().toISOString() }, ...previous.filter((item) => item.subscription.$id !== subscription.$id)];
+      window.localStorage.setItem(SUBSCRIPTION_TRASH_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("確定刪除這筆訂閱嗎？")) return;
+    const subscription = subscriptions.find((item) => item.$id === id);
+    if (!subscription || !confirm("確定將這筆訂閱移到垃圾桶嗎？可在垃圾桶中還原。")) return;
     try {
-      await deleteSubscription(id);
+      await moveToTrash(subscription);
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : "刪除失敗");
+      alert(deleteError instanceof Error ? deleteError.message : "移入垃圾桶失敗");
     }
+  };
+
+  const restoreFromTrash = async (item: TrashedSubscription) => {
+    try {
+      const subscription = item.subscription;
+      await createSubscription({
+        name: subscription.name,
+        site: subscription.site || "",
+        price: Number(subscription.price || 0),
+        nextdate: subscription.nextdate ? formatDate(subscription.nextdate) : "",
+        note: subscription.note || "",
+        account: subscription.account || "",
+        currency: subscription.currency || "TWD",
+        continue: subscription.continue !== false,
+      });
+      saveTrash(trashedSubscriptions.filter((candidate) => candidate.subscription.$id !== subscription.$id));
+    } catch (restoreError) {
+      alert(restoreError instanceof Error ? restoreError.message : "還原訂閱失敗");
+    }
+  };
+
+  const clearTrash = () => {
+    if (!confirm(`確定永久清空垃圾桶中的 ${trashedSubscriptions.length} 筆訂閱嗎？此操作無法復原。`)) return;
+    saveTrash([]);
   };
 
   const openBulkDeleteModal = () => {
@@ -1212,7 +1272,7 @@ export default function SubscriptionManagement() {
     setDeleteProgress(0);
     setDeleteTotal(ids.length);
     setDeleteDebugMessages([]);
-    appendDeleteDebug(`開始批次刪除，共 ${ids.length} 筆訂閱。`);
+    appendDeleteDebug(`開始批次移入垃圾桶，共 ${ids.length} 筆訂閱。`);
 
     let failedCount = 0;
 
@@ -1221,11 +1281,18 @@ export default function SubscriptionManagement() {
       const target = subscriptions.find((sub) => sub.$id === id);
       const label = target?.name || id;
 
-      appendDeleteDebug(`[${index + 1}/${ids.length}] 準備刪除 ${label}`);
+      appendDeleteDebug(`[${index + 1}/${ids.length}] 準備移入垃圾桶 ${label}`);
 
       try {
         await fetchApi(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, { method: "DELETE" });
-        appendDeleteDebug(`[${index + 1}/${ids.length}] 刪除成功 ${label}`);
+        if (target) {
+          setTrashedSubscriptions((previous) => {
+            const next = [{ subscription: target, deletedAt: new Date().toISOString() }, ...previous.filter((item) => item.subscription.$id !== target.$id)];
+            window.localStorage.setItem(SUBSCRIPTION_TRASH_KEY, JSON.stringify(next));
+            return next;
+          });
+        }
+        appendDeleteDebug(`[${index + 1}/${ids.length}] 已移入垃圾桶 ${label}`);
       } catch (deleteError) {
         failedCount += 1;
         console.error(`Delete subscription failed: ${label}`, deleteError);
@@ -1237,7 +1304,7 @@ export default function SubscriptionManagement() {
       }
     }
 
-    appendDeleteDebug(`批次刪除完成，成功 ${ids.length - failedCount} 筆，失敗 ${failedCount} 筆。`);
+    appendDeleteDebug(`批次移入垃圾桶完成，成功 ${ids.length - failedCount} 筆，失敗 ${failedCount} 筆。`);
 
     setIsDeleting(false);
     setBulkDeleteOpen(false);
@@ -1246,7 +1313,7 @@ export default function SubscriptionManagement() {
     await loadSubscriptions(true);
 
     if (failedCount > 0) {
-      alert(`批次刪除完成，但有 ${failedCount} 筆失敗，請查看 console 與 debug 訊息。`);
+      alert(`批次移入垃圾桶完成，但有 ${failedCount} 筆失敗，請查看 console 與 debug 訊息。`);
     }
   };
 
@@ -1783,6 +1850,10 @@ export default function SubscriptionManagement() {
                 <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 重新整理
               </Button>
+              <Button variant="outline" onClick={() => setTrashOpen(true)} className="min-w-[8.5rem] rounded-xl">
+                <Trash2 className="mr-1 h-4 w-4" />
+                垃圾桶 {trashedSubscriptions.length > 0 ? `(${trashedSubscriptions.length})` : ""}
+              </Button>
             </div>
             <div className="contents">
               <Button variant="outline" onClick={toggleSelectAll} className="min-w-[7.5rem] rounded-xl">
@@ -1790,7 +1861,7 @@ export default function SubscriptionManagement() {
               </Button>
               {selectedIds.size > 0 && (
                 <Button onClick={openBulkDeleteModal} className="min-w-[8.75rem] rounded-xl bg-red-600 text-white hover:bg-red-700">
-                  刪除選取 ({selectedIds.size})
+                  移入垃圾桶 ({selectedIds.size})
                 </Button>
               )}
               <Button
@@ -2118,6 +2189,42 @@ export default function SubscriptionManagement() {
         </div>
       )}
 
+      {trashOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 p-5 dark:border-gray-700">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">訂閱垃圾桶</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">移入的訂閱可在此還原；清空後無法復原。</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setTrashOpen(false)}>關閉</Button>
+            </div>
+            <div className="max-h-[52vh] space-y-2 overflow-y-auto p-5">
+              {trashedSubscriptions.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">垃圾桶目前是空的。</p>
+              ) : trashedSubscriptions.map((item) => (
+                <div key={item.subscription.$id} className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-gray-900 dark:text-gray-100">{item.subscription.name}</div>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">移入時間：{new Date(item.deletedAt).toLocaleString("zh-TW")}</div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void restoreFromTrash(item)}>
+                    <ArchiveRestore className="mr-1 h-4 w-4" />
+                    還原
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end border-t border-gray-200 p-4 dark:border-gray-700">
+              <Button variant="outline" disabled={trashedSubscriptions.length === 0} onClick={clearTrash} className="text-red-600 hover:text-red-700">
+                <Trash2 className="mr-1 h-4 w-4" />
+                清空垃圾桶
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {bulkDeleteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-w-2xl w-full rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
@@ -2164,7 +2271,7 @@ export default function SubscriptionManagement() {
             ) : (
               <div className="space-y-4 p-6">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  請先輸入下面的刪除口令，確認你要刪除整個 subscription 表的選取資料。
+                  請先輸入下面的刪除口令，確認你要將選取訂閱移入垃圾桶。
                 </p>
                 <code className="block rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono text-red-600 dark:bg-gray-800">
                   {SUBSCRIPTION_DELETE_CONFIRMATION}
@@ -2214,7 +2321,7 @@ export default function SubscriptionManagement() {
                 disabled={bulkDeleteInput !== SUBSCRIPTION_DELETE_CONFIRMATION || isDeleting}
                 className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
               >
-                {isDeleting ? "刪除中..." : `批次刪除 (${selectedIds.size} 筆)`}
+                {isDeleting ? "移入中..." : `移入垃圾桶 (${selectedIds.size} 筆)`}
               </Button>
             </div>
           </div>
