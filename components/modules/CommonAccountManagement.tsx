@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useCrud, fetchApi } from "@/hooks/useApi";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
+import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FaviconImage } from "@/components/ui/favicon-image";
@@ -1465,29 +1466,13 @@ export default function CommonAccountManagement() {
       <div className="space-y-4">
         {/* Search Input and Sort */}
         <div className="flex gap-3">
-          <div className="relative group flex-1">
-            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
-            <Input
-              placeholder="搜尋帳號名稱 (例如: activist949...)"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const trimmed = searchQuery.trim();
-                  if (trimmed) addRecentSearch(trimmed);
-                }
-              }}
-              className="pl-12 h-12 rounded-xl border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-blue-500/20 transition-all text-lg"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X size={18} />
-              </button>
-            )}
-          </div>
+          <RecentSearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="搜尋帳號名稱（例如：activist949…）"
+            storageKey="common-account-management"
+            className="flex-1"
+          />
           <Button
             onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
             variant="outline"

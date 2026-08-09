@@ -5,6 +5,7 @@ import { ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Down
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
+import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import {
   DEFAULT_FENGBRO_TUBE_CHANNELS,
   type FengbroTubeChannelConfig,
@@ -3440,18 +3441,12 @@ function FengbroFinanceSection({
             {renderFinanceControls()}
 
             {/* ── 搜尋列 ─────────────────────────────────────── */}
-            <div className="relative">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-                <Search className="h-4 w-4 text-emerald-600/60" />
-              </div>
-              <input
-                type="text"
-                placeholder="搜尋金融標的名稱或代號..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full rounded-[20px] border border-emerald-100 bg-white/60 py-3.5 pl-11 pr-4 text-sm text-emerald-950 placeholder-emerald-600/50 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-50"
-              />
-            </div>
+            <RecentSearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="搜尋金融標的名稱或代號..."
+              storageKey="finance-management"
+            />
             {groupedQuotes.length === 0 && searchQuery && (
               <div className="rounded-[24px] border border-emerald-100 bg-white/60 p-8 text-center shadow-sm">
                 <p className="text-sm font-medium text-emerald-800">找不到符合「{searchQuery}」的標的</p>

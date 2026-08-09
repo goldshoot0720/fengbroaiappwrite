@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 const MAX_RECENT_SEARCHES = 37;
 const NO_LEGACY_STORAGE_KEYS: readonly string[] = [];
+const RECENT_SEARCHES_UPDATED_EVENT = "fengbro:recent-searches-updated";
 
 /**
  * Hook to manage recent searches using localStorage.
@@ -43,11 +44,30 @@ export function useRecentSearches(storageKey: string, legacyStorageKeys = NO_LEG
     }
   }, [fullKey, legacyStorageKeys]);
 
+  // Keep duplicate search controls in the same module (for example, a compact
+  // history strip and the primary search field) in sync without a page reload.
+  useEffect(() => {
+    const handleUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ key?: string; items?: string[] }>).detail;
+      if (detail?.key === fullKey && Array.isArray(detail.items)) {
+        setItems(detail.items);
+      }
+    };
+
+    window.addEventListener(RECENT_SEARCHES_UPDATED_EVENT, handleUpdate);
+    return () => window.removeEventListener(RECENT_SEARCHES_UPDATED_EVENT, handleUpdate);
+  }, [fullKey]);
+
   // Persist whenever items change (skip initial mount with empty array guard)
   const persist = useCallback(
     (next: string[]) => {
       try {
         window.localStorage.setItem(fullKey, JSON.stringify(next));
+        window.setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent(RECENT_SEARCHES_UPDATED_EVENT, { detail: { key: fullKey, items: next } }),
+          );
+        }, 0);
       } catch {
         // storage full – silently ignore
       }

@@ -14,6 +14,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { useArticles } from "@/hooks/useArticles";
 import { fetchApi } from "@/hooks/useApi";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
+import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { ArticleFormData, Article } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
@@ -1915,21 +1916,13 @@ export default function NotesManagement() {
             ))}
           </div>
           <div className="flex flex-col gap-2 lg:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="搜尋標題、內容、分類..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    const trimmed = searchQuery.trim();
-                    if (trimmed) addRecentSearch(trimmed);
-                  }
-                }}
-                className="pl-10 h-12 rounded-xl"
-              />
-            </div>
+            <RecentSearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="搜尋標題、內容、分類..."
+              storageKey="notes-management"
+              className="flex-1"
+            />
             <Select value={categoryFilter || "__all__"} onValueChange={(v) => setCategoryFilter(v === "__all__" ? "" : v)}>
               <SelectTrigger className="h-12 rounded-xl w-full flex-shrink-0 lg:w-36">
                 <SelectValue placeholder="全部分類" />
