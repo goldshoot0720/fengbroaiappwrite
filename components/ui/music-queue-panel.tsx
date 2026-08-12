@@ -60,7 +60,7 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
             console.log('從伺服器串流播放:', currentItem.name);
             // Use the same proxied URL as the audio element so the byte size is
             // available through our same-origin media proxy.
-            void recordRemoteMediaTraffic('music', 'playback', currentItem.file);
+            void recordRemoteMediaTraffic('music', 'playback', currentItem.file, currentItem.fileSize);
           }
 
           // 等待 src 載入後再播放

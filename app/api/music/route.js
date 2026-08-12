@@ -7,11 +7,34 @@ const sdk = require('node-appwrite');
 
 export const dynamic = 'force-dynamic';
 
+function extractFileIdFromUrl(fileUrl) {
+  if (!fileUrl) return null;
+  const match = fileUrl.match(/\/files\/([^\/]+)\/(?:view|download|preview)/);
+  return match ? match[1] : null;
+}
+
+async function enrichMusicWithFileSize(documents, storage, bucketId) {
+  return Promise.all(
+    documents.map(async (document) => {
+      const fileId = extractFileIdFromUrl(document.file);
+      if (!fileId) return { ...document, fileSize: null };
+
+      try {
+        const file = await storage.getFile(bucketId, fileId);
+        return { ...document, fileSize: file.sizeOriginal ?? file.size ?? null };
+      } catch (error) {
+        console.warn(`Failed to read music file size ${fileId}:`, error.message);
+        return { ...document, fileSize: null };
+      }
+    })
+  );
+}
+
 // GET /api/music - List all music
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const { databases, databaseId } = createAppwrite(searchParams);
+    const { databases, storage, databaseId, bucketId } = createAppwrite(searchParams);
     
     // Get collection ID by name
     let collectionId;
@@ -32,7 +55,7 @@ export async function GET(request) {
     const documents = await listAllDocuments(databases, databaseId, collectionId, sdk, [
       sdk.Query.orderDesc('$createdAt'),
     ]);
-    return NextResponse.json(documents);
+    return NextResponse.json(await enrichMusicWithFileSize(documents, storage, bucketId));
   } catch (err) {
     console.error("GET /api/music error:", err);
     return NextResponse.json({ error: getAppwriteErrorMessage(err) }, { status: getAppwriteErrorStatus(err) });

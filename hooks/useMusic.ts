@@ -17,6 +17,7 @@ export interface MusicData {
   hash: string;
   language: string;
   cover: string;
+  fileSize?: number | null;
   $createdAt: string;
   $updatedAt: string;
   computedLyrics?: string; // Lyrics with fallback logic

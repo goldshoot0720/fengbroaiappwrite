@@ -7,6 +7,7 @@ export interface QueueItem {
   name: string;
   language?: string;
   file: string;
+  fileSize?: number | null;
   cover?: string;
   lyrics?: string;
 }
