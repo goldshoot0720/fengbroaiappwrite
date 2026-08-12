@@ -6,6 +6,7 @@ import { useMusicQueue, QueueItem } from '@/hooks/useMusicQueue';
 import { useMusicCache } from '@/hooks/useMusicCache';
 import { Button } from '@/components/ui/button';
 import { setupSinglePlayback } from '@/components/ui/plyr-player';
+import { recordRemoteMediaTraffic } from '@/lib/mediaTraffic';
 
 interface MusicQueuePanelProps {
   onPlayFromQueue?: (item: QueueItem) => void;
@@ -57,6 +58,9 @@ export function MusicQueuePanel({ onPlayFromQueue }: MusicQueuePanelProps) {
             console.log('從快取播放:', currentItem.name);
           } else {
             console.log('從伺服器串流播放:', currentItem.name);
+            // Use the same proxied URL as the audio element so the byte size is
+            // available through our same-origin media proxy.
+            void recordRemoteMediaTraffic('music', 'playback', currentItem.file);
           }
 
           // 等待 src 載入後再播放

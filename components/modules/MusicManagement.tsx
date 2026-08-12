@@ -17,7 +17,6 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl, getAppwriteDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
-import { recordRemoteMediaTraffic } from "@/lib/mediaTraffic";
 import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
@@ -1679,7 +1678,6 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
   const handlePlayNow = async (item: MusicData) => {
     if (!item.file) return;
     const cachedUrl = await loadMusicFromCache(item.$id);
-    if (!cachedUrl) void recordRemoteMediaTraffic("music", "playback", item.file);
     const fileUrl = cachedUrl || getProxiedMediaUrl(item.file);
 
     playNow({
