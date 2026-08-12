@@ -1,9 +1,9 @@
 # 鋒兄AI Appwrite 管理系統 — 使用者教學手冊
 
-> **版本**: v2.0.0  
+> **版本**: v2.1.0  
 > **技術框架**: Next.js 16 / React 19 / Appwrite  
-> **最後更新**: 2026-02-07  
-> **現況**: 選單、工具／子工具與 13 張資料表以 [INDEX.md](./INDEX.md) 為準。本手冊仍完整說明日常 CRUD。
+> **最後更新**: 2026-08-13  
+> **現況**: 選單與 13 張表以 [INDEX.md](./INDEX.md) 為準。資料表欄位以 `app/api/create-table/route.js` 的 `TABLE_SCHEMAS` 為準。
 
 ---
 
@@ -203,10 +203,14 @@ docker run -p 3000:3000 \
 - **幣別** — 支援 TWD、USD、EUR、JPY、CNY、HKD
 - **下次續費日** — 下一次需要付款的日期（±30 天快速調整）
 - **帳號** — 登入帳號
-- **備註** — 其他備忘資訊
+- **備註** — 其他備忘（最長 3337 字）
 - **持續訂閱** — 是否為持續性訂閱
 
+刪除後會進瀏覽器本機垃圾桶，可還原；清空垃圾桶才永久刪除。確認刪除時需輸入 `DELETE subscription`。
+
 ### 5.2 資料表結構
+
+建表有 **15** 個欄位。目前表單與 `/api/subscription` 只寫入前 8 個。
 
 | 欄位 | 類型 | 必填 | 預設值 | 說明 |
 |------|------|------|--------|------|
@@ -214,10 +218,19 @@ docker run -p 3000:3000 \
 | site | url | ❌ | - | 服務網站 |
 | price | integer | ❌ | - | 費用金額 |
 | nextdate | datetime | ❌ | - | 下次續費日 |
-| note | string(100) | ❌ | - | 備註 |
+| note | string(3337) | ❌ | - | 備註 |
 | account | string(100) | ❌ | - | 帳號 |
 | currency | string(100) | ❌ | - | 幣別代碼 |
 | continue | boolean | ❌ | true | 持續訂閱 |
+| category | string(100) | ❌ | - | 分類（schema 已有，表單尚未寫入） |
+| purpose | string(100) | ❌ | - | 用途（schema 已有，表單尚未寫入） |
+| usageFrequency | string(50) | ❌ | - | 使用頻率（schema 已有，表單尚未寫入） |
+| friendliness | string(50) | ❌ | - | 友善度（schema 已有，表單尚未寫入） |
+| alternative | string(200) | ❌ | - | 替代方案（schema 已有，表單尚未寫入） |
+| retentionRecommendation | string(50) | ❌ | - | 去留建議（schema 已有，表單尚未寫入） |
+| archived | boolean | ❌ | false | 封存（schema 已有；垃圾桶不是這個欄位） |
+
+CSV 匯入匯出欄位仍是：`name, site, price, nextdate, note, account, currency, continue`。
 
 ### 5.3 幣別換算
 
@@ -240,18 +253,20 @@ docker run -p 3000:3000 \
 ### 6.1 新增筆記
 
 - **標題** — 筆記標題
-- **內容** — 筆記內容（最大 1000 字元）
+- **內容** — 筆記內容（最大 3377 字元）
 - **分類** — 分類標籤
 - **日期** — 建立日期（±7 天快速調整）
 - **附件連結** — 最多可附加 3 個外部網址 (url1-3)
 - **附件檔案** — 最多可附加 3 個檔案 (file1-3)
+
+刪除後會進瀏覽器本機垃圾桶，可還原。
 
 ### 6.2 資料表結構
 
 | 欄位 | 類型 | 必填 | 說明 |
 |------|------|------|------|
 | title | string(100) | ❌ | 標題 |
-| content | string(1000) | ❌ | 內容 |
+| content | string(3377) | ❌ | 內容 |
 | category | string(100) | ❌ | 分類 |
 | ref | string(100) | ❌ | 參考 |
 | newDate | datetime | ❌ | 日期 |
@@ -306,10 +321,10 @@ docker run -p 3000:3000 \
 | 欄位 | 類型 | 必填 | 預設值 | 說明 |
 |------|------|------|--------|------|
 | name | string(100) | ✅ | - | 圖片名稱 |
-| file | string(150) | ❌ | - | Storage 檔案 ID |
+| file | string(500) | ❌ | - | Storage 檔案 ID |
 | filetype | string(20) | ❌ | - | 檔案類型 |
-| note | string(100) | ❌ | - | 備註 |
-| ref | string(100) | ❌ | - | 參考 |
+| note | string(500) | ❌ | - | 備註 |
+| ref | string(300) | ❌ | - | 參考 |
 | category | string(100) | ❌ | - | 分類 |
 | hash | string(300) | ❌ | - | 雜湊 |
 | cover | boolean | ❌ | false | 封面圖 |
@@ -339,13 +354,14 @@ docker run -p 3000:3000 \
 | 欄位 | 類型 | 必填 | 說明 |
 |------|------|------|------|
 | name | string(100) | ✅ | 影片名稱 |
-| file | string(150) | ❌ | Storage 檔案 ID |
+| file | string(500) | ❌ | Storage 檔案 ID |
 | filetype | string(20) | ❌ | 檔案類型 |
-| note | string(100) | ❌ | 備註 |
-| ref | string(100) | ❌ | 參考 |
+| note | string(500) | ❌ | 備註 |
+| ref | string(300) | ❌ | 參考 |
 | category | string(100) | ❌ | 分類 |
 | hash | string(300) | ❌ | 雜湊 |
-| cover | string(150) | ❌ | 封面圖 File ID |
+| cover | string(500) | ❌ | 封面圖 File ID |
+| fileSize | integer | ❌ | 檔案大小（位元組） |
 
 ### 9.2 播放佇列
 
@@ -374,15 +390,15 @@ docker run -p 3000:3000 \
 | 欄位 | 類型 | 必填 | 說明 |
 |------|------|------|------|
 | name | string(100) | ✅ | 歌曲名稱 |
-| file | string(150) | ❌ | Storage 檔案 ID |
+| file | string(500) | ❌ | Storage 檔案 ID |
 | filetype | string(20) | ❌ | 檔案類型 |
 | lyrics | string(3337) | ❌ | 歌詞文字 |
-| note | string(100) | ❌ | 備註 |
-| ref | string(100) | ❌ | 參考 |
+| note | string(500) | ❌ | 備註 |
+| ref | string(300) | ❌ | 參考 |
 | category | string(100) | ❌ | 分類 |
 | hash | string(300) | ❌ | 雜湊 |
 | language | string(100) | ❌ | 語言 |
-| cover | string(150) | ❌ | 封面圖 File ID |
+| cover | string(500) | ❌ | 封面圖 File ID |
 
 ### 10.2 播放佇列
 
@@ -410,13 +426,13 @@ docker run -p 3000:3000 \
 | 欄位 | 類型 | 必填 | 說明 |
 |------|------|------|------|
 | name | string(100) | ✅ | 播客名稱 |
-| file | string(150) | ❌ | Storage 檔案 ID |
+| file | string(500) | ❌ | Storage 檔案 ID |
 | filetype | string(20) | ❌ | 檔案類型 |
-| note | string(100) | ❌ | 備註 |
-| ref | string(100) | ❌ | 參考 |
+| note | string(500) | ❌ | 備註 |
+| ref | string(300) | ❌ | 參考 |
 | category | string(100) | ❌ | 分類 |
 | hash | string(300) | ❌ | 雜湊 |
-| cover | string(150) | ❌ | 封面圖 File ID |
+| cover | string(500) | ❌ | 封面圖 File ID |
 
 ### 11.2 播客快取
 
@@ -440,13 +456,13 @@ docker run -p 3000:3000 \
 | 欄位 | 類型 | 必填 | 說明 |
 |------|------|------|------|
 | name | string(100) | ✅ | 文件名稱 |
-| file | string(150) | ❌ | Storage 檔案 ID |
+| file | string(500) | ❌ | Storage 檔案 ID |
 | filetype | string(20) | ❌ | 檔案類型 |
-| note | string(100) | ❌ | 備註 |
-| ref | string(100) | ❌ | 參考 |
+| note | string(500) | ❌ | 備註 |
+| ref | string(300) | ❌ | 參考 |
 | category | string(100) | ❌ | 分類 |
 | hash | string(300) | ❌ | 雜湊 |
-| cover | string(150) | ❌ | 封面圖 File ID |
+| cover | string(500) | ❌ | 封面圖 File ID |
 
 ### 12.2 支援的檔案格式
 
@@ -724,7 +740,7 @@ docker run -p 3000:3000 \
 | photo | url | - | ❌ | 照片 |
 | photohash | string | 256 | ❌ | 照片雜湊 |
 
-### subscription (8 欄位)
+### subscription (15 欄位)
 
 | 欄位 | 類型 | 長度 | 必填 | 預設 | 說明 |
 |------|------|------|------|------|------|
@@ -732,17 +748,24 @@ docker run -p 3000:3000 \
 | site | url | - | ❌ | - | 網站 |
 | price | integer | - | ❌ | - | 費用 |
 | nextdate | datetime | - | ❌ | - | 續費日 |
-| note | string | 100 | ❌ | - | 備註 |
+| note | string | 3337 | ❌ | - | 備註 |
 | account | string | 100 | ❌ | - | 帳號 |
 | currency | string | 100 | ❌ | - | 幣別 |
 | continue | boolean | - | ❌ | true | 持續 |
+| category | string | 100 | ❌ | - | 分類（尚未接表單） |
+| purpose | string | 100 | ❌ | - | 用途（尚未接表單） |
+| usageFrequency | string | 50 | ❌ | - | 使用頻率（尚未接表單） |
+| friendliness | string | 50 | ❌ | - | 友善度（尚未接表單） |
+| alternative | string | 200 | ❌ | - | 替代方案（尚未接表單） |
+| retentionRecommendation | string | 50 | ❌ | - | 去留建議（尚未接表單） |
+| archived | boolean | - | ❌ | false | 封存（尚未接表單） |
 
 ### article (17 欄位)
 
 | 欄位 | 類型 | 長度 | 必填 | 說明 |
 |------|------|------|------|------|
 | title | string | 100 | ❌ | 標題 |
-| content | string | 1000 | ❌ | 內容 |
+| content | string | 3377 | ❌ | 內容 |
 | category | string | 100 | ❌ | 分類 |
 | ref | string | 100 | ❌ | 參考 |
 | newDate | datetime | - | ❌ | 日期 |
@@ -798,67 +821,95 @@ docker run -p 3000:3000 \
 | 欄位 | 類型 | 長度 | 必填 | 預設 | 說明 |
 |------|------|------|------|------|------|
 | name | string | 100 | ✅ | - | 名稱 |
-| file | string | 150 | ❌ | - | 檔案 ID |
+| file | string | 500 | ❌ | - | 檔案 ID |
 | filetype | string | 20 | ❌ | - | 類型 |
-| note | string | 100 | ❌ | - | 備註 |
-| ref | string | 100 | ❌ | - | 參考 |
+| note | string | 500 | ❌ | - | 備註 |
+| ref | string | 300 | ❌ | - | 參考 |
 | category | string | 100 | ❌ | - | 分類 |
 | hash | string | 300 | ❌ | - | 雜湊 |
 | cover | boolean | - | ❌ | false | 封面 |
 
-### video (8 欄位)
+### video (9 欄位)
 
 | 欄位 | 類型 | 長度 | 必填 | 說明 |
 |------|------|------|------|------|
 | name | string | 100 | ✅ | 名稱 |
-| file | string | 150 | ❌ | 檔案 ID |
+| file | string | 500 | ❌ | 檔案 ID |
 | filetype | string | 20 | ❌ | 類型 |
-| note | string | 100 | ❌ | 備註 |
-| ref | string | 100 | ❌ | 參考 |
+| note | string | 500 | ❌ | 備註 |
+| ref | string | 300 | ❌ | 參考 |
 | category | string | 100 | ❌ | 分類 |
 | hash | string | 300 | ❌ | 雜湊 |
-| cover | string | 150 | ❌ | 封面 ID |
+| cover | string | 500 | ❌ | 封面 ID |
+| fileSize | integer | - | ❌ | 檔案大小 |
 
 ### music (10 欄位)
 
 | 欄位 | 類型 | 長度 | 必填 | 說明 |
 |------|------|------|------|------|
 | name | string | 100 | ✅ | 名稱 |
-| file | string | 150 | ❌ | 檔案 ID |
+| file | string | 500 | ❌ | 檔案 ID |
 | filetype | string | 20 | ❌ | 類型 |
 | lyrics | string | 3337 | ❌ | 歌詞 |
-| note | string | 100 | ❌ | 備註 |
-| ref | string | 100 | ❌ | 參考 |
+| note | string | 500 | ❌ | 備註 |
+| ref | string | 300 | ❌ | 參考 |
 | category | string | 100 | ❌ | 分類 |
 | hash | string | 300 | ❌ | 雜湊 |
 | language | string | 100 | ❌ | 語言 |
-| cover | string | 150 | ❌ | 封面 ID |
+| cover | string | 500 | ❌ | 封面 ID |
 
 ### podcast (8 欄位)
 
 | 欄位 | 類型 | 長度 | 必填 | 說明 |
 |------|------|------|------|------|
 | name | string | 100 | ✅ | 名稱 |
-| file | string | 150 | ❌ | 檔案 ID |
+| file | string | 500 | ❌ | 檔案 ID |
 | filetype | string | 20 | ❌ | 類型 |
-| note | string | 100 | ❌ | 備註 |
-| ref | string | 100 | ❌ | 參考 |
+| note | string | 500 | ❌ | 備註 |
+| ref | string | 300 | ❌ | 參考 |
 | category | string | 100 | ❌ | 分類 |
 | hash | string | 300 | ❌ | 雜湊 |
-| cover | string | 150 | ❌ | 封面 ID |
+| cover | string | 500 | ❌ | 封面 ID |
 
 ### commondocument (8 欄位)
 
 | 欄位 | 類型 | 長度 | 必填 | 說明 |
 |------|------|------|------|------|
 | name | string | 100 | ✅ | 名稱 |
-| file | string | 150 | ❌ | 檔案 ID |
+| file | string | 500 | ❌ | 檔案 ID |
 | filetype | string | 20 | ❌ | 類型 |
-| note | string | 100 | ❌ | 備註 |
-| ref | string | 100 | ❌ | 參考 |
+| note | string | 500 | ❌ | 備註 |
+| ref | string | 300 | ❌ | 參考 |
 | category | string | 100 | ❌ | 分類 |
 | hash | string | 300 | ❌ | 雜湊 |
-| cover | string | 150 | ❌ | 封面 ID |
+| cover | string | 500 | ❌ | 封面 ID |
+
+### landtophistory (9 欄位)
+
+手機比價寫入的週期快照，不是手填表單。
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| source | string | 20 | ✅ | 來源（如 landtop） |
+| snapshotKey | string | 220 | ✅ | 快照鍵 |
+| productId | string | 180 | ✅ | 商品 ID |
+| brand | string | 20 | ✅ | 品牌 |
+| name | string | 200 | ✅ | 商品名稱 |
+| sourceUrl | url | - | ❌ | 來源網址 |
+| landtopPrice | integer | - | ❌ | 地標網通價 |
+| suggestedPrice | integer | - | ❌ | 建議售價 |
+| snapshotDate | datetime | - | ✅ | 快照時間 |
+
+### manualprice (4 欄位)
+
+鋒兄比價的手動商品與價格紀錄。
+
+| 欄位 | 類型 | 長度 | 必填 | 說明 |
+|------|------|------|------|------|
+| name | string | 200 | ✅ | 商品名稱 |
+| currency | string | 20 | ❌ | 幣別 |
+| recordsJson | string | 20000 | ❌ | 價格紀錄 JSON |
+| localId | string | 100 | ❌ | 本機對應 ID |
 
 ---
 
@@ -897,3 +948,8 @@ docker run -p 3000:3000 \
 | 資料庫管理 | `/api/create-table`, `/api/update-schema`, `/api/fix-permissions` | GET/POST |
 | 統計 | `/api/database-stats`, `/api/storage-stats` | GET |
 | 圖片列表 | `/api/images` | GET |
+| 鋒兄比價 | `/api/manualprice` | GET, POST, GET/PUT/DELETE [id] |
+| 手機比價 | `/api/landtop` | GET（查價並寫入 landtophistory） |
+| 鋒兄金融 | `/api/fengbro-finance` | GET |
+| 鋒兄新聞 | `/api/fengbro-news` | GET |
+| 鋒兄Tube | `/api/fengbro-tube` | GET |

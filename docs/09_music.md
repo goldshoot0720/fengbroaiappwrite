@@ -21,15 +21,15 @@
 | 欄位名稱 | 類型 | 長度 | 必填 | 說明 |
 |----------|------|------|------|------|
 | name | string | 100 | ✅ | 歌曲名稱 |
-| file | string | 150 | ❌ | Storage 檔案 ID |
+| file | string | 500 | ❌ | Storage 檔案 ID |
 | filetype | string | 20 | ❌ | 檔案類型 (mp3/m4a/wav/ogg/flac/aac/weba) |
 | lyrics | string | 3337 | ❌ | 歌詞文字 |
-| note | string | 100 | ❌ | 備註 |
-| ref | string | 100 | ❌ | 參考資料 |
+| note | string | 500 | ❌ | 備註 |
+| ref | string | 300 | ❌ | 參考資料 |
 | category | string | 100 | ❌ | 分類 |
 | hash | string | 300 | ❌ | 檔案雜湊 |
 | language | string | 100 | ❌ | 語言標記 |
-| cover | string | 150 | ❌ | 封面圖 Storage File ID |
+| cover | string | 500 | ❌ | 封面圖 Storage File ID |
 
 ## 支援的音訊格式
 

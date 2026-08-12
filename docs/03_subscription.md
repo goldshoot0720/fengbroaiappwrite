@@ -11,9 +11,12 @@
 - **續費追蹤**：監控下次付款日期，快速 ±30 天調整。
 - **狀態監控**：標記訂閱是否持續，Favicon 顯示服務圖示。
 - **到期通知**：每日自動檢查 3 天內到期的訂閱，推播瀏覽器通知。
-- **CSV 匯入/匯出**：支援批次資料匯入匯出。
+- **CSV 匯入/匯出**：支援批次資料匯入匯出（8 個表單欄位）。
+- **本機垃圾桶**：刪除後可還原；資料存在瀏覽器 `fengbro.subscription.trash`，不是 `archived` 欄位。
 
 ## 資料表結構 (Appwrite Collection: `subscription`)
+
+建表有 15 欄。表單與 API 目前只讀寫前 8 欄。
 
 | 欄位名稱 | 類型 | 長度 | 必填 | 預設值 | 說明 |
 |----------|------|------|------|--------|------|
@@ -21,10 +24,17 @@
 | site | url | - | ❌ | - | 服務網站連結 |
 | price | integer | - | ❌ | - | 費用金額 |
 | nextdate | datetime | - | ❌ | - | 下次續費日期 |
-| note | string | 100 | ❌ | - | 備註 |
+| note | string | 3337 | ❌ | - | 備註 |
 | account | string | 100 | ❌ | - | 登入帳號 |
 | currency | string | 100 | ❌ | - | 幣別代碼 (TWD/USD/EUR/JPY/CNY/HKD) |
 | continue | boolean | - | ❌ | true | 是否持續訂閱 |
+| category | string | 100 | ❌ | - | 分類（schema 已有，表單尚未寫入） |
+| purpose | string | 100 | ❌ | - | 用途（尚未寫入） |
+| usageFrequency | string | 50 | ❌ | - | 使用頻率（尚未寫入） |
+| friendliness | string | 50 | ❌ | - | 友善度（尚未寫入） |
+| alternative | string | 200 | ❌ | - | 替代方案（尚未寫入） |
+| retentionRecommendation | string | 50 | ❌ | - | 去留建議（尚未寫入） |
+| archived | boolean | - | ❌ | false | 封存（尚未寫入） |
 
 ## TypeScript 類型定義
 

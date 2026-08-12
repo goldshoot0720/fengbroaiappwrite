@@ -19,13 +19,13 @@
 | 欄位名稱 | 類型 | 長度 | 必填 | 說明 |
 |----------|------|------|------|------|
 | name | string | 100 | ✅ | 播客名稱 |
-| file | string | 150 | ❌ | Storage 檔案 ID |
+| file | string | 500 | ❌ | Storage 檔案 ID |
 | filetype | string | 20 | ❌ | 檔案類型 |
-| note | string | 100 | ❌ | 備註 |
-| ref | string | 100 | ❌ | 參考資料 |
+| note | string | 500 | ❌ | 備註 |
+| ref | string | 300 | ❌ | 參考資料 |
 | category | string | 100 | ❌ | 分類 |
 | hash | string | 300 | ❌ | 檔案雜湊 |
-| cover | string | 150 | ❌ | 封面圖 Storage File ID |
+| cover | string | 500 | ❌ | 封面圖 Storage File ID |
 
 ## 支援的媒體格式
 

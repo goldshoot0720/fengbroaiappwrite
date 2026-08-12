@@ -19,10 +19,10 @@
 | 欄位名稱 | 類型 | 長度 | 必填 | 預設值 | 說明 |
 |----------|------|------|------|--------|------|
 | name | string | 100 | ✅ | - | 圖片名稱 |
-| file | string | 150 | ❌ | - | Storage 檔案 ID |
+| file | string | 500 | ❌ | - | Storage 檔案 ID |
 | filetype | string | 20 | ❌ | - | 檔案類型 (jpg/png/gif/webp) |
-| note | string | 100 | ❌ | - | 備註 |
-| ref | string | 100 | ❌ | - | 參考資料 |
+| note | string | 500 | ❌ | - | 備註 |
+| ref | string | 300 | ❌ | - | 參考資料 |
 | category | string | 100 | ❌ | - | 分類 |
 | hash | string | 300 | ❌ | - | 檔案雜湊 (重複檢測) |
 | cover | boolean | - | ❌ | false | 是否為封面圖 |

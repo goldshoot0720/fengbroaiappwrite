@@ -15,13 +15,14 @@
 - **一鍵複製**：快速複製筆記內容。
 - **快速日期調整**：±7 天按鈕快速調整日期。
 - **CSV 匯入/匯出**：批次資料匯入匯出。
+- **本機垃圾桶**：刪除後可還原（`fengbro.notes.trash`）。
 
 ## 資料表結構 (Appwrite Collection: `article`)
 
 | 欄位名稱 | 類型 | 長度 | 必填 | 說明 |
 |----------|------|------|------|------|
 | title | string | 100 | ❌ | 筆記標題 |
-| content | string | 1000 | ❌ | 筆記內容 |
+| content | string | 3377 | ❌ | 筆記內容 |
 | category | string | 100 | ❌ | 分類 |
 | ref | string | 100 | ❌ | 參考資料 |
 | newDate | datetime | - | ❌ | 建立日期 |
@@ -45,6 +46,7 @@ interface Article {
   $id: string;
   title: string;
   content: string;
+  category?: string;
   newDate: string;
   url1?: string;
   url2?: string;
