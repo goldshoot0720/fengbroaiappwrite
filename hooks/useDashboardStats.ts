@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { useAppwriteSetup } from "@/hooks/useAppwriteSetup";
+import { isActiveSubscription } from "@/lib/subscriptionFields";
 
 interface Food {
   $id: string;
@@ -20,6 +21,7 @@ interface Subscription {
   price: number;
   nextdate: string;
   currency?: string;
+  archived?: boolean;
 }
 
 interface FoodDetail {
@@ -199,7 +201,7 @@ export function useDashboardStats() {
         }
 
         const foods = foodsResult.data;
-        const subscriptions = subsResult.data;
+        const subscriptions = subsResult.data.filter(isActiveSubscription);
         const articles = articlesResult.data;
         const commonAccounts = accountsResult.data;
         const banks = banksResult.data;

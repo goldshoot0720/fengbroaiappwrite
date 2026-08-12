@@ -71,6 +71,13 @@ export const SUBSCRIPTION_RETENTION_OPTIONS = [
   { value: "取消", label: "取消" },
 ] as const;
 
+/** 未填 archived 視為使用中；只有明確封存才排除提醒與儀表到期。 */
+export function isActiveSubscription(
+  source?: { archived?: boolean | null } | null
+): boolean {
+  return source?.archived !== true;
+}
+
 export function emptySubscriptionForm(): SubscriptionFormData {
   return {
     name: "",

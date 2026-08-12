@@ -3,6 +3,7 @@ import { Subscription, SubscriptionFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus, convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
+import { isActiveSubscription } from "@/lib/subscriptionFields";
 
 export function useSubscriptions() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -146,49 +147,45 @@ export function useSubscriptions() {
     const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
     const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear;
 
-    // 計算總金額（換算為TWD）
-    const totalTWD = Array.isArray(subscriptions) 
-      ? subscriptions.reduce((sum, s) => {
-          const feeInTWD = convertToTWD(s.price || 0, s.currency);
-          return sum + feeInTWD;
-        }, 0)
-      : 0;
+    const activeSubscriptions = Array.isArray(subscriptions)
+      ? subscriptions.filter(isActiveSubscription)
+      : [];
+
+    // 計算總金額（換算為TWD；不含已封存）
+    const totalTWD = activeSubscriptions.reduce((sum, s) => {
+      const feeInTWD = convertToTWD(s.price || 0, s.currency);
+      return sum + feeInTWD;
+    }, 0);
 
     // 計算本月到期筆數
-    const expiringSoon = Array.isArray(subscriptions)
-      ? subscriptions.filter((s) => {
-          if (!s.nextdate) return false;
-          const nextDate = new Date(s.nextdate);
-          return (
-            nextDate.getFullYear() === currentYear &&
-            nextDate.getMonth() === currentMonth
-          );
-        }).length
-      : 0;
+    const expiringSoon = activeSubscriptions.filter((s) => {
+      if (!s.nextdate) return false;
+      const nextDate = new Date(s.nextdate);
+      return (
+        nextDate.getFullYear() === currentYear &&
+        nextDate.getMonth() === currentMonth
+      );
+    }).length;
 
     // 計算本月月費（本月到期的訂閱總費用）
-    const totalMonthlyFee = Array.isArray(subscriptions)
-      ? subscriptions.reduce((sum, s) => {
-          if (!s.nextdate) return sum;
-          const nextDate = new Date(s.nextdate);
-          if (nextDate.getFullYear() === currentYear && nextDate.getMonth() === currentMonth) {
-            return sum + convertToTWD(s.price || 0, s.currency);
-          }
-          return sum;
-        }, 0)
-      : 0;
+    const totalMonthlyFee = activeSubscriptions.reduce((sum, s) => {
+      if (!s.nextdate) return sum;
+      const nextDate = new Date(s.nextdate);
+      if (nextDate.getFullYear() === currentYear && nextDate.getMonth() === currentMonth) {
+        return sum + convertToTWD(s.price || 0, s.currency);
+      }
+      return sum;
+    }, 0);
 
     // 計算下月月費（下月到期的訂閱總費用）
-    const nextMonthFee = Array.isArray(subscriptions)
-      ? subscriptions.reduce((sum, s) => {
-          if (!s.nextdate) return sum;
-          const nextDate = new Date(s.nextdate);
-          if (nextDate.getFullYear() === nextMonthYear && nextDate.getMonth() === nextMonth) {
-            return sum + convertToTWD(s.price || 0, s.currency);
-          }
-          return sum;
-        }, 0)
-      : 0;
+    const nextMonthFee = activeSubscriptions.reduce((sum, s) => {
+      if (!s.nextdate) return sum;
+      const nextDate = new Date(s.nextdate);
+      if (nextDate.getFullYear() === nextMonthYear && nextDate.getMonth() === nextMonth) {
+        return sum + convertToTWD(s.price || 0, s.currency);
+      }
+      return sum;
+    }, 0);
 
     return {
       total: Array.isArray(subscriptions) ? subscriptions.length : 0,

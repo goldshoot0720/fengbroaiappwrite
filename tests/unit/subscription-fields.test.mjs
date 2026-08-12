@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
 import {
   SUBSCRIPTION_CSV_HEADERS,
   buildSubscriptionWritePayload,
   detectSubscriptionCsvMode,
   emptySubscriptionForm,
+  isActiveSubscription,
   parseSubscriptionCsvRow,
   subscriptionFormToCsvValues,
   toSubscriptionForm,
@@ -118,6 +121,23 @@ test("round-trips form values through CSV helpers", () => {
   assert.equal(parsed.name, "iCloud");
   assert.equal(parsed.category, "雲端");
   assert.equal(parsed.archived, true);
+});
+
+test("treats missing or false archived as active for reminders", () => {
+  assert.equal(isActiveSubscription(undefined), true);
+  assert.equal(isActiveSubscription({}), true);
+  assert.equal(isActiveSubscription({ archived: false }), true);
+  assert.equal(isActiveSubscription({ archived: true }), false);
+});
+
+test("expiry collector and dashboard stats skip archived subscriptions", async () => {
+  const root = path.resolve(import.meta.dirname, "../..");
+  const collector = await readFile(path.join(root, "app/api/_lib/expiryCollector.js"), "utf8");
+  const dashboard = await readFile(path.join(root, "hooks/useDashboardStats.ts"), "utf8");
+  const hook = await readFile(path.join(root, "hooks/useSubscriptions.ts"), "utf8");
+  assert.match(collector, /isActiveSubscription\(doc\)/);
+  assert.match(dashboard, /subsResult\.data\.filter\(isActiveSubscription\)/);
+  assert.match(hook, /subscriptions\.filter\(isActiveSubscription\)/);
 });
 
 test("toSubscriptionForm keeps organization fields and formats the due date", () => {

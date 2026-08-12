@@ -1,6 +1,7 @@
 import { getCollectionId } from "./appwriteClient";
 import { daysUntil } from "../../../lib/notifications/daysUntil";
 import { NOTIFICATION_POLICY } from "../../../lib/notifications/policy";
+import { isActiveSubscription } from "../../../lib/subscriptionFields";
 
 const sdk = require("node-appwrite");
 
@@ -64,6 +65,7 @@ export async function collectExpiryItems(databases, databaseId, options) {
         sdk.Query.orderAsc("nextdate"),
       ]);
       for (const doc of subs.documents) {
+        if (!isActiveSubscription(doc)) continue;
         const days = daysUntil(doc.nextdate);
         if (!matchSubscription(days)) continue;
         subscriptions.push({

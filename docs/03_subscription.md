@@ -12,7 +12,7 @@
 - **狀態監控**：標記訂閱是否持續，Favicon 顯示服務圖示。
 - **到期通知**：每日自動檢查 3 天內到期的訂閱，推播瀏覽器通知。
 - **CSV 匯入/匯出**：完整 15 欄；仍可匯入舊的 8 欄 CSV。
-- **封存**：`archived` 會藏進「已封存」篩選，資料仍在 Appwrite。
+- **封存**：`archived` 會藏進「已封存」篩選，資料仍在 Appwrite。儀表板到期、月費與推播／信件都不會再算已封存項目。
 - **本機垃圾桶**：刪除後可還原；資料存在瀏覽器 `fengbro.subscription.trash`，不是 `archived` 欄位。
 
 ## 資料表結構 (Appwrite Collection: `subscription`)
