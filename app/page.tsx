@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   BarChart3,
-  BadgeInfo,
   Building2,
   CalendarClock,
   CreditCard,
@@ -171,12 +170,6 @@ const MENU_ITEMS: MenuItem[] = [
     children: [
       { id: "settings", label: "鋒兄設定", icon: <Settings size={18} /> },
       { id: "about", label: "鋒兄關於", icon: <Info size={18} /> },
-      { id: "bilibili-info", label: "Bilibili 資訊", icon: <BadgeInfo size={18} /> },
-      { id: "mindvideo-info", label: "MindVideo 資訊", icon: <BadgeInfo size={18} /> },
-      { id: "litvideo-info", label: "LitVideo 資訊", icon: <BadgeInfo size={18} /> },
-      { id: "musicful-info", label: "Musicful 資訊", icon: <BadgeInfo size={18} /> },
-      { id: "digen-info", label: "Digen 資訊", icon: <BadgeInfo size={18} /> },
-      { id: "oiioii-info", label: "OiiOii 資訊", icon: <BadgeInfo size={18} /> },
     ],
   },
 ];
@@ -274,7 +267,7 @@ export default function DashboardPage() {
       case "settings":
         return <SettingsManagement />;
       case "about":
-        return <AboutUs />;
+        return <AboutUs onNavigate={handleModuleChange} />;
       case "bilibili-info":
         return <BilibiliInfo />;
       case "mindvideo-info":

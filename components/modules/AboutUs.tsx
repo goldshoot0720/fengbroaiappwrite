@@ -15,6 +15,15 @@ const NAV_SECTIONS = [
   { id: "guide", title: "完整文件", icon: Book },
 ] as const;
 
+const ABOUT_SUBPAGES = [
+  { id: "bilibili-info", title: "Bilibili 資訊", description: "Bilibili 平台資訊與使用說明" },
+  { id: "mindvideo-info", title: "MindVideo 資訊", description: "MindVideo 服務資訊與使用說明" },
+  { id: "litvideo-info", title: "LitVideo 資訊", description: "LitVideo 服務資訊與使用說明" },
+  { id: "musicful-info", title: "Musicful 資訊", description: "Musicful 服務資訊與使用說明" },
+  { id: "digen-info", title: "Digen 資訊", description: "Digen 服務資訊與使用說明" },
+  { id: "oiioii-info", title: "OiiOii 資訊", description: "OiiOii 服務資訊與使用說明" },
+] as const;
+
 const MODULES = [
   { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與 15 個模組快速入口" },
   { num: 2, name: "鋒兄儀表", category: "總覽", desc: "跨模組統計、異常提醒與摘要卡" },
@@ -149,7 +158,7 @@ const RELEASE_ITEMS = [
   },
 ];
 
-export default function AboutUs() {
+export default function AboutUs({ onNavigate }: { onNavigate: (moduleId: string) => void }) {
   const [activeSection, setActiveSection] = useState<string>("updates");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -157,6 +166,7 @@ export default function AboutUs() {
     <div className="space-y-4 lg:space-y-6">
       <AboutBanner />
       <PageTitle title="鋒兄關於" description="產品更新、系統架構、模組導覽與技術文件中心" />
+      <AboutSubpageLinks onNavigate={onNavigate} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:gap-6">
         <div className="lg:col-span-1">
@@ -203,6 +213,36 @@ export default function AboutUs() {
         </div>
       </div>
     </div>
+  );
+}
+
+function AboutSubpageLinks({ onNavigate }: { onNavigate: (moduleId: string) => void }) {
+  return (
+    <section aria-labelledby="about-subpages-title" className="rounded-2xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] p-4">
+      <div className="mb-3">
+        <h2 id="about-subpages-title" className="text-base font-semibold text-[var(--foreground)]">相關服務資訊</h2>
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">這些子頁面只在進入鋒兄關於後顯示。</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {ABOUT_SUBPAGES.map((page) => (
+          <button
+            key={page.id}
+            type="button"
+            onClick={() => onNavigate(page.id)}
+            className="group flex min-h-14 items-center gap-3 rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-veil)] px-3 py-2 text-left transition-colors duration-150 hover:border-[var(--line-strong)] hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] dark:hover:bg-white/10"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/15 text-[var(--primary)]">
+              <Info size={16} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-[var(--foreground)]">{page.title}</span>
+              <span className="block truncate text-xs text-[var(--muted-foreground)]">{page.description}</span>
+            </span>
+            <ChevronRight size={16} className="shrink-0 text-[var(--muted-foreground)] transition-transform duration-150 group-hover:translate-x-0.5" />
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
