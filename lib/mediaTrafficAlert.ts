@@ -1,3 +1,5 @@
+import type { MediaTrafficLedger } from "@/lib/mediaTraffic";
+
 export const MEDIA_TRAFFIC_ALERT_STORAGE_KEY = "fengbro:media-traffic-alert:v1";
 export const GIBIBYTE = 1024 ** 3;
 
@@ -33,7 +35,7 @@ export function getMediaTrafficAlertPolicy(totalBytes: number): MediaTrafficAler
 function readRecord(storage: StorageLike, day: string): MediaTrafficAlertRecord {
   try {
     const value = JSON.parse(storage.getItem(MEDIA_TRAFFIC_ALERT_STORAGE_KEY) || "null") as Partial<MediaTrafficAlertRecord> | null;
-    if (value?.day === day && Number.isInteger(value.displays) && value.displays >= 0) {
+    if (value?.day === day && typeof value.displays === "number" && Number.isInteger(value.displays) && value.displays >= 0) {
       return { day, displays: value.displays };
     }
   } catch {
@@ -68,4 +70,8 @@ export function claimMediaTrafficHomepageAlert(
 
 export function formatMediaTrafficGiB(totalBytes: number) {
   return (Math.max(0, totalBytes) / GIBIBYTE).toFixed(2);
+}
+
+export function mediaTrafficTotal(ledger: Pick<MediaTrafficLedger, "total">) {
+  return ledger.total;
 }
