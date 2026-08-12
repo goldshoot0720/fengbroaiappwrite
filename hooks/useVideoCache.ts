@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { resolveVideoBlob } from "@/lib/videoMultipart";
+import { recordMediaTraffic } from "@/lib/mediaTraffic";
 
 interface VideoItem {
   id: string;
@@ -163,6 +164,7 @@ export function useVideoCache() {
 
       const actualSize = blob.size; // Use actual blob size
       await saveVideoToCache(video.id, blob, video, actualSize);
+      recordMediaTraffic("video", "download", actualSize);
 
       setCacheStatus(prev => ({
         ...prev,

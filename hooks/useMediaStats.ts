@@ -25,14 +25,6 @@ interface MediaStats {
   totalFiles: number;
   storageLimit: number;
   usagePercentage: number;
-  uncachedMediaTrafficEstimate: {
-    images: number;
-    videos: number;
-    music: number;
-    documents: number;
-    podcasts: number;
-    total: number;
-  };
 }
 
 export function useMediaStats() {
@@ -64,14 +56,6 @@ export function useMediaStats() {
     totalFiles: 0,
     storageLimit: Math.floor(1.8 * 1024 * 1024 * 1024),
     usagePercentage: 0,
-    uncachedMediaTrafficEstimate: {
-      images: 0,
-      videos: 0,
-      music: 0,
-      documents: 0,
-      podcasts: 0,
-      total: 0,
-    },
   });
 
   const [storageLoading, setStorageLoading] = useState(false);
@@ -137,14 +121,6 @@ export function useMediaStats() {
           totalFiles: data.stats.totalFiles, // From Appwrite Storage
           storageLimit: data.stats.storageLimit, // From Appwrite Storage
           usagePercentage: data.stats.usagePercentage, // From Appwrite Storage
-          uncachedMediaTrafficEstimate: data.stats.uncachedMediaTrafficEstimate || {
-            images: 0,
-            videos: 0,
-            music: 0,
-            documents: 0,
-            podcasts: 0,
-            total: 0,
-          },
         });
       } catch (err) {
         console.error('Error fetching storage stats:', err);

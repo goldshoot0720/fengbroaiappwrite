@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { recordMediaTraffic } from "@/lib/mediaTraffic";
 
 interface PodcastItem {
   $id: string;
@@ -212,6 +213,7 @@ export function usePodcastCache() {
       const blob = new Blob(chunks as BlobPart[], { type: mimeType });
       const actualSize = blob.size;
       await savePodcastToCache(podcast.$id, blob, podcast, actualSize);
+      recordMediaTraffic("podcast", "download", actualSize);
 
       setCacheStatus(prev => ({
         ...prev,

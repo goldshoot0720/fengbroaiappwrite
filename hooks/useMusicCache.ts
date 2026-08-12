@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { recordMediaTraffic } from "@/lib/mediaTraffic";
 
 interface MusicItem {
   $id: string;
@@ -209,6 +210,7 @@ export function useMusicCache() {
       const blob = new Blob(chunks as BlobPart[], { type: mimeType });
       const actualSize = blob.size;
       await saveMusicToCache(music.$id, blob, music, actualSize);
+      recordMediaTraffic("music", "download", actualSize);
 
       setCacheStatus(prev => ({
         ...prev,

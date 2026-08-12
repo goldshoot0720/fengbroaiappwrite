@@ -17,6 +17,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getProxiedMediaUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import { recordRemoteMediaTraffic } from "@/lib/mediaTraffic";
 import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
@@ -373,6 +374,10 @@ export default function PodcastManagement() {
   const handlePlayPodcast = (podcastItem: PodcastData) => {
     if (!podcastItem.file) return;
 
+    if (!cacheStatus[podcastItem.$id]?.cached) {
+      void recordRemoteMediaTraffic("podcast", "playback", podcastItem.file);
+    }
+
     playNow({
       id: podcastItem.$id,
       name: podcastItem.name,
@@ -540,7 +545,7 @@ export default function PodcastManagement() {
               const podcastBlob = await contents.files[row.file].async('blob');
               const fileName = row.file.split('/').pop() || 'audio.mp3';
               const podcastFileObj = new File([podcastBlob], fileName, { type: 'application/octet-stream' });
-              const uploadResult = await uploadToAppwriteStorage(podcastFileObj);
+              const uploadResult = await uploadToAppwriteStorage(podcastFileObj, undefined, "podcast");
               remoteFileUrl = uploadResult.url;
             }
 
@@ -597,7 +602,7 @@ export default function PodcastManagement() {
             const validExts = ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'mp4', 'webm', 'mov'];
             if (!validExts.includes(ext)) { failedCount++; continue; }
             const podcastFileObj = new File([fileData], fileName, { type: 'application/octet-stream' });
-            const uploadData = await uploadToAppwriteStorage(podcastFileObj);
+            const uploadData = await uploadToAppwriteStorage(podcastFileObj, undefined, "podcast");
             const createUrl = addAppwriteConfigToUrl(API_ENDPOINTS.PODCAST);
             const createResponse = await fetch(createUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fileName, file: uploadData.url, filetype: ext, note: '', ref: '', category: '', hash: '', cover: false }) });
             if (createResponse.ok) successCount++; else failedCount++;
@@ -1575,7 +1580,7 @@ function PodcastFormModal({ podcast, existingPodcast, onClose, onSuccess }: { po
     try {
       const result = await uploadToAppwriteStorage(file, (progress) => {
         setUploadProgress(Math.min(progress, 99));
-      });
+      }, "podcast");
 
       setUploadProgress(100);
       setUploadStatus('success');

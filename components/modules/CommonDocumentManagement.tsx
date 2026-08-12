@@ -16,6 +16,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import { recordRemoteMediaTraffic } from "@/lib/mediaTraffic";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
 
@@ -963,6 +964,7 @@ export default function CommonDocumentManagement() {
 
   const handlePreview = (doc: CommonDocumentData, editMode = false) => {
     if (doc.file && canPreviewFile(doc.name || doc.file, doc.filetype)) {
+      if (!cacheStatus[doc.$id]?.cached) void recordRemoteMediaTraffic("document", "browse", doc.file);
       setPreviewDocument(doc);
       setOpenInEditMode(editMode);
     }

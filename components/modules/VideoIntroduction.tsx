@@ -19,6 +19,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatFileSize as formatStoredFileSize, formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getMultipartVideoPlaybackUrl, getMultipartVideoDownloadUrl, getProxiedMediaUrl, getProxiedMediaDownloadUrl, getExportFilename } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import { recordRemoteMediaTraffic } from "@/lib/mediaTraffic";
 import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename, isMultipartVideoFiletype, resolveVideoBlob, uploadVideoInParts } from "@/lib/videoMultipart";
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
 import { loadJSZip } from "@/lib/loadJSZip";
@@ -1505,6 +1506,9 @@ export default function VideoIntroduction() {
     setCurrentVideo(video.$id);
     setShowPlayer(true);
     const cachedUrl = await loadVideoFromCache(video.$id);
+    if (!cachedUrl && video.file) {
+      void recordRemoteMediaTraffic("video", "playback", video.file, video.fileSize);
+    }
 
     if (videoRef.current) {
       videoRef.current.src = cachedUrl || video.file || '';
@@ -1527,6 +1531,7 @@ export default function VideoIntroduction() {
 
   const handleDirectDownload = useCallback(async (video: VideoData) => {
     try {
+      if (video.file) void recordRemoteMediaTraffic("video", "download", video.file, video.fileSize);
       await downloadVideoToBrowser(video);
     } catch (error) {
       alert(error instanceof Error ? error.message : '下載失敗');

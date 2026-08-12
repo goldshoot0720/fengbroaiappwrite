@@ -559,14 +559,6 @@ export async function GET(request) {
 
     const totalSize = imagesSize + videosSize + musicSize + documentsSize + otherSize;
     const totalCount = allFiles.length;
-    const { fileIdsByCollection } = await getAllReferencedFileIds(
-      databases,
-      databaseId,
-      { endpoint, projectId, apiKey },
-      bucketId
-    );
-    const uncachedMediaTrafficEstimate = calculateUncachedMediaTrafficEstimate(allFiles, fileIdsByCollection);
-
     // Get bucket information (note: bucket details might not include size limit via API)
     // For now, we'll use a default limit or make it configurable
     const storageLimit = STORAGE_UPLOAD_LIMIT_BYTES;
@@ -579,7 +571,6 @@ export async function GET(request) {
         totalSize,
         storageLimit,
         usagePercentage,
-        uncachedMediaTrafficEstimate,
         images: {
           count: imagesCount,
           size: imagesSize,
@@ -619,7 +610,6 @@ export async function GET(request) {
         totalSize: 0,
         storageLimit: STORAGE_UPLOAD_LIMIT_BYTES,
         usagePercentage: 0,
-        uncachedMediaTrafficEstimate: createEmptyTrafficEstimate(),
         images: { count: 0, size: 0 },
         videos: { count: 0, size: 0 },
         music: { count: 0, size: 0 },

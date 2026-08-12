@@ -1,5 +1,6 @@
 import { Client, ID, Permission, Role, Storage } from 'appwrite';
 import { getAppwriteConfig } from './utils';
+import { categoryFromFile, recordMediaTraffic, type MediaTrafficCategory } from './mediaTraffic';
 
 export const STORAGE_UPLOAD_LIMIT_BYTES = Math.floor(1.8 * 1024 * 1024 * 1024);
 
@@ -136,7 +137,8 @@ export function createAppwriteClient() {
  */
 export async function uploadToAppwriteStorage(
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  trafficCategory?: MediaTrafficCategory
 ): Promise<{ url: string; fileId: string }> {
   const config = getAppwriteConfig();
   
@@ -160,6 +162,9 @@ export async function uploadToAppwriteStorage(
           }
         : undefined
     );
+
+    const category = trafficCategory || categoryFromFile(file);
+    if (category) recordMediaTraffic(category, 'upload', file.size);
 
     return {
       url: `${config.endpoint}/storage/buckets/${config.bucketId}/files/${response.$id}/view?project=${config.projectId}`,

@@ -17,6 +17,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatLocalDate } from "@/lib/formatters";
 import { getAppwriteHeaders, getAppwriteDownloadUrl, getProxiedMediaUrl } from "@/lib/utils";
 import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
+import { recordRemoteMediaTraffic } from "@/lib/mediaTraffic";
 import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 
@@ -1543,7 +1544,10 @@ export default function ImageGallery() {
             <ImageGrid
               images={filteredImages}
               loading={loading}
-              onSelectImage={setSelectedImage}
+              onSelectImage={(image) => {
+                if (image.file) void recordRemoteMediaTraffic("image", "browse", image.file, image.size);
+                setSelectedImage(image);
+              }}
               onEdit={handleEdit}
               onRefresh={() => loadImages(true)}
               isInlineCreating={isInlineCreating}
@@ -1583,7 +1587,10 @@ export default function ImageGallery() {
             <ImageGrid
               images={filteredImages}
               loading={loading}
-              onSelectImage={setSelectedImage}
+              onSelectImage={(image) => {
+                if (image.file) void recordRemoteMediaTraffic("image", "browse", image.file, image.size);
+                setSelectedImage(image);
+              }}
               onEdit={handleEdit}
               onRefresh={() => loadImages(true)}
               isInlineCreating={isInlineCreating}
@@ -1623,7 +1630,10 @@ export default function ImageGallery() {
             <ImageList
               images={filteredImages}
               loading={loading}
-              onSelectImage={setSelectedImage}
+              onSelectImage={(image) => {
+                if (image.file) void recordRemoteMediaTraffic("image", "browse", image.file, image.size);
+                setSelectedImage(image);
+              }}
               onEdit={handleEdit}
               onRefresh={() => loadImages(true)}
               selectionMode={selectionMode}

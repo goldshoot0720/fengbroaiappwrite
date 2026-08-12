@@ -4,6 +4,7 @@ import NextImage from "next/image";
 import { useEffect, useState } from "react";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useMediaStats } from "@/hooks/useMediaStats";
+import { useMediaTraffic } from "@/lib/mediaTraffic";
 import { useNotificationPermission } from "@/hooks/useNotificationPermission";
 import { useExpiryNotifications, sendExpiryOsNotifications } from "@/hooks/useExpiryNotifications";
 import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Cloud, Layout, Server, FileVideo, Shield, Zap, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X } from "lucide-react";
@@ -861,9 +862,10 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
 }
 
 // 多媒體儲存統計
-function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalPodcasts: number; storageImagesCount: number; storageVideosCount: number; storageMusicCount: number; imagesSize: number; videosSize: number; musicSize: number; documentsSize: number; otherSize: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number; uncachedMediaTrafficEstimate: { images: number; videos: number; music: number; documents: number; podcasts: number; total: number } }; setupRequired: boolean; onNavigate: (id: string) => void }) {
+function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalPodcasts: number; storageImagesCount: number; storageVideosCount: number; storageMusicCount: number; imagesSize: number; videosSize: number; musicSize: number; documentsSize: number; otherSize: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number }; setupRequired: boolean; onNavigate: (id: string) => void }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [includeDbRecords, setIncludeDbRecords] = useState(false);
+  const traffic = useMediaTraffic();
   const oneGiB = 1024 ** 3;
   const twoGiB = 2 * oneGiB;
   
@@ -882,19 +884,18 @@ function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { tota
     { label: '1 GB', limit: oneGiB },
     { label: '2 GB', limit: twoGiB },
   ];
-  const trafficEstimate = stats.uncachedMediaTrafficEstimate;
   const trafficThreshold25GB = 2.5 * 1024 ** 3;
   const trafficThreshold5GB = 5 * 1024 ** 3;
-  const trafficTone = trafficEstimate.total >= trafficThreshold5GB
+  const trafficTone = traffic.total >= trafficThreshold5GB
     ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100"
-    : trafficEstimate.total >= trafficThreshold25GB
+    : traffic.total >= trafficThreshold25GB
       ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
       : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100";
-  const trafficStatus = trafficEstimate.total >= trafficThreshold5GB
-    ? "可能超過 5 GB"
-    : trafficEstimate.total >= trafficThreshold25GB
-      ? "可能超過 2.5 GB"
-      : "低於 2.5 GB";
+  const trafficStatus = traffic.total >= trafficThreshold5GB
+    ? "已超過 5 GB"
+    : traffic.total >= trafficThreshold25GB
+      ? "已超過 2.5 GB"
+      : "未超過 2.5 GB";
 
   return (
     <DataCard className="p-4 sm:p-6">
@@ -1014,22 +1015,22 @@ function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { tota
             <section className={`mb-4 rounded-xl border p-4 ${trafficTone}`} aria-labelledby="monthly-traffic-estimate-title">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h3 id="monthly-traffic-estimate-title" className="font-semibold">單月未快取媒體流量推估</h3>
-                  <p className="mt-1 text-sm opacity-85">圖片、影片、音樂、文件與播客各下載一次的檔案大小合計。</p>
+                  <h3 id="monthly-traffic-estimate-title" className="font-semibold">本月未快取媒體流量推估</h3>
+                  <p className="mt-1 text-sm opacity-85">依本裝置的播放、瀏覽、下載與上傳實際檔案大小累積。</p>
                 </div>
                 <span className="rounded-full border border-current/20 px-2.5 py-1 text-sm font-semibold">{trafficStatus}</span>
               </div>
               <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="text-2xl font-bold tabular-nums">{formatBytes(trafficEstimate.total)}</span>
+                <span className="text-2xl font-bold tabular-nums">{formatBytes(traffic.total)}</span>
                 <span className="text-sm opacity-85">門檻：2.5 GB／5 GB</span>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-5">
                 {[
-                  ["鋒兄圖片", trafficEstimate.images],
-                  ["鋒兄影片", trafficEstimate.videos],
-                  ["鋒兄音樂", trafficEstimate.music],
-                  ["鋒兄文件", trafficEstimate.documents],
-                  ["鋒兄播客", trafficEstimate.podcasts],
+                  ["鋒兄圖片", traffic.categories.image],
+                  ["鋒兄影片", traffic.categories.video],
+                  ["鋒兄音樂", traffic.categories.music],
+                  ["鋒兄文件", traffic.categories.document],
+                  ["鋒兄播客", traffic.categories.podcast],
                 ].map(([label, size]) => (
                   <div key={label as string} className="min-w-0">
                     <p className="truncate opacity-75">{label}</p>
@@ -1037,7 +1038,12 @@ function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { tota
                   </div>
                 ))}
               </div>
-              <p className="mt-3 text-xs opacity-75">此為單次完整下載的潛在流量，不含重複播放、API、封面、Realtime 或其他網路請求；實際 Appwrite 用量請以 Usage 頁面為準。</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                {[["播放", traffic.actions.playback], ["瀏覽", traffic.actions.browse], ["下載", traffic.actions.download], ["上傳", traffic.actions.upload]].map(([label, size]) => (
+                  <p key={label as string} className="rounded-lg bg-black/5 px-2 py-1.5 dark:bg-white/10">{label as string}：<span className="font-semibold tabular-nums">{formatBytes(size as number)}</span></p>
+                ))}
+              </div>
+              <p className="mt-3 text-xs opacity-75">每月會自動重新起算；快取命中不計入。這是此瀏覽器的檔案流量估算，不含 API、封面、Realtime 等其他網路請求。</p>
             </section>
           )}
 
