@@ -56,6 +56,14 @@ function isVideoFile(fileUrlOrName: string): boolean {
   return videoExtensions.some(ext => lowercase.endsWith(ext) || lowercase.includes(`mime=video/`) || lowercase.includes('video%2F'));
 }
 
+const PODCAST_MEDIA_ACCEPT = "audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/aac,audio/flac,audio/m4a,audio/x-m4a,audio/mp4,video/mp4,video/webm,video/ogg,video/quicktime";
+const PODCAST_MEDIA_TYPES = new Set(PODCAST_MEDIA_ACCEPT.split(','));
+const PODCAST_MEDIA_MAX_SIZE = 50 * 1024 * 1024;
+
+function getPodcastFileName(file: File): string {
+  return file.name.replace(/\.[^/.]+$/, '') || file.name;
+}
+
 export default function PodcastManagement() {
   const { podcast, loading, error, stats, loadPodcast } = usePodcast();
   const [showFormModal, setShowFormModal] = useState(false);
@@ -65,6 +73,8 @@ export default function PodcastManagement() {
   const [inlineCreateCoverFile, setInlineCreateCoverFile] = useState<File | null>(null);
   const [inlineCreateCoverPreview, setInlineCreateCoverPreview] = useState<string>('');
   const [inlineCreateCoverUploading, setInlineCreateCoverUploading] = useState(false);
+  const [inlineCreateMediaFiles, setInlineCreateMediaFiles] = useState<File[]>([]);
+  const [inlineCreateMediaProgress, setInlineCreateMediaProgress] = useState({ current: 0, total: 0, percent: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "withMedia" | "missingCover" | "uncategorized">("all");
   const [expandedPodcastId, setExpandedPodcastId] = useState<string | null>(null);
@@ -202,6 +212,8 @@ export default function PodcastManagement() {
     setInlineCreateCoverFile(null);
     setInlineCreateCoverPreview('');
     setInlineCreateCoverUploading(false);
+    setInlineCreateMediaFiles([]);
+    setInlineCreateMediaProgress({ current: 0, total: 0, percent: 0 });
   };
 
   const handleEdit = (podcastItem: PodcastData) => {
@@ -319,10 +331,12 @@ export default function PodcastManagement() {
     setInlineCreateCoverFile(null);
     setInlineCreateCoverPreview('');
     setInlineCreateCoverUploading(false);
+    setInlineCreateMediaFiles([]);
+    setInlineCreateMediaProgress({ current: 0, total: 0, percent: 0 });
   };
 
   const handleInlineCreateSave = async () => {
-    if (!inlineCreateForm.name.trim()) {
+    if (!inlineCreateForm.name.trim() && inlineCreateMediaFiles.length === 0) {
       alert('請輸入播客名稱');
       return;
     }
@@ -344,6 +358,40 @@ export default function PodcastManagement() {
         if (!response.ok) throw new Error('封面上傳失敗');
         const data = await response.json();
         coverUrl = data.url;
+      }
+
+      if (inlineCreateMediaFiles.length > 0) {
+        setInlineCreateMediaProgress({ current: 0, total: inlineCreateMediaFiles.length, percent: 0 });
+
+        for (const [index, mediaFile] of inlineCreateMediaFiles.entries()) {
+          const uploadResult = await uploadToAppwriteStorage(mediaFile, (percent) => {
+            setInlineCreateMediaProgress({ current: index + 1, total: inlineCreateMediaFiles.length, percent });
+          }, 'podcast');
+
+          const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.PODCAST), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: inlineCreateMediaFiles.length === 1 && inlineCreateForm.name.trim()
+                ? inlineCreateForm.name.trim()
+                : getPodcastFileName(mediaFile),
+              category: inlineCreateForm.category,
+              note: inlineCreateForm.note,
+              ref: inlineCreateForm.ref,
+              cover: coverUrl,
+              file: uploadResult.url,
+              filetype: mediaFile.type,
+              hash: uploadResult.fileId,
+            }),
+          });
+
+          if (!response.ok) throw new Error(`建立第 ${index + 1} 筆播客失敗`);
+          setInlineCreateMediaProgress({ current: index + 1, total: inlineCreateMediaFiles.length, percent: 100 });
+        }
+
+        cancelInlineCreate();
+        loadPodcast(true);
+        return;
       }
 
       const response = await fetch(addAppwriteConfigToUrl(API_ENDPOINTS.PODCAST), {
@@ -741,6 +789,54 @@ export default function PodcastManagement() {
               className="hidden"
             />
           </label>
+          <label className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg cursor-pointer transition-colors">
+            <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+              {inlineCreateCoverUploading ? '上傳中...' : inlineCreateMediaFiles.length > 0 ? `已選擇 ${inlineCreateMediaFiles.length} 個播客檔案` : '上傳播客檔案（可多選，單檔最大 50MB）'}
+            </span>
+            <input
+              type="file"
+              multiple
+              accept={PODCAST_MEDIA_ACCEPT}
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+
+                const invalidFile = files.find((file) => !PODCAST_MEDIA_TYPES.has(file.type));
+                if (invalidFile) {
+                  alert(`「${invalidFile.name}」不是支援的播客媒體格式`);
+                  return;
+                }
+
+                const oversizedFile = files.find((file) => file.size > PODCAST_MEDIA_MAX_SIZE);
+                if (oversizedFile) {
+                  alert(`「${oversizedFile.name}」超過單檔 50MB 上限`);
+                  return;
+                }
+
+                setInlineCreateMediaFiles(files);
+                setInlineCreateMediaProgress({ current: 0, total: files.length, percent: 0 });
+                if (files.length === 1 && !inlineCreateForm.name.trim()) {
+                  setInlineCreateForm({ ...inlineCreateForm, name: getPodcastFileName(files[0]) });
+                }
+                e.target.value = '';
+              }}
+              disabled={inlineCreateCoverUploading}
+              className="hidden"
+            />
+          </label>
+          {inlineCreateMediaFiles.length > 0 && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100">
+              <div className="flex items-center justify-between gap-3 font-medium">
+                <span>每個檔案會建立一筆播客；分類、參考、備註與封面會共用。</span>
+                <button type="button" onClick={() => setInlineCreateMediaFiles([])} disabled={inlineCreateCoverUploading} className="shrink-0 text-blue-700 hover:underline disabled:cursor-not-allowed disabled:opacity-60 dark:text-blue-300">清除</button>
+              </div>
+              <p className="mt-1 truncate">{inlineCreateMediaFiles.map((file) => file.name).join('、')}</p>
+              {inlineCreateCoverUploading && inlineCreateMediaProgress.total > 0 && (
+                <p className="mt-1">正在上傳第 {inlineCreateMediaProgress.current} / {inlineCreateMediaProgress.total} 個檔案（{inlineCreateMediaProgress.percent}%）</p>
+              )}
+            </div>
+          )}
           <Input placeholder="播客名稱" value={inlineCreateForm.name} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, name: e.target.value })} className="h-9 rounded-lg text-sm" />
           <Input placeholder="分類" value={inlineCreateForm.category} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, category: e.target.value })} className="h-9 rounded-lg text-sm" />
           <Input placeholder="參考" value={inlineCreateForm.ref} onChange={(e) => setInlineCreateForm({ ...inlineCreateForm, ref: e.target.value })} className="h-9 rounded-lg text-sm" />
