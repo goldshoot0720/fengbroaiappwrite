@@ -8,6 +8,8 @@ import {
   detectSubscriptionCsvMode,
   emptySubscriptionForm,
   isActiveSubscription,
+  isBillableSubscription,
+  isRenewingSubscription,
   parseSubscriptionCsvRow,
   subscriptionFormToCsvValues,
   toSubscriptionForm,
@@ -130,14 +132,29 @@ test("treats missing or false archived as active for reminders", () => {
   assert.equal(isActiveSubscription({ archived: true }), false);
 });
 
-test("expiry collector and dashboard stats skip archived subscriptions", async () => {
+test("treats missing continue as renewing and false as stopped", () => {
+  assert.equal(isRenewingSubscription(undefined), true);
+  assert.equal(isRenewingSubscription({}), true);
+  assert.equal(isRenewingSubscription({ continue: true }), true);
+  assert.equal(isRenewingSubscription({ continue: false }), false);
+});
+
+test("billable subscriptions must be active and still renewing", () => {
+  assert.equal(isBillableSubscription({}), true);
+  assert.equal(isBillableSubscription({ archived: false, continue: true }), true);
+  assert.equal(isBillableSubscription({ archived: true, continue: true }), false);
+  assert.equal(isBillableSubscription({ archived: false, continue: false }), false);
+  assert.equal(isBillableSubscription({ archived: true, continue: false }), false);
+});
+
+test("expiry collector and dashboard stats skip archived or stopped subscriptions", async () => {
   const root = path.resolve(import.meta.dirname, "../..");
   const collector = await readFile(path.join(root, "app/api/_lib/expiryCollector.js"), "utf8");
   const dashboard = await readFile(path.join(root, "hooks/useDashboardStats.ts"), "utf8");
   const hook = await readFile(path.join(root, "hooks/useSubscriptions.ts"), "utf8");
-  assert.match(collector, /isActiveSubscription\(doc\)/);
-  assert.match(dashboard, /subsResult\.data\.filter\(isActiveSubscription\)/);
-  assert.match(hook, /subscriptions\.filter\(isActiveSubscription\)/);
+  assert.match(collector, /isBillableSubscription\(doc\)/);
+  assert.match(dashboard, /subsResult\.data\.filter\(isBillableSubscription\)/);
+  assert.match(hook, /subscriptions\.filter\(isBillableSubscription\)/);
 });
 
 test("toSubscriptionForm keeps organization fields and formats the due date", () => {

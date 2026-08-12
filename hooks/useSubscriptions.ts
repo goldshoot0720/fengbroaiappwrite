@@ -3,7 +3,7 @@ import { Subscription, SubscriptionFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus, convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
-import { isActiveSubscription } from "@/lib/subscriptionFields";
+import { isBillableSubscription } from "@/lib/subscriptionFields";
 
 export function useSubscriptions() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -147,18 +147,18 @@ export function useSubscriptions() {
     const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
     const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear;
 
-    const activeSubscriptions = Array.isArray(subscriptions)
-      ? subscriptions.filter(isActiveSubscription)
+    const billableSubscriptions = Array.isArray(subscriptions)
+      ? subscriptions.filter(isBillableSubscription)
       : [];
 
-    // 計算總金額（換算為TWD；不含已封存）
-    const totalTWD = activeSubscriptions.reduce((sum, s) => {
+    // 計算總金額（換算為TWD；不含已封存、不續訂）
+    const totalTWD = billableSubscriptions.reduce((sum, s) => {
       const feeInTWD = convertToTWD(s.price || 0, s.currency);
       return sum + feeInTWD;
     }, 0);
 
     // 計算本月到期筆數
-    const expiringSoon = activeSubscriptions.filter((s) => {
+    const expiringSoon = billableSubscriptions.filter((s) => {
       if (!s.nextdate) return false;
       const nextDate = new Date(s.nextdate);
       return (
@@ -168,7 +168,7 @@ export function useSubscriptions() {
     }).length;
 
     // 計算本月月費（本月到期的訂閱總費用）
-    const totalMonthlyFee = activeSubscriptions.reduce((sum, s) => {
+    const totalMonthlyFee = billableSubscriptions.reduce((sum, s) => {
       if (!s.nextdate) return sum;
       const nextDate = new Date(s.nextdate);
       if (nextDate.getFullYear() === currentYear && nextDate.getMonth() === currentMonth) {
@@ -178,7 +178,7 @@ export function useSubscriptions() {
     }, 0);
 
     // 計算下月月費（下月到期的訂閱總費用）
-    const nextMonthFee = activeSubscriptions.reduce((sum, s) => {
+    const nextMonthFee = billableSubscriptions.reduce((sum, s) => {
       if (!s.nextdate) return sum;
       const nextDate = new Date(s.nextdate);
       if (nextDate.getFullYear() === nextMonthYear && nextDate.getMonth() === nextMonth) {
