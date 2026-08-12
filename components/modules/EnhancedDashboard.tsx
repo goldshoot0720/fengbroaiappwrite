@@ -864,6 +864,8 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
 function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalPodcasts: number; storageImagesCount: number; storageVideosCount: number; storageMusicCount: number; imagesSize: number; videosSize: number; musicSize: number; documentsSize: number; otherSize: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number }; setupRequired: boolean; onNavigate: (id: string) => void }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [includeDbRecords, setIncludeDbRecords] = useState(false);
+  const oneGiB = 1024 ** 3;
+  const twoGiB = 2 * oneGiB;
   
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -876,6 +878,10 @@ function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { tota
   const usageColor = stats.usagePercentage > 80 ? 'text-red-600 dark:text-red-400' : stats.usagePercentage > 50 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400';
   const progressColor = stats.usagePercentage > 80 ? 'bg-red-500' : stats.usagePercentage > 50 ? 'bg-orange-500' : 'bg-green-500';
   const isOverStorageLimit = !setupRequired && stats.storageLimit > 0 && stats.totalSize >= stats.storageLimit;
+  const capacityTiers = [
+    { label: '1 GB', limit: oneGiB },
+    { label: '2 GB', limit: twoGiB },
+  ];
 
   return (
     <DataCard className="p-4 sm:p-6">
@@ -895,6 +901,38 @@ function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { tota
           <ChevronDown className="text-gray-500 dark:text-gray-400" size={20} />
         )}
       </div>
+
+      {setupRequired ? (
+        <p className="mb-4 text-sm text-muted-foreground">完成 Storage 設定後，會推估是否超過 1 GB 與 2 GB。</p>
+      ) : (
+        <div className="mb-4 grid gap-2 sm:grid-cols-3" aria-label="儲存空間門檻推估">
+          <div className="rounded-xl bg-slate-100 px-3 py-2.5 text-sm dark:bg-slate-800">
+            <p className="text-xs text-slate-600 dark:text-slate-400">目前估計用量</p>
+            <p className="mt-0.5 font-semibold tabular-nums text-slate-900 dark:text-slate-100">{formatBytes(stats.totalSize)}</p>
+          </div>
+          {capacityTiers.map((tier) => {
+            const exceeded = stats.totalSize >= tier.limit;
+            const difference = Math.abs(tier.limit - stats.totalSize);
+
+            return (
+              <div
+                key={tier.label}
+                className={exceeded
+                  ? 'rounded-xl bg-rose-50 px-3 py-2.5 text-sm dark:bg-rose-950/30'
+                  : 'rounded-xl bg-emerald-50 px-3 py-2.5 text-sm dark:bg-emerald-950/30'}
+              >
+                <p className={exceeded ? 'text-xs text-rose-700 dark:text-rose-300' : 'text-xs text-emerald-700 dark:text-emerald-300'}>{tier.label} 門檻</p>
+                <p className={exceeded
+                  ? 'mt-0.5 font-semibold tabular-nums text-rose-800 dark:text-rose-200'
+                  : 'mt-0.5 font-semibold tabular-nums text-emerald-800 dark:text-emerald-200'}
+                >
+                  {exceeded ? `已超過 ${formatBytes(difference)}` : `尚餘 ${formatBytes(difference)}`}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {isOverStorageLimit ? (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">

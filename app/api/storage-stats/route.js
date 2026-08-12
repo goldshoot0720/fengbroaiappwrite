@@ -151,6 +151,9 @@ async function getAllReferencedFileIds(databases, databaseId, storageConfig, buc
   };
   
   const fileIdSet = new Set();
+  const fileIdsByCollection = Object.fromEntries(
+    Object.keys(collectionFields).map((collectionName) => [collectionName, new Set()])
+  );
   const collectionCounts = {}; // Store document count per collection
   console.log(`  📋 掃描 ${Object.keys(collectionFields).length} 個集合...`);
 
@@ -190,12 +193,16 @@ async function getAllReferencedFileIds(databases, databaseId, storageConfig, buc
               const fileId = extractFileId(doc[field]);
               if (fileId) {
                 fileIdSet.add(fileId);
+                fileIdsByCollection[collectionName].add(fileId);
                 filesFound++;
                 console.log(`    ✅ ${doc.$id}.${field} = ${fileId}`);
 
                 if (collectionName === 'video' && isMultipartVideoRecord(doc, field)) {
                   const partIds = await fetchMultipartManifestFileIds(storageConfig, bucketId, fileId);
-                  partIds.forEach((partId) => fileIdSet.add(partId));
+                  partIds.forEach((partId) => {
+                    fileIdSet.add(partId);
+                    fileIdsByCollection[collectionName].add(partId);
+                  });
                   if (partIds.length > 0) {
                     console.log(`    🎬 ${doc.$id} multipart parts = ${partIds.length}`);
                   }
@@ -221,7 +228,44 @@ async function getAllReferencedFileIds(databases, databaseId, storageConfig, buc
   }
 
   console.log(`\n  🎯 總計引用檔案: ${fileIdSet.size} 個`);
-  return { fileIdSet, collectionCounts };
+  return { fileIdSet, fileIdsByCollection, collectionCounts };
+}
+
+function createEmptyTrafficEstimate() {
+  return {
+    images: 0,
+    videos: 0,
+    music: 0,
+    documents: 0,
+    podcasts: 0,
+    total: 0,
+  };
+}
+
+function calculateUncachedMediaTrafficEstimate(allFiles, fileIdsByCollection) {
+  const estimate = createEmptyTrafficEstimate();
+  const groups = {
+    images: fileIdsByCollection.image,
+    videos: fileIdsByCollection.video,
+    music: fileIdsByCollection.music,
+    documents: fileIdsByCollection.commondocument,
+    podcasts: fileIdsByCollection.podcast,
+  };
+  const assignedFileIds = new Set();
+
+  for (const [category, fileIds] of Object.entries(groups)) {
+    if (!fileIds) continue;
+    for (const fileId of fileIds) {
+      if (assignedFileIds.has(fileId)) continue;
+      const file = allFiles.find((candidate) => candidate.$id === fileId);
+      if (!file) continue;
+      estimate[category] += getStorageFileSize(file);
+      assignedFileIds.add(fileId);
+    }
+  }
+
+  estimate.total = Object.values(estimate).slice(0, 5).reduce((sum, size) => sum + size, 0);
+  return estimate;
 }
 
 // Count orphaned files
@@ -451,7 +495,7 @@ export async function GET(request) {
       bucketId: searchParams.get('_bucket'),
     };
 
-    const { storage, bucketId } = createAppwrite(appwriteConfig);
+    const { storage, databases, databaseId, bucketId, endpoint, projectId, apiKey } = createAppwrite(appwriteConfig);
 
     // If action is 'count', find orphaned files
     if (action === 'count') {
@@ -515,6 +559,13 @@ export async function GET(request) {
 
     const totalSize = imagesSize + videosSize + musicSize + documentsSize + otherSize;
     const totalCount = allFiles.length;
+    const { fileIdsByCollection } = await getAllReferencedFileIds(
+      databases,
+      databaseId,
+      { endpoint, projectId, apiKey },
+      bucketId
+    );
+    const uncachedMediaTrafficEstimate = calculateUncachedMediaTrafficEstimate(allFiles, fileIdsByCollection);
 
     // Get bucket information (note: bucket details might not include size limit via API)
     // For now, we'll use a default limit or make it configurable
@@ -528,6 +579,7 @@ export async function GET(request) {
         totalSize,
         storageLimit,
         usagePercentage,
+        uncachedMediaTrafficEstimate,
         images: {
           count: imagesCount,
           size: imagesSize,
@@ -567,6 +619,7 @@ export async function GET(request) {
         totalSize: 0,
         storageLimit: STORAGE_UPLOAD_LIMIT_BYTES,
         usagePercentage: 0,
+        uncachedMediaTrafficEstimate: createEmptyTrafficEstimate(),
         images: { count: 0, size: 0 },
         videos: { count: 0, size: 0 },
         music: { count: 0, size: 0 },
