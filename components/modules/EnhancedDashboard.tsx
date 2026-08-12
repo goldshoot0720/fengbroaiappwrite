@@ -1,10 +1,11 @@
 "use client";
 
 import NextImage from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useMediaStats } from "@/hooks/useMediaStats";
 import { useMediaTraffic } from "@/lib/mediaTraffic";
+import { claimMediaTrafficHomepageAlert, formatMediaTrafficGiB, type MediaTrafficAlertPolicy } from "@/lib/mediaTrafficAlert";
 import { useNotificationPermission } from "@/hooks/useNotificationPermission";
 import { useExpiryNotifications, sendExpiryOsNotifications } from "@/hooks/useExpiryNotifications";
 import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Cloud, Layout, Server, FileVideo, Shield, Zap, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X } from "lucide-react";
@@ -91,6 +92,15 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
   const [tubeNoticeDismissed, setTubeNoticeDismissed] = useState(false);
   const [financeAlerts, setFinanceAlerts] = useState<FinanceAlertNotice[]>([]);
   const [financeAlertsDismissed, setFinanceAlertsDismissed] = useState(false);
+  const traffic = useMediaTraffic();
+  const [trafficAlert, setTrafficAlert] = useState<MediaTrafficAlertPolicy | null>(null);
+  const lastTrafficAlertTotal = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (lastTrafficAlertTotal.current === traffic.total) return;
+    lastTrafficAlertTotal.current = traffic.total;
+    setTrafficAlert(claimMediaTrafficHomepageAlert(traffic.total, window.localStorage));
+  }, [traffic.total]);
 
   useExpiryNotifications({
     stats,
@@ -190,6 +200,8 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
           onDismiss={handleDismissFinanceAlerts}
           onNavigate={() => onNavigate("fengbro-finance")}
         />
+
+        {trafficAlert && <MediaTrafficHomepageAlert policy={trafficAlert} total={traffic.total} />}
 
         <DataCard className="overflow-hidden border-[var(--line-strong)] bg-[linear-gradient(135deg,rgba(18,25,22,0.96),rgba(42,56,49,0.92))] p-0 text-emerald-50 shadow-[0_24px_50px_rgba(15,23,20,0.28)]">
           <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(110,231,183,0.2),transparent_38%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent)] px-3 py-2.5 sm:px-5 sm:py-3">
@@ -313,6 +325,8 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         onNavigate={() => onNavigate("fengbro-finance")}
       />
 
+      {trafficAlert && <MediaTrafficHomepageAlert policy={trafficAlert} total={traffic.total} />}
+
       {tubeRecentVideos.length > 0 && !tubeNoticeDismissed && (
         <DataCard className="p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
           <div className="flex items-start gap-3">
@@ -364,7 +378,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       </div>
 
       {/* 多媒體儲存統計 */}
-      <MediaStorageStats stats={mediaStats} setupRequired={mediaSetupRequired} onNavigate={onNavigate} />
+      <MediaStorageStats stats={mediaStats} traffic={traffic} setupRequired={mediaSetupRequired} onNavigate={onNavigate} />
       
       {/* 訂閱到期提醒 */}
       {stats.subscriptionsExpiring3Days > 0 && (
@@ -862,10 +876,9 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
 }
 
 // 多媒體儲存統計
-function MediaStorageStats({ stats, setupRequired, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalPodcasts: number; storageImagesCount: number; storageVideosCount: number; storageMusicCount: number; imagesSize: number; videosSize: number; musicSize: number; documentsSize: number; otherSize: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number }; setupRequired: boolean; onNavigate: (id: string) => void }) {
+function MediaStorageStats({ stats, traffic, setupRequired, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number }; traffic: ReturnType<typeof useMediaTraffic>; setupRequired: boolean; onNavigate: (id: string) => void }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [includeDbRecords, setIncludeDbRecords] = useState(false);
-  const traffic = useMediaTraffic();
   const oneGiB = 1024 ** 3;
   const twoGiB = 2 * oneGiB;
   

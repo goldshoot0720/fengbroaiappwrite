@@ -75,6 +75,18 @@ export async function recordRemoteMediaTraffic(category: MediaTrafficCategory, a
     if (response.ok && Number.isFinite(size) && size > 0) {
       recordMediaTraffic(category, action, size);
       rememberLoadedFile(url, loadedFiles);
+      return;
+    }
+
+    // Some media servers (including Appwrite views behind a proxy) reject HEAD
+    // requests or omit Content-Length. A one-byte range response carries the
+    // complete file size in Content-Range without downloading the media again.
+    const rangeResponse = await fetch(url, { headers: { Range: "bytes=0-0" } });
+    const contentRange = rangeResponse.headers.get("content-range");
+    const totalSize = Number(contentRange?.match(/\/(\d+)$/)?.[1]);
+    if (rangeResponse.ok && Number.isFinite(totalSize) && totalSize > 0) {
+      recordMediaTraffic(category, action, totalSize);
+      rememberLoadedFile(url, loadedFiles);
     }
   } catch {
     // A failed size lookup must never affect the media action itself.
