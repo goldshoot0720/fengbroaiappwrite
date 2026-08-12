@@ -1,5 +1,5 @@
-import AutoSignInfo from "@/components/modules/AutoSignInfo";
+import ServiceInfo from "@/components/modules/ServiceInfo";
 
 export default function LitVideoInfo() {
-  return <AutoSignInfo project={{ name: "LitVideo", repositoryUrl: "https://github.com/huang1988pioneer/AutoSignLitVideo", runUrl: "https://github.com/huang1988pioneer/AutoSignLitVideo/actions/runs/31569353528", workflowName: "Daily LitMedia Check-in", runNumber: 154, startedAt: "2026-08-12 14:15", completedAt: "15:00", commit: "1b68c93", status: "success" }} />;
+  return <ServiceInfo project={{ name: "LitVideo", description: "LitVideo 服務資訊與使用說明", serviceUrl: "https://www.litmedia.ai/app/litvideo/home/", serviceLabel: "開啟 LitVideo", repositoryUrl: "https://github.com/huang1988pioneer/AutoSignLitVideo", runUrl: "https://github.com/huang1988pioneer/AutoSignLitVideo/actions/runs/31569353528", workflowName: "Daily LitMedia Check-in", runNumber: 154, completedAt: "2026-08-12 15:00（台北時間）", status: "success", overview: "LitVideo 是 LitMedia 的多模型 AI 影音創作工作區，提供文字轉影片、圖片轉影片、AI 音樂影片、影像生成、特效、角色與影片延長等工具，讓使用者依題材選擇模型與工作流程。", capabilities: ["用文字或圖片建立短影片與動態場景。", "用 AI Music Video 把音樂搭配視覺風格製成影音成品。", "套用影片／圖片效果，或建立 AI Avatar 與角色素材。", "延長既有片段並反覆調整提示詞、參考素材與模型選擇。"], steps: ["先以低成本模型或短秒數驗證構圖、鏡頭與角色風格。", "需要連貫敘事時，固定角色與場景參考，分段生成並在剪輯工具內串接。", "輸出前檢查片段的連續性、文字正確性與是否含有不適合發布的影像。", "每日簽到結果僅用於確認服務互動；登入有效性仍應以 LitMedia 頁面為準。"], automationScope: "工作流使用 Playwright 登入狀態執行 LitMedia 每日簽到，並產生連續天數結果檔；它不會自動創作或發佈影片。", caution: "登入狀態資料與 Cookie 必須存於 Secrets，失效時應重新登入更新；不同模型的點數消耗、排隊時間與權利以 LitMedia 介面顯示為準。" }} />;
 }

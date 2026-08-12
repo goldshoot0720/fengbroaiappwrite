@@ -1,5 +1,5 @@
-import AutoSignInfo from "@/components/modules/AutoSignInfo";
+import ServiceInfo from "@/components/modules/ServiceInfo";
 
 export default function MindVideoInfo() {
-  return <AutoSignInfo project={{ name: "MindVideo", repositoryUrl: "https://github.com/huang1988pioneer/AutoSignMindVideo", runUrl: "https://github.com/huang1988pioneer/AutoSignMindVideo/actions/runs/31052152272", workflowName: "MindVideo Daily Check-in", runNumber: 106, startedAt: "2026-08-06 06:17", completedAt: "06:19", commit: "5ce1648", status: "success" }} />;
+  return <ServiceInfo project={{ name: "MindVideo", description: "MindVideo 服務資訊與使用說明", serviceUrl: "https://www.mindvideo.ai", repositoryUrl: "https://github.com/huang1988pioneer/AutoSignMindVideo", runUrl: "https://github.com/huang1988pioneer/AutoSignMindVideo/actions/runs/31052152272", workflowName: "MindVideo Daily Check-in", runNumber: 106, completedAt: "2026-08-06 06:19（台北時間）", status: "success", overview: "MindVideo 是整合式 AI 創作平台，可在同一工作區生成、編輯與下載影片、圖片和音訊；適合把文字腳本、參考圖片與既有素材整理成短影音或宣傳素材。", capabilities: ["以文字描述或參考圖片產生影片片段。", "生成圖片與免版稅風格音樂，作為影音作品的素材。", "以文字指令調整場景、背景或物件，並使用增強與升頻工具改善畫質。", "使用延長影片功能補足片段；結果仍需逐段檢查人物、文字與動作連續性。"], steps: ["先寫清楚主題、鏡頭、主體動作、風格與畫面比例，再開始生成。", "先做短片段測試，確認人物一致性與運鏡後再消耗較多點數生成長版。", "把可用片段匯出前，檢查畫面中的文字、商標、人物肖像及配樂授權。", "如需每日點數或帳戶狀態，開啟服務頁確認，再對照自動簽到工作流。"], automationScope: "工作流會以帳戶 Token 進行每日 API 簽到並產生帳戶、點數與連續天數摘要；不會替你生成、發布或下載作品。", caution: "Token 屬敏感資料，僅應存於 GitHub Secrets；生成額度、模型可用性與商用權利會隨方案調整，請在生成前確認服務頁面。" }} />;
 }

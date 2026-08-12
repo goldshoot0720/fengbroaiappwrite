@@ -1,5 +1,5 @@
-import AutoSignInfo from "@/components/modules/AutoSignInfo";
+import ServiceInfo from "@/components/modules/ServiceInfo";
 
 export default function MusicfulInfo() {
-  return <AutoSignInfo project={{ name: "Musicful", repositoryUrl: "https://github.com/huang1988pioneer/AutoSignMusicful", runUrl: "https://github.com/huang1988pioneer/AutoSignMusicful/actions/runs/31606075233", workflowName: "Musicful Auto Sign", runNumber: 214, startedAt: "2026-08-12 22:18", completedAt: "22:29", commit: "69bbfb9", status: "success" }} />;
+  return <ServiceInfo project={{ name: "Musicful", description: "Musicful 服務資訊與使用說明", serviceUrl: "https://tw.musicful.ai", repositoryUrl: "https://github.com/huang1988pioneer/AutoSignMusicful", runUrl: "https://github.com/huang1988pioneer/AutoSignMusicful/actions/runs/31606075233", workflowName: "Musicful Auto Sign", runNumber: 214, completedAt: "2026-08-12 22:29（台北時間）", status: "success", overview: "Musicful 是 AI 音樂創作平台。可由文字、歌詞、上傳或錄製音訊形成歌曲，並提供 AI MV、重製、音軌／人聲分離與輸出工具，適合快速把旋律或文案發展成試聽作品。", capabilities: ["從文字或歌詞生成帶有人聲與伴奏的歌曲，並選擇曲風與氛圍。", "上傳哼唱、口說、人聲或樂器片段，再延伸、重製或改寫歌詞。", "製作 AI 音樂影片，或把歌曲拆成多個人聲與樂器音軌。", "依方案使用 WAV、MIDI 與分軌等進階輸出；可用性需以帳戶方案為準。"], steps: ["先準備清楚的歌詞結構與風格提示，例如曲風、速度、情緒、樂器與人聲特徵。", "先生成短版或多個版本比較副歌與咬字，再決定是否延伸或重製。", "上傳任何參考音訊前，確認你擁有素材與聲音的使用權。", "要公開、上架或商用前，重新閱讀帳戶方案的授權條款與輸出限制。"], automationScope: "工作流會開啟 Musicful 成長中心並嘗試每日簽到，產出包含連續天數的報告；它不會替帳戶生成或發布歌曲。", caution: "AI 生成不等於可任意模仿特定藝人或使用受保護素材；商用、下載與分軌權限請以 Musicful 當下條款及你的方案為準。" }} />;
 }

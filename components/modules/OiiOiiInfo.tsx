@@ -1,5 +1,5 @@
-import AutoSignInfo from "@/components/modules/AutoSignInfo";
+import ServiceInfo from "@/components/modules/ServiceInfo";
 
 export default function OiiOiiInfo() {
-  return <AutoSignInfo project={{ name: "OiiOii", repositoryUrl: "https://github.com/huang1988pioneer/AutoSignOiiOii", runUrl: "https://github.com/huang1988pioneer/AutoSignOiiOii/actions/runs/31568802733", workflowName: "Claim OiiOii daily lunch", runNumber: 37, startedAt: "2026-08-12 14:06", completedAt: "14:38", commit: "18dfe98", status: "failure" }} />;
+  return <ServiceInfo project={{ name: "OiiOii", description: "OiiOii 服務資訊與使用說明", serviceUrl: "https://www.oiioii.ai", repositoryUrl: "https://github.com/huang1988pioneer/AutoSignOiiOii", runUrl: "https://github.com/huang1988pioneer/AutoSignOiiOii/actions/runs/31568802733", workflowName: "Claim OiiOii daily lunch", runNumber: 37, completedAt: "2026-08-12 14:38（台北時間）", status: "failure", overview: "OiiOii 是以多代理協作為核心的 AI 動畫平台：腳本、角色、場景、動畫、剪輯與聲音等代理共享同一故事結構，目標是把單一提示發展成具連貫性的動畫短片，而非只產生獨立片段。", capabilities: ["從提示發展腳本、角色設定、場景與分鏡。", "讓多個 AI 代理協作處理角色一致性、鏡頭與時間線調整。", "選擇不同底層影像／影片模型產生鏡頭，再於專案中重製個別畫面。", "依方案使用每日免費點數、進階模型、商用權利或團隊工作區。"], steps: ["先以一句話定義故事目標、受眾與成片比例，再讓系統產生初始規劃。", "在產生畫面前固定角色外觀、場景與關鍵鏡頭，減少多段影片的漂移。", "逐鏡檢查動作、字幕、聲音和角色一致性，只重製有問題的鏡頭。", "發布前確認帳戶方案的商用範圍、素材來源與成品下載條件。"], automationScope: "工作流嘗試領取 OiiOii 每日 lunch／點數，支援以登入狀態或 Cookie 執行，失敗時會保留截圖等診斷產物。本次第 37 次執行失敗，應先查看紀錄後再決定是否手動領取或更新登入狀態。", caution: "失敗不代表帳戶或服務不可用，常見原因可能是登入狀態、頁面流程或活動規則改變；請先查看工作流截圖／紀錄，勿反覆提交或分享 Cookie。" }} />;
 }
