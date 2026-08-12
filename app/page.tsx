@@ -55,6 +55,11 @@ const AboutUs = dynamic(() => import("@/components/modules/AboutUs"), {
 const BilibiliInfo = dynamic(() => import("@/components/modules/BilibiliInfo"), {
   loading: ModuleFallback,
 });
+const MindVideoInfo = dynamic(() => import("@/components/modules/MindVideoInfo"), { loading: ModuleFallback });
+const LitVideoInfo = dynamic(() => import("@/components/modules/LitVideoInfo"), { loading: ModuleFallback });
+const MusicfulInfo = dynamic(() => import("@/components/modules/MusicfulInfo"), { loading: ModuleFallback });
+const DigenInfo = dynamic(() => import("@/components/modules/DigenInfo"), { loading: ModuleFallback });
+const OiiOiiInfo = dynamic(() => import("@/components/modules/OiiOiiInfo"), { loading: ModuleFallback });
 const BankManagement = dynamic(() => import("@/components/modules/BankManagement"), {
   loading: ModuleFallback,
 });
@@ -167,6 +172,11 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "settings", label: "鋒兄設定", icon: <Settings size={18} /> },
       { id: "about", label: "鋒兄關於", icon: <Info size={18} /> },
       { id: "bilibili-info", label: "Bilibili 資訊", icon: <BadgeInfo size={18} /> },
+      { id: "mindvideo-info", label: "MindVideo 資訊", icon: <BadgeInfo size={18} /> },
+      { id: "litvideo-info", label: "LitVideo 資訊", icon: <BadgeInfo size={18} /> },
+      { id: "musicful-info", label: "Musicful 資訊", icon: <BadgeInfo size={18} /> },
+      { id: "digen-info", label: "Digen 資訊", icon: <BadgeInfo size={18} /> },
+      { id: "oiioii-info", label: "OiiOii 資訊", icon: <BadgeInfo size={18} /> },
     ],
   },
 ];
@@ -267,6 +277,16 @@ export default function DashboardPage() {
         return <AboutUs />;
       case "bilibili-info":
         return <BilibiliInfo />;
+      case "mindvideo-info":
+        return <MindVideoInfo />;
+      case "litvideo-info":
+        return <LitVideoInfo />;
+      case "musicful-info":
+        return <MusicfulInfo />;
+      case "digen-info":
+        return <DigenInfo />;
+      case "oiioii-info":
+        return <OiiOiiInfo />;
       default:
         return <NotFoundModule />;
     }
