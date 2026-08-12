@@ -35,8 +35,9 @@ export function getMediaTrafficAlertPolicy(totalBytes: number): MediaTrafficAler
 function readRecord(storage: StorageLike, day: string): MediaTrafficAlertRecord {
   try {
     const value = JSON.parse(storage.getItem(MEDIA_TRAFFIC_ALERT_STORAGE_KEY) || "null") as Partial<MediaTrafficAlertRecord> | null;
-    if (value?.day === day && typeof value.displays === "number" && Number.isInteger(value.displays) && value.displays >= 0) {
-      return { day, displays: value.displays };
+    const displays = value?.displays;
+    if (value?.day === day && typeof displays === "number" && Number.isInteger(displays) && displays >= 0) {
+      return { day, displays };
     }
   } catch {
     // A corrupt local value should behave like a new day of reminders.
