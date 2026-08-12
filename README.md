@@ -1,203 +1,103 @@
-# 鋒兄AI管理系統 🚀
+# 鋒兄AI管理系統
 
-一個現代化的響應式管理系統，專為食品庫存和訂閱服務管理而設計。支援手機、平板和桌面設備，提供優雅的用戶體驗。
+家庭數位中控台（zh-TW）：訂閱、食品／商品庫存、銀行／電子票證、筆記與文件、常用連結、影音播客、例行事項，以及比價、金融報價、新聞與 FFmpeg 媒體工具。
 
-## ✨ 主要功能
+日常入口是 `/` 的單頁模組切換，不是每個模組一條獨立路由。現況以 `app/page.tsx` 與 `docs/INDEX.md` 為準。
 
-### 📦 食品管理
-- 智能庫存追蹤
-- 過期日期提醒
-- 數量快速調整
-- 圖片支援
-- 響應式卡片和表格視圖
+## 功能
 
-### 💳 訂閱管理
-- 訂閱服務追蹤
-- 付款日期提醒
-- 月費統計
-- 到期狀態警示
-- 快速網站訪問
+### 日常工作台（需 Appwrite）
 
-### 📱 響應式設計
-- **手機優先**：專為觸控設備優化
-- **平板友好**：充分利用中等螢幕空間
-- **桌面完整**：豐富的桌面體驗
-- **PWA 支援**：可安裝為原生應用
+- **鋒兄首頁 / 儀表** — 到期、餘額、媒體流量與容量摘要
+- **鋒兄訂閱** — 扣款日、多幣別、CSV、本機垃圾桶
+- **鋒兄食品** — 庫存、到期、商品庫存
+- **鋒兄筆記 / 文件** — 筆記附件預覽；PDF／Office／程式碼／ZIP
+- **鋒兄常用** — 網站群組、favicon、行內編輯
+- **鋒兄圖片 / 影片 / 音樂 / 播客** — 上傳、佇列、歌詞、IndexedDB 快取
+- **鋒兄銀行** — 帳戶與電子票證餘額
+- **鋒兄例行** — 日期遞移與天數差
+- **鋒兄設定 / 關於** — 帳號切換、建表、文件中心
 
-## 🎨 設計特色
+### 鋒兄工具
 
-### 現代化 UI
-- 漸變色彩方案
-- 圓角設計語言
-- 微妙陰影效果
-- 流暢動畫過渡
+- 鋒兄比價（手動價格紀錄）
+- 手機比價（地標網通 + 傑昇通信，週期歷史）
+- 圖片 + 語音 = 影片
+- PNG / JPEG 轉換
+- 影片合併
+- YouTube / Bilibili 轉 MP3／MP4
 
-### 響應式佈局
-- 彈性網格系統
-- 自適應導航
-- 觸控友好的按鈕尺寸
-- 智能內容重排
+### 鋒兄子工具
 
-### 無障礙設計
-- 語義化 HTML
-- 鍵盤導航支援
-- 適當的對比度
-- 螢幕閱讀器友好
+- 鋒兄Tube（頻道與倒台指數）
+- 鋒兄金融（CNBC / Yahoo 報價、自訂標的）
+- 鋒兄新聞（鎖定網站焦點）
 
-## 🛠️ 技術棧
+### 跨模組
 
-- **框架**: Next.js 15 (App Router)
-- **樣式**: Tailwind CSS + shadcn/ui
-- **語言**: TypeScript
-- **字體**: Geist Sans & Geist Mono
-- **圖標**: Lucide React
-- **後端**: Appwrite
+- 亮色 / 暗色 / 跟隨系統，舒適 / 緊湊密度
+- PWA、語音導覽、到期 Web Push
+- 媒體佇列與離線快取（每類約 500MB）
 
-## 📱 響應式斷點
+## 技術棧
 
-```css
-/* 手機 */
-@media (max-width: 767px) {
-  /* 單欄佈局，大按鈕，簡化導航 */
-}
+- **框架**: Next.js 16（App Router + Turbopack）、React 19、TypeScript 5.9
+- **樣式**: Tailwind CSS 4、Radix / shadcn 風格、Lucide、Geist
+- **後端**: Next.js API routes + Appwrite 21（Database、Storage）
+- **部署**: Vercel（含 cron）與 Docker
 
-/* 平板 */
-@media (min-width: 768px) and (max-width: 1023px) {
-  /* 雙欄佈局，中等按鈕 */
-}
+## 資料表
 
-/* 桌面 */
-@media (min-width: 1024px) {
-  /* 多欄佈局，完整功能 */
-}
-```
+設定頁可初始化 **13** 個 collection（見 `app/api/create-table/route.js`）：
 
-## 🚀 快速開始
+`food` · `subscription` · `article` · `commonaccount` · `bank` · `routine` · `image` · `video` · `music` · `podcast` · `commondocument` · `landtophistory` · `manualprice`
 
-1. **安裝依賴**
-```bash
-npm install
-```
+另有 Web Push 訂閱表由 `/api/push-subscribe` 動態建立。
 
-2. **配置環境變數**
-確保 `.env` 文件包含正確的 Appwrite 配置
+## 快速開始
 
-3. **啟動開發服務器**
-```bash
-npm run dev
-```
-
-4. **訪問應用**
-打開 [http://localhost:3000](http://localhost:3000)
-
-## 📂 項目結構
+1. 安裝依賴：`npm install`
+2. 複製環境變數並填入 Appwrite：
 
 ```
-├── app/                    # Next.js App Router
-│   ├── api/               # API 路由
-│   │   ├── food/         # 食品 API
-│   │   └── subscription/ # 訂閱 API
-│   ├── globals.css        # 全局樣式
-│   ├── layout.tsx         # 根佈局
-│   └── page.tsx          # 主頁面
-├── components/            # React 組件
-│   ├── layout/           # 佈局組件
-│   │   └── DashboardLayout.tsx
-│   ├── modules/          # 功能模組
-│   │   ├── FoodManagement.tsx
-│   │   └── SubscriptionManagement.tsx
-│   └── ui/              # shadcn/ui 組件
-└── public/               # 靜態資源
-    ├── manifest.json     # PWA 配置
-    └── *.svg            # 圖標文件
+NEXT_PUBLIC_APPWRITE_ENDPOINT=
+NEXT_PUBLIC_APPWRITE_PROJECT_ID=
+NEXT_PUBLIC_APPWRITE_DATABASE_ID=
+NEXT_PUBLIC_APPWRITE_BUCKET_ID=
+NEXT_PUBLIC_APPWRITE_API_KEY=
 ```
 
-## 🎯 響應式優化重點
+3. `npm run dev`，開啟 [http://localhost:3000](http://localhost:3000)
+4. 第一次使用：進 **鋒兄設定** → 一鍵建立缺失 Table
 
-### 手機體驗 (< 768px)
-- ✅ 單欄佈局
-- ✅ 大觸控按鈕 (最小 44px)
-- ✅ 滑動式側邊欄
-- ✅ 卡片式內容展示
-- ✅ 簡化操作流程
+也可在設定頁用 localStorage 覆寫連線，不必重部署。
 
-### 平板體驗 (768px - 1023px)
-- ✅ 雙欄佈局
-- ✅ 適中的按鈕尺寸
-- ✅ 混合導航模式
-- ✅ 表格與卡片混合視圖
+## 專案結構
 
-### 桌面體驗 (≥ 1024px)
-- ✅ 多欄佈局
-- ✅ 完整表格視圖
-- ✅ 固定側邊欄
-- ✅ 豐富的交互功能
-
-## 🔧 自定義配置
-
-### 主題色彩
-在 `app/globals.css` 中修改 CSS 變數：
-
-```css
-:root {
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  /* 更多顏色變數... */
-}
+```
+app/                    # App Router：主頁、少量獨立路由、API
+app/api/                # CRUD、上傳、比價、金融、新聞、轉檔
+components/layout/      # DashboardLayout（頂欄、手機底欄、佇列、語音）
+components/modules/     # 各功能模組
+components/ui/          # 共用元件與播放器
+hooks/                  # 資料、快取、通知、語音
+lib/                    # Appwrite 設定、比價／新聞／金融邏輯
+docs/INDEX.md           # 選單與資料表現況索引
 ```
 
-### 響應式斷點
-在 `tailwind.config.js` 中自定義：
+獨立路由：`/finance`（金融連線狀態）、`/bank`（示範假資料，非正式銀行模組）、`/lyrics-test`。
 
-```js
-module.exports = {
-  theme: {
-    screens: {
-      'sm': '640px',
-      'md': '768px',
-      'lg': '1024px',
-      'xl': '1280px',
-    }
-  }
-}
-```
+## 排程（Vercel cron）
 
-## 📈 性能優化
+- 每日推播到期、補送到期通知
+- 每週一抓地標網通歷史價格
 
-- ✅ 圖片懶加載
-- ✅ 代碼分割
-- ✅ CSS 優化
-- ✅ 字體優化
-- ✅ PWA 緩存策略
+## 文件
 
-## 🌐 瀏覽器支援
+- 選單與資料表現況：[docs/INDEX.md](docs/INDEX.md)
+- 產品定位：[PRODUCT.md](PRODUCT.md)
+- 使用手冊：[docs/USER_GUIDE.md](docs/USER_GUIDE.md)（日常 CRUD 仍可用；工具／子工具與 13 表以 INDEX 為準）
 
-- ✅ Chrome (最新版本)
-- ✅ Firefox (最新版本)
-- ✅ Safari (最新版本)
-- ✅ Edge (最新版本)
-- ✅ 移動瀏覽器
-
-## 🚀 部署
-
-構建生產版本:
-```bash
-npm run build
-```
-
-啟動生產服務器:
-```bash
-npm start
-```
-
-## 📄 授權
+## 授權
 
 MIT License
-
-## 🤝 貢獻
-
-歡迎提交 Issue 和 Pull Request！
-
----
-
-**享受智能管理的便利！** 🎉

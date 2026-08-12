@@ -37,22 +37,33 @@ const ABOUT_SUBPAGES = [
 ] as const;
 
 const MODULES = [
-  { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與 15 個模組快速入口" },
-  { num: 2, name: "鋒兄儀表", category: "總覽", desc: "跨模組統計、異常提醒與摘要卡" },
-  { num: 3, name: "鋒兄訂閱", category: "生活", desc: "訂閱、扣款日、CSV 匯入匯出與 AI 整理提醒" },
+  { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與各模組快速入口" },
+  { num: 2, name: "鋒兄儀表", category: "總覽", desc: "跨模組統計、異常提醒、媒體流量與摘要卡" },
+  { num: 3, name: "鋒兄訂閱", category: "生活", desc: "訂閱、扣款日、CSV 匯入匯出、本機垃圾桶與整理提醒" },
   { num: 4, name: "鋒兄食品 （＋商品庫存）", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
-  { num: 5, name: "鋒兄筆記", category: "知識", desc: "快速筆記、模板、AI 摘要與釘選工作台" },
+  { num: 5, name: "鋒兄筆記", category: "知識", desc: "快速筆記、附件預覽、本機垃圾桶與釘選工作台" },
   { num: 6, name: "鋒兄常用", category: "入口", desc: "常用站點、複製、置頂與最近使用控制台" },
   { num: 7, name: "鋒兄圖片", category: "媒體", desc: "圖片管理、標籤整理與工作台摘要" },
-  { num: 8, name: "鋒兄影片", category: "媒體", desc: "影片播放、封面管理與工作台骨架" },
+  { num: 8, name: "鋒兄影片", category: "媒體", desc: "影片播放、封面管理與播放佇列" },
   { num: 9, name: "鋒兄音樂", category: "媒體", desc: "音樂播放、歌詞、整理摘要與媒體控制" },
   { num: 10, name: "鋒兄文件", category: "知識", desc: "文件預覽、分類、匯入匯出與技術內容整理" },
-  { num: 11, name: "鋒兄播客", category: "媒體", desc: "播客節目、集數與摘要式管理" },
-  { num: 12, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、餘額、異常提醒與整理入口" },
-  { num: 13, name: "鋒兄例行", category: "任務", desc: "例行事項、排程節奏與週期追蹤" },
+  { num: 11, name: "鋒兄播客", category: "媒體", desc: "播客播放、批次上傳與摘要式管理" },
+  { num: 12, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、電子票證、餘額與異常提醒" },
+  { num: 13, name: "鋒兄例行", category: "任務", desc: "例行事項、日期遞移與週期追蹤" },
   { num: 14, name: "鋒兄設定", category: "維運", desc: "Appwrite 設定、Table 初始化、資料統計與 system config" },
   { num: 15, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、版本資訊與文件中心" },
+  { num: 16, name: "鋒兄比價", category: "工具", desc: "手動商品與價格紀錄（manualprice）" },
+  { num: 17, name: "手機比價", category: "工具", desc: "地標網通與傑昇通信雙來源，含週期歷史" },
+  { num: 18, name: "圖片 + 語音 = 影片", category: "工具", desc: "FFmpeg 把圖片與語音合成影片" },
+  { num: 19, name: "PNG / JPEG 轉換", category: "工具", desc: "瀏覽器端圖片格式轉換" },
+  { num: 20, name: "影片合併", category: "工具", desc: "多段影片合併" },
+  { num: 21, name: "YT / B站轉 MP3/MP4", category: "工具", desc: "YouTube / Bilibili 下載轉檔" },
+  { num: 22, name: "鋒兄Tube", category: "子工具", desc: "頻道最新影片與倒台指數" },
+  { num: 23, name: "鋒兄金融", category: "子工具", desc: "CNBC / Yahoo 報價與自訂標的 CSV" },
+  { num: 24, name: "鋒兄新聞", category: "子工具", desc: "鎖定網站焦點、人口統計與便當等面板" },
 ];
+
+const MODULE_COUNT = MODULES.length;
 
 const DOC_GROUPS = [
   {
@@ -90,6 +101,15 @@ const DOC_GROUPS = [
 ];
 
 const RELEASE_ITEMS = [
+  {
+    date: "2026-08-13",
+    title: "選單與文件對齊現況",
+    bullets: [
+      "README、docs/INDEX 與鋒兄關於的模組表改為對齊 app/page.tsx：日常工作台 15 項，加上工具與子工具共 24 個可導覽葉模組。",
+      "資料表改為設定頁可建立的 13 個 collection（含 landtophistory、manualprice）。",
+      "使用手冊與系統架構文件加上現況以 INDEX 為準的說明，避免繼續引用舊的 15 模組／11 表。",
+    ],
+  },
   {
     date: "2026-07-18",
     title: "首頁與關於頁程式碼行數口徑修正",
@@ -331,11 +351,11 @@ function AboutBanner() {
           <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Fengbro System Docs</p>
           <h2 className="text-2xl font-bold sm:text-3xl">鋒兄系統文件中心</h2>
           <p className="max-w-2xl text-sm text-slate-200 sm:text-base">
-            這裡不是品牌介紹頁，而是專案現況入口。你可以直接看到最近改了什麼、系統怎麼分層、15 個模組目前各自負責什麼，以及後續實作應該從哪份文件接手。
+            這裡不是品牌介紹頁，而是專案現況入口。你可以直接看到最近改了什麼、系統怎麼分層、{MODULE_COUNT} 個可導覽葉模組目前各自負責什麼，以及後續實作應該從哪份文件接手。
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <MetricCard label="模組數" value="15" detail="入口、生活、知識、媒體、財務、維運" />
+          <MetricCard label="模組數" value={String(MODULE_COUNT)} detail="日常工作台、工具、子工具" />
           <MetricCard label="文件頁" value="18+" detail="模組文件、使用手冊、架構文件" />
           <MetricCard label="程式碼行數" value={codebaseStats.totalLines.toLocaleString()} detail={`共 ${codebaseStats.totalFiles} 檔，核心原始碼（app / components / hooks / lib…）`} />
           <MetricCard label="技術骨架" value="AI CRUD" detail="統一摘要卡、搜尋、批次操作與 AI 建議" />
@@ -388,7 +408,7 @@ function SystemArchitecture() {
     <div className="space-y-6">
       <SectionHeader
         title="系統架構"
-        description="目前專案的主軸是以 Next.js + Appwrite 建立 15 模組的個人資料工作台，前端逐步收斂成同一套友善 AI CRUD 骨架。"
+        description="目前專案的主軸是以 Next.js + Appwrite 建立家庭中控台：日常 CRUD 工作台、工具與子工具。前端逐步收斂成同一套友善 AI CRUD 骨架。"
       />
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -396,7 +416,7 @@ function SystemArchitecture() {
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">前端層 (Frontend Layer)</h3>
           <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <li>• Next.js App Router + React 19 + TypeScript 5.9</li>
-            <li>• `components/modules/` 內維護 15 個主模組頁</li>
+            <li>• `components/modules/` 維護日常工作台、工具與子工具頁</li>
             <li>• `components/ui/` 逐步抽出共用工作台元件</li>
             <li>• 目前已導入 `friendly-ai-crud-shell.tsx` 作為第一層共用骨架</li>
           </ul>
@@ -406,7 +426,7 @@ function SystemArchitecture() {
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">後端與 API 層 (Backend Layer)</h3>
           <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <li>• Next.js API routes 負責 CRUD、檔案操作與 table 初始化</li>
-            <li>• 支援 30+ 個 RESTful API 端點與 11 種主要資源</li>
+            <li>• 支援 30+ 個 RESTful API 端點與 13 個可初始化 collection</li>
             <li>• 整合 Appwrite Backend Services (Database, Storage, Auth)</li>
             <li>• 手機比價額外接入 BigGo、地標網通、傑昇通信與每週歷史快照</li>
           </ul>
@@ -462,7 +482,7 @@ function SystemArchitecture() {
       <div className="rounded-2xl bg-slate-950 p-5 text-slate-100">
         <pre className="overflow-x-auto text-xs leading-6 text-emerald-300 sm:text-sm">
 {`Browser / PWA
-  -> Module Pages (15)
+  -> Module Pages (${MODULE_COUNT})
   -> Shared UI Shell + Hooks
   -> Next.js API Routes
   -> Appwrite Database / Storage
@@ -492,7 +512,7 @@ function ModulesOverview() {
     <div className="space-y-6">
       <SectionHeader
         title="功能模組一覽"
-        description="15 個模組不是 15 個獨立表單頁，而是同一套資料工作台在不同資料型別上的實作。"
+        description={`${MODULE_COUNT} 個葉模組裡，日常 15 項共用資料工作台骨架；工具與子工具走 ToolsManagement 與各自 API。`}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

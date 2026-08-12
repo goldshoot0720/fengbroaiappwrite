@@ -1,20 +1,31 @@
 // 應用程式常數定義
 
-// 導航選單項目
+// 導航葉模組 id（主選單以 app/page.tsx 為準；此處供型別與語音等共用）
 export const MENU_ITEMS = [
-  { id: "home", label: "首頁", icon: "Home" },
-  { id: "dashboard", label: "儀表板", icon: "BarChart3" },
-  { id: "subscription", label: "訂閱管理", icon: "CreditCard" },
-  { id: "food", label: "食品管理", icon: "Package" },
-  { id: "videos", label: "影片介紹", icon: "Play" },
+  { id: "home", label: "鋒兄首頁", icon: "Home" },
+  { id: "dashboard", label: "鋒兄儀表", icon: "BarChart3" },
+  { id: "subscription", label: "鋒兄訂閱", icon: "CreditCard" },
+  { id: "food", label: "鋒兄食品", icon: "Package" },
   { id: "notes", label: "鋒兄筆記", icon: "FileText" },
   { id: "documents", label: "鋒兄文件", icon: "File" },
-  { id: "music", label: "鋒兄音樂", icon: "Music" },
   { id: "common", label: "鋒兄常用", icon: "Star" },
-  { id: "bank-stats", label: "銀行統計", icon: "BarChart3" },
-  { id: "components", label: "UI 組件", icon: "Palette" },
-  { id: "about", label: "關於我們", icon: "Info" },
+  { id: "images", label: "鋒兄圖片", icon: "Image" },
+  { id: "videos", label: "鋒兄影片", icon: "Play" },
+  { id: "music", label: "鋒兄音樂", icon: "Music" },
+  { id: "podcast", label: "鋒兄播客", icon: "Podcast" },
+  { id: "bank-stats", label: "鋒兄銀行", icon: "Building2" },
+  { id: "routine", label: "鋒兄例行", icon: "CalendarClock" },
+  { id: "price-compare", label: "鋒兄比價", icon: "Wrench" },
+  { id: "landtop", label: "手機比價", icon: "Smartphone" },
+  { id: "image-voice-video", label: "圖片 + 語音 = 影片", icon: "Clapperboard" },
+  { id: "image-format-convert", label: "PNG / JPEG 轉換", icon: "Images" },
+  { id: "video-merge", label: "影片合併", icon: "Film" },
+  { id: "youtube-bilibili-convert", label: "YT / B站轉 MP3/MP4", icon: "Youtube" },
+  { id: "fengbro-tube", label: "鋒兄Tube", icon: "Play" },
+  { id: "fengbro-finance", label: "鋒兄金融", icon: "Landmark" },
+  { id: "fengbro-news", label: "鋒兄新聞", icon: "Newspaper" },
   { id: "settings", label: "鋒兄設定", icon: "Settings" },
+  { id: "about", label: "鋒兄關於", icon: "Info" },
 ] as const;
 
 export type ModuleId = typeof MENU_ITEMS[number]["id"];

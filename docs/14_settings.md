@@ -36,21 +36,25 @@
 | 🟡 黃色 | 空表 | 表格存在但無資料 |
 | 🔴 紅色 | 不存在 | 表格尚未建立 |
 
-### 資料庫表格一覽 (11 個 Collection)
+### 資料庫表格一覽 (13 個 Collection)
+
+欄位數以 `app/api/create-table/route.js` 的 `TABLE_SCHEMAS` 為準。
 
 | # | 表格名稱 | 欄位數 | 用途 |
 |---|----------|--------|------|
 | 1 | food | 7 | 食品庫存管理 |
-| 2 | subscription | 8 | 訂閱服務管理 |
+| 2 | subscription | 15 | 訂閱服務管理（含整理欄位與 archived） |
 | 3 | article | 17 | 筆記文章管理 |
 | 4 | commonaccount | 75 | 常用帳號管理 |
 | 5 | bank | 9 | 銀行帳戶管理 |
 | 6 | routine | 7 | 例行事務管理 |
 | 7 | image | 8 | 圖片管理 |
-| 8 | video | 8 | 影片管理 |
+| 8 | video | 9 | 影片管理（含 fileSize） |
 | 9 | music | 10 | 音樂管理 |
 | 10 | podcast | 8 | 播客管理 |
 | 11 | commondocument | 8 | 文件管理 |
+| 12 | landtophistory | 9 | 手機比價歷史快照 |
+| 13 | manualprice | 4 | 鋒兄比價手動紀錄 |
 
 ### 表格操作
 
