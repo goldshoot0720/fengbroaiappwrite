@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { BarChart3, Book, ChevronRight, FileText, Info, Menu, Package } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BarChart3, Book, ChevronRight, FileText, Info, Menu, Package, Sparkles, X } from "lucide-react";
 import { DataCard } from "@/components/ui/data-card";
 import { PageTitle } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,18 @@ const NAV_SECTIONS = [
   { id: "docs", title: "技術文件", icon: FileText },
   { id: "guide", title: "完整文件", icon: Book },
 ] as const;
+
+const CODEBASE_MILESTONE_LINES = 100_000;
+const CODEBASE_MILESTONE_STORAGE_KEY = "fengbro:codebase-milestone:last-celebration";
+let nonPersistentCelebrationMonth = "";
+
+function getTaipeiMonthKey() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+}
 
 const ABOUT_SUBPAGES = [
   { id: "bilibili-info", title: "Bilibili 資訊", description: "Bilibili 平台資訊與使用說明" },
@@ -161,9 +173,28 @@ const RELEASE_ITEMS = [
 export default function AboutUs({ onNavigate }: { onNavigate: (moduleId: string) => void }) {
   const [activeSection, setActiveSection] = useState<string>("updates");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showMilestoneCelebration, setShowMilestoneCelebration] = useState(false);
+
+  useEffect(() => {
+    if (codebaseStats.totalLines < CODEBASE_MILESTONE_LINES) return;
+
+    const monthKey = getTaipeiMonthKey();
+    try {
+      if (window.localStorage.getItem(CODEBASE_MILESTONE_STORAGE_KEY) === monthKey) return;
+      window.localStorage.setItem(CODEBASE_MILESTONE_STORAGE_KEY, monthKey);
+      setShowMilestoneCelebration(true);
+    } catch {
+      if (nonPersistentCelebrationMonth === monthKey) return;
+      nonPersistentCelebrationMonth = monthKey;
+      setShowMilestoneCelebration(true);
+    }
+  }, []);
 
   return (
     <div className="space-y-4 lg:space-y-6">
+      {showMilestoneCelebration ? (
+        <CodebaseMilestoneCelebration onDismiss={() => setShowMilestoneCelebration(false)} />
+      ) : null}
       <AboutBanner />
       <PageTitle title="鋒兄關於" description="產品更新、系統架構、模組導覽與技術文件中心" />
       <AboutSubpageLinks onNavigate={onNavigate} />
@@ -213,6 +244,52 @@ export default function AboutUs({ onNavigate }: { onNavigate: (moduleId: string)
         </div>
       </div>
     </div>
+  );
+}
+
+function CodebaseMilestoneCelebration({ onDismiss }: { onDismiss: () => void }) {
+  const sparks = useMemo(
+    () => Array.from({ length: 16 }, (_, index) => ({
+      id: index,
+      side: index % 2 === 0 ? "left" : "right",
+      delay: `${(index % 8) * 90}ms`,
+      offset: `${12 + (index % 8) * 10}%`,
+    })),
+    []
+  );
+
+  return (
+    <section aria-label="十萬行程式碼里程碑" className="relative overflow-hidden rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-950 dark:border-amber-500/45 dark:bg-amber-950/40 dark:text-amber-50">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        {sparks.map((spark) => (
+          <span
+            key={spark.id}
+            data-codebase-firecracker
+            className={`codebase-firecracker-spark codebase-firecracker-spark--${spark.side}`}
+            style={{ animationDelay: spark.delay, top: spark.offset }}
+          />
+        ))}
+      </div>
+      <div className="relative flex items-start gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-200 text-amber-900 dark:bg-amber-400/20 dark:text-amber-100">
+          <Sparkles size={21} aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-bold">十萬行程式碼里程碑</h2>
+          <p className="mt-1 text-sm leading-6 text-amber-900/85 dark:text-amber-100/85">
+            核心原始碼已突破 {CODEBASE_MILESTONE_LINES.toLocaleString()} 行，放鞭炮慶祝一下！
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="flex size-10 shrink-0 items-center justify-center rounded-full text-amber-900 transition-colors hover:bg-amber-200/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 dark:text-amber-100 dark:hover:bg-amber-200/15"
+          aria-label="關閉里程碑慶祝"
+        >
+          <X size={18} />
+        </button>
+      </div>
+    </section>
   );
 }
 
