@@ -475,6 +475,36 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
     fetchStats();
   }, []);
 
+  const handlePatchSchema = async (tableName: string) => {
+    if (!confirm(`要為「${tableName}」補上缺少的欄位嗎？這不會刪除現有資料。`)) return;
+
+    setCreating(tableName);
+    try {
+      const config = getAppwriteConfig();
+      const params = new URLSearchParams();
+      if (config.endpoint) params.set("_endpoint", config.endpoint);
+      if (config.projectId) params.set("_project", config.projectId);
+      if (config.databaseId) params.set("_database", config.databaseId);
+      if (config.apiKey) params.set("_key", config.apiKey);
+
+      const response = await fetch(`/api/update-schema?${params.toString()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableName }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || result.error || "補欄位失敗");
+      }
+      alert(`✅ ${result.message || `${tableName} 已補上缺少欄位`}`);
+      fetchStats();
+    } catch (error) {
+      alert(`❌ 補欄位失敗：${error instanceof Error ? error.message : "未知錯誤"}`);
+    } finally {
+      setCreating(null);
+    }
+  };
+
   const handleCreateTable = async (tableName: string, isUpdate = false) => {
     // 如果是更新操作且不在批次模式中，顯示警告
     if (isUpdate && !bulkModeRef.current) {
@@ -985,6 +1015,20 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                             <span className="text-xs bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded" title="結構不一致">
                               ❗
                             </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                              onClick={() => handlePatchSchema(col.name)}
+                              disabled={creating === col.name}
+                              title="只補缺少欄位，不刪資料"
+                            >
+                              {creating === col.name ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                "補欄位"
+                              )}
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"

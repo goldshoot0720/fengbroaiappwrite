@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAppwrite, getCollectionId, getCollection, filterPayloadByAttributes } from "../../_lib/appwriteClient";
+import { buildSubscriptionWritePayload } from "../../../../lib/subscriptionFields";
 
 
 export const dynamic = 'force-dynamic';
@@ -18,21 +19,15 @@ export async function PUT(req, context) {
 
     if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
-    // 確保 price 是數字
-    const { name, site, price, nextdate, note, account, currency } = body;
-    const continueValue = body.continue;
-    const bodyData = {
-      name,
-      price: price !== undefined && price !== null ? Number(price) : 0,
-    };
-
-    // 只有在提供值時才添加可選欄位
-    if (nextdate !== undefined) bodyData.nextdate = nextdate || null;
-    if (site !== undefined) bodyData.site = site || null;
-    if (note !== undefined) bodyData.note = note || "";
-    if (account !== undefined) bodyData.account = account || "";
-    if (currency !== undefined) bodyData.currency = currency || "TWD";
-    if (continueValue !== undefined) bodyData.continue = continueValue;
+    let bodyData;
+    try {
+      bodyData = buildSubscriptionWritePayload(body, "update");
+    } catch (payloadError) {
+      return NextResponse.json(
+        { error: payloadError instanceof Error ? payloadError.message : "Missing required fields" },
+        { status: 400 }
+      );
+    }
 
     const filteredBodyData = filterPayloadByAttributes(bodyData, collection);
 

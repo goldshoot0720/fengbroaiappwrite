@@ -11,12 +11,13 @@
 - **續費追蹤**：監控下次付款日期，快速 ±30 天調整。
 - **狀態監控**：標記訂閱是否持續，Favicon 顯示服務圖示。
 - **到期通知**：每日自動檢查 3 天內到期的訂閱，推播瀏覽器通知。
-- **CSV 匯入/匯出**：支援批次資料匯入匯出（8 個表單欄位）。
+- **CSV 匯入/匯出**：完整 15 欄；仍可匯入舊的 8 欄 CSV。
+- **封存**：`archived` 會藏進「已封存」篩選，資料仍在 Appwrite。
 - **本機垃圾桶**：刪除後可還原；資料存在瀏覽器 `fengbro.subscription.trash`，不是 `archived` 欄位。
 
 ## 資料表結構 (Appwrite Collection: `subscription`)
 
-建表有 15 欄。表單與 API 目前只讀寫前 8 欄。
+建表 15 欄，表單與 API 都會讀寫。既有 8 欄資料表請到「鋒兄設定」按 **補欄位**（不會刪資料）。
 
 | 欄位名稱 | 類型 | 長度 | 必填 | 預設值 | 說明 |
 |----------|------|------|------|--------|------|
@@ -28,13 +29,13 @@
 | account | string | 100 | ❌ | - | 登入帳號 |
 | currency | string | 100 | ❌ | - | 幣別代碼 (TWD/USD/EUR/JPY/CNY/HKD) |
 | continue | boolean | - | ❌ | true | 是否持續訂閱 |
-| category | string | 100 | ❌ | - | 分類（schema 已有，表單尚未寫入） |
-| purpose | string | 100 | ❌ | - | 用途（尚未寫入） |
-| usageFrequency | string | 50 | ❌ | - | 使用頻率（尚未寫入） |
-| friendliness | string | 50 | ❌ | - | 友善度（尚未寫入） |
-| alternative | string | 200 | ❌ | - | 替代方案（尚未寫入） |
-| retentionRecommendation | string | 50 | ❌ | - | 去留建議（尚未寫入） |
-| archived | boolean | - | ❌ | false | 封存（尚未寫入） |
+| category | string | 100 | ❌ | - | 分類 |
+| purpose | string | 100 | ❌ | - | 用途 |
+| usageFrequency | string | 50 | ❌ | - | 使用頻率 |
+| friendliness | string | 50 | ❌ | - | 友善度 |
+| alternative | string | 200 | ❌ | - | 替代方案 |
+| retentionRecommendation | string | 50 | ❌ | - | 去留建議 |
+| archived | boolean | - | ❌ | false | 封存 |
 
 ## TypeScript 類型定義
 
@@ -49,6 +50,13 @@ interface Subscription {
   account?: string;
   currency?: string;
   continue?: boolean;
+  category?: string;
+  purpose?: string;
+  usageFrequency?: string;
+  friendliness?: string;
+  alternative?: string;
+  retentionRecommendation?: string;
+  archived?: boolean;
 }
 ```
 
@@ -79,6 +87,7 @@ interface Subscription {
 | 6 | account | 帳號 |
 | 7 | currency | 幣別 |
 | 8 | continue | 是否持續 (true/false) |
+| 9–15 | category … archived | 完整格式才有；舊 8 欄仍可匯入 |
 
 ## API 端點
 

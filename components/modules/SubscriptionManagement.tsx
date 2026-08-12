@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, ArchiveRestore, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,18 +29,24 @@ import {
   getCurrencySymbol,
 } from "@/lib/formatters";
 import { getAppwriteConfig, getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
+import {
+  SUBSCRIPTION_CATEGORY_OPTIONS,
+  SUBSCRIPTION_CSV_HEADERS,
+  SUBSCRIPTION_FRIENDLINESS_OPTIONS,
+  SUBSCRIPTION_PURPOSE_OPTIONS,
+  SUBSCRIPTION_RETENTION_OPTIONS,
+  SUBSCRIPTION_USAGE_OPTIONS,
+  detectSubscriptionCsvMode,
+  emptySubscriptionForm,
+  fromSelectValue,
+  parseSubscriptionCsvRow,
+  selectValue,
+  subscriptionFormToCsvValues,
+  toSubscriptionForm,
+} from "@/lib/subscriptionFields";
 import { Subscription, SubscriptionFormData } from "@/types";
 
-const INITIAL_FORM: SubscriptionFormData = {
-  name: "",
-  site: "",
-  price: 0,
-  nextdate: "",
-  note: "",
-  account: "",
-  currency: "TWD",
-  continue: true,
-};
+const INITIAL_FORM: SubscriptionFormData = emptySubscriptionForm();
 
 const SUBSCRIPTION_TABLE_COL_SPAN = 5;
 
@@ -312,7 +318,7 @@ function SubscriptionFormCard({
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{title}</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">只保留目前 subscription 表實際存在的欄位。</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">對齊 subscription 表 15 個欄位；整理欄位可之後再填。</p>
         </div>
         <div className="w-full rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900/50 lg:w-auto lg:min-w-[220px]">
           <div className="text-xs text-gray-500 dark:text-gray-400">AI 提示</div>
@@ -436,6 +442,108 @@ function SubscriptionFormCard({
             <SelectItem value="false">不續訂</SelectItem>
           </SelectContent>
         </Select>
+        <Select
+          value={selectValue(form.category)}
+          onValueChange={(value) => onChange({ ...form, category: fromSelectValue(value) })}
+        >
+          <SelectTrigger aria-label="分類">
+            <SelectValue placeholder="分類" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">未分類</SelectItem>
+            {SUBSCRIPTION_CATEGORY_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+            {form.category && !SUBSCRIPTION_CATEGORY_OPTIONS.some((option) => option.value === form.category) && (
+              <SelectItem value={form.category}>{form.category}</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        <Select
+          value={selectValue(form.purpose)}
+          onValueChange={(value) => onChange({ ...form, purpose: fromSelectValue(value) })}
+        >
+          <SelectTrigger aria-label="用途">
+            <SelectValue placeholder="用途" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">未填用途</SelectItem>
+            {SUBSCRIPTION_PURPOSE_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+            {form.purpose && !SUBSCRIPTION_PURPOSE_OPTIONS.some((option) => option.value === form.purpose) && (
+              <SelectItem value={form.purpose}>{form.purpose}</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        <Select
+          value={selectValue(form.usageFrequency)}
+          onValueChange={(value) => onChange({ ...form, usageFrequency: fromSelectValue(value) })}
+        >
+          <SelectTrigger aria-label="使用頻率">
+            <SelectValue placeholder="使用頻率" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">未填頻率</SelectItem>
+            {SUBSCRIPTION_USAGE_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+            {form.usageFrequency && !SUBSCRIPTION_USAGE_OPTIONS.some((option) => option.value === form.usageFrequency) && (
+              <SelectItem value={form.usageFrequency}>{form.usageFrequency}</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        <Select
+          value={selectValue(form.friendliness)}
+          onValueChange={(value) => onChange({ ...form, friendliness: fromSelectValue(value) })}
+        >
+          <SelectTrigger aria-label="友善度">
+            <SelectValue placeholder="友善度" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">未填友善度</SelectItem>
+            {SUBSCRIPTION_FRIENDLINESS_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+            {form.friendliness && !SUBSCRIPTION_FRIENDLINESS_OPTIONS.some((option) => option.value === form.friendliness) && (
+              <SelectItem value={form.friendliness}>{form.friendliness}</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        <Select
+          value={selectValue(form.retentionRecommendation)}
+          onValueChange={(value) => onChange({ ...form, retentionRecommendation: fromSelectValue(value) })}
+        >
+          <SelectTrigger aria-label="去留建議">
+            <SelectValue placeholder="去留建議" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">未填建議</SelectItem>
+            {SUBSCRIPTION_RETENTION_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+            {form.retentionRecommendation && !SUBSCRIPTION_RETENTION_OPTIONS.some((option) => option.value === form.retentionRecommendation) && (
+              <SelectItem value={form.retentionRecommendation}>{form.retentionRecommendation}</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        <Select
+          value={form.archived ? "true" : "false"}
+          onValueChange={(value) => onChange({ ...form, archived: value === "true" })}
+        >
+          <SelectTrigger aria-label="封存">
+            <SelectValue placeholder="是否封存" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="false">使用中</SelectItem>
+            <SelectItem value="true">已封存</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          placeholder="替代方案"
+          value={form.alternative || ""}
+          onChange={(event) => onChange({ ...form, alternative: event.target.value })}
+        />
         <div className="md:col-span-2 xl:col-span-4">
           <Textarea
             placeholder="備註"
@@ -467,6 +575,7 @@ export default function SubscriptionManagement() {
   const [initializingTable, setInitializingTable] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [renewalFilter, setRenewalFilter] = useState<"all" | "renewing" | "stopped">("all");
+  const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [dueFilter, setDueFilter] = useState<"all" | "expired" | "7days" | "30days" | "nodate">("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const NO_MONTH_FILTER = "no-month";
@@ -536,8 +645,7 @@ export default function SubscriptionManagement() {
     }
   }, []);
 
-  const CSV_HEADERS = ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"];
-  const EXPECTED_COLUMN_COUNT = CSV_HEADERS.length;
+  const CSV_HEADERS = [...SUBSCRIPTION_CSV_HEADERS];
 
   useEffect(() => {
     if (!bulkDeleteOpen || isDeleting) return;
@@ -548,9 +656,20 @@ export default function SubscriptionManagement() {
     return () => window.clearTimeout(focusTimer);
   }, [bulkDeleteOpen, isDeleting]);
 
+  const scopedSubscriptions = useMemo(() => {
+    if (archiveFilter === "archived") return subscriptions.filter((sub) => sub.archived === true);
+    if (archiveFilter === "all") return subscriptions;
+    return subscriptions.filter((sub) => sub.archived !== true);
+  }, [subscriptions, archiveFilter]);
+
+  const archivedCount = useMemo(
+    () => subscriptions.filter((sub) => sub.archived === true).length,
+    [subscriptions]
+  );
+
   const monthOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    subscriptions.forEach((sub) => {
+    scopedSubscriptions.forEach((sub) => {
       if (!sub.nextdate) return;
       const date = new Date(sub.nextdate);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -559,7 +678,7 @@ export default function SubscriptionManagement() {
     return Array.from(counts.entries())
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([value, count]) => ({ value, count }));
-  }, [subscriptions]);
+  }, [scopedSubscriptions]);
 
   const existingAccounts = useMemo(() => {
     const values = subscriptions
@@ -569,34 +688,34 @@ export default function SubscriptionManagement() {
   }, [subscriptions]);
 
   const expiredSubscriptions = useMemo(
-    () => subscriptions.filter((sub) => sub.nextdate && getSubscriptionExpiryInfo(sub).daysRemaining < 0),
-    [subscriptions]
+    () => scopedSubscriptions.filter((sub) => sub.nextdate && getSubscriptionExpiryInfo(sub).daysRemaining < 0),
+    [scopedSubscriptions]
   );
 
   const dueSoonSubscriptions = useMemo(
-    () => subscriptions.filter((sub) => sub.nextdate && getSubscriptionExpiryInfo(sub).daysRemaining >= 0 && getSubscriptionExpiryInfo(sub).daysRemaining <= 7),
-    [subscriptions]
+    () => scopedSubscriptions.filter((sub) => sub.nextdate && getSubscriptionExpiryInfo(sub).daysRemaining >= 0 && getSubscriptionExpiryInfo(sub).daysRemaining <= 7),
+    [scopedSubscriptions]
   );
 
   const noDateSubscriptions = useMemo(
-    () => subscriptions.filter((sub) => !sub.nextdate),
-    [subscriptions]
+    () => scopedSubscriptions.filter((sub) => !sub.nextdate),
+    [scopedSubscriptions]
   );
 
   const stoppedSubscriptions = useMemo(
-    () => subscriptions.filter((sub) => sub.continue === false),
-    [subscriptions]
+    () => scopedSubscriptions.filter((sub) => sub.continue === false),
+    [scopedSubscriptions]
   );
 
   const renewingSubscriptions = useMemo(
-    () => subscriptions.filter((sub) => sub.continue !== false),
-    [subscriptions]
+    () => scopedSubscriptions.filter((sub) => sub.continue !== false),
+    [scopedSubscriptions]
   );
 
   const duplicateGroups = useMemo(() => {
     const groups = new Map<string, Subscription[]>();
 
-    subscriptions.forEach((sub) => {
+    scopedSubscriptions.forEach((sub) => {
       const normalizedName = normalizeSubscriptionValue(sub.name);
       const normalizedAccount = normalizeSubscriptionValue(sub.account);
       const normalizedSite = normalizeSubscriptionValue(sub.site);
@@ -612,10 +731,10 @@ export default function SubscriptionManagement() {
     return Array.from(groups.values())
       .filter((group) => group.length > 1)
       .sort((left, right) => right.length - left.length);
-  }, [subscriptions]);
+  }, [scopedSubscriptions]);
 
   const filteredSubscriptions = useMemo(() => {
-    let result = subscriptions;
+    let result = scopedSubscriptions;
 
     if (renewalFilter === "renewing") {
       result = result.filter((sub) => sub.continue !== false);
@@ -651,9 +770,12 @@ export default function SubscriptionManagement() {
       sub.site?.toLowerCase().includes(query) ||
       sub.account?.toLowerCase().includes(query) ||
       sub.note?.toLowerCase().includes(query) ||
-      sub.currency?.toLowerCase().includes(query)
+      sub.currency?.toLowerCase().includes(query) ||
+      sub.category?.toLowerCase().includes(query) ||
+      sub.purpose?.toLowerCase().includes(query) ||
+      sub.alternative?.toLowerCase().includes(query)
     );
-  }, [subscriptions, renewalFilter, dueFilter, monthFilter, searchQuery]);
+  }, [scopedSubscriptions, renewalFilter, dueFilter, monthFilter, searchQuery]);
 
   const isAllSelected = filteredSubscriptions.length > 0 && filteredSubscriptions.every((sub) => selectedIds.has(sub.$id));
 
@@ -690,6 +812,7 @@ export default function SubscriptionManagement() {
     if (type === "all") {
       setDueFilter("all");
       setRenewalFilter("all");
+      setArchiveFilter("active");
       setMonthFilter("all");
       setSearchQuery("");
       return;
@@ -1022,13 +1145,7 @@ export default function SubscriptionManagement() {
       if (target) {
         handleInlineEdit(target);
         setInlineEditForm({
-          name: target.name,
-          site: target.site || "",
-          price: Number(target.price || 0),
-          nextdate: target.nextdate ? formatDate(target.nextdate) : "",
-          note: target.note || "",
-          account: target.account || "",
-          currency: target.currency || "TWD",
+          ...toSubscriptionForm(target),
           continue: command.action === "markRenewing",
         });
         setVoiceFeedback(`已預填 ${target.name} 為${command.action === "markRenewing" ? "續訂" : "不續訂"}，請檢查後再儲存。`);
@@ -1144,16 +1261,7 @@ export default function SubscriptionManagement() {
 
   const handleInlineEdit = (sub: Subscription) => {
     setInlineEditingId(sub.$id);
-    setInlineEditForm({
-      name: sub.name,
-      site: sub.site || "",
-      price: Number(sub.price || 0),
-      nextdate: sub.nextdate ? formatDate(sub.nextdate) : "",
-      note: sub.note || "",
-      account: sub.account || "",
-      currency: sub.currency || "TWD",
-      continue: sub.continue !== false,
-    });
+    setInlineEditForm(toSubscriptionForm(sub));
     setIsInlineAdding(false);
   };
 
@@ -1184,14 +1292,8 @@ export default function SubscriptionManagement() {
     try {
       const baseDate = sub.nextdate ? formatDate(sub.nextdate) : "";
       await updateSubscription(sub.$id, {
-        name: sub.name,
-        site: sub.site || "",
-        price: Number(sub.price || 0),
+        ...toSubscriptionForm(sub),
         nextdate: shiftDateByDays(baseDate, offsetDays),
-        note: sub.note || "",
-        account: sub.account || "",
-        currency: sub.currency || "TWD",
-        continue: sub.continue !== false,
       });
       // 若正在編輯同一筆，同步表單日期
       if (inlineEditingId === sub.$id) {
@@ -1235,14 +1337,8 @@ export default function SubscriptionManagement() {
     try {
       const subscription = item.subscription;
       await createSubscription({
-        name: subscription.name,
-        site: subscription.site || "",
-        price: Number(subscription.price || 0),
-        nextdate: subscription.nextdate ? formatDate(subscription.nextdate) : "",
-        note: subscription.note || "",
-        account: subscription.account || "",
-        currency: subscription.currency || "TWD",
-        continue: subscription.continue !== false,
+        ...toSubscriptionForm(subscription),
+        archived: false,
       });
       saveTrash(trashedSubscriptions.filter((candidate) => candidate.subscription.$id !== subscription.$id));
     } catch (restoreError) {
@@ -1335,16 +1431,7 @@ export default function SubscriptionManagement() {
       const rows = [CSV_HEADERS.join(",")];
       for (let i = 0; i < subscriptions.length; i++) {
         const sub = subscriptions[i];
-        rows.push([
-          escapeCSV(sub.name),
-          escapeCSV(sub.site || ""),
-          escapeCSV(sub.price || 0),
-          escapeCSV(sub.nextdate ? formatDate(sub.nextdate) : ""),
-          escapeCSV(sub.note || ""),
-          escapeCSV(sub.account || ""),
-          escapeCSV(sub.currency || "TWD"),
-          escapeCSV(sub.continue !== false),
-        ].join(","));
+        rows.push(subscriptionFormToCsvValues(toSubscriptionForm(sub)).map(escapeCSV).join(","));
         setExportProgress({ current: i + 1, total: subscriptions.length });
         setExportDebugMessages((prev) => [...prev.slice(-79), `${i + 1}/${subscriptions.length} Exported ${sub.name}`]);
         if (i % 25 === 0) {
@@ -1428,22 +1515,17 @@ export default function SubscriptionManagement() {
     }
 
     const headerValues = rows[0].map((value) => value.trim());
-    if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
-      errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
+    const csvMode = detectSubscriptionCsvMode(headerValues);
+    if (!csvMode) {
+      errors.push(`表頭無法辨識：請使用 8 欄舊格式或 ${CSV_HEADERS.length} 欄完整格式`);
       return { data, errors };
     }
 
-    for (let i = 0; i < CSV_HEADERS.length; i++) {
-      if (headerValues[i] !== CSV_HEADERS[i]) {
-        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${CSV_HEADERS[i]}"，實際 "${headerValues[i]}"`);
-      }
-    }
-    if (errors.length > 0) return { data, errors };
-
+    const expectedCount = csvMode === "full" ? CSV_HEADERS.length : 8;
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
       const lineNum = i + 1;
-      if (values.length !== EXPECTED_COLUMN_COUNT) {
+      if (values.length !== expectedCount) {
         errors.push(`第 ${lineNum} 行: 欄位數量錯誤`);
         continue;
       }
@@ -1451,17 +1533,7 @@ export default function SubscriptionManagement() {
         errors.push(`第 ${lineNum} 行: name 欄位不能為空`);
         continue;
       }
-      const continueValue = values[7]?.trim().toLowerCase();
-      data.push({
-        name: values[0].trim(),
-        site: values[1]?.trim() || "",
-        price: Number(values[2]) || 0,
-        nextdate: values[3]?.trim() || "",
-        note: values[4]?.trim() || "",
-        account: values[5]?.trim() || "",
-        currency: values[6]?.trim().toUpperCase() || "TWD",
-        continue: continueValue === "false" ? false : true,
-      });
+      data.push(parseSubscriptionCsvRow(values));
     }
 
     return { data, errors };
@@ -1519,16 +1591,7 @@ export default function SubscriptionManagement() {
     const nameIndex = new Map<string, Subscription>();
 
     subscriptions.forEach((sub) => {
-      const formLike: SubscriptionFormData = {
-        name: sub.name || "",
-        site: sub.site || "",
-        price: Number(sub.price || 0),
-        nextdate: sub.nextdate ? formatDate(sub.nextdate) : "",
-        note: sub.note || "",
-        account: sub.account || "",
-        currency: sub.currency || "TWD",
-        continue: sub.continue !== false,
-      };
+      const formLike: SubscriptionFormData = toSubscriptionForm(sub);
       exactImportIndex.set(getImportExactKey(formLike), sub);
       nameAccountIndex.set(getImportNameAccountKey(formLike), sub);
       nameIndex.set(normalizeSubscriptionValue(sub.name), sub);
@@ -1592,18 +1655,24 @@ export default function SubscriptionManagement() {
     }
   };
 
+  const handleToggleArchive = async (sub: Subscription) => {
+    try {
+      await updateSubscription(sub.$id, {
+        ...toSubscriptionForm(sub),
+        archived: sub.archived !== true,
+      });
+    } catch (archiveError) {
+      alert(archiveError instanceof Error ? archiveError.message : "更新封存狀態失敗");
+    }
+  };
+
   const handleCopy = (sub: Subscription) => {
     setIsInlineAdding(true);
     setInlineEditingId(null);
     setInlineAddForm({
+      ...toSubscriptionForm(sub),
       name: `${sub.name} (複製)`,
-      site: sub.site || "",
-      price: Number(sub.price || 0),
-      nextdate: sub.nextdate ? formatDate(sub.nextdate) : "",
-      note: sub.note || "",
-      account: sub.account || "",
-      currency: sub.currency || "TWD",
-      continue: sub.continue !== false,
+      archived: false,
     });
   };
 
@@ -1704,6 +1773,16 @@ export default function SubscriptionManagement() {
             >
               {renewalLabel}
             </span>
+            {sub.category ? (
+              <span className="ml-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {sub.category}
+              </span>
+            ) : null}
+            {sub.archived ? (
+              <span className="ml-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                已封存
+              </span>
+            ) : null}
           </div>
         </TableCell>
         <TableCell className="whitespace-normal align-top">
@@ -1739,6 +1818,16 @@ export default function SubscriptionManagement() {
             <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg">
               <Copy className="h-3.5 w-3.5" />
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => handleToggleArchive(sub)}
+              className="rounded-lg"
+              title={sub.archived ? "取消封存" : "封存"}
+            >
+              {sub.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+            </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -1770,8 +1859,8 @@ export default function SubscriptionManagement() {
 
       <FriendlyAiCrudShell
         title="鋒兄訂閱"
-        description="以目前 Appwrite `subscription` 表的真實欄位為準：服務名稱、網站、價格、下次扣款、備註、帳號、幣別、是否續訂。重點是先看出快到期與不續訂項目，再快速新增與批次清理。"
-        searchPlaceholder="搜尋服務名稱、網站、帳號、備註、幣別..."
+        description="以 subscription 表 15 個欄位為準：基本扣款資料加上分類、用途、頻率、友善度、替代方案、去留建議與封存。預設只看使用中的項目。"
+        searchPlaceholder="搜尋服務名稱、網站、帳號、備註、分類、用途..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onClearSearch={() => setSearchQuery("")}
@@ -1789,6 +1878,7 @@ export default function SubscriptionManagement() {
                 </h1>
                 <p className="text-base leading-7 text-slate-600 dark:text-slate-300">
                   共 {subscriptions.length} 項訂閱
+                  {archivedCount > 0 ? `（使用中 ${subscriptions.length - archivedCount}、封存 ${archivedCount}）` : ""}
                 </p>
                 <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
                   {getCurrentAccountLabel()}
@@ -1917,6 +2007,22 @@ export default function SubscriptionManagement() {
           <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("stopped")}>
             不續訂 ({stoppedSubscriptions.length})
           </Button>
+          {archivedCount > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              onClick={() => {
+                setArchiveFilter("archived");
+                setDueFilter("all");
+                setRenewalFilter("all");
+                setMonthFilter("all");
+              }}
+            >
+              已封存 ({archivedCount})
+            </Button>
+          )}
           {duplicateGroups.length > 0 && (
             <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("duplicates")}>
               重複提醒 ({duplicateGroups.length})
@@ -1934,6 +2040,16 @@ export default function SubscriptionManagement() {
               <SelectItem value="stopped">不續訂</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={archiveFilter} onValueChange={(value: "active" | "archived" | "all") => setArchiveFilter(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="封存狀態" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">使用中</SelectItem>
+              <SelectItem value="archived">已封存 ({archivedCount})</SelectItem>
+              <SelectItem value="all">含封存</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={monthFilter} onValueChange={setMonthFilter}>
             <SelectTrigger>
               <SelectValue placeholder="扣款月份" />
@@ -1948,6 +2064,7 @@ export default function SubscriptionManagement() {
           </Select>
           <Button variant="outline" onClick={() => {
             setRenewalFilter("all");
+            setArchiveFilter("active");
             setDueFilter("all");
             setMonthFilter("all");
             setSearchQuery("");
@@ -2463,6 +2580,16 @@ export default function SubscriptionManagement() {
                         >
                           {sub.continue === false ? "不續訂" : "續訂中"}
                         </span>
+                        {sub.category ? (
+                          <span className="ml-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            {sub.category}
+                          </span>
+                        ) : null}
+                        {sub.archived ? (
+                          <span className="ml-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                            已封存
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     <SubscriptionPriceDisplay price={sub.price} currency={sub.currency} />
@@ -2497,6 +2624,10 @@ export default function SubscriptionManagement() {
                     <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg">
                       <Copy className="mr-1 h-3.5 w-3.5" />
                       複製
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => handleToggleArchive(sub)} className="rounded-lg">
+                      {sub.archived ? <ArchiveRestore className="mr-1 h-3.5 w-3.5" /> : <Archive className="mr-1 h-3.5 w-3.5" />}
+                      {sub.archived ? "取消封存" : "封存"}
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
                       <Trash2 className="mr-1 h-3.5 w-3.5" />

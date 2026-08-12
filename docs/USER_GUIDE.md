@@ -208,9 +208,11 @@ docker run -p 3000:3000 \
 
 刪除後會進瀏覽器本機垃圾桶，可還原；清空垃圾桶才永久刪除。確認刪除時需輸入 `DELETE subscription`。
 
+表單另外可填分類、用途、頻率、友善度、替代方案、去留建議與封存。封存後預設不出現在列表，可從「已封存」找回。既有 8 欄資料表請到「鋒兄設定」按 **補欄位**。
+
 ### 5.2 資料表結構
 
-建表有 **15** 個欄位。目前表單與 `/api/subscription` 只寫入前 8 個。
+建表有 **15** 個欄位，表單與 `/api/subscription` 都會讀寫。
 
 | 欄位 | 類型 | 必填 | 預設值 | 說明 |
 |------|------|------|--------|------|
@@ -222,15 +224,15 @@ docker run -p 3000:3000 \
 | account | string(100) | ❌ | - | 帳號 |
 | currency | string(100) | ❌ | - | 幣別代碼 |
 | continue | boolean | ❌ | true | 持續訂閱 |
-| category | string(100) | ❌ | - | 分類（schema 已有，表單尚未寫入） |
-| purpose | string(100) | ❌ | - | 用途（schema 已有，表單尚未寫入） |
-| usageFrequency | string(50) | ❌ | - | 使用頻率（schema 已有，表單尚未寫入） |
-| friendliness | string(50) | ❌ | - | 友善度（schema 已有，表單尚未寫入） |
-| alternative | string(200) | ❌ | - | 替代方案（schema 已有，表單尚未寫入） |
-| retentionRecommendation | string(50) | ❌ | - | 去留建議（schema 已有，表單尚未寫入） |
-| archived | boolean | ❌ | false | 封存（schema 已有；垃圾桶不是這個欄位） |
+| category | string(100) | ❌ | - | 分類 |
+| purpose | string(100) | ❌ | - | 用途 |
+| usageFrequency | string(50) | ❌ | - | 使用頻率 |
+| friendliness | string(50) | ❌ | - | 友善度 |
+| alternative | string(200) | ❌ | - | 替代方案 |
+| retentionRecommendation | string(50) | ❌ | - | 去留建議 |
+| archived | boolean | ❌ | false | 封存（垃圾桶不是這個欄位） |
 
-CSV 匯入匯出欄位仍是：`name, site, price, nextdate, note, account, currency, continue`。
+CSV 匯出 15 欄；匯入仍接受舊的 8 欄。
 
 ### 5.3 幣別換算
 
@@ -598,8 +600,9 @@ CSV 匯入匯出欄位仍是：`name, site, price, nextdate, note, account, curr
 
 **表格操作**：
 - **一鍵建立** — 建立所有缺失的資料表（SSE 串流顯示進度）
+- **補欄位** — 只補缺少欄位，不刪資料
 - **個別重建** — 重建單一資料表（⚠ 會清除該表所有資料）
-- **結構修正** — 當欄位數量不符預期時，可重建表格結構
+- **結構修正** — 當欄位無法自動補上時重建表格結構
 
 ### 15.3 儲存空間管理
 
@@ -752,13 +755,13 @@ CSV 匯入匯出欄位仍是：`name, site, price, nextdate, note, account, curr
 | account | string | 100 | ❌ | - | 帳號 |
 | currency | string | 100 | ❌ | - | 幣別 |
 | continue | boolean | - | ❌ | true | 持續 |
-| category | string | 100 | ❌ | - | 分類（尚未接表單） |
-| purpose | string | 100 | ❌ | - | 用途（尚未接表單） |
-| usageFrequency | string | 50 | ❌ | - | 使用頻率（尚未接表單） |
-| friendliness | string | 50 | ❌ | - | 友善度（尚未接表單） |
-| alternative | string | 200 | ❌ | - | 替代方案（尚未接表單） |
-| retentionRecommendation | string | 50 | ❌ | - | 去留建議（尚未接表單） |
-| archived | boolean | - | ❌ | false | 封存（尚未接表單） |
+| category | string | 100 | ❌ | - | 分類 |
+| purpose | string | 100 | ❌ | - | 用途 |
+| usageFrequency | string | 50 | ❌ | - | 使用頻率 |
+| friendliness | string | 50 | ❌ | - | 友善度 |
+| alternative | string | 200 | ❌ | - | 替代方案 |
+| retentionRecommendation | string | 50 | ❌ | - | 去留建議 |
+| archived | boolean | - | ❌ | false | 封存 |
 
 ### article (17 欄位)
 

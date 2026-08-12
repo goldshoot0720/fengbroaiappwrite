@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listAllDocuments } from "../_lib/listAllDocuments";
 import { createAppwrite, getCollectionId, getCollection, filterPayloadByAttributes } from "../_lib/appwriteClient";
+import { buildSubscriptionWritePayload } from "../../../lib/subscriptionFields";
 
 const sdk = require('node-appwrite');
 
@@ -48,27 +49,15 @@ export async function POST(req) {
     const collectionId = collection.$id;
 
     const body = await req.json();
-
-    // 驗證必填欄位（site 和 nextdate 為可選）
-    const { name, site, price, nextdate, note, account, currency } = body;
-    const continueValue = body.continue;
-    if (!name || price == null) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    let payload;
+    try {
+      payload = buildSubscriptionWritePayload(body, "create");
+    } catch (payloadError) {
+      return NextResponse.json(
+        { error: payloadError instanceof Error ? payloadError.message : "Missing required fields" },
+        { status: 400 }
+      );
     }
-
-    // 強制 price 為數字
-    const payload = {
-      name,
-      price: Number(price),
-    };
-
-    // 只有在提供值時才添加可選欄位
-    if (nextdate) payload.nextdate = nextdate;
-    if (site) payload.site = site;
-    if (note) payload.note = note;
-    if (account) payload.account = account;
-    if (currency) payload.currency = currency || "TWD";
-    if (continueValue !== undefined) payload.continue = continueValue;
 
     const filteredPayload = filterPayloadByAttributes(payload, collection);
 
