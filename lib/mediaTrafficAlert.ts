@@ -1,5 +1,3 @@
-import type { MediaTrafficLedger } from "@/lib/mediaTraffic";
-
 export const MEDIA_TRAFFIC_ALERT_STORAGE_KEY = "fengbro:media-traffic-alert:v1";
 export const GIBIBYTE = 1024 ** 3;
 
@@ -70,8 +68,4 @@ export function claimMediaTrafficHomepageAlert(
 
 export function formatMediaTrafficGiB(totalBytes: number) {
   return (Math.max(0, totalBytes) / GIBIBYTE).toFixed(2);
-}
-
-export function mediaTrafficTotal(ledger: Pick<MediaTrafficLedger, "total">) {
-  return ledger.total;
 }

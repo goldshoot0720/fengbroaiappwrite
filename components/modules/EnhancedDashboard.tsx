@@ -97,10 +97,14 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
   const lastTrafficAlertTotal = useRef<number | null>(null);
 
   useEffect(() => {
+    if (!onlyTitle) {
+      setTrafficAlert(null);
+      return;
+    }
     if (lastTrafficAlertTotal.current === traffic.total) return;
     lastTrafficAlertTotal.current = traffic.total;
     setTrafficAlert(claimMediaTrafficHomepageAlert(traffic.total, window.localStorage));
-  }, [traffic.total]);
+  }, [onlyTitle, traffic.total]);
 
   useExpiryNotifications({
     stats,
@@ -324,8 +328,6 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
         onDismiss={handleDismissFinanceAlerts}
         onNavigate={() => onNavigate("fengbro-finance")}
       />
-
-      {trafficAlert && <MediaTrafficHomepageAlert policy={trafficAlert} total={traffic.total} />}
 
       {tubeRecentVideos.length > 0 && !tubeNoticeDismissed && (
         <DataCard className="p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
@@ -876,7 +878,28 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
 }
 
 // 多媒體儲存統計
-function MediaStorageStats({ stats, traffic, setupRequired, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number }; traffic: ReturnType<typeof useMediaTraffic>; setupRequired: boolean; onNavigate: (id: string) => void }) {
+function MediaTrafficHomepageAlert({ policy, total }: { policy: MediaTrafficAlertPolicy; total: number }) {
+  const reminderLimit = policy.dailyLimit === null ? "不限次數" : `每天最多 ${policy.dailyLimit} 次`;
+
+  return (
+    <DataCard className="border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-950 dark:border-amber-400 dark:bg-amber-950/30 dark:text-amber-50">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">
+          <AlertTriangle size={20} aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">媒體流量提醒</p>
+          <p className="mt-1 text-sm leading-6 text-amber-900/85 dark:text-amber-100/85">
+            本月未快取媒體流量推估為 {formatMediaTrafficGiB(total)} GB，已超過 {policy.thresholdGiB} GB。
+          </p>
+          <p className="mt-1 text-xs text-amber-800/75 dark:text-amber-200/75">此級距提醒：{reminderLimit}（每日依台北日期重置）</p>
+        </div>
+      </div>
+    </DataCard>
+  );
+}
+
+function MediaStorageStats({ stats, traffic, setupRequired, onNavigate }: { stats: { totalImages: number; totalVideos: number; totalMusic: number; totalDocuments: number; totalPodcasts: number; storageImagesCount: number; storageVideosCount: number; storageMusicCount: number; imagesSize: number; videosSize: number; musicSize: number; documentsSize: number; otherSize: number; totalSize: number; totalFiles: number; storageLimit: number; usagePercentage: number }; traffic: ReturnType<typeof useMediaTraffic>; setupRequired: boolean; onNavigate: (id: string) => void }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [includeDbRecords, setIncludeDbRecords] = useState(false);
   const oneGiB = 1024 ** 3;
