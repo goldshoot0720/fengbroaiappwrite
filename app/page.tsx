@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   BarChart3,
+  BadgeInfo,
   Building2,
   CalendarClock,
   CreditCard,
@@ -49,6 +50,9 @@ const AppwriteSetupEmptyState = dynamic(
   { loading: ModuleFallback }
 );
 const AboutUs = dynamic(() => import("@/components/modules/AboutUs"), {
+  loading: ModuleFallback,
+});
+const BilibiliInfo = dynamic(() => import("@/components/modules/BilibiliInfo"), {
   loading: ModuleFallback,
 });
 const BankManagement = dynamic(() => import("@/components/modules/BankManagement"), {
@@ -162,6 +166,7 @@ const MENU_ITEMS: MenuItem[] = [
     children: [
       { id: "settings", label: "鋒兄設定", icon: <Settings size={18} /> },
       { id: "about", label: "鋒兄關於", icon: <Info size={18} /> },
+      { id: "bilibili-info", label: "Bilibili 資訊", icon: <BadgeInfo size={18} /> },
     ],
   },
 ];
@@ -260,6 +265,8 @@ export default function DashboardPage() {
         return <SettingsManagement />;
       case "about":
         return <AboutUs />;
+      case "bilibili-info":
+        return <BilibiliInfo />;
       default:
         return <NotFoundModule />;
     }
