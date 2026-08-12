@@ -1,7 +1,7 @@
 {
   "snapshotDate": "2026-08-12",
   "totalFiles": 279,
-  "totalLines": 94739,
+  "totalLines": 94740,
   "scope": "core-source",
   "sourceDirs": [
     "app",
@@ -21,7 +21,7 @@
     {
       "label": "TypeScript",
       "files": 122,
-      "lines": 25755
+      "lines": 25756
     },
     {
       "label": "JavaScript",
