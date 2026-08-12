@@ -71,26 +71,6 @@ export const SUBSCRIPTION_RETENTION_OPTIONS = [
   { value: "取消", label: "取消" },
 ] as const;
 
-type SubscriptionStatusSource = {
-  archived?: boolean | null;
-  continue?: boolean | null;
-} | null | undefined;
-
-/** 未填 archived 視為使用中；只有明確封存才排除。 */
-export function isActiveSubscription(source?: SubscriptionStatusSource): boolean {
-  return source?.archived !== true;
-}
-
-/** 未填 continue 視為續訂中；只有明確不續訂才排除。 */
-export function isRenewingSubscription(source?: SubscriptionStatusSource): boolean {
-  return source?.continue !== false;
-}
-
-/** 還在付的項目：未封存且續訂中。儀表到期、月費與推播／信件用這個。 */
-export function isBillableSubscription(source?: SubscriptionStatusSource): boolean {
-  return isActiveSubscription(source) && isRenewingSubscription(source);
-}
-
 export function emptySubscriptionForm(): SubscriptionFormData {
   return {
     name: "",
