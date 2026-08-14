@@ -578,6 +578,22 @@ export default function RoutineManagement() {
     return Math.abs(Math.round((second.getTime() - first.getTime()) / (1000 * 60 * 60 * 24)));
   };
 
+  const formatRoutineElapsed = (startDate: string | null, endDate: string | null = null): string => {
+    if (calculateDaysDiff(startDate, endDate) === "-") return "-";
+
+    const start = new Date(startDate!);
+    const finish = endDate ? new Date(endDate) : new Date();
+    let months = (finish.getFullYear() - start.getFullYear()) * 12 + finish.getMonth() - start.getMonth();
+    let days = finish.getDate() - start.getDate();
+
+    if (days < 0) {
+      months--;
+      days += new Date(finish.getFullYear(), finish.getMonth(), 0).getDate();
+    }
+
+    return `${months}月又${days}天`;
+  };
+
   const formatRoutineGap = (compareDate: string | null, currentDate: string | null, compareLabel: string) => {
     const days = calculateAbsoluteDayDiff(compareDate, currentDate);
     if (days === null) return "";
@@ -1318,17 +1334,19 @@ export default function RoutineManagement() {
                                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal text-muted-foreground">
                                         <div className="min-w-0">
                                           <span className="mr-1">最近①</span>
-                                          <span className="tabular-nums">{renderRoutineDate(routine.lastdate1, routine.lastdate2, "最近②")}</span>
+                                          <span className="tabular-nums">{formatDateTime(routine.lastdate1)}</span>
+                                          <span className="ml-1">距今 {formatRoutineElapsed(routine.lastdate1)}</span>
                                         </div>
                                         <div className="min-w-0">
                                           <span className="mr-1">最近②</span>
-                                          <span className="tabular-nums">{renderRoutineDate(routine.lastdate2, routine.lastdate3, "最近③")}</span>
+                                          <span className="tabular-nums">{formatDateTime(routine.lastdate2)}</span>
+                                          <span className="ml-1">距① {formatRoutineElapsed(routine.lastdate2, routine.lastdate1)}</span>
                                         </div>
                                         <div className="min-w-0">
                                           <span className="mr-1">最近③</span>
-                                          <span className="tabular-nums">{renderRoutineDate(routine.lastdate3)}</span>
+                                          <span className="tabular-nums">{formatDateTime(routine.lastdate3)}</span>
+                                          <span className="ml-1">距② {formatRoutineElapsed(routine.lastdate3, routine.lastdate2)}</span>
                                         </div>
-                                        相距天數: {calculateDaysDiff(routine.lastdate1, routine.lastdate2)}
                                       </div>
                                     </div>
                                     {routine.note && (
@@ -1468,9 +1486,6 @@ export default function RoutineManagement() {
                                   ) : (
                                     <h3 className="font-semibold text-lg">{routine.name}</h3>
                                   )}
-                                  <div className="text-sm text-gray-500">
-                                    相距天數: {calculateDaysDiff(routine.lastdate1, routine.lastdate2)}
-                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1481,15 +1496,15 @@ export default function RoutineManagement() {
                             )}
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
-                                <span className="text-gray-500">最近①:</span>
-                                <span className="text-right">{renderRoutineDate(routine.lastdate1, routine.lastdate2, "最近例行之二")}</span>
+                                <span className="text-gray-500">最近① · 距今 {formatRoutineElapsed(routine.lastdate1)}</span>
+                                <span className="text-right">{renderRoutineDate(routine.lastdate1)}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-500">最近②:</span>
-                                <span className="text-right">{renderRoutineDate(routine.lastdate2, routine.lastdate3, "最近例行之三")}</span>
+                                <span className="text-gray-500">最近② · 距① {formatRoutineElapsed(routine.lastdate2, routine.lastdate1)}</span>
+                                <span className="text-right">{renderRoutineDate(routine.lastdate2)}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-500">最近③:</span>
+                                <span className="text-gray-500">最近③ · 距② {formatRoutineElapsed(routine.lastdate3, routine.lastdate2)}</span>
                                 <span className="text-right">{renderRoutineDate(routine.lastdate3)}</span>
                               </div>
                             </div>
