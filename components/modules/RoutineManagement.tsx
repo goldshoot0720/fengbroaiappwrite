@@ -1192,12 +1192,11 @@ export default function RoutineManagement() {
                   {viewMode === "table" && (
                   <div className="overflow-x-auto">
                     <DataCard className="overflow-visible">
-                      <Table className="min-w-[760px]">
+                      <Table className="min-w-[640px]">
                         <TableHeader className="sticky top-0 z-20">
                           <TableRow>
                             <TableHead className="sticky top-0 z-20 w-8 bg-white/95 backdrop-blur dark:bg-slate-950/95"></TableHead>
                             <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">名稱</TableHead>
-                            <TableHead className="sticky top-0 z-20 w-[88px] bg-white/95 backdrop-blur dark:bg-slate-950/95">圖片</TableHead>
                             <TableHead className="sticky top-0 z-20 bg-white/95 text-right backdrop-blur dark:bg-slate-950/95">操作</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1207,7 +1206,7 @@ export default function RoutineManagement() {
                               {inlineEditingId === routine.$id ? (
                                 // 行內編輯模式
                                 <>
-                                  <TableCell colSpan={4} className="bg-orange-50 dark:bg-orange-900/20">
+                                  <TableCell colSpan={3} className="bg-orange-50 dark:bg-orange-900/20">
                                     <div className="space-y-3 py-2">
                                       <div className="flex items-center gap-2 mb-2">
                                         <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
@@ -1289,18 +1288,33 @@ export default function RoutineManagement() {
                                   </TableCell>
                                   <TableCell className="font-medium">
                                     <div className="space-y-2">
-                                      {normalizeRoutineLink(routine.link) ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenLink(routine.link)}
-                                          className="max-w-[220px] whitespace-normal break-words text-left text-blue-600 underline underline-offset-2 hover:text-blue-700"
-                                          title={normalizeRoutineLink(routine.link)}
-                                        >
-                                          {routine.name}
-                                        </button>
-                                      ) : (
-                                        <div className="max-w-[220px] whitespace-normal break-words">{routine.name}</div>
-                                      )}
+                                      <div className="flex items-start gap-3">
+                                        {routine.photo ? (
+                                          <img
+                                            src={routine.photo}
+                                            alt={routine.name}
+                                            className="h-12 w-12 shrink-0 rounded object-contain"
+                                          />
+                                        ) : (
+                                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-gray-100 dark:bg-gray-800">
+                                            <Calendar size={20} className="text-gray-400" />
+                                          </div>
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                          {normalizeRoutineLink(routine.link) ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenLink(routine.link)}
+                                              className="whitespace-normal break-words text-left text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                              title={normalizeRoutineLink(routine.link)}
+                                            >
+                                              {routine.name}
+                                            </button>
+                                          ) : (
+                                            <div className="whitespace-normal break-words">{routine.name}</div>
+                                          )}
+                                        </div>
+                                      </div>
                                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal text-muted-foreground">
                                         <div className="min-w-0">
                                           <span className="mr-1">最近①</span>
@@ -1320,19 +1334,6 @@ export default function RoutineManagement() {
                                     {routine.note && (
                                       <div className="max-h-[150px] overflow-y-auto border-t border-border/60 pt-2 text-xs font-normal text-muted-foreground whitespace-pre-wrap break-words">
                                         {routine.note}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    {routine.photo ? (
-                                      <img
-                                        src={routine.photo}
-                                        alt={routine.name}
-                                        className="w-12 h-12 object-contain rounded"
-                                      />
-                                    ) : (
-                                      <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
-                                        <Calendar size={20} className="text-gray-400" />
                                       </div>
                                     )}
                                   </TableCell>
