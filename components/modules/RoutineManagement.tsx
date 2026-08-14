@@ -367,15 +367,15 @@ export default function RoutineManagement() {
 
   const handleShiftDates = async (routine: Routine) => {
     if (!routine.lastdate1) {
-      alert("最近例行之一為空，無法執行日期遞移");
+      alert("最近①為空，無法執行日期遞移");
       return;
     }
 
     if (confirm(`確定要執行日期遞移嗎？
 
-最近例行之一 → 最近例行之二
-最近例行之二 → 最近例行之三
-最近例行之一 → 清空`)) {
+最近① → 最近②
+最近② → 最近③
+最近① → 清空`)) {
       const payload = {
         name: routine.name,
         note: routine.note || "",
@@ -1003,7 +1003,7 @@ export default function RoutineManagement() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">最近例行日期之一 / Last Date 1 (Recent)</label>
+                    <label className="block text-sm font-medium mb-2">最近① / Last Date 1 (Recent)</label>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         type="date"
@@ -1034,7 +1034,7 @@ export default function RoutineManagement() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">最近例行日期之二 / Last Date 2</label>
+                    <label className="block text-sm font-medium mb-2">最近② / Last Date 2</label>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         type="date"
@@ -1065,7 +1065,7 @@ export default function RoutineManagement() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">最近例行日期之三 / Last Date 3 (Oldest)</label>
+                    <label className="block text-sm font-medium mb-2">最近③ / Last Date 3 (Oldest)</label>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         type="date"
@@ -1192,16 +1192,13 @@ export default function RoutineManagement() {
                   {viewMode === "table" && (
                   <div className="overflow-x-auto">
                     <DataCard className="overflow-visible">
-                      <Table className="min-w-[1200px]">
+                      <Table className="min-w-[880px]">
                         <TableHeader className="sticky top-0 z-20">
                           <TableRow>
                             <TableHead className="sticky top-0 z-20 w-8 bg-white/95 backdrop-blur dark:bg-slate-950/95"></TableHead>
                             <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">名稱</TableHead>
                             <TableHead className="sticky top-0 z-20 w-[320px] min-w-[280px] bg-white/95 backdrop-blur dark:bg-slate-950/95">備註</TableHead>
                             <TableHead className="sticky top-0 z-20 w-[88px] bg-white/95 backdrop-blur dark:bg-slate-950/95">圖片</TableHead>
-                            <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">最近例行之一</TableHead>
-                            <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">最近例行之二</TableHead>
-                            <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">最近例行之三</TableHead>
                             <TableHead className="sticky top-0 z-20 bg-white/95 text-right backdrop-blur dark:bg-slate-950/95">操作</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1211,7 +1208,7 @@ export default function RoutineManagement() {
                               {inlineEditingId === routine.$id ? (
                                 // 行內編輯模式
                                 <>
-                                  <TableCell colSpan={9} className="bg-orange-50 dark:bg-orange-900/20">
+                                  <TableCell colSpan={5} className="bg-orange-50 dark:bg-orange-900/20">
                                     <div className="space-y-3 py-2">
                                       <div className="flex items-center gap-2 mb-2">
                                         <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
@@ -1292,7 +1289,7 @@ export default function RoutineManagement() {
                                     )}
                                   </TableCell>
                                   <TableCell className="font-medium">
-                                    <div className="space-y-1">
+                                    <div className="space-y-2">
                                       {normalizeRoutineLink(routine.link) ? (
                                         <button
                                           type="button"
@@ -1305,7 +1302,21 @@ export default function RoutineManagement() {
                                       ) : (
                                         <div className="max-w-[220px] whitespace-normal break-words">{routine.name}</div>
                                       )}
-                                      <div className="text-xs font-normal text-gray-500">
+                                      <div className="grid grid-cols-3 gap-x-3 text-xs font-normal text-muted-foreground">
+                                        <div className="min-w-0">
+                                          <span className="mr-1">最近①</span>
+                                          <span className="tabular-nums">{renderRoutineDate(routine.lastdate1, routine.lastdate2, "最近②")}</span>
+                                        </div>
+                                        <div className="min-w-0">
+                                          <span className="mr-1">最近②</span>
+                                          <span className="tabular-nums">{renderRoutineDate(routine.lastdate2, routine.lastdate3, "最近③")}</span>
+                                        </div>
+                                        <div className="min-w-0">
+                                          <span className="mr-1">最近③</span>
+                                          <span className="tabular-nums">{renderRoutineDate(routine.lastdate3)}</span>
+                                        </div>
+                                      </div>
+                                      <div className="text-xs font-normal text-muted-foreground">
                                         相距天數: {calculateDaysDiff(routine.lastdate1, routine.lastdate2)}
                                       </div>
                                     </div>
@@ -1330,9 +1341,6 @@ export default function RoutineManagement() {
                                       </div>
                                     )}
                                   </TableCell>
-                                  <TableCell>{renderRoutineDate(routine.lastdate1, routine.lastdate2, "最近例行之二")}</TableCell>
-                                  <TableCell>{renderRoutineDate(routine.lastdate2, routine.lastdate3, "最近例行之三")}</TableCell>
-                                  <TableCell>{renderRoutineDate(routine.lastdate3)}</TableCell>
                                   <TableCell className="text-right space-x-2">
                                     <Button
                                       size="sm"
@@ -1477,15 +1485,15 @@ export default function RoutineManagement() {
                             )}
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
-                                <span className="text-gray-500">最近例行之一:</span>
+                                <span className="text-gray-500">最近①:</span>
                                 <span className="text-right">{renderRoutineDate(routine.lastdate1, routine.lastdate2, "最近例行之二")}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-500">最近例行之二:</span>
+                                <span className="text-gray-500">最近②:</span>
                                 <span className="text-right">{renderRoutineDate(routine.lastdate2, routine.lastdate3, "最近例行之三")}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-500">最近例行之三:</span>
+                                <span className="text-gray-500">最近③:</span>
                                 <span className="text-right">{renderRoutineDate(routine.lastdate3)}</span>
                               </div>
                             </div>
