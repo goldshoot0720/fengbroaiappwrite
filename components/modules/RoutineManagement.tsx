@@ -610,7 +610,8 @@ export default function RoutineManagement() {
 
     const start = new Date(startDate!);
     const finish = endDate ? new Date(endDate) : new Date();
-    let months = (finish.getFullYear() - start.getFullYear()) * 12 + finish.getMonth() - start.getMonth();
+    let years = finish.getFullYear() - start.getFullYear();
+    let months = finish.getMonth() - start.getMonth();
     let days = finish.getDate() - start.getDate();
 
     if (days < 0) {
@@ -618,7 +619,18 @@ export default function RoutineManagement() {
       days += new Date(finish.getFullYear(), finish.getMonth(), 0).getDate();
     }
 
-    return `${months}月又${days}天`;
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    const startAtMidnight = new Date(start);
+    const finishAtMidnight = new Date(finish);
+    startAtMidnight.setHours(0, 0, 0, 0);
+    finishAtMidnight.setHours(0, 0, 0, 0);
+    const totalDays = Math.round((finishAtMidnight.getTime() - startAtMidnight.getTime()) / (1000 * 60 * 60 * 24));
+
+    return `${years}年又${months}月又${days}天（${totalDays}天）`;
   };
 
   const formatRoutineGap = (compareDate: string | null, currentDate: string | null, compareLabel: string) => {
