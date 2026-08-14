@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Book, ChevronRight, FileText, Info, Menu, Package, Sparkles, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Book, CheckCircle2, ChevronRight, FileText, HardDrive, Info, Menu, Package, ShieldAlert, Sparkles, X } from "lucide-react";
 import { DataCard } from "@/components/ui/data-card";
 import { PageTitle } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
 import codebaseStats from "@/config/codebase-stats.json";
 
 const NAV_SECTIONS = [
+  { id: "troubleshooting", title: "障礙排除手冊", icon: AlertTriangle },
   { id: "updates", title: "更新內容", icon: Info },
   { id: "system", title: "系統架構", icon: Package },
   { id: "modules", title: "功能模組", icon: BarChart3 },
@@ -264,6 +265,7 @@ export default function AboutUs({ onNavigate }: { onNavigate: (moduleId: string)
         <div className="lg:col-span-3">
           <DataCard className="p-6 lg:p-8">
             <div className="mx-auto max-w-5xl space-y-8">
+              {activeSection === "troubleshooting" && <TroubleshootingGuide />}
               {activeSection === "updates" && <UpdatesSection />}
               {activeSection === "system" && <SystemArchitecture />}
               {activeSection === "modules" && <ModulesOverview />}
@@ -604,6 +606,74 @@ function TechnicalDocs() {
         <InfoCard title="高風險區" body="settings、subscription、storage 相關檔案一旦 schema 或 bucket 變動，要同步更新說明。" />
         <InfoCard title="推薦讀法" body="先看 INDEX，再看 About、Settings、對應模組文件，最後再進 hooks 與 API routes。" />
       </div>
+    </div>
+  );
+}
+
+function TroubleshootingGuide() {
+  return (
+    <div className="space-y-8">
+      <SectionHeader
+        title="INACCESSIBLE_BOOT_DEVICE（0x7B）障礙排除手冊"
+        description="Windows 無法存取開機磁碟時，先確認儲存控制器模式是否為 AHCI；不要在未確認原設定前直接切換模式。"
+      />
+
+      <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/50 dark:bg-amber-950/35 dark:text-amber-50">
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="mt-0.5 size-5 shrink-0" aria-hidden />
+          <div>
+            <h3 className="text-lg font-bold">先保留現況，再做任何變更</h3>
+            <p className="mt-2 text-sm leading-6 text-amber-900/90 dark:text-amber-100/90">
+              若藍畫面是在調整 BIOS/UEFI、更新 Intel RST/VMD 驅動、換硬碟或複製系統後發生，先拍下目前設定與錯誤畫面。直接把 RAID、RST、VMD 或 IDE 改成 AHCI，可能讓原本可開機的 Windows 立即出現 0x7B。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="ahci-first-step" className="border-y border-[var(--line-soft)] py-6">
+        <div className="flex items-start gap-4">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)]/15 text-[var(--primary)]">
+            <HardDrive size={20} aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <h3 id="ahci-first-step" className="text-xl font-bold text-[var(--foreground)]">第一步：確認是否為 AHCI</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
+              重新開機進入 BIOS/UEFI，尋找 <strong className="font-semibold text-[var(--foreground)]">Storage、SATA Configuration、SATA Mode</strong> 或同義選項，記錄目前顯示的模式。常見值為 AHCI、IDE、RAID、Intel RST 或 VMD；各主機板與筆電品牌的名稱可能不同。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="divide-y divide-[var(--line-soft)] border-y border-[var(--line-soft)]">
+        <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+          <div className="flex items-start gap-3 text-[var(--foreground)]">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <h3 className="font-bold">已經是 AHCI</h3>
+          </div>
+          <div className="text-sm leading-6 text-[var(--muted-foreground)]">
+            AHCI 不是這次錯誤的直接切換原因。接著確認 BIOS 是否仍看得到系統碟、開機順序是否正確，以及硬碟與主機板連接是否鬆動；若硬體都正常，再進 Windows 修復環境處理啟動修復或最近的驅動變更。
+          </div>
+        </div>
+        <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+          <div className="flex items-start gap-3 text-[var(--foreground)]">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+            <h3 className="font-bold">顯示 RAID、Intel RST、VMD 或 IDE</h3>
+          </div>
+          <div className="text-sm leading-6 text-[var(--muted-foreground)]">
+            先還原為 Windows 原本安裝時使用的模式，再嘗試開機。若要改用 AHCI，請先依設備廠商的遷移步驟讓 Windows 在安全模式載入 AHCI 驅動，完成後才切換 BIOS；不確定原模式時，請不要猜測或反覆切換。
+          </div>
+        </div>
+      </div>
+
+      <section className="space-y-3">
+        <h3 className="text-xl font-bold text-[var(--foreground)]">確認後的最小處置順序</h3>
+        <ol className="space-y-3 text-sm leading-6 text-[var(--muted-foreground)]">
+          <li><strong className="text-[var(--foreground)]">1. 記錄設定：</strong>拍下 AHCI / RAID / RST / VMD 狀態與開機碟資訊。</li>
+          <li><strong className="text-[var(--foreground)]">2. 還原最後可開機設定：</strong>若錯誤剛好出現在 BIOS 變更後，先回復那次變更。</li>
+          <li><strong className="text-[var(--foreground)]">3. 檢查系統碟：</strong>確認 BIOS 可偵測到磁碟、開機順序與資料線／插槽無異常。</li>
+          <li><strong className="text-[var(--foreground)]">4. 再進修復：</strong>在硬體與控制器模式確認無誤後，才使用 Windows 修復環境的啟動修復、系統還原或驅動回復。</li>
+        </ol>
+      </section>
     </div>
   );
 }
