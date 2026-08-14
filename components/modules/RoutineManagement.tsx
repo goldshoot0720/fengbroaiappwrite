@@ -1192,12 +1192,11 @@ export default function RoutineManagement() {
                   {viewMode === "table" && (
                   <div className="overflow-x-auto">
                     <DataCard className="overflow-visible">
-                      <Table className="min-w-[880px]">
+                      <Table className="min-w-[760px]">
                         <TableHeader className="sticky top-0 z-20">
                           <TableRow>
                             <TableHead className="sticky top-0 z-20 w-8 bg-white/95 backdrop-blur dark:bg-slate-950/95"></TableHead>
                             <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">名稱</TableHead>
-                            <TableHead className="sticky top-0 z-20 w-[320px] min-w-[280px] bg-white/95 backdrop-blur dark:bg-slate-950/95">備註</TableHead>
                             <TableHead className="sticky top-0 z-20 w-[88px] bg-white/95 backdrop-blur dark:bg-slate-950/95">圖片</TableHead>
                             <TableHead className="sticky top-0 z-20 bg-white/95 text-right backdrop-blur dark:bg-slate-950/95">操作</TableHead>
                           </TableRow>
@@ -1208,7 +1207,7 @@ export default function RoutineManagement() {
                               {inlineEditingId === routine.$id ? (
                                 // 行內編輯模式
                                 <>
-                                  <TableCell colSpan={5} className="bg-orange-50 dark:bg-orange-900/20">
+                                  <TableCell colSpan={4} className="bg-orange-50 dark:bg-orange-900/20">
                                     <div className="space-y-3 py-2">
                                       <div className="flex items-center gap-2 mb-2">
                                         <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
@@ -1302,7 +1301,7 @@ export default function RoutineManagement() {
                                       ) : (
                                         <div className="max-w-[220px] whitespace-normal break-words">{routine.name}</div>
                                       )}
-                                      <div className="grid grid-cols-3 gap-x-3 text-xs font-normal text-muted-foreground">
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal text-muted-foreground">
                                         <div className="min-w-0">
                                           <span className="mr-1">最近①</span>
                                           <span className="tabular-nums">{renderRoutineDate(routine.lastdate1, routine.lastdate2, "最近②")}</span>
@@ -1315,15 +1314,11 @@ export default function RoutineManagement() {
                                           <span className="mr-1">最近③</span>
                                           <span className="tabular-nums">{renderRoutineDate(routine.lastdate3)}</span>
                                         </div>
-                                      </div>
-                                      <div className="text-xs font-normal text-muted-foreground">
                                         相距天數: {calculateDaysDiff(routine.lastdate1, routine.lastdate2)}
                                       </div>
                                     </div>
-                                  </TableCell>
-                                  <TableCell className="min-w-[280px] align-top">
                                     {routine.note && (
-                                      <div className="mt-1 max-w-[320px] rounded border border-gray-100 bg-gray-50 p-2 text-xs text-gray-500 shadow-sm max-h-[150px] overflow-y-auto whitespace-pre-wrap break-words dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
+                                      <div className="max-h-[150px] overflow-y-auto border-t border-border/60 pt-2 text-xs font-normal text-muted-foreground whitespace-pre-wrap break-words">
                                         {routine.note}
                                       </div>
                                     )}
