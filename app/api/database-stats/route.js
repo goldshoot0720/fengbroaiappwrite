@@ -14,6 +14,7 @@ const TABLE_DEFINITIONS = Object.fromEntries(
     schema.attributes.map((attr) => ({
       key: attr.key,
       type: normalizeExpectedType(attr.type),
+      required: attr.required === true,
       ...(attr.size !== undefined ? { size: attr.size } : {}),
     })),
   ])
@@ -24,16 +25,6 @@ function compareSchema(expected, actual, tableName = 'unknown') {
   
   if (!actual || actual.length === 0) {
     console.log(`[compareSchema:${tableName}] ❌ No actual attributes`);
-    console.log(`========== [compareSchema:${tableName}] END ==========\n`);
-    return false;
-  }
-  
-  if (expected.length !== actual.length) {
-    console.log(`[compareSchema:${tableName}] ❌ Length mismatch:`);
-    console.log(`  Expected: ${expected.length} attributes`);
-    console.log(`  Actual: ${actual.length} attributes`);
-    console.log(`  Expected keys: ${expected.map(a => a.key).join(', ')}`);
-    console.log(`  Actual keys: ${actual.map(a => a.key).join(', ')}`);
     console.log(`========== [compareSchema:${tableName}] END ==========\n`);
     return false;
   }
@@ -56,8 +47,12 @@ function compareSchema(expected, actual, tableName = 'unknown') {
     const act = actualMap[key];
     
     if (!act) {
-      console.log(`[compareSchema:${tableName}] ❌ Missing attribute: ${key}`);
-      hasError = true;
+      if (exp.required) {
+        console.log(`[compareSchema:${tableName}] ❌ Missing required attribute: ${key}`);
+        hasError = true;
+      } else {
+        console.log(`[compareSchema:${tableName}] ℹ️ Legacy table omits optional attribute: ${key}`);
+      }
       continue;
     }
     

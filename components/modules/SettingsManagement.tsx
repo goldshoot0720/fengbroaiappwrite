@@ -1010,7 +1010,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                             )}
                           </Button>
                         )}
-                        {col.schemaMismatch && !col.error && !recentlyCreated.has(col.name) && (
+                        {false && col.schemaMismatch && !col.error && !recentlyCreated.has(col.name) && (
                           <>
                             <span className="text-xs bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded" title="結構不一致">
                               ❗

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, Archive, ArchiveRestore, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArchiveRestore, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,17 +30,10 @@ import {
 } from "@/lib/formatters";
 import { getAppwriteConfig, getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
 import {
-  SUBSCRIPTION_CATEGORY_OPTIONS,
   SUBSCRIPTION_CSV_HEADERS,
-  SUBSCRIPTION_FRIENDLINESS_OPTIONS,
-  SUBSCRIPTION_PURPOSE_OPTIONS,
-  SUBSCRIPTION_RETENTION_OPTIONS,
-  SUBSCRIPTION_USAGE_OPTIONS,
   detectSubscriptionCsvMode,
   emptySubscriptionForm,
-  fromSelectValue,
   parseSubscriptionCsvRow,
-  selectValue,
   subscriptionFormToCsvValues,
   toSubscriptionForm,
 } from "@/lib/subscriptionFields";
@@ -318,7 +311,7 @@ function SubscriptionFormCard({
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{title}</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">對齊 subscription 表 15 個欄位；整理欄位可之後再填。</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">只保留目前 subscription 表長期使用的 8 個欄位。</p>
         </div>
         <div className="w-full rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900/50 lg:w-auto lg:min-w-[220px]">
           <div className="text-xs text-gray-500 dark:text-gray-400">AI 提示</div>
@@ -442,108 +435,6 @@ function SubscriptionFormCard({
             <SelectItem value="false">不續訂</SelectItem>
           </SelectContent>
         </Select>
-        <Select
-          value={selectValue(form.category)}
-          onValueChange={(value) => onChange({ ...form, category: fromSelectValue(value) })}
-        >
-          <SelectTrigger aria-label="分類">
-            <SelectValue placeholder="分類" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">未分類</SelectItem>
-            {SUBSCRIPTION_CATEGORY_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-            ))}
-            {form.category && !SUBSCRIPTION_CATEGORY_OPTIONS.some((option) => option.value === form.category) && (
-              <SelectItem value={form.category}>{form.category}</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-        <Select
-          value={selectValue(form.purpose)}
-          onValueChange={(value) => onChange({ ...form, purpose: fromSelectValue(value) })}
-        >
-          <SelectTrigger aria-label="用途">
-            <SelectValue placeholder="用途" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">未填用途</SelectItem>
-            {SUBSCRIPTION_PURPOSE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-            ))}
-            {form.purpose && !SUBSCRIPTION_PURPOSE_OPTIONS.some((option) => option.value === form.purpose) && (
-              <SelectItem value={form.purpose}>{form.purpose}</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-        <Select
-          value={selectValue(form.usageFrequency)}
-          onValueChange={(value) => onChange({ ...form, usageFrequency: fromSelectValue(value) })}
-        >
-          <SelectTrigger aria-label="使用頻率">
-            <SelectValue placeholder="使用頻率" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">未填頻率</SelectItem>
-            {SUBSCRIPTION_USAGE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-            ))}
-            {form.usageFrequency && !SUBSCRIPTION_USAGE_OPTIONS.some((option) => option.value === form.usageFrequency) && (
-              <SelectItem value={form.usageFrequency}>{form.usageFrequency}</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-        <Select
-          value={selectValue(form.friendliness)}
-          onValueChange={(value) => onChange({ ...form, friendliness: fromSelectValue(value) })}
-        >
-          <SelectTrigger aria-label="友善度">
-            <SelectValue placeholder="友善度" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">未填友善度</SelectItem>
-            {SUBSCRIPTION_FRIENDLINESS_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-            ))}
-            {form.friendliness && !SUBSCRIPTION_FRIENDLINESS_OPTIONS.some((option) => option.value === form.friendliness) && (
-              <SelectItem value={form.friendliness}>{form.friendliness}</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-        <Select
-          value={selectValue(form.retentionRecommendation)}
-          onValueChange={(value) => onChange({ ...form, retentionRecommendation: fromSelectValue(value) })}
-        >
-          <SelectTrigger aria-label="去留建議">
-            <SelectValue placeholder="去留建議" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">未填建議</SelectItem>
-            {SUBSCRIPTION_RETENTION_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-            ))}
-            {form.retentionRecommendation && !SUBSCRIPTION_RETENTION_OPTIONS.some((option) => option.value === form.retentionRecommendation) && (
-              <SelectItem value={form.retentionRecommendation}>{form.retentionRecommendation}</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-        <Select
-          value={form.archived ? "true" : "false"}
-          onValueChange={(value) => onChange({ ...form, archived: value === "true" })}
-        >
-          <SelectTrigger aria-label="封存">
-            <SelectValue placeholder="是否封存" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="false">使用中</SelectItem>
-            <SelectItem value="true">已封存</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input
-          placeholder="替代方案"
-          value={form.alternative || ""}
-          onChange={(event) => onChange({ ...form, alternative: event.target.value })}
-        />
         <div className="md:col-span-2 xl:col-span-4">
           <Textarea
             placeholder="備註"
@@ -575,7 +466,6 @@ export default function SubscriptionManagement() {
   const [initializingTable, setInitializingTable] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [renewalFilter, setRenewalFilter] = useState<"all" | "renewing" | "stopped">("all");
-  const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [dueFilter, setDueFilter] = useState<"all" | "expired" | "7days" | "30days" | "nodate">("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const NO_MONTH_FILTER = "no-month";
@@ -656,16 +546,7 @@ export default function SubscriptionManagement() {
     return () => window.clearTimeout(focusTimer);
   }, [bulkDeleteOpen, isDeleting]);
 
-  const scopedSubscriptions = useMemo(() => {
-    if (archiveFilter === "archived") return subscriptions.filter((sub) => sub.archived === true);
-    if (archiveFilter === "all") return subscriptions;
-    return subscriptions.filter((sub) => sub.archived !== true);
-  }, [subscriptions, archiveFilter]);
-
-  const archivedCount = useMemo(
-    () => subscriptions.filter((sub) => sub.archived === true).length,
-    [subscriptions]
-  );
+  const scopedSubscriptions = subscriptions;
 
   const monthOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -770,10 +651,7 @@ export default function SubscriptionManagement() {
       sub.site?.toLowerCase().includes(query) ||
       sub.account?.toLowerCase().includes(query) ||
       sub.note?.toLowerCase().includes(query) ||
-      sub.currency?.toLowerCase().includes(query) ||
-      sub.category?.toLowerCase().includes(query) ||
-      sub.purpose?.toLowerCase().includes(query) ||
-      sub.alternative?.toLowerCase().includes(query)
+      sub.currency?.toLowerCase().includes(query)
     );
   }, [scopedSubscriptions, renewalFilter, dueFilter, monthFilter, searchQuery]);
 
@@ -812,7 +690,6 @@ export default function SubscriptionManagement() {
     if (type === "all") {
       setDueFilter("all");
       setRenewalFilter("all");
-      setArchiveFilter("active");
       setMonthFilter("all");
       setSearchQuery("");
       return;
@@ -1336,10 +1213,7 @@ export default function SubscriptionManagement() {
   const restoreFromTrash = async (item: TrashedSubscription) => {
     try {
       const subscription = item.subscription;
-      await createSubscription({
-        ...toSubscriptionForm(subscription),
-        archived: false,
-      });
+      await createSubscription(toSubscriptionForm(subscription));
       saveTrash(trashedSubscriptions.filter((candidate) => candidate.subscription.$id !== subscription.$id));
     } catch (restoreError) {
       alert(restoreError instanceof Error ? restoreError.message : "還原訂閱失敗");
@@ -1655,25 +1529,10 @@ export default function SubscriptionManagement() {
     }
   };
 
-  const handleToggleArchive = async (sub: Subscription) => {
-    try {
-      await updateSubscription(sub.$id, {
-        ...toSubscriptionForm(sub),
-        archived: sub.archived !== true,
-      });
-    } catch (archiveError) {
-      alert(archiveError instanceof Error ? archiveError.message : "更新封存狀態失敗");
-    }
-  };
-
   const handleCopy = (sub: Subscription) => {
     setIsInlineAdding(true);
     setInlineEditingId(null);
-    setInlineAddForm({
-      ...toSubscriptionForm(sub),
-      name: `${sub.name} (複製)`,
-      archived: false,
-    });
+    setInlineAddForm({ ...toSubscriptionForm(sub), name: `${sub.name} (複製)` });
   };
 
   const renderSubscriptionRow = (sub: Subscription) => {
@@ -1773,16 +1632,6 @@ export default function SubscriptionManagement() {
             >
               {renewalLabel}
             </span>
-            {sub.category ? (
-              <span className="ml-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {sub.category}
-              </span>
-            ) : null}
-            {sub.archived ? (
-              <span className="ml-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                已封存
-              </span>
-            ) : null}
           </div>
         </TableCell>
         <TableCell className="whitespace-normal align-top">
@@ -1818,16 +1667,6 @@ export default function SubscriptionManagement() {
             <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg">
               <Copy className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => handleToggleArchive(sub)}
-              className="rounded-lg"
-              title={sub.archived ? "取消封存" : "封存"}
-            >
-              {sub.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-            </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -1859,8 +1698,8 @@ export default function SubscriptionManagement() {
 
       <FriendlyAiCrudShell
         title="鋒兄訂閱"
-        description="以 subscription 表 15 個欄位為準：基本扣款資料加上分類、用途、頻率、友善度、替代方案、去留建議與封存。預設只看使用中的項目。"
-        searchPlaceholder="搜尋服務名稱、網站、帳號、備註、分類、用途..."
+        description="以 subscription 表長期使用的欄位為準：服務名稱、網站、價格、下次扣款、備註、帳號、幣別與是否續訂。"
+        searchPlaceholder="搜尋服務名稱、網站、帳號或備註..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onClearSearch={() => setSearchQuery("")}
@@ -1878,7 +1717,6 @@ export default function SubscriptionManagement() {
                 </h1>
                 <p className="text-base leading-7 text-slate-600 dark:text-slate-300">
                   共 {subscriptions.length} 項訂閱
-                  {archivedCount > 0 ? `（使用中 ${subscriptions.length - archivedCount}、封存 ${archivedCount}）` : ""}
                 </p>
                 <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
                   {getCurrentAccountLabel()}
@@ -2007,22 +1845,6 @@ export default function SubscriptionManagement() {
           <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("stopped")}>
             不續訂 ({stoppedSubscriptions.length})
           </Button>
-          {archivedCount > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full"
-              onClick={() => {
-                setArchiveFilter("archived");
-                setDueFilter("all");
-                setRenewalFilter("all");
-                setMonthFilter("all");
-              }}
-            >
-              已封存 ({archivedCount})
-            </Button>
-          )}
           {duplicateGroups.length > 0 && (
             <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("duplicates")}>
               重複提醒 ({duplicateGroups.length})
@@ -2040,16 +1862,6 @@ export default function SubscriptionManagement() {
               <SelectItem value="stopped">不續訂</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={archiveFilter} onValueChange={(value: "active" | "archived" | "all") => setArchiveFilter(value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="封存狀態" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">使用中</SelectItem>
-              <SelectItem value="archived">已封存 ({archivedCount})</SelectItem>
-              <SelectItem value="all">含封存</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={monthFilter} onValueChange={setMonthFilter}>
             <SelectTrigger>
               <SelectValue placeholder="扣款月份" />
@@ -2064,7 +1876,6 @@ export default function SubscriptionManagement() {
           </Select>
           <Button variant="outline" onClick={() => {
             setRenewalFilter("all");
-            setArchiveFilter("active");
             setDueFilter("all");
             setMonthFilter("all");
             setSearchQuery("");
@@ -2580,16 +2391,6 @@ export default function SubscriptionManagement() {
                         >
                           {sub.continue === false ? "不續訂" : "續訂中"}
                         </span>
-                        {sub.category ? (
-                          <span className="ml-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                            {sub.category}
-                          </span>
-                        ) : null}
-                        {sub.archived ? (
-                          <span className="ml-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                            已封存
-                          </span>
-                        ) : null}
                       </div>
                     </div>
                     <SubscriptionPriceDisplay price={sub.price} currency={sub.currency} />
@@ -2624,10 +2425,6 @@ export default function SubscriptionManagement() {
                     <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg">
                       <Copy className="mr-1 h-3.5 w-3.5" />
                       複製
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => handleToggleArchive(sub)} className="rounded-lg">
-                      {sub.archived ? <ArchiveRestore className="mr-1 h-3.5 w-3.5" /> : <Archive className="mr-1 h-3.5 w-3.5" />}
-                      {sub.archived ? "取消封存" : "封存"}
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
                       <Trash2 className="mr-1 h-3.5 w-3.5" />

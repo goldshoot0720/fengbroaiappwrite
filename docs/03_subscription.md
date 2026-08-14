@@ -30,13 +30,6 @@
 | account | string | 100 | ❌ | - | 登入帳號 |
 | currency | string | 100 | ❌ | - | 幣別代碼 (TWD/USD/EUR/JPY/CNY/HKD) |
 | continue | boolean | - | ❌ | true | 是否持續訂閱 |
-| category | string | 100 | ❌ | - | 分類 |
-| purpose | string | 100 | ❌ | - | 用途 |
-| usageFrequency | string | 50 | ❌ | - | 使用頻率 |
-| friendliness | string | 50 | ❌ | - | 友善度 |
-| alternative | string | 200 | ❌ | - | 替代方案 |
-| retentionRecommendation | string | 50 | ❌ | - | 去留建議 |
-| archived | boolean | - | ❌ | false | 封存 |
 
 ## TypeScript 類型定義
 
@@ -51,13 +44,6 @@ interface Subscription {
   account?: string;
   currency?: string;
   continue?: boolean;
-  category?: string;
-  purpose?: string;
-  usageFrequency?: string;
-  friendliness?: string;
-  alternative?: string;
-  retentionRecommendation?: string;
-  archived?: boolean;
 }
 ```
 
@@ -88,7 +74,6 @@ interface Subscription {
 | 6 | account | 帳號 |
 | 7 | currency | 幣別 |
 | 8 | continue | 是否持續 (true/false) |
-| 9–15 | category … archived | 完整格式才有；舊 8 欄仍可匯入 |
 
 ## API 端點
 

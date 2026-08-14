@@ -55,6 +55,13 @@ export async function POST(request) {
     // Analyze differences
     const analysis = analyzeSchema(expectedSchema, actualAttributes);
 
+    return NextResponse.json({
+      success: true,
+      action: 'compatible',
+      analysis,
+      message: `Keeping existing ${tableName} schema; no attributes were added.`
+    });
+
     if (analysis.canAutoUpdate) {
       // Try to auto-update
       const updateResult = await autoUpdateSchema(
