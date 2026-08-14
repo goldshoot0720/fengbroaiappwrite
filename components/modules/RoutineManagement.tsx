@@ -104,6 +104,7 @@ export default function RoutineManagement() {
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
   const [inlineEditForm, setInlineEditForm] = useState<RoutineFormData>(INITIAL_FORM);
+  const [inlinePhotoFile, setInlinePhotoFile] = useState<File | null>(null);
 
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -244,6 +245,26 @@ export default function RoutineManagement() {
     setForm({ ...form, photo: "" });
   };
 
+  const handleInlinePhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert(`圖片檔案不能超過 50MB（目前 ${Math.round(file.size / 1024 / 1024)}MB）`);
+      return;
+    }
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('僅支援 JPG、PNG、GIF、WEBP 圖片');
+      return;
+    }
+
+    setInlinePhotoFile(file);
+    setInlineEditForm((current) => ({ ...current, photo: "" }));
+  };
+
   const uploadPhotoToAppwrite = async (file: File): Promise<string> => {
     setPhotoUploading(true);
     const formDataUpload = new FormData();
@@ -343,6 +364,7 @@ export default function RoutineManagement() {
       link: routine.link || '',
       photo: routine.photo || '',
     });
+    setInlinePhotoFile(null);
     setInlineEditingId(routine.$id);
   };
 
@@ -350,9 +372,13 @@ export default function RoutineManagement() {
   const handleInlineSave = async (routineId: string) => {
     if (!inlineEditingId) return;
     try {
-      await update(routineId, inlineEditForm);
+      const photo = inlinePhotoFile
+        ? await uploadPhotoToAppwrite(inlinePhotoFile)
+        : inlineEditForm.photo;
+      await update(routineId, { ...inlineEditForm, photo });
       setInlineEditingId(null);
       setInlineEditForm(INITIAL_FORM);
+      setInlinePhotoFile(null);
     } catch (error) {
       console.error('Inline edit failed:', error);
       alert('更新失敗，請稍後再試');
@@ -363,6 +389,7 @@ export default function RoutineManagement() {
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
     setInlineEditForm(INITIAL_FORM);
+    setInlinePhotoFile(null);
   };
 
   const handleShiftDates = async (routine: Routine) => {
@@ -1274,12 +1301,29 @@ export default function RoutineManagement() {
                                         <Input
                                           placeholder="圖片網址"
                                           value={inlineEditForm.photo}
-                                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, photo: e.target.value })}
+                                          onChange={(e) => {
+                                            setInlineEditForm({ ...inlineEditForm, photo: e.target.value });
+                                            setInlinePhotoFile(null);
+                                          }}
                                           className="h-9 rounded-lg text-sm lg:col-span-2 xl:col-span-2"
                                         />
+                                        <div className="lg:col-span-2 xl:col-span-2">
+                                          <Input
+                                            type="file"
+                                            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                            onChange={handleInlinePhotoFileSelect}
+                                            className="h-9 rounded-lg text-sm"
+                                            aria-label="上傳圖片檔案"
+                                          />
+                                          {inlinePhotoFile && (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              將上傳：{inlinePhotoFile.name} ({Math.round(inlinePhotoFile.size / 1024)}KB)
+                                            </p>
+                                          )}
+                                        </div>
                                       </div>
                                       <div className="flex gap-2 justify-end">
-                                        <Button size="sm" onClick={() => handleInlineSave(routine.$id)} className="bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                                        <Button size="sm" onClick={() => handleInlineSave(routine.$id)} disabled={photoUploading} className="bg-green-600 hover:bg-green-700 text-white rounded-lg">
                                           儲存
                                         </Button>
                                         <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="rounded-lg">
