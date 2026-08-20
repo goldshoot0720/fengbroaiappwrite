@@ -196,6 +196,22 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
   if (onlyTitle) {
     return (
       <div className="space-y-6 lg:space-y-8">
+        <PageTitle title={title} description="先處理今天需要注意的事，再前往常用模組。" />
+        <FinanceAlertsNoticeCard
+          alerts={financeAlerts}
+          dismissed={financeAlertsDismissed}
+          onDismiss={handleDismissFinanceAlerts}
+          onNavigate={() => onNavigate("fengbro-finance")}
+        />
+        {trafficAlert ? <MediaTrafficHomepageAlert policy={trafficAlert} total={traffic.total} /> : null}
+        <HomeTaskBoard onNavigate={onNavigate} stats={stats} />
+      </div>
+    );
+  }
+
+  if (onlyTitle) {
+    return (
+      <div className="space-y-6 lg:space-y-8">
         <PageTitle title={title} />
 
         <FinanceAlertsNoticeCard
@@ -458,6 +474,83 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
 
       {/* 提醒和建議 */}
       {needsAttention && <AlertSection stats={stats} />}
+    </div>
+  );
+}
+
+function HomeTaskBoard({
+  onNavigate,
+  stats,
+}: {
+  onNavigate: (moduleId: string) => void;
+  stats: ReturnType<typeof useDashboardStats>["stats"];
+}) {
+  const attentionItems = [
+    { label: "已過期食品", value: stats.expiredFoods, moduleId: "food" },
+    { label: "7 天內食品", value: stats.foodsExpiring7Days, moduleId: "food" },
+    { label: "逾期訂閱", value: stats.overdueSubscriptions, moduleId: "subscription" },
+    { label: "3 天內扣款", value: stats.subscriptionsExpiring3Days, moduleId: "subscription" },
+  ];
+  const totalAttention = attentionItems.reduce((total, item) => total + item.value, 0);
+  const quickActions = [
+    { label: "鋒兄訂閱", description: "管理扣款與到期日", moduleId: "subscription", icon: <CreditCard size={18} /> },
+    { label: "鋒兄食品", description: "查看庫存與保存期限", moduleId: "food", icon: <Package size={18} /> },
+    { label: "鋒兄例行", description: "記錄最近執行日期", moduleId: "routine", icon: <CalendarClock size={18} /> },
+    { label: "鋒兄儀表", description: "查看完整系統摘要", moduleId: "dashboard", icon: <TrendingUp size={18} /> },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <DataCard className="border-[var(--line-strong)] p-5 md:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-2xl font-semibold text-[var(--foreground)]">今日待處理</h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              {totalAttention > 0 ? `目前有 ${totalAttention} 項需要注意。` : "目前沒有緊急項目。"}
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => onNavigate("dashboard")} className="min-h-11 shrink-0 rounded-xl">
+            查看完整儀表
+          </Button>
+        </div>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {attentionItems.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => onNavigate(item.moduleId)}
+              className="flex min-h-16 items-center justify-between rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] px-4 text-left transition-impeccable hover:bg-[color:var(--panel-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+            >
+              <span className="text-sm text-[var(--muted-foreground)]">{item.label}</span>
+              <span className="text-xl font-semibold tabular-nums text-[var(--foreground)]">{item.value}</span>
+            </button>
+          ))}
+        </div>
+      </DataCard>
+
+      <section aria-labelledby="home-quick-actions-title">
+        <h2 id="home-quick-actions-title" className="font-display text-2xl font-semibold text-[var(--foreground)]">
+          常用功能
+        </h2>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {quickActions.map((action) => (
+            <button
+              key={action.moduleId}
+              type="button"
+              onClick={() => onNavigate(action.moduleId)}
+              className="group flex min-h-24 items-center gap-3 rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] px-4 text-left transition-impeccable hover:-translate-y-0.5 hover:bg-[color:var(--panel-strong)] hover:shadow-[var(--shadow-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)]/18 text-[var(--accent-strong)]">
+                {action.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-[var(--foreground)]">{action.label}</span>
+                <span className="mt-0.5 block text-xs text-[var(--muted-foreground)]">{action.description}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

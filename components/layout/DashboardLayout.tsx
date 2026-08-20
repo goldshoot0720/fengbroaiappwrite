@@ -44,6 +44,7 @@ export default function DashboardLayout({
   menuItems,
 }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -137,10 +138,12 @@ export default function DashboardLayout({
       <AmbientBackdrop />
 
       <div className="relative z-10 flex min-h-screen flex-col">
-        <DesktopTopNav
+        <DesktopSidebar
+          collapsed={isDesktopSidebarCollapsed}
           currentModule={currentModule}
           menuItems={menuItems}
           onMenuClick={handleMenuClick}
+          onToggle={() => setIsDesktopSidebarCollapsed((value) => !value)}
         />
 
         {isSidebarOpen && (
@@ -162,7 +165,7 @@ export default function DashboardLayout({
             onToggle={toggleSidebar}
           />
 
-          <main className="min-w-0 flex-1 px-3 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-4 md:pb-8 md:pt-4 xl:px-4 xl:pb-10 xl:pt-5">
+          <main className="min-w-0 flex-1 px-3 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-5 md:pb-8 md:pt-5 xl:px-7 xl:pb-10 xl:pt-7">
             <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
               {currentModule === "home" ? <SleepWarningBanner /> : null}
               <TopBar
@@ -370,204 +373,85 @@ function MobileBottomNav({
   );
 }
 
-/** Desktop / tablet: top multi-column multi-row navigation (replaces left sidebar). */
-function DesktopTopNav({
+/** Desktop / tablet: task-first navigation that keeps the workspace in view. */
+function DesktopSidebar({
+  collapsed,
   currentModule,
   menuItems,
   onMenuClick,
+  onToggle,
 }: {
+  collapsed: boolean;
   currentModule: string;
   menuItems: MenuItem[];
   onMenuClick: (item: MenuItem) => void;
+  onToggle: () => void;
 }) {
   const groups = useMemo(() => buildTopNavGroups(menuItems), [menuItems]);
-  const activeLabel = useMemo(() => {
-    const item = findMenuItem(menuItems, currentModule);
-    return formatActiveModuleLabel(item, "控制台");
-  }, [currentModule, menuItems]);
-  const mainGroup = groups.find((group) => group.id === "main");
-  const toolsRowGroups = groups.filter((group) =>
-    (TOP_NAV_SECOND_ROW_GROUP_IDS as readonly string[]).includes(group.id)
-  );
-  const comboRowGroups = groups.filter((group) =>
-    (TOP_NAV_COMBO_ROW_GROUP_IDS as readonly string[]).includes(group.id)
-  );
-  const reservedIds = new Set<string>([
-    "main",
-    ...TOP_NAV_SECOND_ROW_GROUP_IDS,
-    ...TOP_NAV_COMBO_ROW_GROUP_IDS,
-  ]);
-  const otherGroups = groups.filter((group) => !reservedIds.has(group.id));
 
   return (
-    <header
-      id="desktop-top-nav"
-      className="relative z-10 hidden shrink-0 border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 px-2 py-1.5 backdrop-blur-xl md:block md:px-3 xl:px-4"
+    <aside
+      aria-label="主要選單"
+      className={cn(
+        "sticky top-0 z-[var(--z-sidebar)] hidden h-dvh shrink-0 flex-col border-r border-[var(--line-soft)] bg-[color:var(--panel-veil)]/94 px-3 py-4 backdrop-blur-xl transition-[width] duration-200 md:flex",
+        collapsed ? "w-[76px]" : "w-[264px]"
+      )}
     >
-      <div className="mx-auto w-full max-w-[1680px] space-y-1.5">
-        <div className="flex flex-wrap items-center justify-between gap-1.5">
-          <BrandBlock compact title={activeLabel} />
-          <div className="flex flex-wrap items-center gap-1">
-            <div className="flex items-center gap-1 rounded-md border border-[var(--line-strong)] bg-white/60 px-1.5 py-1 dark:bg-white/5">
-              <div className="flex shrink-0 items-center gap-0.5">
-                <ThemeToggleCompact />
-                <DensityToggleCompact />
-              </div>
-              <div className="min-w-0 leading-none">
-                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                  Design Mode
-                </p>
-                <p className="text-xs font-medium leading-tight text-[var(--foreground)]">
-                  Impeccable 2026~2027
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <nav aria-label="主要選單" className="space-y-1">
-          {mainGroup ? (
-            <TopNavGroupBlock
-              currentModule={currentModule}
-              group={mainGroup}
-              onMenuClick={onMenuClick}
-            />
-          ) : null}
-
-          {/* 第二列：鋒兄工具 + 鋒兄子工具 */}
-          {toolsRowGroups.length > 0 ? (
-            <div className="grid gap-1 lg:grid-cols-2">
-              {toolsRowGroups.map((group) => (
-                <div
-                  key={group.id}
-                  className="rounded-md border border-[var(--line-soft)] bg-white/40 px-1.5 py-1 dark:bg-white/[0.03]"
-                >
-                  <TopNavGroupBlock
-                    compact
-                    currentModule={currentModule}
-                    group={group}
-                    onMenuClick={onMenuClick}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {/* 同一列：鋒兄筆記/文件 · 鋒兄音樂/播客 · 鋒兄設定/關於 */}
-          {comboRowGroups.length > 0 ? (
-            <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
-              {comboRowGroups.map((group) => (
-                <div
-                  key={group.id}
-                  className="rounded-md border border-[var(--line-soft)] bg-white/40 px-1.5 py-1 dark:bg-white/[0.03]"
-                >
-                  <TopNavGroupBlock
-                    compact
-                    columns={2}
-                    currentModule={currentModule}
-                    group={group}
-                    onMenuClick={onMenuClick}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {otherGroups.map((group) => (
-            <TopNavGroupBlock
-              key={group.id}
-              currentModule={currentModule}
-              group={group}
-              onMenuClick={onMenuClick}
-            />
-          ))}
-        </nav>
+      <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between gap-2")}>
+        <BrandBlock compact={collapsed} title={collapsed ? "" : "鋒兄控制台"} />
+        {!collapsed ? <ThemeToggleCompact /> : null}
       </div>
-    </header>
-  );
-}
 
-function TopNavGroupBlock({
-  compact = false,
-  columns = 3,
-  currentModule,
-  group,
-  onMenuClick,
-}: {
-  compact?: boolean;
-  /** Compact grid column count (default 3 for tools; 2 for pair groups). */
-  columns?: 2 | 3;
-  currentModule: string;
-  group: TopNavGroup;
-  onMenuClick: (item: MenuItem) => void;
-}) {
-  return (
-    <div className="space-y-1">
-      {group.showLabel ? (
-        <p className="px-0.5 text-[11px] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">
-          {group.label}
-        </p>
-      ) : null}
-      <div
-        className={cn(
-          "grid gap-1",
-          compact
-            ? columns === 2
-              ? "grid-cols-2"
-              : "grid-cols-3"
-            : "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-10"
-        )}
-      >
-        {group.items.map((item) => {
-          const isActive = currentModule === item.id;
-          const { primary, secondary } = splitMenuLabel(item);
-          return (
-            <button
-              key={item.id}
-              type="button"
-              title={formatActiveModuleLabel(item, primary)}
-              onClick={() => onMenuClick(item)}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "flex items-center justify-center gap-1.5 rounded-md border px-1.5 py-1 text-center transition-colors duration-150 active:scale-[0.98]",
-                secondary ? "min-h-10" : "min-h-8",
-                isActive
-                  ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_2px_8px_rgba(199,149,65,0.18)]"
-                  : "border-[var(--line-soft)] bg-white/55 text-[var(--muted-foreground)] hover:border-[var(--line-strong)] hover:bg-white/80 hover:text-[var(--foreground)] dark:bg-white/5 dark:hover:bg-white/10"
-              )}
-            >
-              <span
-                className={cn(
-                  "flex size-5 shrink-0 items-center justify-center [&_svg]:size-3.5",
-                  isActive
-                    ? "text-[var(--accent-foreground)]"
-                    : "text-[var(--foreground)]"
-                )}
-              >
-                {item.icon}
-              </span>
-              <span className="min-w-0 flex-1 text-left">
-                <span className="block line-clamp-1 text-xs font-medium leading-4">
-                  {primary}
-                </span>
-                {secondary ? (
-                  <span
+      <nav className="mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pr-1" aria-label="模組導覽">
+        {groups.map((group) => (
+          <section key={group.id} aria-label={group.label}>
+            {!collapsed ? (
+              <p className="mb-1.5 px-2 text-[11px] font-medium tracking-[0.08em] text-[var(--muted-foreground)]">
+                {group.id === "main" ? "總覽與管理" : group.label}
+              </p>
+            ) : null}
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const isActive = currentModule === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    title={formatActiveModuleLabel(item, item.label)}
+                    onClick={() => onMenuClick(item)}
+                    aria-current={isActive ? "page" : undefined}
+                    aria-label={formatActiveModuleLabel(item, item.label)}
                     className={cn(
-                      "block line-clamp-1 text-[11px] leading-4",
+                      "flex w-full min-h-11 items-center rounded-xl px-2.5 text-left transition-impeccable focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]",
+                      collapsed ? "justify-center" : "gap-2.5",
                       isActive
-                        ? "text-[var(--accent-foreground)]/80"
-                        : "text-[var(--muted-foreground)]/85"
+                        ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_8px_20px_rgba(199,149,65,0.18)]"
+                        : "text-[var(--muted-foreground)] hover:bg-[color:var(--panel-soft)] hover:text-[var(--foreground)]"
                     )}
                   >
-                    {secondary}
-                  </span>
-                ) : null}
-              </span>
-            </button>
-          );
-        })}
+                    <span className="flex size-7 shrink-0 items-center justify-center">{item.icon}</span>
+                    {!collapsed ? <span className="truncate text-sm font-medium">{shortModuleLabel(item.label)}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </nav>
+
+      <div className={cn("mt-3 flex items-center gap-1", collapsed ? "flex-col" : "justify-between")}>
+        {!collapsed ? <DensityToggleCompact /> : <ThemeToggleCompact />}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggle}
+          aria-label={collapsed ? "展開側邊欄" : "收合側邊欄"}
+          className="size-11 rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] hover:bg-[color:var(--panel-strong)]"
+        >
+          <Menu size={18} />
+        </Button>
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -612,9 +496,6 @@ function MobileMenuSheet({
           />
           <div className="flex w-full items-center justify-between gap-3 pb-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-medium tracking-[0.2em] text-[var(--muted-foreground)] uppercase">
-                All modules
-              </p>
               <p className="truncate text-lg font-semibold tracking-tight text-[var(--foreground)]">
                 全部模組
               </p>
@@ -938,8 +819,8 @@ function TopBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 xl:gap-3">
-        <StatusPill label={today} value="Today" />
-        <StatusPill label={`${moduleCount} 個模組`} value="Modules" />
+        <StatusPill label={today} value="今日" />
+        <StatusPill label={`${moduleCount} 個模組`} value="已啟用模組" />
       </div>
     </div>
   );
@@ -955,4 +836,3 @@ function StatusPill({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
