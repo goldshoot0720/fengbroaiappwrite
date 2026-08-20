@@ -137,7 +137,7 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <AmbientBackdrop />
 
-      <div className="relative z-10 flex min-h-screen flex-col">
+      <div className="relative z-10 flex min-h-screen flex-col md:flex-row">
         <DesktopSidebar
           collapsed={isDesktopSidebarCollapsed}
           currentModule={currentModule}
