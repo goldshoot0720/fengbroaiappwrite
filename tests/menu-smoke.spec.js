@@ -1,25 +1,22 @@
 const { test, expect } = require("@playwright/test");
 
-// 頂層選單（不含需展開的子項目）
 const topLevelMenus = [
   /鋒兄首頁/,
   /鋒兄儀表/,
-  /鋒兄訂閱/,
-  /鋒兄食品/,
-  /鋒兄常用/,
-  /鋒兄圖片/,
-  /鋒兄影片/,
-  /鋒兄銀行/,
-  /鋒兄例行/,
+  /日常管理/,
+  /內容中心/,
+  /財務與帳號/,
+  /^工具$/,
+  /^設定$/,
 ];
 
-// 分組子選單（上方選單改為直接平鋪顯示）
-const notesDocsChildren = [/鋒兄筆記/, /鋒兄文件/];
-const musicPodcastChildren = [/鋒兄音樂/, /鋒兄播客/];
-const settingsAboutChildren = [/鋒兄設定/, /鋒兄關於/];
-// 第二列：鋒兄工具 + 鋒兄子工具
-const toolsChildren = [/鋒兄比價/, /手機比價/, /圖片 \+ 語音 = 影片/];
-const subToolsChildren = [/鋒兄Tube/, /鋒兄金融/, /鋒兄新聞/];
+const groupedChildren = {
+  日常管理: [/^訂閱$/, /^食品$/, /^例行$/],
+  內容中心: [/^筆記$/, /^文件$/, /^圖片$/, /^影片$/, /^音樂$/, /^播客$/],
+  財務與帳號: [/^銀行$/, /^常用帳號$/],
+  工具: [/^比價$/, /^手機比價$/, /鋒兄Tube/, /^金融$/, /^新聞$/],
+  設定: [/鋒兄設定/, /鋒兄關於/],
+};
 
 async function getDesktopTopNav(page) {
   const nav = page.locator("#desktop-top-nav");
@@ -60,24 +57,18 @@ test("desktop top menu smoke test", async ({ page }) => {
     await expect(page.locator("main")).toBeVisible();
   }
 
-  // 分組子項目在上方選單直接顯示（無需再展開）
-  for (const label of [
-    ...toolsChildren,
-    ...subToolsChildren,
-    ...notesDocsChildren,
-    ...musicPodcastChildren,
-    ...settingsAboutChildren,
-  ]) {
-    const button = topNav.getByRole("button", { name: label }).first();
-    await expect(button, `子選單應可見: ${label}`).toBeVisible({ timeout: 10000 });
-    await button.scrollIntoViewIfNeeded();
-    await button.click();
-    await page.waitForTimeout(450);
-    await expect(page.locator("main")).toBeVisible();
+  for (const [group, children] of Object.entries(groupedChildren)) {
+    await topNav.getByRole("button", { name: group === "工具" || group === "設定" ? new RegExp(`^${group}$`) : group }).first().click();
+    await page.waitForTimeout(250);
+    for (const label of children) {
+      const button = topNav.getByRole("button", { name: label }).first();
+      await expect(button, `子選單應可見: ${label}`).toBeVisible({ timeout: 10000 });
+      await button.scrollIntoViewIfNeeded();
+      await button.click();
+      await page.waitForTimeout(450);
+      await expect(page.locator("main")).toBeVisible();
+    }
   }
-
-  await expect(topNav.getByText("鋒兄工具").first()).toBeVisible();
-  await expect(topNav.getByText("鋒兄子工具").first()).toBeVisible();
 
   expect(pageErrors, `Uncaught page errors:\n${pageErrors.join("\n")}`).toEqual([]);
   expect(apiFailures, `API failures:\n${apiFailures.join("\n")}`).toEqual([]);
@@ -89,7 +80,9 @@ test("subscription currency dropdown", async ({ page }) => {
   await page.waitForTimeout(1200);
 
   const topNav = await getDesktopTopNav(page);
-  await topNav.getByRole("button", { name: /鋒兄訂閱/ }).click();
+  await topNav.getByRole("button", { name: /日常管理/ }).click();
+  await page.waitForTimeout(250);
+  await topNav.getByRole("button", { name: /^訂閱$/ }).click();
   await page.waitForTimeout(1000);
 
   // 開啟新增表單

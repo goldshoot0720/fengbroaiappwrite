@@ -37,6 +37,21 @@ const MOBILE_PRIMARY_TAB_IDS = [
   "food",
 ] as const;
 
+/** Derive active parent from leaf module id + menu tree */
+function findActiveParent(
+  items: MenuItem[],
+  leafId: string
+): MenuItem | undefined {
+  for (const item of items) {
+    if (item.children?.length) {
+      if (item.children.some((c) => c.id === leafId)) return item;
+      const deeper = findActiveParent(item.children, leafId);
+      if (deeper) return item;
+    }
+  }
+  return undefined;
+}
+
 export default function DashboardLayout({
   children,
   currentModule,
@@ -44,14 +59,12 @@ export default function DashboardLayout({
   menuItems,
 }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const checkScreenSize = () => {
       setIsMobile(window.innerWidth < 768);
     };
-
     checkScreenSize();
     window.addEventListener("resize", checkScreenSize);
     return () => window.removeEventListener("resize", checkScreenSize);
@@ -75,7 +88,6 @@ export default function DashboardLayout({
     [activeItem]
   );
 
-  // All modules: browser tab title follows the active menu (not static AI Appwrite Console).
   useEffect(() => {
     document.title = `${activeLabel} · FengBro`;
   }, [activeLabel]);
@@ -112,15 +124,9 @@ export default function DashboardLayout({
   }, []);
 
   const handleMenuClick = useCallback(
-    (item: MenuItem) => {
-      if (item.children?.length) {
-        return;
-      }
-
-      onModuleChange(item.id);
-      if (isMobile) {
-        closeSidebar();
-      }
+    (moduleId: string) => {
+      onModuleChange(moduleId);
+      if (isMobile) closeSidebar();
     },
     [closeSidebar, isMobile, onModuleChange]
   );
@@ -137,15 +143,23 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <AmbientBackdrop />
 
-      <div className="relative z-10 flex min-h-screen flex-col md:flex-row">
-        <DesktopSidebar
-          collapsed={isDesktopSidebarCollapsed}
+      <div className="relative z-10 flex min-h-screen flex-col">
+        {/* Desktop horizontal top nav */}
+        <DesktopTopNav
+          activeLabel={activeLabel}
           currentModule={currentModule}
           menuItems={menuItems}
-          onMenuClick={handleMenuClick}
-          onToggle={() => setIsDesktopSidebarCollapsed((value) => !value)}
+          onModuleChange={handleMenuClick}
         />
 
+        {/* Mobile header bar */}
+        <MobileHeader
+          activeLabel={activeLabel}
+          isSidebarOpen={isSidebarOpen}
+          onToggle={toggleSidebar}
+        />
+
+        {/* Mobile full-screen menu sheet */}
         {isSidebarOpen && (
           <MobileMenuSheet
             currentModule={currentModule}
@@ -158,32 +172,22 @@ export default function DashboardLayout({
           />
         )}
 
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          <MobileHeader
-            activeLabel={activeLabel}
-            isSidebarOpen={isSidebarOpen}
-            onToggle={toggleSidebar}
-          />
-
-          <main className="min-w-0 flex-1 px-3 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-3 md:px-5 md:pb-8 md:pt-5 xl:px-7 xl:pb-10 xl:pt-7">
-            <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
-              {currentModule === "home" ? <SleepWarningBanner /> : null}
-              <TopBar
-                activeLabel={activeLabel}
-                moduleCount={countNavigableMenuItems(menuItems)}
-              />
-              {currentModule === "home" && (
-                <div className="relative overflow-hidden rounded-2xl md:rounded-[28px]">
-                  <BirthdayEasterEgg inline />
-                </div>
-              )}
-              <div className="surface-panel pad-panel rounded-2xl md:rounded-[28px] xl:rounded-[32px]">
-                {children}
+        {/* Main content */}
+        <main className="min-w-0 flex-1 px-3 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-4 md:px-6 md:pb-10 md:pt-6 xl:px-8 xl:pb-12 xl:pt-8">
+          <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
+            {currentModule === "home" ? <SleepWarningBanner /> : null}
+            {currentModule === "home" && (
+              <div className="relative overflow-hidden rounded-2xl md:rounded-[28px]">
+                <BirthdayEasterEgg inline />
               </div>
+            )}
+            <div className="surface-panel pad-panel rounded-2xl md:rounded-[28px] xl:rounded-[32px]">
+              {children}
             </div>
-          </main>
-        </div>
+          </div>
+        </main>
 
+        {/* Mobile bottom nav */}
         <MobileBottomNav
           currentModule={currentModule}
           isMenuOpen={isSidebarOpen}
@@ -194,11 +198,6 @@ export default function DashboardLayout({
         />
       </div>
 
-      {/*
-        Voice FAB stacks above the open mobile drawer (z-voice > z-drawer-open).
-        While the drawer is open: hide + inert so labels like「鋒兄金融」are not covered
-        and docks cannot steal taps (KD-16).
-      */}
       <div
         className={cn(isSidebarOpen && isMobile && "pointer-events-none hidden")}
         {...(isSidebarOpen && isMobile ? { inert: true as unknown as boolean } : {})}
@@ -207,8 +206,6 @@ export default function DashboardLayout({
         <MusicQueuePanel />
         <PodcastQueuePanel />
         <VideoQueuePanel />
-        {/* 右側浮動列：語音在底欄上方一點 */}
-        {/* pointer-events-none：避免整塊右下角遮住頁面「編輯」等按鈕；子元件自行開啟可點區域 */}
         <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4 md:bottom-6">
           <GlobalVoiceCommandPanel
             currentModule={currentModule}
@@ -223,6 +220,230 @@ export default function DashboardLayout({
   );
 }
 
+// ─────────────────────────────────────────────
+// Desktop Horizontal Top Navigation (2 rows)
+// ─────────────────────────────────────────────
+
+function DesktopTopNav({
+  activeLabel,
+  currentModule,
+  menuItems,
+  onModuleChange,
+}: {
+  activeLabel: string;
+  currentModule: string;
+  menuItems: MenuItem[];
+  onModuleChange: (id: string) => void;
+}) {
+  const activeParent = useMemo(
+    () => findActiveParent(menuItems, currentModule),
+    [menuItems, currentModule]
+  );
+
+  const activeTopId = useMemo(() => {
+    const rootLeaf = menuItems.find((m) => m.id === currentModule && !m.children?.length);
+    if (rootLeaf) return rootLeaf.id;
+    return activeParent?.id ?? currentModule;
+  }, [menuItems, currentModule, activeParent]);
+
+  const subItems = useMemo(() => {
+    const parent = menuItems.find((m) => m.id === activeTopId);
+    return parent?.children ?? [];
+  }, [menuItems, activeTopId]);
+
+  const handleTopClick = useCallback(
+    (item: MenuItem) => {
+      if (!item.children?.length) {
+        onModuleChange(item.id);
+        return;
+      }
+      const alreadyInGroup =
+        currentModule === item.id ||
+        item.children.some((child) => child.id === currentModule);
+      if (alreadyInGroup) return;
+      onModuleChange(item.children[0].id);
+    },
+    [currentModule, onModuleChange]
+  );
+
+  return (
+    <header
+      id="desktop-top-nav"
+      className="sticky top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/95 backdrop-blur-xl md:block"
+    >
+      <div className="mx-auto flex h-14 max-w-[1680px] items-center gap-1.5 px-2 sm:gap-2 sm:px-3 xl:gap-3 xl:px-5">
+        <BrandBlock compact title={activeLabel} />
+        <nav
+          aria-label="主要導覽"
+          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-x-contain py-1 [scrollbar-width:thin]"
+        >
+          {menuItems.map((item) => {
+            const isActive = activeTopId === item.id;
+            return (
+              <TopNavTab
+                key={item.id}
+                item={item}
+                isActive={isActive}
+                onClick={() => handleTopClick(item)}
+              />
+            );
+          })}
+        </nav>
+        <DesignModeCluster />
+      </div>
+
+      {subItems.length > 0 ? (
+        <div className="border-t border-[var(--line-soft)] bg-[color:var(--panel-soft)]/55">
+          <nav
+            aria-label="子導覽"
+            className="mx-auto flex max-w-[1680px] items-center gap-0.5 overflow-x-auto overscroll-x-contain px-3 py-1 xl:px-5 [scrollbar-width:thin]"
+          >
+            {subItems.map((child) => {
+              const isActive = currentModule === child.id;
+              return (
+                <TopNavTab
+                  key={child.id}
+                  compact
+                  item={child}
+                  isActive={isActive}
+                  onClick={() => onModuleChange(child.id)}
+                />
+              );
+            })}
+          </nav>
+        </div>
+      ) : null}
+    </header>
+  );
+}
+
+function TopNavTab({
+  compact = false,
+  item,
+  isActive,
+  onClick,
+}: {
+  compact?: boolean;
+  item: MenuItem;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const { primary, secondary } = splitMenuLabel(item);
+  const title = formatActiveModuleLabel(item, primary);
+
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "nav-item flex shrink-0 items-center whitespace-nowrap rounded-xl text-left transition-impeccable focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]",
+        compact ? "min-h-11 gap-1.5 px-2.5" : "min-h-11 gap-1.5 px-2.5 xl:gap-2 xl:px-3",
+        isActive
+          ? "nav-item-active"
+          : "text-[var(--muted-foreground)] hover:bg-[color:var(--panel-soft)] hover:text-[var(--foreground)]"
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "shrink-0 items-center justify-center",
+          compact
+            ? "flex size-4 [&_svg]:size-3.5"
+            : "hidden size-[18px] [&_svg]:size-4 xl:flex",
+          isActive ? "text-[var(--accent-foreground)]" : "opacity-85"
+        )}
+      >
+        {item.icon}
+      </span>
+      <span className="min-w-0">
+        <span
+          className={cn(
+            "block font-medium leading-4",
+            compact ? "text-[13px]" : "text-sm"
+          )}
+        >
+          {primary}
+        </span>
+        {secondary ? (
+          <span
+            className={cn(
+              "block text-[11px] leading-4",
+              isActive
+                ? "text-[var(--accent-foreground)]/80"
+                : "text-[var(--muted-foreground)]/85"
+            )}
+          >
+            {secondary}
+          </span>
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
+function DesignModeCluster() {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-[var(--line-strong)] bg-white/60 px-1 py-1 dark:bg-white/5">
+      <ThemeToggleCompact />
+      <DensityToggleCompact />
+      <div className="hidden min-w-0 pr-1.5 leading-none xl:block">
+        <p className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+          Design Mode
+        </p>
+        <p className="text-xs font-medium leading-tight text-[var(--foreground)]">
+          Impeccable 2026~2027
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function BrandBlock({
+  compact = false,
+  title = "控制台",
+}: {
+  compact?: boolean;
+  title?: string;
+}) {
+  return (
+    <div className={cn("flex min-w-0 items-center gap-2", compact && "shrink-0")}>
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-center bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)]",
+          compact
+            ? "size-8 rounded-lg shadow-[0_4px_12px_rgba(199,149,65,0.18)]"
+            : "size-9 rounded-xl shadow-[0_8px_20px_rgba(199,149,65,0.2)]"
+        )}
+      >
+        <Command size={compact ? 14 : 16} />
+      </div>
+      <div className={cn("min-w-0", compact && "hidden lg:block")}>
+        <p
+          className={cn(
+            "uppercase text-[var(--muted-foreground)]",
+            compact
+              ? "text-[10px] font-medium leading-none tracking-[0.16em]"
+              : "truncate text-xs font-medium tracking-[0.16em]"
+          )}
+        >
+          FengBro
+        </p>
+        {compact ? null : (
+          <h1 className="truncate text-lg font-semibold leading-6 tracking-tight text-[var(--foreground)]">
+            {title}
+          </h1>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Ambient backdrop
+// ─────────────────────────────────────────────
+
 function AmbientBackdrop() {
   return (
     <>
@@ -231,6 +452,10 @@ function AmbientBackdrop() {
     </>
   );
 }
+
+// ─────────────────────────────────────────────
+// Mobile Header
+// ─────────────────────────────────────────────
 
 function MobileHeader({
   activeLabel,
@@ -244,19 +469,7 @@ function MobileHeader({
   return (
     <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:hidden">
       <div className="mx-auto flex h-14 max-w-[1680px] items-center justify-between gap-3 px-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_8px_20px_rgba(199,149,65,0.2)]">
-            <Command size={16} />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-medium tracking-[0.16em] text-[var(--muted-foreground)] uppercase">
-              FengBro
-            </p>
-            <h1 className="truncate text-lg font-semibold leading-6 tracking-tight text-[var(--foreground)]">
-              {activeLabel}
-            </h1>
-          </div>
-        </div>
+        <BrandBlock title={activeLabel} />
         <div className="flex shrink-0 items-center gap-1.5">
           <ThemeToggleCompact />
           <Button
@@ -275,6 +488,10 @@ function MobileHeader({
     </header>
   );
 }
+
+// ─────────────────────────────────────────────
+// Mobile Bottom Nav
+// ─────────────────────────────────────────────
 
 function MobileBottomNav({
   currentModule,
@@ -373,87 +590,9 @@ function MobileBottomNav({
   );
 }
 
-/** Desktop / tablet: task-first navigation that keeps the workspace in view. */
-function DesktopSidebar({
-  collapsed,
-  currentModule,
-  menuItems,
-  onMenuClick,
-  onToggle,
-}: {
-  collapsed: boolean;
-  currentModule: string;
-  menuItems: MenuItem[];
-  onMenuClick: (item: MenuItem) => void;
-  onToggle: () => void;
-}) {
-  const groups = useMemo(() => buildTopNavGroups(menuItems), [menuItems]);
-
-  return (
-    <aside
-      aria-label="主要選單"
-      className={cn(
-        "sticky top-0 z-[var(--z-sidebar)] hidden h-dvh shrink-0 flex-col border-r border-[var(--line-soft)] bg-[color:var(--panel-veil)]/94 px-3 py-4 backdrop-blur-xl transition-[width] duration-200 md:flex",
-        collapsed ? "w-[76px]" : "w-[264px]"
-      )}
-    >
-      <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between gap-2")}>
-        <BrandBlock compact={collapsed} title={collapsed ? "" : "鋒兄控制台"} />
-        {!collapsed ? <ThemeToggleCompact /> : null}
-      </div>
-
-      <nav className="mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pr-1" aria-label="模組導覽">
-        {groups.map((group) => (
-          <section key={group.id} aria-label={group.label}>
-            {!collapsed ? (
-              <p className="mb-1.5 px-2 text-[11px] font-medium tracking-[0.08em] text-[var(--muted-foreground)]">
-                {group.id === "main" ? "總覽與管理" : group.label}
-              </p>
-            ) : null}
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const isActive = currentModule === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    title={formatActiveModuleLabel(item, item.label)}
-                    onClick={() => onMenuClick(item)}
-                    aria-current={isActive ? "page" : undefined}
-                    aria-label={formatActiveModuleLabel(item, item.label)}
-                    className={cn(
-                      "flex w-full min-h-11 items-center rounded-xl px-2.5 text-left transition-impeccable focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]",
-                      collapsed ? "justify-center" : "gap-2.5",
-                      isActive
-                        ? "bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_8px_20px_rgba(199,149,65,0.18)]"
-                        : "text-[var(--muted-foreground)] hover:bg-[color:var(--panel-soft)] hover:text-[var(--foreground)]"
-                    )}
-                  >
-                    <span className="flex size-7 shrink-0 items-center justify-center">{item.icon}</span>
-                    {!collapsed ? <span className="truncate text-sm font-medium">{shortModuleLabel(item.label)}</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </nav>
-
-      <div className={cn("mt-3 flex items-center gap-1", collapsed ? "flex-col" : "justify-between")}>
-        {!collapsed ? <DensityToggleCompact /> : <ThemeToggleCompact />}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggle}
-          aria-label={collapsed ? "展開側邊欄" : "收合側邊欄"}
-          className="size-11 rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] hover:bg-[color:var(--panel-strong)]"
-        >
-          <Menu size={18} />
-        </Button>
-      </div>
-    </aside>
-  );
-}
+// ─────────────────────────────────────────────
+// Mobile Menu Sheet
+// ─────────────────────────────────────────────
 
 function MobileMenuSheet({
   currentModule,
@@ -557,53 +696,10 @@ function MobileMenuSheet({
   );
 }
 
-function BrandBlock({
-  compact = false,
-  title = "控制台",
-}: {
-  compact?: boolean;
-  /** Current module title (e.g. 鋒兄訂閱) — not the product codename. */
-  title?: string;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <div
-        className={cn(
-          "flex shrink-0 items-center justify-center bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)]",
-          compact
-            ? "size-7 rounded-md shadow-[0_2px_8px_rgba(199,149,65,0.18)]"
-            : "size-12 rounded-[18px] shadow-[0_18px_40px_rgba(199,149,65,0.22)]"
-        )}
-      >
-        <Command size={compact ? 14 : 20} />
-      </div>
-      <div className="min-w-0">
-        <p
-          className={cn(
-            "uppercase text-[var(--muted-foreground)]",
-            compact
-              ? "text-[10px] tracking-[0.16em] leading-none"
-              : "text-[11px] tracking-[0.34em]"
-          )}
-        >
-          FengBro
-        </p>
-        <h1
-          className={cn(
-            "truncate font-semibold tracking-tight text-[var(--foreground)]",
-            compact
-              ? "text-sm font-medium leading-5"
-              : "font-display text-xl"
-          )}
-        >
-          {title}
-        </h1>
-      </div>
-    </div>
-  );
-}
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
 
-/** Primary title + optional second line (subtitle or `\n` in label). */
 function splitMenuLabel(item: MenuItem): { primary: string; secondary?: string } {
   const lines = item.label
     .split("\n")
@@ -615,7 +711,6 @@ function splitMenuLabel(item: MenuItem): { primary: string; secondary?: string }
   return { primary, secondary };
 }
 
-/** Single-line module title for shell chrome (top brand, mobile header, document title). */
 function formatActiveModuleLabel(item: MenuItem | undefined, fallback = "控制台") {
   if (!item?.label) return fallback;
   const { primary, secondary } = splitMenuLabel(item);
@@ -649,80 +744,13 @@ function findMenuItem(items: MenuItem[], targetId: string): MenuItem | undefined
     const child = item.children?.length ? findMenuItem(item.children, targetId) : undefined;
     if (child) return child;
   }
-
   return undefined;
 }
 
 function flattenLeafMenuItems(items: MenuItem[]): MenuItem[] {
-  return items.flatMap((item) => (item.children?.length ? flattenLeafMenuItems(item.children) : item));
-}
-
-function countNavigableMenuItems(items: MenuItem[]): number {
-  return flattenLeafMenuItems(items).length;
-}
-
-type TopNavGroup = {
-  id: string;
-  label: string;
-  showLabel: boolean;
-  items: MenuItem[];
-};
-
-/** Preferred second-row tool groups (desktop top nav order after main). */
-const TOP_NAV_SECOND_ROW_GROUP_IDS = ["tools", "sub-tools"] as const;
-
-/** Same-row combo groups: notes/docs · music/podcast · settings/about. */
-const TOP_NAV_COMBO_ROW_GROUP_IDS = [
-  "notes-docs",
-  "music-podcast",
-  "settings-about",
-] as const;
-
-/** Build top-nav groups: main → tools row → combo row → remaining nested groups. */
-function buildTopNavGroups(items: MenuItem[]): TopNavGroup[] {
-  const rootLeaves: MenuItem[] = [];
-  const childGroups: TopNavGroup[] = [];
-
-  for (const item of items) {
-    if (item.children?.length) {
-      childGroups.push({
-        id: item.id,
-        label: item.label.replace(/\n/g, " "),
-        showLabel: true,
-        items: flattenLeafMenuItems(item.children),
-      });
-    } else {
-      rootLeaves.push(item);
-    }
-  }
-
-  const secondRowIds = new Set<string>(TOP_NAV_SECOND_ROW_GROUP_IDS);
-  const comboRowIds = new Set<string>(TOP_NAV_COMBO_ROW_GROUP_IDS);
-  const secondRowGroups = TOP_NAV_SECOND_ROW_GROUP_IDS.map((id) =>
-    childGroups.find((group) => group.id === id)
-  ).filter(Boolean) as TopNavGroup[];
-  const comboRowGroups = TOP_NAV_COMBO_ROW_GROUP_IDS.map((id) =>
-    childGroups.find((group) => group.id === id)
-  ).filter(Boolean) as TopNavGroup[];
-  const otherChildGroups = childGroups.filter(
-    (group) => !secondRowIds.has(group.id) && !comboRowIds.has(group.id)
+  return items.flatMap((item) =>
+    item.children?.length ? flattenLeafMenuItems(item.children) : item
   );
-
-  const groups: TopNavGroup[] = [];
-  if (rootLeaves.length) {
-    groups.push({
-      id: "main",
-      label: "主要模組",
-      showLabel: false,
-      items: rootLeaves,
-    });
-  }
-  // Second row: 鋒兄工具 + 鋒兄子工具
-  groups.push(...secondRowGroups);
-  // Combo row: 筆記/文件 · 音樂/播客 · 設定/關於
-  groups.push(...comboRowGroups);
-  groups.push(...otherChildGroups);
-  return groups;
 }
 
 function getSleepWarning() {
@@ -731,7 +759,8 @@ function getSleepWarning() {
     return {
       label: "\u8acb\u5165\u7761",
       range: "00:00 - 02:59",
-      className: "border-amber-300 bg-amber-50 text-amber-900 shadow-[0_18px_44px_rgba(217,119,6,0.14)]",
+      className:
+        "border-amber-300 bg-amber-50 text-amber-900 shadow-[0_18px_44px_rgba(217,119,6,0.14)]",
       iconClassName: "bg-amber-100 text-amber-700",
     };
   }
@@ -740,7 +769,8 @@ function getSleepWarning() {
     return {
       label: "\u8acb\u5165\u7761",
       range: "03:00 - 06:59",
-      className: "border-red-300 bg-red-50 text-red-900 shadow-[0_18px_44px_rgba(220,38,38,0.14)]",
+      className:
+        "border-red-300 bg-red-50 text-red-900 shadow-[0_18px_44px_rgba(220,38,38,0.14)]",
       iconClassName: "bg-red-100 text-red-700",
     };
   }
@@ -766,73 +796,18 @@ function SleepWarningBanner() {
   if (!warning) return null;
 
   return (
-    <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 md:rounded-[24px] ${warning.className}`}>
-      <span className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${warning.iconClassName}`}>
+    <div
+      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 md:rounded-[24px] ${warning.className}`}
+    >
+      <span
+        className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${warning.iconClassName}`}
+      >
         <AlertTriangle size={20} />
       </span>
       <div className="min-w-0">
         <p className="text-base font-semibold leading-6">{warning.label}</p>
         <p className="text-xs leading-5 opacity-80">{warning.range}</p>
       </div>
-    </div>
-  );
-}
-
-function TopBar({
-  activeLabel,
-  moduleCount,
-}: {
-  activeLabel: string;
-  moduleCount: number;
-}) {
-  const [today, setToday] = useState("今日");
-
-  useEffect(() => {
-    const formatter = new Intl.DateTimeFormat("zh-TW", {
-      month: "long",
-      day: "numeric",
-      weekday: "long",
-      timeZone: "Asia/Taipei",
-    });
-
-    const updateToday = () => setToday(formatter.format(new Date()));
-    updateToday();
-
-    const timer = window.setInterval(updateToday, 60 * 1000);
-    document.addEventListener("visibilitychange", updateToday);
-
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", updateToday);
-    };
-  }, []);
-
-  return (
-    <div className="hidden flex-col gap-3 rounded-[24px] border border-[var(--line-soft)] bg-[color:var(--panel-veil)]/72 px-4 py-4 backdrop-blur-xl md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-4 xl:rounded-[30px] xl:px-6">
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium tracking-[0.12em] text-[var(--muted-foreground)]">
-          目前模組
-        </p>
-        <h2 className="truncate font-display text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-          {activeLabel}
-        </h2>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 xl:gap-3">
-        <StatusPill label={today} value="今日" />
-        <StatusPill label={`${moduleCount} 個模組`} value="已啟用模組" />
-      </div>
-    </div>
-  );
-}
-
-function StatusPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-full border border-[var(--line-strong)] bg-white/68 px-4 py-2 text-right dark:bg-white/5">
-      <p className="text-[10px] uppercase tracking-[0.26em] text-[var(--muted-foreground)]">
-        {value}
-      </p>
-      <p className="text-sm font-medium text-[var(--foreground)]">{label}</p>
     </div>
   );
 }
