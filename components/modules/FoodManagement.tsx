@@ -186,6 +186,7 @@ export default function FoodManagement() {
     amount: 1,
     todate: getSuggestedExpiryDate(7),
   });
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -1699,10 +1700,27 @@ export default function FoodManagement() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,1fr)]">
         <Card className="border-blue-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-sm">
           <CardHeader className="pb-4">
-            <CardDescription className="flex items-center gap-2 text-blue-600"><PackageOpen size={16} /> 快速新增模式</CardDescription>
-            <CardTitle>常用食品一筆完成</CardTitle>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardDescription className="flex items-center gap-2 text-blue-600"><PackageOpen size={16} /> 快速新增模式</CardDescription>
+                <CardTitle>常用食品一筆完成</CardTitle>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsQuickAddOpen((open) => !open)}
+                aria-expanded={isQuickAddOpen}
+                aria-controls="food-quick-add-panel"
+                className="shrink-0 rounded-full border-blue-200 text-blue-700 hover:bg-blue-50"
+              >
+                {isQuickAddOpen ? "收起" : "展開"}
+                <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${isQuickAddOpen ? "rotate-180" : ""}`} />
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
+          {isQuickAddOpen && (
+            <CardContent id="food-quick-add-panel">
             <div className="mb-4 flex flex-wrap gap-2">
               {Object.entries(QUICK_ADD_PRESETS).map(([key, preset]) => (
                 <Button key={key} type="button" variant="outline" className="rounded-full border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => applyQuickPreset(key as keyof typeof QUICK_ADD_PRESETS)}>
@@ -1751,7 +1769,8 @@ export default function FoodManagement() {
                 <Plus size={16} /> 立即新增
               </Button>
             </form>
-          </CardContent>
+            </CardContent>
+          )}
         </Card>
 
         <Card className="border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-sm">
