@@ -89,7 +89,7 @@ export default function DashboardLayout({
   );
 
   useEffect(() => {
-    document.title = `${activeLabel} · FengBro`;
+    document.title = activeLabel === "首頁" ? "鋒兄AI-Appwrite" : `${activeLabel} · 鋒兄AI-Appwrite`;
   }, [activeLabel]);
 
   const leafItems = useMemo(() => flattenLeafMenuItems(menuItems), [menuItems]);

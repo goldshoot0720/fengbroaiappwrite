@@ -28,8 +28,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "鋒兄控制台 · FengBro",
-    template: "%s · FengBro",
+    default: "鋒兄AI-Appwrite",
+    template: "%s · 鋒兄AI-Appwrite",
   },
   description:
     "AI 驅動的家庭數位中控台，整合食材、訂閱、影音、文件與常用帳號管理。",
@@ -72,7 +72,7 @@ export default function RootLayout({
         <link rel="shortcut icon" href="/favicon.ico" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="FengBro Console" />
+        <meta name="apple-mobile-web-app-title" content="鋒兄AI-Appwrite" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

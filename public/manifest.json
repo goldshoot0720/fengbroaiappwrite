@@ -1,7 +1,7 @@
 {
-  "name": "鋒兄AI Appwrite",
-  "short_name": "鋒兄AI Appwrite",
-  "description": "鋒兄AI Appwrite - 食品庫存、訂閱管理系統",
+  "name": "鋒兄AI-Appwrite",
+  "short_name": "鋒兄AI-Appwrite",
+  "description": "鋒兄AI-Appwrite - 食品庫存、訂閱管理系統",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
