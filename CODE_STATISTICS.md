@@ -1,6 +1,6 @@
 # 程式碼統計報告
 
-> 下文是 2026-03-03 的完整掃描快照。現況行數以 `config/codebase-stats.json` 為準（2026-08-26 核心原始碼 95,016 行）；模組清單以 [docs/INDEX.md](docs/INDEX.md) 為準。
+> 下文是 2026-03-03 的完整掃描快照。現況行數以 `config/codebase-stats.json` 為準（2026-08-26 核心原始碼 95,026 行）；模組清單以 [docs/INDEX.md](docs/INDEX.md) 為準。
 
 ## 專案概況
 - **專案名稱**: fengbroaiappwrite-main
