@@ -8,8 +8,9 @@ const topLevelMenus = [
 ];
 
 const groupedChildren = {
-  鋒兄首頁: [/^首頁$/, /^儀表$/, /^訂閱$/],
+  鋒兄首頁: [/^首頁$/, /^儀表$/],
   鋒兄管理: [
+    /^訂閱$/,
     /^食品$/,
     /^常用$/,
     /^銀行$/,
@@ -98,7 +99,7 @@ test("subscription currency dropdown", async ({ page }) => {
   await page.waitForTimeout(1200);
 
   const topNav = await getDesktopTopNav(page);
-  await topNav.getByRole("button", { name: /鋒兄首頁/ }).click();
+  await topNav.getByRole("button", { name: /鋒兄管理/ }).click();
   await page.waitForTimeout(250);
   await topNav.getByRole("button", { name: /^訂閱$/ }).click();
   await page.waitForTimeout(1000);

@@ -110,7 +110,6 @@ const MENU_ITEMS: MenuItem[] = [
     children: [
       { id: "home", label: "首頁", icon: <Home size={18} /> },
       { id: "dashboard", label: "儀表", icon: <BarChart3 size={18} /> },
-      { id: "subscription", label: "訂閱", icon: <CreditCard size={18} /> },
     ],
   },
   {
@@ -118,6 +117,7 @@ const MENU_ITEMS: MenuItem[] = [
     label: "鋒兄管理",
     icon: <CalendarClock size={18} />,
     children: [
+      { id: "subscription", label: "訂閱", icon: <CreditCard size={18} /> },
       { id: "food", label: "食品", icon: <Package size={18} /> },
       { id: "common", label: "常用", icon: <Star size={18} /> },
       { id: "bank-stats", label: "銀行", icon: <Building2 size={18} /> },
