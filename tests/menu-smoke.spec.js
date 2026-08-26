@@ -3,7 +3,7 @@ const { test, expect } = require("@playwright/test");
 const topLevelMenus = [
   /鋒兄首頁/,
   /鋒兄管理/,
-  /^工具$/,
+  /^鋒兄工具$/,
   /^設定$/,
 ];
 
@@ -21,7 +21,7 @@ const groupedChildren = {
     /^播客$/,
     /^例行$/,
   ],
-  工具: [/^比價$/, /^手機比價$/, /鋒兄Tube/, /^金融$/, /^新聞$/],
+  鋒兄工具: [/^比價$/, /^手機比價$/, /鋒兄Tube/, /^金融$/, /^新聞$/],
   設定: [/鋒兄設定/, /鋒兄關於/],
 };
 
@@ -65,7 +65,7 @@ test("desktop top menu smoke test", async ({ page }) => {
   }
 
   for (const [group, children] of Object.entries(groupedChildren)) {
-    const exactGroups = ["工具", "設定"];
+    const exactGroups = ["鋒兄工具", "設定"];
     await topNav.getByRole("button", { name: exactGroups.includes(group) ? new RegExp(`^${group}$`) : group }).first().click();
     await page.waitForTimeout(250);
     for (const label of children) {

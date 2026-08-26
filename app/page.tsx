@@ -132,7 +132,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: "tools",
-    label: "工具",
+    label: "鋒兄工具",
     icon: <Wrench size={18} />,
     children: [
       { id: "price-compare", label: "比價", icon: <Wrench size={18} /> },
