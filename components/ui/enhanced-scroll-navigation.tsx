@@ -77,7 +77,7 @@ export default function EnhancedScrollNavigation({
 
   if (!showButtons) return null;
 
-  // Docked: sits under global voice on the right stack. Standalone: bottom-right dock.
+  // Docked: parent provides the right-side positioning. Standalone: bottom-right dock.
   // Outer pointer-events-none so the FAB stack does not block page controls (e.g. edit pens)
   // under empty space / the non-interactive progress ring; only real controls receive clicks.
   return (

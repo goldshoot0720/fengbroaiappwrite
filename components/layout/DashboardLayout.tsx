@@ -182,6 +182,18 @@ export default function DashboardLayout({
               </div>
             )}
             <div className="surface-panel pad-panel rounded-2xl md:rounded-[28px] xl:rounded-[32px]">
+              <div className="mb-5 flex flex-col gap-3 border-b border-[var(--line-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">語音控制</p>
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">快速導覽與操作目前頁面</p>
+                </div>
+                <GlobalVoiceCommandPanel
+                  currentModule={currentModule}
+                  menuItems={menuItems}
+                  onNavigate={onModuleChange}
+                  docked
+                />
+              </div>
               {children}
             </div>
           </div>
@@ -207,12 +219,6 @@ export default function DashboardLayout({
         <PodcastQueuePanel />
         <VideoQueuePanel />
         <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4 md:bottom-6">
-          <GlobalVoiceCommandPanel
-            currentModule={currentModule}
-            menuItems={menuItems}
-            onNavigate={onModuleChange}
-            docked
-          />
           <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} docked />
         </div>
       </div>

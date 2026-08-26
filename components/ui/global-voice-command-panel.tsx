@@ -657,7 +657,7 @@ export function GlobalVoiceCommandPanel({
   currentModule: string;
   menuItems: MenuItem[];
   onNavigate: (moduleId: string) => void;
-  /** When true, parent right dock handles fixed positioning (voice sits above scroll-up). */
+  /** When true, the caller provides the surrounding layout position. */
   docked?: boolean;
 }) {
   const [feedback, setFeedback] = useState(HELP_HINT);
@@ -1032,8 +1032,8 @@ export function GlobalVoiceCommandPanel({
     pendingCommand?.risk === "review" ? "需確認後執行" :
     "安全操作";
 
-  // Docked: parent right stack (above up-arrow). Standalone: bottom-right fixed FAB.
-  // pointer-events-auto: parent dock uses pointer-events-none so page edit buttons stay clickable.
+  // Docked: follows the caller's layout. Standalone: bottom-right fixed FAB.
+  // Keep the panel and trigger interactive within the caller's layout.
   return (
     <div
       className={
