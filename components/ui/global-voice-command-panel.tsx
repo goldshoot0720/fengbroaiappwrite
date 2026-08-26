@@ -1043,7 +1043,10 @@ export function GlobalVoiceCommandPanel({
       }
     >
       {open && (
-        <div className="w-full rounded-[24px] border border-[var(--line-strong)] bg-white/92 p-4 shadow-[0_24px_80px_rgba(17,24,39,0.18)] backdrop-blur-xl dark:bg-gray-950/92">
+        <div
+          id="global-voice-command-panel"
+          className="w-full rounded-[24px] border border-[var(--line-strong)] bg-white/92 p-4 shadow-[0_24px_80px_rgba(17,24,39,0.18)] backdrop-blur-xl dark:bg-gray-950/92"
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -1051,7 +1054,7 @@ export function GlobalVoiceCommandPanel({
                   <Compass className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-950 dark:text-gray-100">全域語音控制</h3>
+                  <h3 className="text-sm font-semibold text-gray-950 dark:text-gray-100">語音 CRUD 管理</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     目前：{currentModuleName} · 說完自動結束 · Ctrl+Shift+V
                   </p>
@@ -1207,7 +1210,9 @@ export function GlobalVoiceCommandPanel({
 
       <Button
         type="button"
-        title="全域語音（Ctrl+Shift+V）"
+        title="語音 CRUD 管理（Ctrl+Shift+V）"
+        aria-expanded={open}
+        aria-controls="global-voice-command-panel"
         onClick={() => {
           if (isListening) {
             stop();
@@ -1228,7 +1233,7 @@ export function GlobalVoiceCommandPanel({
         }`}
       >
         <Mic className={`mr-2 h-5 w-5 ${isListening ? "animate-pulse" : ""}`} />
-        {isListening ? `聆聽中 ${formatRecordingClock(elapsedMs)}` : open ? "關閉語音" : "全域語音"}
+        {isListening ? `聆聽中 ${formatRecordingClock(elapsedMs)}` : open ? "收起語音管理" : "語音 CRUD 管理"}
       </Button>
     </div>
   );
