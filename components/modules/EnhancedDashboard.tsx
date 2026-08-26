@@ -1,6 +1,5 @@
 "use client";
 
-import NextImage from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useMediaStats } from "@/hooks/useMediaStats";
@@ -8,7 +7,7 @@ import { useMediaTraffic } from "@/lib/mediaTraffic";
 import { claimMediaTrafficHomepageAlert, formatMediaTrafficGiB, type MediaTrafficAlertPolicy } from "@/lib/mediaTrafficAlert";
 import { useNotificationPermission } from "@/hooks/useNotificationPermission";
 import { useExpiryNotifications, sendExpiryOsNotifications } from "@/hooks/useExpiryNotifications";
-import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Cloud, Layout, Server, FileVideo, Shield, Zap, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X } from "lucide-react";
+import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Server, FileVideo, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
@@ -19,10 +18,6 @@ import { FaviconImage } from "@/components/ui/favicon-image";
 import { NotificationPermissionBanner } from "@/components/notifications/NotificationPermissionBanner";
 import { formatCurrency, formatDaysRemaining } from "@/lib/formatters";
 import { FoodDetail, SubscriptionDetail } from "@/types";
-import PlumberTycoon from "@/components/modules/PlumberTycoon";
-import CatShowcase from "@/components/modules/CatShowcase";
-import CEOProfile from "@/components/modules/CEOProfile";
-import codebaseStats from "@/config/codebase-stats.json";
 
 type FengbroTubeRecentVideo = {
   videoId: string;
@@ -51,35 +46,9 @@ interface EnhancedDashboardProps {
   onlyTitle?: boolean;
 }
 
-const FENG_BRO_ASCII = String.raw`
- _______  _______  __    _  _______    _______  ______    _______
-|       ||       ||  |  | ||       |  |  _    ||    _ |  |       |
-|    ___||    ___||   |_| ||    ___|  | |_|   ||   | ||  |   _   |
-|   |___ |   |___ |       ||   | __   |       ||   |_||_ |  | |  |
-|    ___||    ___||  _    ||   ||  |  |  _   | |    __  ||  |_|  |
-|   |    |   |___ | | |   ||   |_| |  | |_|   ||   |  | ||       |
-|___|    |_______||_|  |__||_______|  |_______||___|  |_||_______|
-`;
-
-const FENG_BRO_ASCII_MOBILE = String.raw`
- ______  ______  _   _   _____
-|  ____||  ____|| \ | | / ____|
-| |__   | |__   |  \| || |  __
-|  __|  |  __|  | .^| || | |_ |
-| |     | |____ | |\  || |__| |
-|_|     |______||_| \_| \_____|
-
- ____   _____   ____
-|  _ \ |  __ \ / __ \
-| |_) || |__) | |  | |
-|  _ < |  _  /| |  | |
-| |_) || | \ \| |__| |
-|____/ |_|  \_\\____/
-`;
-
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
-  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats();
-  const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats();
+  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats(!onlyTitle);
+  const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats(!onlyTitle);
   const {
     permission: notificationPermission,
     permissionDismissed,
@@ -209,121 +178,6 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     );
   }
 
-  if (onlyTitle) {
-    return (
-      <div className="space-y-6 lg:space-y-8">
-        <PageTitle title={title} />
-
-        <FinanceAlertsNoticeCard
-          alerts={financeAlerts}
-          dismissed={financeAlertsDismissed}
-          onDismiss={handleDismissFinanceAlerts}
-          onNavigate={() => onNavigate("fengbro-finance")}
-        />
-
-        {trafficAlert && <MediaTrafficHomepageAlert policy={trafficAlert} total={traffic.total} />}
-
-        <DataCard className="overflow-hidden border-[var(--line-strong)] bg-[linear-gradient(135deg,rgba(18,25,22,0.96),rgba(42,56,49,0.92))] p-0 text-emerald-50 shadow-[0_24px_50px_rgba(15,23,20,0.28)]">
-          <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(110,231,183,0.2),transparent_38%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent)] px-3 py-2.5 sm:px-5 sm:py-3">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-200/80 sm:text-[11px] sm:tracking-[0.38em]">ASCII Welcome</p>
-          </div>
-          <div className="grid gap-4 px-3 py-3 lg:grid-cols-[minmax(0,1.8fr)_minmax(260px,0.7fr)] sm:px-5 sm:py-5">
-            <div className="overflow-hidden rounded-[28px] border border-slate-300/80 bg-[linear-gradient(180deg,rgba(241,244,248,0.98),rgba(223,229,236,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-              <div className="flex items-center gap-2 border-b border-slate-300/80 px-3 py-3 sm:px-4">
-                <span className="h-3 w-3 rounded-full bg-[#e9c86b]" />
-                <span className="h-3 w-3 rounded-full bg-[#e2a56f]" />
-                <span className="h-3 w-3 rounded-full bg-[#7fc88e]" />
-                <p className="ml-1 text-[10px] uppercase tracking-[0.14em] text-slate-500 sm:ml-2 sm:text-[11px] sm:tracking-[0.18em]">Feng Bro / Home Signal</p>
-              </div>
-              <div className="px-3 py-5 sm:px-6 sm:py-7">
-                <div className="sm:hidden overflow-hidden">
-                  <pre className="mx-auto inline-block whitespace-pre font-mono text-[8px] font-bold leading-[1.12] tracking-[-0.02em] text-[#25456f]">
-                    {FENG_BRO_ASCII_MOBILE}
-                  </pre>
-                </div>
-                <pre className="hidden sm:inline-block min-w-max whitespace-pre font-mono text-[11px] font-bold leading-[1.08] text-[#183b63] [text-shadow:3px_3px_0_rgba(255,255,255,0.95),6px_6px_0_rgba(24,59,99,0.38)]">
-                  {FENG_BRO_ASCII}
-                </pre>
-              </div>
-            </div>
-            <figure className="relative m-0 min-h-[280px] overflow-hidden rounded-[28px] border border-white/15 bg-white/10 shadow-[0_18px_36px_rgba(0,0,0,0.24)] sm:min-h-[360px] lg:min-h-0">
-              <NextImage
-                src="/fengbro-profile.png"
-                alt="鋒兄人物圖"
-                width={1086}
-                height={1448}
-                priority
-                className="h-full w-full object-cover"
-                sizes="(max-width: 1024px) 100vw, 340px"
-              />
-            </figure>
-          </div>
-        </DataCard>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-          <DataCard className="surface-raised border-[var(--line-soft)] p-6">
-            <div className="mb-6 flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[var(--shadow-soft)]">
-                <Zap size={24} />
-              </div>
-              <div>
-                <h2 className="font-display text-xl font-semibold text-foreground">精美介紹</h2>
-                <p className="text-sm text-muted-foreground">鋒兄管理資訊系統核心架構</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <IntroItem icon={Cloud} label="網頁部署" value="Vercel 雲端空間" color="text-[var(--accent-strong)]" />
-              <IntroItem icon={Layout} label="前端框架" value="Next.js (基於 React)" color="text-[var(--chart-2)]" />
-              <IntroItem icon={Server} label="後端服務" value="Appwrite (BaaS 解決方案)" color="text-[var(--chart-5)]" />
-              <IntroItem icon={FileVideo} label="多媒體儲存" value="Appwrite Storage (圖片/音樂/影片/文件)" color="text-[var(--chart-4)]" />
-            </div>
-          </DataCard>
-
-          <DataCard className="surface-raised flex flex-col justify-center border-[var(--line-soft)] p-6">
-            <div className="space-y-4 text-center">
-              <div className="mx-auto mb-4 flex h-20 w-20 rotate-3 items-center justify-center rounded-3xl bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] shadow-[var(--shadow-strong)] transition-impeccable hover:rotate-0">
-                <span className="text-3xl font-bold text-[var(--accent-foreground)]">鋒</span>
-              </div>
-              <h3 className="font-display text-2xl font-semibold text-foreground">本網站建置</h3>
-              <p className="mx-auto max-w-sm leading-relaxed text-muted-foreground">
-                透過現代化的技術棧，為您提供極致流暢且安全的資訊管理體驗。
-              </p>
-            </div>
-          </DataCard>
-        </div>
-        
-        {/* 水電大亨事業版圖 */}
-        <div className="mt-8">
-          <PlumberTycoon />
-        </div>
-        
-        {/* 人工智慧水電行執行長 */}
-        <div className="mt-8">
-          <CEOProfile />
-        </div>
-        
-        {/* 鋒兄的貓咪家族 */}
-        <div className="mt-8">
-          <CatShowcase />
-        </div>
-
-        <footer className="mt-10 border-t border-[var(--line-soft)] pt-6 pb-2 text-center">
-          <p className="text-sm text-muted-foreground tracking-wide">
-            鋒兄 © 2026-2027 FengBroAI Appwrite
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground/80">
-            上次更新日期 {codebaseStats.snapshotDate}
-            <span className="mx-2 text-[var(--line-strong)]" aria-hidden>
-              ·
-            </span>
-            程式碼行數 {codebaseStats.totalLines.toLocaleString()}
-          </p>
-        </footer>
-      </div>
-    );
-  }
-
   const error = dashboardError || mediaError;
 
   if (loading || mediaLoading) return <FullPageLoading text="載入統計數據中..." />;
@@ -346,7 +200,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       />
 
       {tubeRecentVideos.length > 0 && !tubeNoticeDismissed && (
-        <DataCard className="p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
+        <DataCard className="border border-red-200/80 bg-red-50 p-4 dark:border-red-800/60 dark:bg-red-900/20">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center">
               <Bell className="text-red-600 dark:text-red-400" size={20} />
@@ -400,7 +254,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
       
       {/* 訂閱到期提醒 */}
       {stats.subscriptionsExpiring3Days > 0 && (
-        <DataCard className="p-4 bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500">
+        <DataCard className="border border-orange-200/80 bg-orange-50 p-4 dark:border-orange-800/60 dark:bg-orange-900/20">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 shrink-0 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
               <Bell className="text-orange-600 dark:text-orange-400" size={20} />
@@ -579,21 +433,6 @@ export function AppwriteSetupEmptyState({ onNavigate }: { onNavigate: () => void
   );
 }
 
-// 介紹項目組件
-function IntroItem({ icon: Icon, label, value, color }: { icon: any, label: string, value: string, color: string }) {
-  return (
-    <div className="flex items-center gap-4 p-3 bg-white/50 dark:bg-gray-800/50 rounded-xl border border-white dark:border-gray-700 shadow-sm">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-white dark:bg-gray-800 shadow-inner ${color}`}>
-        <Icon size={20} />
-      </div>
-      <div>
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">{label}</p>
-        <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{value}</p>
-      </div>
-    </div>
-  );
-}
-
 function formatFinanceAlertValue(value: number | null, currency?: string) {
   const formatted = value == null
     ? "--"
@@ -615,7 +454,7 @@ function FinanceAlertsNoticeCard({
   if (alerts.length === 0 || dismissed) return null;
 
   return (
-    <DataCard className="p-4 bg-rose-50 dark:bg-rose-900/20 border-l-4 border-rose-500">
+    <DataCard className="border border-rose-200/80 bg-rose-50 p-4 dark:border-rose-800/60 dark:bg-rose-900/20">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center">
           <TrendingUp className="text-rose-600 dark:text-rose-400" size={20} />
@@ -975,7 +814,7 @@ function MediaTrafficHomepageAlert({ policy, total }: { policy: MediaTrafficAler
   const reminderLimit = policy.dailyLimit === null ? "不限次數" : `每天最多 ${policy.dailyLimit} 次`;
 
   return (
-    <DataCard className="border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-950 dark:border-amber-400 dark:bg-amber-950/30 dark:text-amber-50">
+    <DataCard className="border border-amber-200/80 bg-amber-50 p-4 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-50">
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">
           <AlertTriangle size={20} aria-hidden />

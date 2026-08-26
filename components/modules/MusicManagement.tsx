@@ -2194,6 +2194,7 @@ function GroupedMusicCard({ name, items, expandedMusicId, onToggleExpand, onEdit
                             name: selectedItem.name,
                             language: selectedItem.language,
                             file: fileUrl,
+                            fileSize: selectedItem.fileSize,
                             cover: selectedItem.cover || displayCover || undefined,
                             lyrics: selectedItem.computedLyrics || selectedItem.lyrics || '',
                           });
@@ -2673,6 +2674,7 @@ function MusicCard({ music, isExpanded, onToggleExpand, onEdit, onDelete, inline
                           name: music.name,
                           language: music.language,
                           file: fileUrl,
+                          fileSize: music.fileSize,
                           cover: music.cover,
                           lyrics: music.computedLyrics || music.lyrics || '',
                         });

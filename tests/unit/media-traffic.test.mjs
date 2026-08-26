@@ -35,3 +35,37 @@ test("records the full media size from Content-Range when HEAD has no size", asy
   assert.equal(readMediaTraffic().categories.music, 273430000);
   assert.equal(readMediaTraffic().actions.playback, 273430000);
 });
+
+test("tracks separate actions for the same file and deduplicates concurrent transfers", async () => {
+  const localStorage = new MemoryStorage();
+  const sessionStorage = new MemoryStorage();
+  globalThis.window = { localStorage, sessionStorage, dispatchEvent() {} };
+
+  let headCalls = 0;
+  globalThis.fetch = async (_url, init = {}) => {
+    if (init.method === "HEAD") {
+      headCalls += 1;
+      return new Response(null, {
+        status: 200,
+        headers: { "content-length": "1024" },
+      });
+    }
+    throw new Error("unexpected range request");
+  };
+
+  const { readMediaTraffic, recordRemoteMediaTraffic } = await import("../../lib/mediaTraffic.ts");
+  const url = "/api/media-proxy?track=shared";
+
+  await Promise.all([
+    recordRemoteMediaTraffic("music", "playback", url),
+    recordRemoteMediaTraffic("music", "playback", url),
+  ]);
+  await recordRemoteMediaTraffic("music", "browse", url);
+
+  const ledger = readMediaTraffic();
+  assert.equal(headCalls, 2);
+  assert.equal(ledger.total, 2048);
+  assert.equal(ledger.categories.music, 2048);
+  assert.equal(ledger.actions.playback, 1024);
+  assert.equal(ledger.actions.browse, 1024);
+});

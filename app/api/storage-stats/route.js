@@ -135,6 +135,56 @@ async function getAllStorageFiles(storage, bucketId) {
   return allFiles;
 }
 
+// The dashboard only needs record counts, not every media document. Keep this
+// query deliberately small so the storage summary does not duplicate the
+// client-side collection downloads performed by each media module.
+const MEDIA_RECORD_COLLECTIONS = {
+  images: 'image',
+  videos: 'video',
+  music: 'music',
+  documents: 'commondocument',
+  podcasts: 'podcast',
+};
+
+async function getMediaRecordCounts(databases, databaseId) {
+  // Resolve collection IDs one at a time so the shared collection cache makes
+  // a single listCollections request instead of one request per media type.
+  const collectionIds = {};
+  for (const [key, collectionName] of Object.entries(MEDIA_RECORD_COLLECTIONS)) {
+    try {
+      collectionIds[key] = await getCollectionId(databases, databaseId, collectionName, {
+        required: false,
+      });
+    } catch (error) {
+      // A missing/legacy collection should not make the storage summary fail.
+      console.warn(`⚠️ 讀取 ${collectionName} 集合失敗:`, error?.message || error);
+      collectionIds[key] = null;
+    }
+  }
+
+  const entries = await Promise.all(
+    Object.entries(MEDIA_RECORD_COLLECTIONS).map(async ([key, collectionName]) => {
+      const collectionId = collectionIds[key];
+      if (!collectionId) return [key, 0];
+
+      try {
+        const response = await databases.listDocuments(databaseId, collectionId, [
+          sdk.Query.limit(1),
+        ]);
+        const total = Number(response?.total);
+        const fallback = Array.isArray(response?.documents) ? response.documents.length : 0;
+        return [key, Number.isFinite(total) ? total : fallback];
+      } catch (error) {
+        // A missing/legacy collection should not make the storage summary fail.
+        console.warn(`⚠️ 讀取 ${collectionName} 筆數失敗:`, error?.message || error);
+        return [key, 0];
+      }
+    })
+  );
+
+  return Object.fromEntries(entries);
+}
+
 // Helper function to get all referenced file IDs from database
 async function getAllReferencedFileIds(databases, databaseId, storageConfig, bucketId) {
   // 所有可能使用檔案的集合與對應欄位 (使用 table name)
@@ -229,43 +279,6 @@ async function getAllReferencedFileIds(databases, databaseId, storageConfig, buc
 
   console.log(`\n  🎯 總計引用檔案: ${fileIdSet.size} 個`);
   return { fileIdSet, fileIdsByCollection, collectionCounts };
-}
-
-function createEmptyTrafficEstimate() {
-  return {
-    images: 0,
-    videos: 0,
-    music: 0,
-    documents: 0,
-    podcasts: 0,
-    total: 0,
-  };
-}
-
-function calculateUncachedMediaTrafficEstimate(allFiles, fileIdsByCollection) {
-  const estimate = createEmptyTrafficEstimate();
-  const groups = {
-    images: fileIdsByCollection.image,
-    videos: fileIdsByCollection.video,
-    music: fileIdsByCollection.music,
-    documents: fileIdsByCollection.commondocument,
-    podcasts: fileIdsByCollection.podcast,
-  };
-  const assignedFileIds = new Set();
-
-  for (const [category, fileIds] of Object.entries(groups)) {
-    if (!fileIds) continue;
-    for (const fileId of fileIds) {
-      if (assignedFileIds.has(fileId)) continue;
-      const file = allFiles.find((candidate) => candidate.$id === fileId);
-      if (!file) continue;
-      estimate[category] += getStorageFileSize(file);
-      assignedFileIds.add(fileId);
-    }
-  }
-
-  estimate.total = Object.values(estimate).slice(0, 5).reduce((sum, size) => sum + size, 0);
-  return estimate;
 }
 
 // Count orphaned files
@@ -495,12 +508,15 @@ export async function GET(request) {
       bucketId: searchParams.get('_bucket'),
     };
 
-    const { storage, databases, databaseId, bucketId, endpoint, projectId, apiKey } = createAppwrite(appwriteConfig);
+    const { storage, databases, databaseId, bucketId } = createAppwrite(appwriteConfig);
 
     // If action is 'count', find orphaned files
     if (action === 'count') {
       return await countOrphanedFiles(appwriteConfig);
     }
+
+    // Start the small database count query while the storage pages are loading.
+    const mediaRecordCountsPromise = getMediaRecordCounts(databases, databaseId);
 
     // Get all files from the bucket
     let allFiles = [];
@@ -559,6 +575,7 @@ export async function GET(request) {
 
     const totalSize = imagesSize + videosSize + musicSize + documentsSize + otherSize;
     const totalCount = allFiles.length;
+    const mediaRecordCounts = await mediaRecordCountsPromise;
     // Get bucket information (note: bucket details might not include size limit via API)
     // For now, we'll use a default limit or make it configurable
     const storageLimit = STORAGE_UPLOAD_LIMIT_BYTES;
@@ -590,7 +607,8 @@ export async function GET(request) {
         other: {
           count: otherCount,
           size: otherSize,
-        }
+        },
+        records: mediaRecordCounts,
       }
     });
 
@@ -614,7 +632,10 @@ export async function GET(request) {
         videos: { count: 0, size: 0 },
         music: { count: 0, size: 0 },
         documents: { count: 0, size: 0 },
-        other: { count: 0, size: 0 }
+        other: { count: 0, size: 0 },
+        records: Object.fromEntries(
+          Object.keys(MEDIA_RECORD_COLLECTIONS).map((key) => [key, 0])
+        ),
       }
     }, { status: getAppwriteErrorStatus(err) });
   }

@@ -12,6 +12,10 @@ const eslintConfig = [
       "build/**",
       "public/pdf.worker.min.mjs",
       "next-env.d.ts",
+      ".agents/**",
+      "scratch/**",
+      "test-results/**",
+      "jules-scratch/**",
     ],
   },
   {

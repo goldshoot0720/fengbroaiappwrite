@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { useAppwriteSetup } from "@/hooks/useAppwriteSetup";
+import { useRefreshKeyListener } from "@/hooks/useRefreshKey";
 
 interface Food {
   $id: string;
@@ -91,11 +92,23 @@ type TableLoadResult<T> = {
   missingError: string | null;
 };
 
-async function loadTable<T>(api: string, cacheParam: string): Promise<TableLoadResult<T>> {
+const emptyTableResult = <T,>(): TableLoadResult<T> => ({
+  data: [],
+  missingError: null,
+});
+
+async function loadTable<T>(
+  api: string,
+  cacheParam: string,
+  signal?: AbortSignal
+): Promise<TableLoadResult<T>> {
   try {
-    const result = await fetchApi<T[]>(api + cacheParam);
+    const result = await fetchApi<T[]>(api + cacheParam, { signal });
     return { data: Array.isArray(result) ? result : [], missingError: null };
   } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return { data: [], missingError: null };
+    }
     const message = err instanceof Error ? err.message : "";
     if (message.includes("不存在")) {
       return { data: [], missingError: message };
@@ -135,183 +148,204 @@ function toSubDetail(sub: Subscription, today: Date, useFloor = false): Subscrip
   };
 }
 
-export function useDashboardStats() {
+export function useDashboardStats(includeExtended = true) {
   const { checked: appwriteSetupChecked, hasDatabaseConfig } = useAppwriteSetup();
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
+  const requestSequence = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
+
+  const loadStats = useCallback(async () => {
+    const requestId = ++requestSequence.current;
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const cacheParam = `?t=${Date.now()}`;
+    setError(null);
+
+    if (!hasDatabaseConfig) {
+      setSetupRequired(true);
+      setLoading(false);
+      if (requestId === requestSequence.current) activeRequest.current = null;
+      return;
+    }
+    setSetupRequired(false);
+    setLoading(true);
+
+    try {
+      // Single parallel fetch — no double round-trip "check then load".
+      const [
+        foodsResult,
+        subsResult,
+        articlesResult,
+        accountsResult,
+        banksResult,
+        routinesResult,
+      ] = await Promise.all([
+        loadTable<Food>("/api/food", cacheParam, controller.signal),
+        loadTable<Subscription>("/api/subscription", cacheParam, controller.signal),
+        includeExtended
+          ? loadTable<unknown>("/api/article", cacheParam, controller.signal)
+          : Promise.resolve(emptyTableResult<unknown>()),
+        includeExtended
+          ? loadTable<unknown>("/api/commonaccount", cacheParam, controller.signal)
+          : Promise.resolve(emptyTableResult<unknown>()),
+        includeExtended
+          ? loadTable<{ deposit?: number }>("/api/bank", cacheParam, controller.signal)
+          : Promise.resolve(emptyTableResult<{ deposit?: number }>()),
+        includeExtended
+          ? loadTable<unknown>("/api/routine", cacheParam, controller.signal)
+          : Promise.resolve(emptyTableResult<unknown>()),
+      ]);
+
+      if (controller.signal.aborted || requestId !== requestSequence.current) return;
+
+      const missing = [
+        foodsResult,
+        subsResult,
+        articlesResult,
+        accountsResult,
+        banksResult,
+        routinesResult,
+      ]
+        .map((r) => r.missingError)
+        .filter(Boolean) as string[];
+
+      if (missing.length > 0) {
+        throw new Error(missing.join("\n"));
+      }
+
+      const foods = foodsResult.data;
+      const subscriptions = subsResult.data;
+      const articles = articlesResult.data;
+      const commonAccounts = accountsResult.data;
+      const banks = banksResult.data;
+      const routines = routinesResult.data;
+
+      const today = new Date();
+      const dayMs = 24 * 60 * 60 * 1000;
+      const sevenDaysFromNow = new Date(today.getTime() + 7 * dayMs);
+      const thirtyDaysFromNow = new Date(today.getTime() + 30 * dayMs);
+      const threeDaysFromNow = new Date(today.getTime() + 3 * dayMs);
+
+      const foodsExpiring7DaysList = foods
+        .filter((food) => {
+          if (!food.todate) return false;
+          const expireDate = new Date(food.todate);
+          if (Number.isNaN(expireDate.getTime())) return false;
+          return expireDate <= sevenDaysFromNow && expireDate >= today;
+        })
+        .map((food) => toFoodDetail(food, today))
+        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+      const foodsExpiring30DaysList = foods
+        .filter((food) => {
+          if (!food.todate) return false;
+          const expireDate = new Date(food.todate);
+          if (Number.isNaN(expireDate.getTime())) return false;
+          return expireDate <= thirtyDaysFromNow && expireDate >= today;
+        })
+        .map((food) => toFoodDetail(food, today))
+        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+      const expiredFoodsList = foods
+        .filter((food) => {
+          if (!food.todate) return false;
+          const expireDate = new Date(food.todate);
+          if (Number.isNaN(expireDate.getTime())) return false;
+          return expireDate < today;
+        })
+        .map((food) => toFoodDetail(food, today, true))
+        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+      const subscriptionsExpiring3DaysList = subscriptions
+        .filter((sub) => {
+          if (!sub.nextdate) return false;
+          const nextDate = new Date(sub.nextdate);
+          return nextDate <= threeDaysFromNow && nextDate >= today;
+        })
+        .map((sub) => toSubDetail(sub, today))
+        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+      const subscriptionsExpiring7DaysList = subscriptions
+        .filter((sub) => {
+          if (!sub.nextdate) return false;
+          const nextDate = new Date(sub.nextdate);
+          return nextDate <= sevenDaysFromNow && nextDate >= today;
+        })
+        .map((sub) => toSubDetail(sub, today))
+        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+      const overdueSubscriptionsList = subscriptions
+        .filter((sub) => {
+          if (!sub.nextdate) return false;
+          const nextDate = new Date(sub.nextdate);
+          return nextDate < today;
+        })
+        .map((sub) => toSubDetail(sub, today, true))
+        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+      const totalMonthlyFee = subscriptions.reduce(
+        (total, sub) => total + convertToTWD(sub.price, sub.currency),
+        0
+      );
+      const totalAnnualFee = totalMonthlyFee;
+      const totalBankDeposit = banks.reduce((total, bank) => total + (bank.deposit || 0), 0);
+
+      setStats({
+        totalFoods: foods.length,
+        totalSubscriptions: subscriptions.length,
+        totalArticles: articles.length,
+        totalCommonAccounts: commonAccounts.length,
+        totalBanks: banks.length,
+        totalBankDeposit,
+        totalRoutines: routines.length,
+        foodsExpiring7Days: foodsExpiring7DaysList.length,
+        foodsExpiring30Days: foodsExpiring30DaysList.length,
+        subscriptionsExpiring3Days: subscriptionsExpiring3DaysList.length,
+        subscriptionsExpiring7Days: subscriptionsExpiring7DaysList.length,
+        totalMonthlyFee,
+        totalAnnualFee,
+        expiredFoods: expiredFoodsList.length,
+        overdueSubscriptions: overdueSubscriptionsList.length,
+        foodsExpiring7DaysList,
+        foodsExpiring30DaysList,
+        expiredFoodsList,
+        subscriptionsExpiring3DaysList,
+        subscriptionsExpiring7DaysList,
+        overdueSubscriptionsList,
+      });
+    } catch (err) {
+      if (controller.signal.aborted || requestId !== requestSequence.current) return;
+      console.error("獲取統計數據失敗:", err);
+      setError(err instanceof Error ? err.message : "獲取統計數據失敗");
+    } finally {
+      if (requestId === requestSequence.current) {
+        activeRequest.current = null;
+        setLoading(false);
+      }
+    }
+  }, [hasDatabaseConfig, includeExtended]);
 
   useEffect(() => {
     if (!appwriteSetupChecked) return;
-
-    let cancelled = false;
-
-    async function fetchStats() {
-      const cacheParam = `?t=${Date.now()}`;
-      setError(null);
-
-      if (!hasDatabaseConfig) {
-        setSetupRequired(true);
-        setError(null);
-        setLoading(false);
-        return;
-      }
-      setSetupRequired(false);
-      setLoading(true);
-
-      try {
-        // Single parallel fetch — no double round-trip "check then load"
-        const [
-          foodsResult,
-          subsResult,
-          articlesResult,
-          accountsResult,
-          banksResult,
-          routinesResult,
-          documentsResult,
-        ] = await Promise.all([
-          loadTable<Food>("/api/food", cacheParam),
-          loadTable<Subscription>("/api/subscription", cacheParam),
-          loadTable<unknown>("/api/article", cacheParam),
-          loadTable<unknown>("/api/commonaccount", cacheParam),
-          loadTable<{ deposit?: number }>("/api/bank", cacheParam),
-          loadTable<unknown>("/api/routine", cacheParam),
-          loadTable<unknown>("/api/commondocument", cacheParam),
-        ]);
-
-        if (cancelled) return;
-
-        const missing = [
-          foodsResult,
-          subsResult,
-          articlesResult,
-          accountsResult,
-          banksResult,
-          routinesResult,
-          documentsResult,
-        ]
-          .map((r) => r.missingError)
-          .filter(Boolean) as string[];
-
-        if (missing.length > 0) {
-          throw new Error(missing.join("\n"));
-        }
-
-        const foods = foodsResult.data;
-        const subscriptions = subsResult.data;
-        const articles = articlesResult.data;
-        const commonAccounts = accountsResult.data;
-        const banks = banksResult.data;
-        const routines = routinesResult.data;
-
-        const today = new Date();
-        const dayMs = 24 * 60 * 60 * 1000;
-        const sevenDaysFromNow = new Date(today.getTime() + 7 * dayMs);
-        const thirtyDaysFromNow = new Date(today.getTime() + 30 * dayMs);
-        const threeDaysFromNow = new Date(today.getTime() + 3 * dayMs);
-
-        const foodsExpiring7DaysList = foods
-          .filter((food) => {
-            if (!food.todate) return false;
-            const expireDate = new Date(food.todate);
-            if (Number.isNaN(expireDate.getTime())) return false;
-            return expireDate <= sevenDaysFromNow && expireDate >= today;
-          })
-          .map((food) => toFoodDetail(food, today))
-          .sort((a, b) => a.daysRemaining - b.daysRemaining);
-
-        const foodsExpiring30DaysList = foods
-          .filter((food) => {
-            if (!food.todate) return false;
-            const expireDate = new Date(food.todate);
-            if (Number.isNaN(expireDate.getTime())) return false;
-            return expireDate <= thirtyDaysFromNow && expireDate >= today;
-          })
-          .map((food) => toFoodDetail(food, today))
-          .sort((a, b) => a.daysRemaining - b.daysRemaining);
-
-        const expiredFoodsList = foods
-          .filter((food) => {
-            if (!food.todate) return false;
-            const expireDate = new Date(food.todate);
-            if (Number.isNaN(expireDate.getTime())) return false;
-            return expireDate < today;
-          })
-          .map((food) => toFoodDetail(food, today, true))
-          .sort((a, b) => a.daysRemaining - b.daysRemaining);
-
-        const subscriptionsExpiring3DaysList = subscriptions
-          .filter((sub) => {
-            if (!sub.nextdate) return false;
-            const nextDate = new Date(sub.nextdate);
-            return nextDate <= threeDaysFromNow && nextDate >= today;
-          })
-          .map((sub) => toSubDetail(sub, today))
-          .sort((a, b) => a.daysRemaining - b.daysRemaining);
-
-        const subscriptionsExpiring7DaysList = subscriptions
-          .filter((sub) => {
-            if (!sub.nextdate) return false;
-            const nextDate = new Date(sub.nextdate);
-            return nextDate <= sevenDaysFromNow && nextDate >= today;
-          })
-          .map((sub) => toSubDetail(sub, today))
-          .sort((a, b) => a.daysRemaining - b.daysRemaining);
-
-        const overdueSubscriptionsList = subscriptions
-          .filter((sub) => {
-            if (!sub.nextdate) return false;
-            const nextDate = new Date(sub.nextdate);
-            return nextDate < today;
-          })
-          .map((sub) => toSubDetail(sub, today, true))
-          .sort((a, b) => a.daysRemaining - b.daysRemaining);
-
-        const totalMonthlyFee = subscriptions.reduce(
-          (total, sub) => total + convertToTWD(sub.price, sub.currency),
-          0
-        );
-        const totalAnnualFee = totalMonthlyFee;
-        const totalBankDeposit = banks.reduce((total, bank) => total + (bank.deposit || 0), 0);
-
-        setStats({
-          totalFoods: foods.length,
-          totalSubscriptions: subscriptions.length,
-          totalArticles: articles.length,
-          totalCommonAccounts: commonAccounts.length,
-          totalBanks: banks.length,
-          totalBankDeposit,
-          totalRoutines: routines.length,
-          foodsExpiring7Days: foodsExpiring7DaysList.length,
-          foodsExpiring30Days: foodsExpiring30DaysList.length,
-          subscriptionsExpiring3Days: subscriptionsExpiring3DaysList.length,
-          subscriptionsExpiring7Days: subscriptionsExpiring7DaysList.length,
-          totalMonthlyFee,
-          totalAnnualFee,
-          expiredFoods: expiredFoodsList.length,
-          overdueSubscriptions: overdueSubscriptionsList.length,
-          foodsExpiring7DaysList,
-          foodsExpiring30DaysList,
-          expiredFoodsList,
-          subscriptionsExpiring3DaysList,
-          subscriptionsExpiring7DaysList,
-          overdueSubscriptionsList,
-        });
-      } catch (err) {
-        if (cancelled) return;
-        console.error("獲取統計數據失敗:", err);
-        setError(err instanceof Error ? err.message : "獲取統計數據失敗");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    fetchStats();
+    void loadStats();
     return () => {
-      cancelled = true;
+      requestSequence.current += 1;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
     };
-  }, [appwriteSetupChecked, hasDatabaseConfig]);
+  }, [appwriteSetupChecked, loadStats]);
+
+  const refreshEnabled = appwriteSetupChecked && hasDatabaseConfig;
+  useRefreshKeyListener("food_refresh_key", loadStats, refreshEnabled);
+  useRefreshKeyListener("subscription_refresh_key", loadStats, refreshEnabled);
+  useRefreshKeyListener("articles_refresh_key", loadStats, refreshEnabled && includeExtended);
+  useRefreshKeyListener("commonaccount_refresh_key", loadStats, refreshEnabled && includeExtended);
+  useRefreshKeyListener("bank_refresh_key", loadStats, refreshEnabled && includeExtended);
+  useRefreshKeyListener("routine_refresh_key", loadStats, refreshEnabled && includeExtended);
 
   return { stats, loading, error, setupRequired };
 }

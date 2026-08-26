@@ -7,7 +7,7 @@
     "prebuild": "node scripts/generate-stats.js",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint app components hooks lib scripts tests types",
     "test:unit": "node --import ./tests/unit/register-ts-paths.mjs --experimental-strip-types --test tests/unit/*.test.mjs",
     "ship": "node scripts/auto-ship.mjs"
   },

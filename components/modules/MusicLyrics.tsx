@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Music, Search, Plus, Heart, Play, Pause, Volume2, SkipBack, SkipForward, Download, Copy, Check } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useMusic, MusicData } from "@/hooks/useMusic";
+import { recordRemoteMediaTraffic } from "@/lib/mediaTraffic";
 import { getProxiedMediaUrl } from "@/lib/utils";
 
 interface Song {
@@ -1549,6 +1550,12 @@ export default function MusicLyrics() {
         setTimeout(() => {
           audio.play().then(() => {
             console.log('[Audio] Playback started successfully');
+            void recordRemoteMediaTraffic(
+              'music',
+              'playback',
+              audioFile,
+              selectedSong.originalData?.fileSize
+            );
             setIsPlaying(true);
           }).catch((error) => {
             console.error('[Audio] Playback failed:', error);

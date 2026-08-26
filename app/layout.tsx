@@ -1,20 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ServiceWorkerBootstrap } from "@/components/providers/ServiceWorkerBootstrap";
 import "./globals.css";
-
-const geistSans = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  display: "swap",
-});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -63,7 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-TW"
-      className={`scroll-smooth ${geistSans.variable} ${geistMono.variable}`}
+      className="scroll-smooth"
       suppressHydrationWarning
     >
       <head>
