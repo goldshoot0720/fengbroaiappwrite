@@ -1705,6 +1705,7 @@ export default function SubscriptionManagement() {
         onClearSearch={() => setSearchQuery("")}
         recentSearchKey="subscription-management"
         legacyRecentSearchKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
+        showRecentSearches
         intro={
           <div className="space-y-4">
             <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">

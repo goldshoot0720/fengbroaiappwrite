@@ -50,6 +50,8 @@ interface FriendlyAiCrudShellProps {
   recentSearchKey?: string;
   /** Historical localStorage keys to merge into `recentSearchKey` once. */
   legacyRecentSearchKeys?: readonly string[];
+  /** Keep a visible recent-search row below the search controls. */
+  showRecentSearches?: boolean;
 }
 
 const toneStyles: Record<Tone, string> = {
@@ -80,6 +82,7 @@ export function FriendlyAiCrudShell({
   summaries = [],
   recentSearchKey,
   legacyRecentSearchKeys,
+  showRecentSearches = false,
 }: FriendlyAiCrudShellProps) {
   const storageKey = recentSearchKey || title;
   const { items: recentSearches, addSearch, removeSearch, clearAll } =
@@ -283,6 +286,44 @@ export function FriendlyAiCrudShell({
                 </div>
               )}
             </div>
+            {showRecentSearches ? (
+              recentSearches.length > 0 ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">最近搜尋</span>
+                  {recentSearches.map((term) => (
+                    <span
+                      key={term}
+                      className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-sky-700 dark:hover:bg-sky-950/30"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handlePickRecent(term)}
+                        className="px-3 py-1"
+                      >
+                        {term}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`移除最近搜尋 ${term}`}
+                        onClick={(event) => handleRemoveRecent(event, term)}
+                        className="border-l border-slate-200 px-1.5 py-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:border-slate-700 dark:hover:bg-rose-950/30"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="rounded-full px-2 py-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-rose-500 dark:hover:bg-slate-800"
+                  >
+                    清除
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3 text-xs text-slate-400 dark:text-slate-500">最近搜尋會在這裡顯示。</div>
+              )
+            ) : null}
             {searchExtras ? <div className="mt-3">{searchExtras}</div> : null}
             {modeItems.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-2">
