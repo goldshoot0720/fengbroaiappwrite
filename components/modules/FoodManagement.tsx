@@ -187,6 +187,7 @@ export default function FoodManagement() {
     todate: getSuggestedExpiryDate(7),
   });
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isAiSuggestionsOpen, setIsAiSuggestionsOpen] = useState(false);
 
   // Inline editing state
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -1775,10 +1776,27 @@ export default function FoodManagement() {
 
         <Card className="border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-sm">
           <CardHeader className="pb-4">
-            <CardDescription className="flex items-center gap-2 text-amber-700"><Sparkles size={16} /> Friendly AI 建議</CardDescription>
-            <CardTitle>今天先處理什麼</CardTitle>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardDescription className="flex items-center gap-2 text-amber-700"><Sparkles size={16} /> Friendly AI 建議</CardDescription>
+                <CardTitle>今天先處理什麼</CardTitle>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAiSuggestionsOpen((open) => !open)}
+                aria-expanded={isAiSuggestionsOpen}
+                aria-controls="food-ai-suggestions-panel"
+                className="shrink-0 rounded-full border-amber-200 text-amber-700 hover:bg-amber-50"
+              >
+                {isAiSuggestionsOpen ? "收起" : "展開"}
+                <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${isAiSuggestionsOpen ? "rotate-180" : ""}`} />
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+          {isAiSuggestionsOpen && (
+            <CardContent id="food-ai-suggestions-panel" className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
             <div className="space-y-2">
               {aiInsights.suggestions.map((suggestion, index) => (
                 <div key={index} className="rounded-2xl border border-amber-200 bg-white/80 px-4 py-3">
@@ -1798,7 +1816,8 @@ export default function FoodManagement() {
                 </div>
               </div>
             )}
-          </CardContent>
+            </CardContent>
+          )}
         </Card>
       </div>
 
