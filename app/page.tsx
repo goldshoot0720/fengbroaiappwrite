@@ -103,38 +103,31 @@ const VideoIntroduction = dynamic(() => import("@/components/modules/VideoIntrod
 });
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: "home", label: "鋒兄首頁", icon: <Home size={18} /> },
-  { id: "dashboard", label: "鋒兄儀表", icon: <BarChart3 size={18} /> },
+  {
+    id: "home-group",
+    label: "鋒兄首頁",
+    icon: <Home size={18} />,
+    children: [
+      { id: "home", label: "首頁", icon: <Home size={18} /> },
+      { id: "dashboard", label: "儀表", icon: <BarChart3 size={18} /> },
+      { id: "subscription", label: "訂閱", icon: <CreditCard size={18} /> },
+    ],
+  },
   {
     id: "daily-mgmt",
-    label: "日常管理",
+    label: "鋒兄管理",
     icon: <CalendarClock size={18} />,
     children: [
-      { id: "subscription", label: "訂閱", icon: <CreditCard size={18} /> },
       { id: "food", label: "食品", icon: <Package size={18} /> },
-      { id: "routine", label: "例行", icon: <CalendarClock size={18} /> },
-    ],
-  },
-  {
-    id: "content-center",
-    label: "內容中心",
-    icon: <FileText size={18} />,
-    children: [
+      { id: "common", label: "常用", icon: <Star size={18} /> },
+      { id: "bank-stats", label: "銀行", icon: <Building2 size={18} /> },
       { id: "notes", label: "筆記", icon: <FileText size={18} /> },
-      { id: "documents", label: "文件", icon: <FolderOpen size={18} /> },
+      { id: "music", label: "音樂", icon: <Music size={18} /> },
       { id: "images", label: "圖片", icon: <ImageIcon size={18} /> },
       { id: "videos", label: "影片", icon: <Play size={18} /> },
-      { id: "music", label: "音樂", icon: <Music size={18} /> },
+      { id: "documents", label: "文件", icon: <FolderOpen size={18} /> },
       { id: "podcast", label: "播客", icon: <Podcast size={18} /> },
-    ],
-  },
-  {
-    id: "finance",
-    label: "財務與帳號",
-    icon: <Building2 size={18} />,
-    children: [
-      { id: "bank-stats", label: "銀行", icon: <Building2 size={18} /> },
-      { id: "common", label: "常用帳號", icon: <Star size={18} /> },
+      { id: "routine", label: "例行", icon: <CalendarClock size={18} /> },
     ],
   },
   {

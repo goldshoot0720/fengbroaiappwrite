@@ -2,18 +2,25 @@ const { test, expect } = require("@playwright/test");
 
 const topLevelMenus = [
   /鋒兄首頁/,
-  /鋒兄儀表/,
-  /日常管理/,
-  /內容中心/,
-  /財務與帳號/,
+  /鋒兄管理/,
   /^工具$/,
   /^設定$/,
 ];
 
 const groupedChildren = {
-  日常管理: [/^訂閱$/, /^食品$/, /^例行$/],
-  內容中心: [/^筆記$/, /^文件$/, /^圖片$/, /^影片$/, /^音樂$/, /^播客$/],
-  財務與帳號: [/^銀行$/, /^常用帳號$/],
+  鋒兄首頁: [/^首頁$/, /^儀表$/, /^訂閱$/],
+  鋒兄管理: [
+    /^食品$/,
+    /^常用$/,
+    /^銀行$/,
+    /^筆記$/,
+    /^音樂$/,
+    /^圖片$/,
+    /^影片$/,
+    /^文件$/,
+    /^播客$/,
+    /^例行$/,
+  ],
   工具: [/^比價$/, /^手機比價$/, /鋒兄Tube/, /^金融$/, /^新聞$/],
   設定: [/鋒兄設定/, /鋒兄關於/],
 };
@@ -58,7 +65,8 @@ test("desktop top menu smoke test", async ({ page }) => {
   }
 
   for (const [group, children] of Object.entries(groupedChildren)) {
-    await topNav.getByRole("button", { name: group === "工具" || group === "設定" ? new RegExp(`^${group}$`) : group }).first().click();
+    const exactGroups = ["工具", "設定"];
+    await topNav.getByRole("button", { name: exactGroups.includes(group) ? new RegExp(`^${group}$`) : group }).first().click();
     await page.waitForTimeout(250);
     for (const label of children) {
       const button = topNav.getByRole("button", { name: label }).first();
@@ -80,7 +88,7 @@ test("subscription currency dropdown", async ({ page }) => {
   await page.waitForTimeout(1200);
 
   const topNav = await getDesktopTopNav(page);
-  await topNav.getByRole("button", { name: /日常管理/ }).click();
+  await topNav.getByRole("button", { name: /鋒兄首頁/ }).click();
   await page.waitForTimeout(250);
   await topNav.getByRole("button", { name: /^訂閱$/ }).click();
   await page.waitForTimeout(1000);
