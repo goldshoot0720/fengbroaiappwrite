@@ -1606,19 +1606,35 @@ export default function SubscriptionManagement() {
           <div className="flex items-start gap-2">
             <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
             <div className="min-w-0">
-              {siteHref ? (
-                <a
-                  href={siteHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex max-w-full items-center gap-1 break-words font-semibold text-blue-600 hover:underline dark:text-blue-400"
-                >
-                  {sub.name}
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                </a>
-              ) : (
-                <div className="break-words font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {siteHref ? (
+                  <a
+                    href={siteHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex max-w-full items-center gap-1 break-words font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    {sub.name}
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                  </a>
+                ) : (
+                  <div className="break-words font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
+                )}
+                {similarServices ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFindSimilarServices(similarServices.term)}
+                    className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
+                    title={`查看包含「${similarServices.term}」的相似服務（${similarServices.count} 筆）`}
+                    aria-label={`查看包含「${similarServices.term}」的相似服務`}
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    相似服務
+                  </Button>
+                ) : null}
+              </div>
               {sub.note ? (
                 <div className="mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
                   {sub.note}
@@ -1692,20 +1708,6 @@ export default function SubscriptionManagement() {
             <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg">
               <Copy className="h-3.5 w-3.5" />
             </Button>
-            {similarServices ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => handleFindSimilarServices(similarServices.term)}
-                className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
-                title={`查看包含「${similarServices.term}」的相似服務（${similarServices.count} 筆）`}
-                aria-label={`查看包含「${similarServices.term}」的相似服務`}
-              >
-                <Search className="h-3.5 w-3.5" />
-                相似服務
-              </Button>
-            ) : null}
             <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -2372,7 +2374,7 @@ export default function SubscriptionManagement() {
                       {selectedIds.has(sub.$id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                     </button>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <FaviconImage siteUrl={sub.site || ""} siteName={sub.name} size={18} />
                         {siteHref ? (
                           <a
@@ -2387,6 +2389,20 @@ export default function SubscriptionManagement() {
                         ) : (
                           <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
                         )}
+                        {similarServices ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleFindSimilarServices(similarServices.term)}
+                            className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
+                            title={`查看包含「${similarServices.term}」的相似服務（${similarServices.count} 筆）`}
+                            aria-label={`查看包含「${similarServices.term}」的相似服務`}
+                          >
+                            <Search className="h-3.5 w-3.5" />
+                            相似服務
+                          </Button>
+                        ) : null}
                       </div>
                       {sub.note ? (
                         <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
@@ -2467,20 +2483,6 @@ export default function SubscriptionManagement() {
                       <Copy className="mr-1 h-3.5 w-3.5" />
                       複製
                     </Button>
-                    {similarServices ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleFindSimilarServices(similarServices.term)}
-                        className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
-                        title={`查看包含「${similarServices.term}」的相似服務（${similarServices.count} 筆）`}
-                        aria-label={`查看包含「${similarServices.term}」的相似服務`}
-                      >
-                        <Search className="mr-1 h-3.5 w-3.5" />
-                        相似服務
-                      </Button>
-                    ) : null}
                     <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
                       <Trash2 className="mr-1 h-3.5 w-3.5" />
                       刪除
