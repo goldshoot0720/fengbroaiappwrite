@@ -36,6 +36,7 @@ import {
   subscriptionFormToCsvValues,
   toSubscriptionForm,
 } from "@/lib/subscriptionFields";
+import { findSimilarSubscriptions, getSubscriptionSimilarityTerm } from "@/lib/subscriptionSimilarity";
 import { Subscription, SubscriptionFormData } from "@/types";
 
 const INITIAL_FORM: SubscriptionFormData = emptySubscriptionForm();
@@ -613,6 +614,22 @@ export default function SubscriptionManagement() {
       .sort((left, right) => right.length - left.length);
   }, [scopedSubscriptions]);
 
+  const similarServiceMatches = useMemo(() => {
+    const matches = new Map<string, { term: string; count: number }>();
+
+    scopedSubscriptions.forEach((subscription) => {
+      const similar = findSimilarSubscriptions(scopedSubscriptions, subscription);
+      if (similar.length === 0) return;
+
+      matches.set(subscription.$id, {
+        term: getSubscriptionSimilarityTerm(subscription.name),
+        count: similar.length,
+      });
+    });
+
+    return matches;
+  }, [scopedSubscriptions]);
+
   const filteredSubscriptions = useMemo(() => {
     let result = scopedSubscriptions;
 
@@ -721,6 +738,14 @@ export default function SubscriptionManagement() {
     setDueFilter("all");
     setRenewalFilter("all");
     setSearchQuery(topDuplicate?.[0]?.name || "");
+  };
+
+  const handleFindSimilarServices = (term: string) => {
+    setDueFilter("all");
+    setRenewalFilter("all");
+    setMonthFilter("all");
+    setSelectedIds(new Set());
+    setSearchQuery(term);
   };
 
   const findVoiceTarget = (text: string) => {
@@ -1538,6 +1563,7 @@ export default function SubscriptionManagement() {
     const expiry = getSubscriptionExpiryInfo(sub);
     const isEditing = inlineEditingId === sub.$id;
     const siteHref = getSubscriptionSiteHref(sub.site);
+    const similarServices = similarServiceMatches.get(sub.$id);
     const renewalLabel = sub.continue === false ? "不續訂" : "續訂中";
     const dueLabel = !sub.nextdate
       ? "未設定"
@@ -1666,6 +1692,20 @@ export default function SubscriptionManagement() {
             <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg">
               <Copy className="h-3.5 w-3.5" />
             </Button>
+            {similarServices ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handleFindSimilarServices(similarServices.term)}
+                className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
+                title={`查看包含「${similarServices.term}」的相似服務（${similarServices.count} 筆）`}
+                aria-label={`查看包含「${similarServices.term}」的相似服務`}
+              >
+                <Search className="h-3.5 w-3.5" />
+                相似服務
+              </Button>
+            ) : null}
             <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -2304,6 +2344,7 @@ export default function SubscriptionManagement() {
               const expiry = getSubscriptionExpiryInfo(sub);
               const isEditing = inlineEditingId === sub.$id;
               const siteHref = getSubscriptionSiteHref(sub.site);
+              const similarServices = similarServiceMatches.get(sub.$id);
 
               if (isEditing) {
                 return (
@@ -2426,6 +2467,20 @@ export default function SubscriptionManagement() {
                       <Copy className="mr-1 h-3.5 w-3.5" />
                       複製
                     </Button>
+                    {similarServices ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleFindSimilarServices(similarServices.term)}
+                        className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
+                        title={`查看包含「${similarServices.term}」的相似服務（${similarServices.count} 筆）`}
+                        aria-label={`查看包含「${similarServices.term}」的相似服務`}
+                      >
+                        <Search className="mr-1 h-3.5 w-3.5" />
+                        相似服務
+                      </Button>
+                    ) : null}
                     <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
                       <Trash2 className="mr-1 h-3.5 w-3.5" />
                       刪除

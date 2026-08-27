@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { CheckCircle2, Mic, Sparkles } from "lucide-react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { CheckCircle2, ChevronDown, Mic, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataCard } from "@/components/ui/data-card";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ type VoiceCommandBarProps = {
   onCancelPending?: () => void;
   extraActions?: ReactNode;
   className?: string;
+  defaultOpen?: boolean;
 };
 
 const accentStyles = {
@@ -78,150 +79,187 @@ export function VoiceCommandBar({
   onCancelPending,
   extraActions,
   className,
+  defaultOpen = false,
 }: VoiceCommandBarProps) {
   const styles = accentStyles[accent];
+  const contentId = useId();
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const isForcedOpen = isListening || Boolean(pending);
+  const isContentVisible = isOpen || isForcedOpen;
+
+  useEffect(() => {
+    if (isForcedOpen) setIsOpen(true);
+  }, [isForcedOpen]);
+
+  const toggleLabel = isContentVisible ? `收起${title}` : `展開${title}`;
 
   return (
     <DataCard className={cn(styles.card, "p-4 shadow-sm", className)}>
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-2xl",
-                isListening ? "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-200" : styles.iconIdle
-              )}
-            >
-              <Mic className="h-4 w-4" />
-            </div>
-            <div>
-              <h3 className={cn("text-sm font-semibold", styles.title)}>{title}</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {description}
-                {isListening ? ` · 錄音中 ${formatRecordingClock(elapsedMs)}` : ""}
-              </p>
-            </div>
-            {isListening && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-200">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
-                </span>
-                聆聽中 · 說完會自動結束
-              </span>
-            )}
-          </div>
-          {helpText && (
-            <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{helpText}</p>
-          )}
-          {!isSupported && (
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              此瀏覽器不支援語音辨識（建議 Chrome / Edge），仍可輸入文字後按「執行」。
-            </p>
-          )}
-        </div>
-
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button
-            type="button"
-            onClick={onToggleListen}
-            disabled={!isSupported && !isListening}
-            className={cn(
-              "min-w-[8.5rem] rounded-xl text-white",
-              isListening ? "bg-red-600 hover:bg-red-700" : styles.listenBtn
-            )}
-          >
-            <Mic className={cn("mr-1 h-4 w-4", isListening && "animate-pulse")} />
-            {isListening ? (canStop ? "說完了" : "準備中…") : "開始說話"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-w-[8rem] rounded-xl bg-white/80 dark:bg-transparent"
-            onClick={() => onSubmit(transcript)}
-            disabled={!transcript.trim() || isListening}
-          >
-            <Sparkles className="mr-1 h-4 w-4" />
-            執行
-          </Button>
-          {extraActions}
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <Input
-          value={transcript}
-          onChange={(event) => onTranscriptChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") onSubmit(transcript);
-          }}
-          placeholder={placeholder}
-          className="h-12 rounded-xl bg-white dark:bg-slate-950"
-          disabled={isListening}
-          aria-label="語音或文字指令"
-        />
-        {samples.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {samples.map((sample) => (
-              <Button
-                key={sample}
-                type="button"
-                variant="outline"
-                className="h-12 rounded-xl bg-white dark:bg-slate-950"
-                onClick={() => onSubmit(sample)}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-2xl",
+                  isListening ? "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-200" : styles.iconIdle
+                )}
               >
-                {sample}
-              </Button>
-            ))}
+                <Mic className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className={cn("text-sm font-semibold", styles.title)}>{title}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {description}
+                  {isListening ? ` · 錄音中 ${formatRecordingClock(elapsedMs)}` : ""}
+                </p>
+              </div>
+              {isListening && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-200">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                  </span>
+                  聆聽中 · 說完會自動結束
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {isContentVisible && (
+              <>
+                <Button
+                  type="button"
+                  onClick={onToggleListen}
+                  disabled={!isSupported && !isListening}
+                  className={cn(
+                    "min-w-[8.5rem] rounded-xl text-white",
+                    isListening ? "bg-red-600 hover:bg-red-700" : styles.listenBtn
+                  )}
+                >
+                  <Mic className={cn("mr-1 h-4 w-4", isListening && "animate-pulse")} />
+                  {isListening ? (canStop ? "說完了" : "準備中…") : "開始說話"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-w-[8rem] rounded-xl bg-white/80 dark:bg-transparent"
+                  onClick={() => onSubmit(transcript)}
+                  disabled={!transcript.trim() || isListening}
+                >
+                  <Sparkles className="mr-1 h-4 w-4" />
+                  執行
+                </Button>
+                {extraActions}
+              </>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-xl bg-white/80 dark:bg-transparent"
+              onClick={() => setIsOpen((open) => !open)}
+              disabled={isForcedOpen}
+              aria-expanded={isContentVisible}
+              aria-controls={contentId}
+              aria-label={toggleLabel}
+              title={toggleLabel}
+            >
+              <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isContentVisible && "rotate-180")} />
+              {isContentVisible ? "收起" : "展開"}
+            </Button>
+          </div>
+        </div>
+
+        {isContentVisible && (
+          <div id={contentId}>
+            {helpText && (
+              <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{helpText}</p>
+            )}
+            {!isSupported && (
+              <p className={cn("text-xs text-amber-700 dark:text-amber-300", helpText && "mt-2")}>
+                此瀏覽器不支援語音辨識（建議 Chrome / Edge），仍可輸入文字後按「執行」。
+              </p>
+            )}
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+              <Input
+                value={transcript}
+                onChange={(event) => onTranscriptChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") onSubmit(transcript);
+                }}
+                placeholder={placeholder}
+                className="h-12 rounded-xl bg-white dark:bg-slate-950"
+                disabled={isListening}
+                aria-label="語音或文字指令"
+              />
+              {samples.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {samples.map((sample) => (
+                    <Button
+                      key={sample}
+                      type="button"
+                      variant="outline"
+                      className="h-12 rounded-xl bg-white dark:bg-slate-950"
+                      onClick={() => onSubmit(sample)}
+                    >
+                      {sample}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={cn("mt-3 rounded-2xl border p-3 text-sm shadow-sm", styles.status)}>
+              <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">狀態</div>
+              <div className="mt-1 leading-6">{feedback}</div>
+            </div>
+
+            {pending && (
+              <div
+                className={cn(
+                  "mt-3 rounded-2xl border p-3 text-sm shadow-sm",
+                  pending.risk === "danger"
+                    ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100"
+                    : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
+                )}
+              >
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <CheckCircle2 className="h-4 w-4" />
+                      {pending.risk === "danger" ? "危險操作，需確認" : "需確認後執行"}
+                    </p>
+                    <p className="mt-1 text-sm leading-6">{pending.summary}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-xl bg-white/80"
+                      onClick={onCancelPending}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      type="button"
+                      className={cn(
+                        "rounded-xl text-white",
+                        pending.risk === "danger" ? "bg-red-600 hover:bg-red-700" : styles.runBtn
+                      )}
+                      onClick={onConfirm}
+                    >
+                      確認執行
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
-
-      <div className={cn("mt-3 rounded-2xl border p-3 text-sm shadow-sm", styles.status)}>
-        <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">狀態</div>
-        <div className="mt-1 leading-6">{feedback}</div>
-      </div>
-
-      {pending && (
-        <div
-          className={cn(
-            "mt-3 rounded-2xl border p-3 text-sm shadow-sm",
-            pending.risk === "danger"
-              ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100"
-              : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
-          )}
-        >
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <p className="flex items-center gap-2 text-sm font-semibold">
-                <CheckCircle2 className="h-4 w-4" />
-                {pending.risk === "danger" ? "危險操作，需確認" : "需確認後執行"}
-              </p>
-              <p className="mt-1 text-sm leading-6">{pending.summary}</p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-xl bg-white/80"
-                onClick={onCancelPending}
-              >
-                取消
-              </Button>
-              <Button
-                type="button"
-                className={cn(
-                  "rounded-xl text-white",
-                  pending.risk === "danger" ? "bg-red-600 hover:bg-red-700" : styles.runBtn
-                )}
-                onClick={onConfirm}
-              >
-                確認執行
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </DataCard>
   );
 }
