@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   AlertTriangle,
   Command,
@@ -10,17 +11,46 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BirthdayEasterEgg } from "@/components/ui/birthday-easter-egg";
-import { GlobalVoiceCommandPanel } from "@/components/ui/global-voice-command-panel";
-import { MusicQueuePanel } from "@/components/ui/music-queue-panel";
-import { PodcastQueuePanel } from "@/components/ui/podcast-queue-panel";
 import {
   DensityToggleCompact,
   ThemeToggleCompact,
 } from "@/components/ui/theme-toggle";
 import EnhancedScrollNavigation from "@/components/ui/enhanced-scroll-navigation";
-import { VideoQueuePanel } from "@/components/ui/video-queue-panel";
 import { cn } from "@/lib/utils";
 import { MenuItem } from "@/types";
+
+// These panels are available throughout the console, but they are not part of
+// the navigation shell's critical path. Keep them in their own browser-only
+// chunks so the first route can paint and hydrate without loading media queues
+// or voice CRUD dependencies up front.
+const GlobalVoiceCommandPanel = dynamic(
+  () =>
+    import("@/components/ui/global-voice-command-panel").then(
+      (module) => module.GlobalVoiceCommandPanel
+    ),
+  { ssr: false, loading: () => null }
+);
+const MusicQueuePanel = dynamic(
+  () =>
+    import("@/components/ui/music-queue-panel").then(
+      (module) => module.MusicQueuePanel
+    ),
+  { ssr: false, loading: () => null }
+);
+const PodcastQueuePanel = dynamic(
+  () =>
+    import("@/components/ui/podcast-queue-panel").then(
+      (module) => module.PodcastQueuePanel
+    ),
+  { ssr: false, loading: () => null }
+);
+const VideoQueuePanel = dynamic(
+  () =>
+    import("@/components/ui/video-queue-panel").then(
+      (module) => module.VideoQueuePanel
+    ),
+  { ssr: false, loading: () => null }
+);
 
 interface DashboardLayoutProps {
   children: React.ReactNode;

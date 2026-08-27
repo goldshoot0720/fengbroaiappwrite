@@ -28,7 +28,7 @@ export function StatCard({
     <Wrapper
       onClick={onClick}
       className={cn(
-        "group relative overflow-hidden rounded-[26px] border border-white/35 bg-[rgba(255,255,255,0.72)] p-4 text-left shadow-[var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 dark:border-white/8 dark:bg-white/4 sm:p-5 lg:p-6",
+        "group relative overflow-hidden rounded-2xl border border-[var(--line-soft)] bg-[var(--panel-soft)] p-4 text-left shadow-[var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 sm:p-5 lg:p-6",
         onClick &&
           "cursor-pointer hover:-translate-y-1 hover:shadow-[var(--shadow-strong)]",
         className
@@ -36,7 +36,7 @@ export function StatCard({
     >
       <div
         className={cn(
-          "absolute inset-x-0 top-0 h-1 rounded-t-[26px] bg-gradient-to-r opacity-90",
+          "absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-gradient-to-r opacity-90",
           gradient
         )}
       />
@@ -50,7 +50,7 @@ export function StatCard({
           </p>
         </div>
         {(Icon || iconElement) && (
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-[18px] border border-[var(--line-soft)] bg-[linear-gradient(145deg,rgba(255,255,255,0.88),rgba(238,233,224,0.88))] text-[var(--accent-strong)] dark:bg-[linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]">
+          <div className="surface-inset flex size-12 shrink-0 items-center justify-center rounded-xl text-[var(--accent-strong)]">
             {Icon ? <Icon className="size-5" /> : iconElement}
           </div>
         )}
@@ -79,7 +79,7 @@ export function SimpleStatCard({
   return (
     <div
       className={cn(
-        "rounded-[22px] border border-[var(--line-soft)] p-4 text-center shadow-[var(--shadow-soft)]",
+        "rounded-2xl border border-[var(--line-soft)] bg-[var(--panel-soft)] p-4 text-center shadow-[var(--shadow-soft)]",
         bgColor,
         className
       )}

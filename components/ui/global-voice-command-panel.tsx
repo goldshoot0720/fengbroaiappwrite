@@ -677,16 +677,16 @@ export function GlobalVoiceCommandPanel({
     [currentModule]
   );
 
-  const resolveModule = (text: string) => {
+  const resolveModule = useCallback((text: string) => {
     const normalized = normalizeVoiceText(text);
     return flatMenuItems.find((item) => {
       const meta = MODULE_VOICE_META[item.id];
       const aliases = meta ? [meta.name, ...meta.aliases] : [item.label, item.id];
       return aliases.some((alias) => normalized.includes(normalizeVoiceText(alias)));
     }) || null;
-  };
+  }, [flatMenuItems]);
 
-  const parseCommand = (text: string): PendingCommand | null => {
+  const parseCommand = useCallback((text: string): PendingCommand | null => {
     const normalized = normalizeVoiceText(text);
     if (!normalized) return null;
 
@@ -827,7 +827,7 @@ export function GlobalVoiceCommandPanel({
     }
 
     return null;
-  };
+  }, [currentIndex, currentModule, currentModuleName, flatMenuItems, resolveModule]);
 
   const handleVoiceTextRef = useRef<(text: string) => void>(() => {});
 

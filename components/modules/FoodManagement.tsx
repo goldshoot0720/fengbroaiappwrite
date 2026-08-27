@@ -1571,25 +1571,25 @@ export default function FoodManagement() {
           <div className="space-y-4">
             <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
               <div className="min-w-0 space-y-2">
-                <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">
+                <p className="text-micro text-[var(--muted-foreground)]">
                   Workspace Section
                 </p>
-                <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl lg:text-4xl">
-                  鋒兄食品 <span className="text-base font-medium text-slate-500 dark:text-slate-400">（＋商品庫存）</span>
+                <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
+                  鋒兄食品 <span className="text-base font-medium text-[var(--muted-foreground)]">（＋商品庫存）</span>
                 </h1>
-                <p className="text-base leading-7 text-slate-600 dark:text-slate-300">
+                <p className="text-base leading-7 text-[var(--muted-foreground)]">
                   共 {foods.length} 項食品
                 </p>
                 <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
                   APPWRITE-.ENV
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 self-start rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 2xl:self-auto">
-                <div className="h-2 w-2 rounded-full bg-green-500" />
+              <div className="surface-inset inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-sm text-[var(--muted-foreground)] 2xl:self-auto">
+                <div className="h-2 w-2 rounded-full bg-success" />
                 <span>即時同步</span>
               </div>
             </div>
-            <p className="max-w-4xl text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
+            <p className="max-w-4xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
               食品與商品庫存走同一套 CRUD：新增、編輯、複製會先進入表格內編輯列，確認後才寫入；刪除與批次刪除保留確認流程，避免誤刪。
             </p>
           </div>

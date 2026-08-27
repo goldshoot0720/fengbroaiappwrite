@@ -55,11 +55,19 @@ interface FriendlyAiCrudShellProps {
 }
 
 const toneStyles: Record<Tone, string> = {
-  neutral: "border-white/60 bg-white/75 text-slate-700",
-  blue: "border-sky-200 bg-sky-50 text-sky-700",
-  amber: "border-amber-200 bg-amber-50 text-amber-700",
-  green: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  red: "border-rose-200 bg-rose-50 text-rose-700",
+  neutral: "border-[var(--line-soft)] bg-[var(--panel-soft)] text-[var(--foreground)]",
+  blue: "border-info/30 bg-info/10 text-info",
+  amber: "border-warning/30 bg-warning/10 text-warning-foreground dark:text-warning",
+  green: "border-success/30 bg-success/10 text-success",
+  red: "border-destructive/30 bg-destructive/10 text-destructive",
+};
+
+const suggestionToneStyles: Record<Tone, string> = {
+  neutral: "border-white/10 bg-white/5",
+  blue: "border-info/30 bg-info/10",
+  amber: "border-warning/30 bg-warning/10",
+  green: "border-success/30 bg-success/10",
+  red: "border-destructive/30 bg-destructive/10",
 };
 
 export function FriendlyAiCrudShell({
@@ -82,7 +90,7 @@ export function FriendlyAiCrudShell({
   summaries = [],
   recentSearchKey,
   legacyRecentSearchKeys,
-  showRecentSearches = false,
+  showRecentSearches = true,
 }: FriendlyAiCrudShellProps) {
   const storageKey = recentSearchKey || title;
   const { items: recentSearches, addSearch, removeSearch, clearAll } =
@@ -149,33 +157,18 @@ export function FriendlyAiCrudShell({
   );
 
   return (
-    <section className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.14),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.96),_rgba(248,250,252,0.96))] p-3 shadow-sm dark:border-slate-800 dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.2),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.16),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.98),_rgba(15,23,42,0.96))] sm:p-4 md:rounded-[28px] md:p-5 xl:p-6">
+    <section data-slot="module-workbench" className="surface-panel overflow-hidden rounded-2xl p-3 sm:p-4 md:p-5 xl:p-6">
       <div className="flex flex-col gap-4 md:gap-5">
         <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
           <div className="min-w-0 flex-1">
-            {intro ?? (workspaceCountText || workspaceDescription ? (
+            {intro ?? (
               <WorkspaceModuleIntro
                 title={title}
-                countText={workspaceCountText || ""}
+                countText={workspaceCountText}
                 description={workspaceDescription || description}
                 statusText={workspaceStatusText}
               />
-            ) : (
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold tracking-wide text-sky-700 dark:border-sky-900 dark:bg-slate-900/70 dark:text-sky-300">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Friendly AI CRUD
-                </div>
-                <div>
-                  <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-                    {title}
-                  </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {description}
-                  </p>
-                </div>
-              </div>
-            ))}
+            )}
           </div>
           {toolbar ? (
             <div className="flex w-full flex-wrap items-stretch gap-2 2xl:w-auto 2xl:items-center 2xl:justify-end">
@@ -185,12 +178,12 @@ export function FriendlyAiCrudShell({
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(300px,0.92fr)] 2xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
-          <div className="rounded-2xl border border-white/70 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70 sm:p-4">
+          <div className="surface-inset rounded-2xl p-3 shadow-sm sm:p-4">
             {/* ── Search input with recent searches ── */}
             <div ref={wrapperRef} className="relative" onBlur={handleBlur}>
               <div className="relative flex items-center gap-2">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
                   <Input
                     ref={inputRef}
                     value={searchQuery}
@@ -202,13 +195,13 @@ export function FriendlyAiCrudShell({
                       }
                     }}
                     placeholder={searchPlaceholder}
-                    className="h-11 rounded-xl border-slate-200 bg-white pl-10 pr-10 dark:border-slate-700 dark:bg-slate-950"
+                    className="h-11 rounded-xl border-input bg-[var(--card)] pl-10 pr-10 text-[var(--foreground)]"
                   />
                   {searchQuery ? (
                     <button
                       type="button"
                       onClick={handleClearSearch}
-                      className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                       aria-label="清除搜尋內容"
                       title="清除搜尋內容"
                     >
@@ -221,7 +214,8 @@ export function FriendlyAiCrudShell({
                 <button
                   type="button"
                   onClick={handleSubmitSearch}
-                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 dark:border-slate-700 dark:bg-sky-500 dark:hover:bg-sky-400"
+                  aria-label="提交搜尋"
+                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-transparent bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                 >
                   <Search className="h-4 w-4" />
                   <span className="hidden sm:inline">提交</span>
@@ -230,13 +224,13 @@ export function FriendlyAiCrudShell({
 
               {/* ── Recent searches dropdown ── */}
               {isRecentOpen && recentSearches.length > 0 && (
-                <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[420px] overflow-y-auto rounded-2xl border border-[var(--line-soft)] bg-[color:var(--panel-strong)] shadow-xl backdrop-blur-lg">
+                <div className="surface-floating absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[420px] overflow-y-auto rounded-2xl">
                   {/* Header */}
-                  <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-2.5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--line-soft)] bg-[var(--panel-veil)] px-4 py-2.5 backdrop-blur">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
                       <Clock className="h-3.5 w-3.5" />
                       最近搜尋
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
                         {recentSearches.length}
                       </span>
                     </div>
@@ -245,7 +239,7 @@ export function FriendlyAiCrudShell({
                       onClick={() => {
                         clearAll();
                       }}
-                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-400"
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="h-3 w-3" />
                       清除全部
@@ -255,32 +249,24 @@ export function FriendlyAiCrudShell({
                   {/* Items */}
                   <div className="py-1">
                     {recentSearches.map((term) => (
-                      <button
-                        key={term}
-                        type="button"
-                        onClick={() => handlePickRecent(term)}
-                        className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                      >
-                        <Search className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600" />
-                        <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
-                          {term}
-                        </span>
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => handleRemoveRecent(e, term)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              removeSearch(term);
-                            }
-                          }}
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-300 opacity-0 transition-all hover:bg-rose-100 hover:text-rose-500 group-hover:opacity-100 dark:text-slate-600 dark:hover:bg-rose-900/40 dark:hover:text-rose-400"
+                      <div key={term} className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/70">
+                        <button
+                          type="button"
+                          onClick={() => handlePickRecent(term)}
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm text-foreground"
+                        >
+                          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1 truncate">{term}</span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`移除最近搜尋 ${term}`}
+                          onClick={(event) => handleRemoveRecent(event, term)}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                         >
                           <X className="h-3.5 w-3.5" />
-                        </span>
-                      </button>
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -289,11 +275,11 @@ export function FriendlyAiCrudShell({
             {showRecentSearches ? (
               recentSearches.length > 0 ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="font-semibold text-slate-500 dark:text-slate-400">最近搜尋</span>
+                  <span className="font-semibold text-muted-foreground">最近搜尋</span>
                   {recentSearches.map((term) => (
                     <span
                       key={term}
-                      className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-sky-700 dark:hover:bg-sky-950/30"
+                      className="inline-flex items-center overflow-hidden rounded-full border border-[var(--line-soft)] bg-[var(--panel-soft)] text-foreground transition-colors hover:border-accent hover:bg-accent/10"
                     >
                       <button
                         type="button"
@@ -306,7 +292,7 @@ export function FriendlyAiCrudShell({
                         type="button"
                         aria-label={`移除最近搜尋 ${term}`}
                         onClick={(event) => handleRemoveRecent(event, term)}
-                        className="border-l border-slate-200 px-1.5 py-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:border-slate-700 dark:hover:bg-rose-950/30"
+                        className="border-l border-[var(--line-soft)] px-1.5 py-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -315,14 +301,12 @@ export function FriendlyAiCrudShell({
                   <button
                     type="button"
                     onClick={clearAll}
-                    className="rounded-full px-2 py-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-rose-500 dark:hover:bg-slate-800"
+                    className="rounded-full px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
                   >
                     清除
                   </button>
                 </div>
-              ) : (
-                <div className="mt-3 text-xs text-slate-400 dark:text-slate-500">最近搜尋會在這裡顯示。</div>
-              )
+              ) : null
             ) : null}
             {searchExtras ? <div className="mt-3">{searchExtras}</div> : null}
             {modeItems.length > 0 ? (
@@ -337,8 +321,8 @@ export function FriendlyAiCrudShell({
                       className={cn(
                         "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
                         selected
-                          ? "border-slate-900 bg-slate-900 text-white dark:border-sky-400 dark:bg-sky-400 dark:text-slate-950"
-                          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-[var(--line-soft)] bg-[var(--panel-soft)] text-[var(--muted-foreground)] hover:border-accent hover:bg-accent/10 hover:text-foreground"
                       )}
                     >
                       <span>{mode.label}</span>
@@ -347,8 +331,8 @@ export function FriendlyAiCrudShell({
                           className={cn(
                             "rounded-full px-1.5 py-0.5 text-xs",
                             selected
-                              ? "bg-white/20 text-white dark:bg-slate-950/20 dark:text-slate-950"
-                              : "bg-white text-slate-500 dark:bg-slate-800 dark:text-slate-300"
+                              ? "bg-background/20 text-background"
+                              : "bg-muted text-muted-foreground"
                           )}
                         >
                           {mode.count}
@@ -375,8 +359,8 @@ export function FriendlyAiCrudShell({
             ) : null}
           </div>
 
-          <div className="rounded-2xl border border-white/70 bg-slate-950 p-3 text-white shadow-sm dark:border-slate-800 sm:p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+          <div className="rounded-2xl border border-[var(--line-strong)] bg-slate-950 p-3 text-white shadow-sm dark:bg-[var(--panel-strong)] dark:text-[var(--foreground)] sm:p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-200 dark:text-[var(--foreground)]">
               <Sparkles className="h-4 w-4 text-amber-300" />
               AI 建議
             </div>
@@ -387,19 +371,15 @@ export function FriendlyAiCrudShell({
                     key={item.title}
                     className={cn(
                       "rounded-2xl border px-4 py-3",
-                      item.tone === "amber" && "border-amber-400/30 bg-amber-400/10",
-                      item.tone === "green" && "border-emerald-400/30 bg-emerald-400/10",
-                      item.tone === "red" && "border-rose-400/30 bg-rose-400/10",
-                      item.tone === "blue" && "border-sky-400/30 bg-sky-400/10",
-                      (!item.tone || item.tone === "neutral") && "border-white/10 bg-white/5"
+                      suggestionToneStyles[item.tone || "neutral"]
                     )}
                   >
                     <div className="text-sm font-semibold">{item.title}</div>
-                    <div className="mt-1 text-sm leading-6 text-slate-300">{item.body}</div>
+                    <div className="mt-1 text-sm leading-6 text-slate-300 dark:text-[var(--muted-foreground)]">{item.body}</div>
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6 text-slate-300">
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6 text-slate-300 dark:border-[var(--line-soft)] dark:bg-[var(--panel-soft)] dark:text-[var(--muted-foreground)]">
                   資料一進來，這裡就會開始提示異常、重複與下一步整理方向。
                 </div>
               )}

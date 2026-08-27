@@ -14,7 +14,6 @@ import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
 import { FaviconImage } from "@/components/ui/favicon-image";
-import { WorkspaceModuleIntro } from "@/components/ui/workspace-module-intro";
 import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscriptions";
 import { fetchApi } from "@/hooks/useApi";
 import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
@@ -1710,25 +1709,25 @@ export default function SubscriptionManagement() {
           <div className="space-y-4">
             <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
               <div className="min-w-0 space-y-2">
-                <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">
+                <p className="text-micro text-[var(--muted-foreground)]">
                   Workspace Section
                 </p>
-                <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl lg:text-4xl">
+                <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
                   鋒兄訂閱
                 </h1>
-                <p className="text-base leading-7 text-slate-600 dark:text-slate-300">
+                <p className="text-base leading-7 text-[var(--muted-foreground)]">
                   共 {subscriptions.length} 項訂閱
                 </p>
                 <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
                   {getCurrentAccountLabel()}
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 self-start rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 2xl:self-auto">
-                <div className="h-2 w-2 rounded-full bg-green-500" />
+              <div className="surface-inset inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-sm text-[var(--muted-foreground)] 2xl:self-auto">
+                <div className="h-2 w-2 rounded-full bg-success" />
                 <span>即時同步</span>
               </div>
             </div>
-            <p className="max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
+            <p className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
               以目前 Appwrite `subscription` 表為準，聚焦服務名稱、網站、價格、下次扣款、備註、帳號、幣別與是否續訂，先看即將到期與不續訂項目，再快速新增與批次清理。
             </p>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, Search, AlertTriangle, Copy, CopyPlus, Download, Upload, Sparkles, Pin, PinOff, Clock3, Wand2, RefreshCw } from "lucide-react";
+import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, Save, ChevronDown, ChevronUp, Filter, AlertTriangle, Copy, CopyPlus, Download, Upload, Sparkles, Pin, PinOff, Clock3, Wand2, RefreshCw } from "lucide-react";
 import { CommonAccount, CommonAccountFormData } from "@/types";
 import { Input, Textarea, DataCard, Button, SectionHeader, FormCard, FormActions } from "@/components/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1504,11 +1504,11 @@ export default function CommonAccountManagement() {
 
         {recentSearches.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-semibold text-slate-500 dark:text-slate-400">最近搜尋</span>
+            <span className="font-semibold text-muted-foreground">最近搜尋</span>
             {recentSearches.map((item) => (
               <span
                 key={item}
-                className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
+                className="inline-flex items-center overflow-hidden rounded-full border border-[var(--line-soft)] bg-[var(--panel-soft)] text-foreground transition-colors hover:border-accent hover:bg-accent/10"
               >
                 <button
                   type="button"
@@ -1527,7 +1527,7 @@ export default function CommonAccountManagement() {
                     event.stopPropagation();
                     removeRecentSearch(item);
                   }}
-                  className="border-l border-slate-200 px-1.5 py-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:border-slate-700 dark:hover:bg-red-950/30"
+                  className="border-l border-[var(--line-soft)] px-1.5 py-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -1536,13 +1536,13 @@ export default function CommonAccountManagement() {
             <button
               type="button"
               onClick={clearRecentSearches}
-              className="rounded-full px-2 py-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800"
+              className="rounded-full px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
             >
               清除
             </button>
           </div>
         ) : (
-          <div className="text-xs text-slate-400 dark:text-slate-500">最近搜尋會在這裡顯示。</div>
+          <div className="text-xs text-muted-foreground">最近搜尋會在這裡顯示。</div>
         )}
 
         {allSiteNames.length > 0 && (

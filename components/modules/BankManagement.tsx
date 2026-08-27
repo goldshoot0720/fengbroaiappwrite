@@ -758,8 +758,8 @@ export default function BankManagement() {
             subtitle={`所有資產 ${formatCurrency(allAssetTotal)}，銀行 ${formatCurrency(taiwanBankAssetTotal)}，電子票證 ${formatCurrency(electronicTicketAssetTotal)}`}
             showAccountLabel={true}
             action={
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <div className="surface-inset flex items-center gap-2 rounded-xl px-4 py-2 text-sm text-[var(--muted-foreground)]">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-success" />
                 <span>即時同步</span>
               </div>
             }
@@ -2057,4 +2057,3 @@ export default function BankManagement() {
     </div>
   );
 }
-
