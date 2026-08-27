@@ -70,16 +70,45 @@ import {
 import { getExportFilename, getProxiedMediaUrl } from "@/lib/utils";
 import { useImages } from "@/hooks";
 import dynamic from "next/dynamic";
-import ImageVoiceVideoTool from "@/components/modules/ImageVoiceVideoTool";
-import ImageFormatConvertTool from "@/components/modules/ImageFormatConvertTool";
-import YoutubeBilibiliConvertTool from "@/components/modules/YoutubeBilibiliConvertTool";
-import FengbroNewsTool from "@/components/modules/FengbroNewsTool";
-import ManualPriceTracker from "@/components/modules/ManualPriceTracker";
+
+const ToolFallback = () => (
+  <div
+    className="surface-inset flex min-h-56 items-center justify-center rounded-2xl p-8 text-sm text-[var(--muted-foreground)]"
+    role="status"
+    aria-live="polite"
+  >
+    工具載入中…
+  </div>
+);
+
+// Tool tabs are independent browser workloads. Keep each one in its own
+// chunk so opening one utility does not download the other converters and
+// crawlers at the same time.
+const ImageVoiceVideoTool = dynamic(
+  () => import("@/components/modules/ImageVoiceVideoTool"),
+  { ssr: false, loading: ToolFallback }
+);
+const ImageFormatConvertTool = dynamic(
+  () => import("@/components/modules/ImageFormatConvertTool"),
+  { ssr: false, loading: ToolFallback }
+);
+const YoutubeBilibiliConvertTool = dynamic(
+  () => import("@/components/modules/YoutubeBilibiliConvertTool"),
+  { ssr: false, loading: ToolFallback }
+);
+const FengbroNewsTool = dynamic(
+  () => import("@/components/modules/FengbroNewsTool"),
+  { ssr: false, loading: ToolFallback }
+);
+const ManualPriceTracker = dynamic(
+  () => import("@/components/modules/ManualPriceTracker"),
+  { ssr: false, loading: ToolFallback }
+);
 
 // Whisper / transformers is browser-only (onnx WASM). Never SSR this tree.
 const VideoMergeTool = dynamic(
   () => import("@/components/modules/VideoMergeTool"),
-  { ssr: false }
+  { ssr: false, loading: ToolFallback }
 );
 
 type ToolsTab =
