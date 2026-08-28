@@ -97,6 +97,7 @@ function SimilarServicesButton({
   isActive: boolean;
   onToggle: (term: string) => void;
 }) {
+  const tooltip = isActive ? "取消相似服務" : "相似服務";
   const label = isActive
     ? "取消相似服務並還原原本的搜尋與篩選狀態"
     : `查看包含「${match.term}」的相似服務`;
@@ -107,15 +108,14 @@ function SimilarServicesButton({
       size="sm"
       variant="outline"
       onClick={() => onToggle(match.term)}
-      className={`rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10 ${
+      className={`size-9 rounded-lg border-accent/50 p-0 text-[var(--accent-strong)] hover:bg-accent/10 ${
         isActive ? "bg-accent/10" : ""
       }`}
-      title={isActive ? label : `${label}（${match.count} 筆）`}
+      title={tooltip}
       aria-label={label}
       aria-pressed={isActive}
     >
       <Search className="h-3.5 w-3.5" />
-      {isActive ? "取消相似服務" : "相似服務"}
     </Button>
   );
 }
@@ -1765,10 +1765,26 @@ export default function SubscriptionManagement() {
             >
               +30天
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => handleInlineEdit(sub)} className="rounded-lg">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => handleInlineEdit(sub)}
+              className="rounded-lg"
+              title="編輯"
+              aria-label={`編輯訂閱 ${sub.name}`}
+            >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => handleCopy(sub)}
+              className="rounded-lg"
+              title="複製"
+              aria-label={`複製訂閱 ${sub.name}`}
+            >
               <Copy className="h-3.5 w-3.5" />
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(sub.$id)} className="rounded-lg text-red-600">
@@ -2038,7 +2054,15 @@ export default function SubscriptionManagement() {
                             {sub.nextdate ? ` / ${formatDate(sub.nextdate)}` : " / 未設定日期"}
                           </div>
                         </div>
-                        <Button type="button" size="sm" variant="outline" className="shrink-0 rounded-lg" onClick={() => handleInlineEdit(sub)}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 rounded-lg"
+                          onClick={() => handleInlineEdit(sub)}
+                          title="編輯"
+                          aria-label={`編輯訂閱 ${sub.name}`}
+                        >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -2541,7 +2565,15 @@ export default function SubscriptionManagement() {
                       <Pencil className="mr-1 h-3.5 w-3.5" />
                       編輯
                     </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => handleCopy(sub)} className="rounded-lg">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCopy(sub)}
+                      className="rounded-lg"
+                      title="複製"
+                      aria-label={`複製訂閱 ${sub.name}`}
+                    >
                       <Copy className="mr-1 h-3.5 w-3.5" />
                       複製
                     </Button>
