@@ -14,6 +14,7 @@ test("similar-service buttons expose an explicit cancel state", async () => {
   assert.match(source, /const tooltip = isActive \? "取消相似服務" : "相似服務"/);
   assert.match(source, /title=\{tooltip\}/);
   assert.match(source, /className=\{`size-9 rounded-lg/);
+  assert.match(source, /isActive \? <SearchX className="h-3\.5 w-3\.5" \/> : <Search className="h-3\.5 w-3\.5" \/>/);
   assert.doesNotMatch(source, /\{isActive \? "取消相似服務" : "相似服務"\}/);
   assert.match(source, /aria-pressed=\{isActive\}/);
   assert.match(source, /restoreSubscriptionSimilarityView\(activeSimilarityView\)/);

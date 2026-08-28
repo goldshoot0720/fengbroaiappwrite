@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, ArchiveRestore, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArchiveRestore, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, SearchX, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -115,7 +115,7 @@ function SimilarServicesButton({
       aria-label={label}
       aria-pressed={isActive}
     >
-      <Search className="h-3.5 w-3.5" />
+      {isActive ? <SearchX className="h-3.5 w-3.5" /> : <Search className="h-3.5 w-3.5" />}
     </Button>
   );
 }
