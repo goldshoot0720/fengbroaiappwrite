@@ -36,7 +36,14 @@ import {
   subscriptionFormToCsvValues,
   toSubscriptionForm,
 } from "@/lib/subscriptionFields";
-import { buildSimilarSubscriptionMatches, type SubscriptionSimilarityMatch } from "@/lib/subscriptionSimilarity";
+import {
+  activateSubscriptionSimilarityView,
+  buildSimilarSubscriptionMatches,
+  restoreSubscriptionSimilarityView,
+  type ActiveSubscriptionSimilarityView,
+  type SubscriptionSimilarityMatch,
+  type SubscriptionSimilarityViewState,
+} from "@/lib/subscriptionSimilarity";
 import { subscriptionMatchesSearch, type SubscriptionSearchScope } from "@/lib/subscriptionSearch";
 import { Subscription, SubscriptionFormData } from "@/types";
 
@@ -83,25 +90,32 @@ function SubscriptionPriceDisplay({
 
 function SimilarServicesButton({
   match,
-  onSelect,
+  isActive,
+  onToggle,
 }: {
   match: SubscriptionSimilarityMatch;
-  onSelect: (term: string) => void;
+  isActive: boolean;
+  onToggle: (term: string) => void;
 }) {
-  const label = `查看包含「${match.term}」的相似服務`;
+  const label = isActive
+    ? "取消相似服務並還原原本的搜尋與篩選狀態"
+    : `查看包含「${match.term}」的相似服務`;
 
   return (
     <Button
       type="button"
       size="sm"
       variant="outline"
-      onClick={() => onSelect(match.term)}
-      className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
-      title={`${label}（${match.count} 筆）`}
+      onClick={() => onToggle(match.term)}
+      className={`rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10 ${
+        isActive ? "bg-accent/10" : ""
+      }`}
+      title={isActive ? label : `${label}（${match.count} 筆）`}
       aria-label={label}
+      aria-pressed={isActive}
     >
       <Search className="h-3.5 w-3.5" />
-      相似服務
+      {isActive ? "取消相似服務" : "相似服務"}
     </Button>
   );
 }
@@ -495,6 +509,7 @@ export default function SubscriptionManagement() {
   const [renewalFilter, setRenewalFilter] = useState<"all" | "renewing" | "stopped">("all");
   const [dueFilter, setDueFilter] = useState<"all" | "expired" | "7days" | "30days" | "nodate">("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [activeSimilarityView, setActiveSimilarityView] = useState<ActiveSubscriptionSimilarityView | null>(null);
   const NO_MONTH_FILTER = "no-month";
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
   const [inlineEditForm, setInlineEditForm] = useState<SubscriptionFormData>(INITIAL_FORM);
@@ -545,11 +560,13 @@ export default function SubscriptionManagement() {
   const bulkDeleteInputRef = useRef<HTMLInputElement>(null);
 
   const handleSearchChange = useCallback((value: string) => {
+    setActiveSimilarityView(null);
     setSearchScope("all");
     setSearchQuery(value);
   }, []);
 
   const clearSearchQuery = useCallback(() => {
+    setActiveSimilarityView(null);
     setSearchScope("all");
     setSearchQuery("");
   }, []);
@@ -758,14 +775,48 @@ export default function SubscriptionManagement() {
     handleSearchChange(topDuplicate?.[0]?.name || "");
   };
 
-  const handleFindSimilarServices = (term: string) => {
-    setDueFilter("all");
-    setRenewalFilter("all");
-    setMonthFilter("all");
-    setSelectedIds(new Set());
-    setSearchScope("service-note");
-    setSearchQuery(term);
-  };
+  const applySimilarityViewState = useCallback((state: SubscriptionSimilarityViewState) => {
+    setSearchQuery(state.searchQuery);
+    setSearchScope(state.searchScope);
+    setRenewalFilter(state.renewalFilter);
+    setDueFilter(state.dueFilter);
+    setMonthFilter(state.monthFilter);
+    setSelectedIds(new Set(state.selectedIds));
+  }, []);
+
+  const handleToggleSimilarServices = useCallback((sourceSubscriptionId: string, term: string) => {
+    if (activeSimilarityView?.sourceSubscriptionId === sourceSubscriptionId) {
+      applySimilarityViewState(restoreSubscriptionSimilarityView(activeSimilarityView));
+      setActiveSimilarityView(null);
+      return;
+    }
+
+    const transition = activateSubscriptionSimilarityView(
+      {
+        searchQuery,
+        searchScope,
+        renewalFilter,
+        dueFilter,
+        monthFilter,
+        selectedIds: Array.from(selectedIds),
+      },
+      sourceSubscriptionId,
+      term,
+      activeSimilarityView,
+    );
+
+    applySimilarityViewState(transition.nextState);
+    setActiveSimilarityView(transition.activeView);
+  }, [
+    activeSimilarityView,
+    applySimilarityViewState,
+    dueFilter,
+    monthFilter,
+    renewalFilter,
+    searchQuery,
+    searchScope,
+    selectedIds,
+  ]);
 
   const findVoiceTarget = (text: string) => {
     if (filteredSubscriptions.length === 0) return null;
@@ -1639,7 +1690,13 @@ export default function SubscriptionManagement() {
                 ) : (
                   <div className="break-words font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
                 )}
-                {similarServices ? <SimilarServicesButton match={similarServices} onSelect={handleFindSimilarServices} /> : null}
+                {similarServices ? (
+                  <SimilarServicesButton
+                    match={similarServices}
+                    isActive={activeSimilarityView?.sourceSubscriptionId === sub.$id}
+                    onToggle={(term) => handleToggleSimilarServices(sub.$id, term)}
+                  />
+                ) : null}
               </div>
               {sub.note ? (
                 <div className="mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
@@ -2401,7 +2458,13 @@ export default function SubscriptionManagement() {
                         ) : (
                           <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
                         )}
-                        {similarServices ? <SimilarServicesButton match={similarServices} onSelect={handleFindSimilarServices} /> : null}
+                        {similarServices ? (
+                          <SimilarServicesButton
+                            match={similarServices}
+                            isActive={activeSimilarityView?.sourceSubscriptionId === sub.$id}
+                            onToggle={(term) => handleToggleSimilarServices(sub.$id, term)}
+                          />
+                        ) : null}
                       </div>
                       {sub.note ? (
                         <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">

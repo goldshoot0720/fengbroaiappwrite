@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  activateSubscriptionSimilarityView,
   buildSimilarSubscriptionMatches,
   findSimilarSubscriptions,
   getSubscriptionSimilarityTerm,
+  restoreSubscriptionSimilarityView,
   subscriptionContainsSimilarityTerm,
 } from "../../lib/subscriptionSimilarity.ts";
 import { subscriptionMatchesSearch } from "../../lib/subscriptionSearch.ts";
@@ -60,4 +62,67 @@ test("subscription search scopes similar-service results to name and note", () =
   assert.equal(subscriptionMatchesSearch(record, "SuperGrok"), true);
   assert.equal(subscriptionMatchesSearch(record, "SuperGrok", "service-note"), false);
   assert.equal(subscriptionMatchesSearch({ ...record, note: "SuperGrok 方案" }, "supergrok", "service-note"), true);
+});
+
+test("similarity view restores the exact filters, search, and selection it replaced", () => {
+  const originalState = {
+    searchQuery: "續訂",
+    searchScope: "all",
+    renewalFilter: "renewing",
+    dueFilter: "7days",
+    monthFilter: "2026-10",
+    selectedIds: ["subscription-a", "subscription-b"],
+  };
+
+  const transition = activateSubscriptionSimilarityView(
+    originalState,
+    "subscription-supergrok",
+    "SuperGrok",
+  );
+
+  assert.deepEqual(transition.nextState, {
+    searchQuery: "SuperGrok",
+    searchScope: "service-note",
+    renewalFilter: "all",
+    dueFilter: "all",
+    monthFilter: "all",
+    selectedIds: [],
+  });
+  assert.deepEqual(
+    restoreSubscriptionSimilarityView(transition.activeView),
+    originalState,
+  );
+  assert.notEqual(
+    transition.activeView.restoreState.selectedIds,
+    originalState.selectedIds,
+  );
+});
+
+test("switching similarity buttons keeps the state from before similarity mode", () => {
+  const originalState = {
+    searchQuery: "",
+    searchScope: "all",
+    renewalFilter: "stopped",
+    dueFilter: "nodate",
+    monthFilter: "no-month",
+    selectedIds: ["selected-before-similarity"],
+  };
+  const first = activateSubscriptionSimilarityView(
+    originalState,
+    "subscription-supergrok",
+    "SuperGrok",
+  );
+  const second = activateSubscriptionSimilarityView(
+    first.nextState,
+    "subscription-chatgpt",
+    "ChatGPT",
+    first.activeView,
+  );
+
+  assert.equal(second.activeView.sourceSubscriptionId, "subscription-chatgpt");
+  assert.equal(second.nextState.searchQuery, "ChatGPT");
+  assert.deepEqual(
+    restoreSubscriptionSimilarityView(second.activeView),
+    originalState,
+  );
 });
