@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
-import { Clock, Search, Sparkles, Trash2, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { type ReactNode } from "react";
+import { Sparkles } from "lucide-react";
+import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { WorkspaceModuleIntro } from "@/components/ui/workspace-module-intro";
-import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "blue" | "amber" | "green" | "red";
@@ -93,68 +92,6 @@ export function FriendlyAiCrudShell({
   showRecentSearches = true,
 }: FriendlyAiCrudShellProps) {
   const storageKey = recentSearchKey || title;
-  const { items: recentSearches, addSearch, removeSearch, clearAll } =
-    useRecentSearches(storageKey, legacyRecentSearchKeys);
-
-  const [isRecentOpen, setIsRecentOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Close dropdown on outside click
-  const handleBlur = useCallback(
-    (e: React.FocusEvent) => {
-      // If the new focus target is still within the wrapper, keep open
-      if (
-        wrapperRef.current &&
-        e.relatedTarget instanceof Node &&
-        wrapperRef.current.contains(e.relatedTarget)
-      ) {
-        return;
-      }
-      setIsRecentOpen(false);
-    },
-    [],
-  );
-
-  /** Submit the current search query – saves to recent searches. */
-  const handleSubmitSearch = useCallback(() => {
-    const trimmed = searchQuery.trim();
-    if (trimmed) {
-      addSearch(trimmed);
-    }
-    setIsRecentOpen(false);
-  }, [addSearch, searchQuery]);
-
-  const handleClearSearch = useCallback(() => {
-    if (onClearSearch) {
-      onClearSearch();
-    } else {
-      onSearchChange("");
-    }
-    setIsRecentOpen(false);
-    inputRef.current?.focus();
-  }, [onClearSearch, onSearchChange]);
-
-  /** Pick a recent search item. */
-  const handlePickRecent = useCallback(
-    (term: string) => {
-      onSearchChange(term);
-      addSearch(term);
-      setIsRecentOpen(false);
-      inputRef.current?.focus();
-    },
-    [addSearch, onSearchChange],
-  );
-
-  /** Remove a single recent search entry (stop propagation so we don't also pick it). */
-  const handleRemoveRecent = useCallback(
-    (e: React.MouseEvent, term: string) => {
-      e.stopPropagation();
-      e.preventDefault();
-      removeSearch(term);
-    },
-    [removeSearch],
-  );
 
   return (
     <section data-slot="module-workbench" className="surface-panel overflow-hidden rounded-2xl p-3 sm:p-4 md:p-5 xl:p-6">
@@ -180,134 +117,15 @@ export function FriendlyAiCrudShell({
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(300px,0.92fr)] 2xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
           <div className="surface-inset rounded-2xl p-3 shadow-sm sm:p-4">
             {/* ── Search input with recent searches ── */}
-            <div ref={wrapperRef} className="relative" onBlur={handleBlur}>
-              <div className="relative flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                  <Input
-                    ref={inputRef}
-                    value={searchQuery}
-                    onChange={(event) => onSearchChange(event.target.value)}
-                    onFocus={() => setIsRecentOpen(true)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleSubmitSearch();
-                      }
-                    }}
-                    placeholder={searchPlaceholder}
-                    className="h-11 rounded-xl border-input bg-[var(--card)] pl-10 pr-10 text-[var(--foreground)]"
-                  />
-                  {searchQuery ? (
-                    <button
-                      type="button"
-                      onClick={handleClearSearch}
-                      className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                      aria-label="清除搜尋內容"
-                      title="清除搜尋內容"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                </div>
-
-                {/* Submit / search button */}
-                <button
-                  type="button"
-                  onClick={handleSubmitSearch}
-                  aria-label="提交搜尋"
-                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-transparent bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="hidden sm:inline">提交</span>
-                </button>
-              </div>
-
-              {/* ── Recent searches dropdown ── */}
-              {isRecentOpen && recentSearches.length > 0 && (
-                <div className="surface-floating absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-[420px] overflow-y-auto rounded-2xl">
-                  {/* Header */}
-                  <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--line-soft)] bg-[var(--panel-veil)] px-4 py-2.5 backdrop-blur">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-                      <Clock className="h-3.5 w-3.5" />
-                      最近搜尋
-                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
-                        {recentSearches.length}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearAll();
-                      }}
-                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      清除全部
-                    </button>
-                  </div>
-
-                  {/* Items */}
-                  <div className="py-1">
-                    {recentSearches.map((term) => (
-                      <div key={term} className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/70">
-                        <button
-                          type="button"
-                          onClick={() => handlePickRecent(term)}
-                          className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm text-foreground"
-                        >
-                          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          <span className="min-w-0 flex-1 truncate">{term}</span>
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`移除最近搜尋 ${term}`}
-                          onClick={(event) => handleRemoveRecent(event, term)}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            {showRecentSearches ? (
-              recentSearches.length > 0 ? (
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="font-semibold text-muted-foreground">最近搜尋</span>
-                  {recentSearches.map((term) => (
-                    <span
-                      key={term}
-                      className="inline-flex items-center overflow-hidden rounded-full border border-[var(--line-soft)] bg-[var(--panel-soft)] text-foreground transition-colors hover:border-accent hover:bg-accent/10"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handlePickRecent(term)}
-                        className="px-3 py-1"
-                      >
-                        {term}
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`移除最近搜尋 ${term}`}
-                        onClick={(event) => handleRemoveRecent(event, term)}
-                        className="border-l border-[var(--line-soft)] px-1.5 py-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={clearAll}
-                    className="rounded-full px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-                  >
-                    清除
-                  </button>
-                </div>
-              ) : null
-            ) : null}
+            <RecentSearchInput
+              value={searchQuery}
+              onChange={onSearchChange}
+              onClearSearch={onClearSearch}
+              placeholder={searchPlaceholder}
+              storageKey={storageKey}
+              legacyStorageKeys={legacyRecentSearchKeys}
+              showRecentSearches={showRecentSearches}
+            />
             {searchExtras ? <div className="mt-3">{searchExtras}</div> : null}
             {modeItems.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-2">

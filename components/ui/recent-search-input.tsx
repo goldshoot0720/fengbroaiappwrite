@@ -12,6 +12,10 @@ interface RecentSearchInputProps {
   /** A stable key that keeps search history separate for each module. */
   storageKey: string;
   legacyStorageKeys?: readonly string[];
+  /** Reset any module-specific search scope when the query is cleared. */
+  onClearSearch?: () => void;
+  /** Show the compact history strip below the input in addition to the menu. */
+  showRecentSearches?: boolean;
   className?: string;
 }
 
@@ -25,6 +29,8 @@ export function RecentSearchInput({
   placeholder,
   storageKey,
   legacyStorageKeys,
+  onClearSearch,
+  showRecentSearches = true,
   className,
 }: RecentSearchInputProps) {
   const { items, addSearch, removeSearch, clearAll } = useRecentSearches(storageKey, legacyStorageKeys);
@@ -39,10 +45,11 @@ export function RecentSearchInput({
   }, [addSearch, value]);
 
   const clear = useCallback(() => {
-    onChange("");
+    if (onClearSearch) onClearSearch();
+    else onChange("");
     setIsOpen(false);
     inputRef.current?.focus();
-  }, [onChange]);
+  }, [onChange, onClearSearch]);
 
   const pick = useCallback((term: string) => {
     onChange(term);
@@ -68,7 +75,10 @@ export function RecentSearchInput({
             onChange={(event) => onChange(event.target.value)}
             onFocus={() => setIsOpen(true)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") submit();
+              if (event.key === "Enter") {
+                event.preventDefault();
+                submit();
+              }
               if (event.key === "Escape") setIsOpen(false);
             }}
             placeholder={placeholder}
@@ -105,7 +115,12 @@ export function RecentSearchInput({
               最近搜尋
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">{items.length}</span>
             </div>
-            <button type="button" onClick={clearAll} className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
+            <button
+              type="button"
+              onClick={clearAll}
+              aria-label="清除全部最近搜尋"
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
               <Trash2 className="h-3 w-3" />
               清除全部
             </button>
@@ -123,6 +138,46 @@ export function RecentSearchInput({
               </div>
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {showRecentSearches && items.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-semibold text-muted-foreground">最近搜尋</span>
+          {items.map((term) => (
+            <span
+              key={term}
+              className="inline-flex items-center overflow-hidden rounded-full border border-[var(--line-soft)] bg-[var(--panel-soft)] text-foreground transition-colors hover:border-accent hover:bg-accent/10"
+            >
+              <button
+                type="button"
+                onClick={() => pick(term)}
+                className="max-w-[min(18rem,70vw)] truncate px-3 py-1 text-left"
+                title={`搜尋「${term}」`}
+              >
+                {term}
+              </button>
+              <button
+                type="button"
+                aria-label={`移除最近搜尋 ${term}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  removeSearch(term);
+                }}
+                className="border-l border-[var(--line-soft)] px-1.5 py-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={clearAll}
+            className="rounded-full px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+          >
+            清除
+          </button>
         </div>
       ) : null}
     </div>

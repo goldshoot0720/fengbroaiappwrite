@@ -12,7 +12,6 @@ import {
   SelectTrigger
 } from "@/components/ui/select";
 import { useCrud, fetchApi } from "@/hooks/useApi";
-import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
@@ -189,22 +188,8 @@ export default function CommonAccountManagement() {
   const [siteFilter, setSiteFilter] = useState<string | null>(null);
   // Name search state
   const [searchQuery, setSearchQuery] = useState("");
-  const {
-    items: recentSearches,
-    addSearch: addRecentSearch,
-    removeSearch: removeRecentSearch,
-    clearAll: clearRecentSearches,
-  } = useRecentSearches("common-account-management");
   // Sort order state
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
-  // Debounce: save non-empty search terms as recent searches (same as 鋒兄訂閱)
-  useEffect(() => {
-    const query = searchQuery.trim();
-    if (!query) return;
-    const timer = window.setTimeout(() => addRecentSearch(query), 800);
-    return () => window.clearTimeout(timer);
-  }, [addRecentSearch, searchQuery]);
   // Error state for duplicate name
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   // Copy success message state
@@ -1501,49 +1486,6 @@ export default function CommonAccountManagement() {
             </Button>
           )}
         </div>
-
-        {recentSearches.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-semibold text-muted-foreground">最近搜尋</span>
-            {recentSearches.map((item) => (
-              <span
-                key={item}
-                className="inline-flex items-center overflow-hidden rounded-full border border-[var(--line-soft)] bg-[var(--panel-soft)] text-foreground transition-colors hover:border-accent hover:bg-accent/10"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery(item);
-                    addRecentSearch(item);
-                  }}
-                  className="px-3 py-1"
-                >
-                  {item}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`移除最近搜尋 ${item}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    removeRecentSearch(item);
-                  }}
-                  className="border-l border-[var(--line-soft)] px-1.5 py-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={clearRecentSearches}
-              className="rounded-full px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-            >
-              清除
-            </button>
-          </div>
-        ) : (
-          <div className="text-xs text-muted-foreground">最近搜尋會在這裡顯示。</div>
-        )}
 
         {allSiteNames.length > 0 && (
           <div className="flex flex-wrap gap-2 items-center overflow-x-auto pb-1 scrollbar-hide sm:flex-wrap">

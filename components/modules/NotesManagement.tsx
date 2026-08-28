@@ -13,7 +13,6 @@ import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatCard } from "@/components/ui/stat-card";
 import { useArticles } from "@/hooks/useArticles";
 import { fetchApi } from "@/hooks/useApi";
-import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { ArticleFormData, Article } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
@@ -29,7 +28,7 @@ import {
   resolveMultipartFileBlob,
   uploadFileInParts,
 } from "@/lib/fileMultipart";
-import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, ArchiveRestore, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List, X } from "lucide-react";
+import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, ArchiveRestore, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List } from "lucide-react";
 import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -272,24 +271,10 @@ export default function NotesManagement() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const {
-    items: recentSearches,
-    addSearch: addRecentSearch,
-    removeSearch: removeRecentSearch,
-    clearAll: clearRecentSearches,
-  } = useRecentSearches("notes-management");
   const [noteFilterMode, setNoteFilterMode] = useState<NoteFilterMode>("all");
   const [noteViewMode, setNoteViewMode] = useState<NoteViewMode>("card");
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [currentTime] = useState(() => Date.now());
-
-  // Debounce: save non-empty search terms as recent searches (same as 鋒兄訂閱)
-  useEffect(() => {
-    const query = searchQuery.trim();
-    if (!query) return;
-    const timer = window.setTimeout(() => addRecentSearch(query), 800);
-    return () => window.clearTimeout(timer);
-  }, [addRecentSearch, searchQuery]);
 
   // ZIP/CSV 匯入/匯出功能
   const [importPreview, setImportPreview] = useState<{ data: ArticleFormData[], zipFile?: JSZipType | null, errors: string[] } | null>(null);
@@ -2083,48 +2068,6 @@ export default function NotesManagement() {
               </Button>
             </div>
           </div>
-          {recentSearches.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-muted-foreground">最近搜尋</span>
-              {recentSearches.map((item) => (
-                <span
-                  key={item}
-                  className="inline-flex items-center overflow-hidden rounded-full border border-[var(--line-soft)] bg-[var(--panel-soft)] text-foreground transition-colors hover:border-accent hover:bg-accent/10"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery(item);
-                      addRecentSearch(item);
-                    }}
-                    className="px-3 py-1"
-                  >
-                    {item}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`移除最近搜尋 ${item}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      removeRecentSearch(item);
-                    }}
-                    className="border-l border-[var(--line-soft)] px-1.5 py-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-              <button
-                type="button"
-                onClick={clearRecentSearches}
-                className="rounded-full px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-              >
-                清除
-              </button>
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground">最近搜尋會在這裡顯示。</div>
-          )}
           {filteredArticles.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer select-none">
