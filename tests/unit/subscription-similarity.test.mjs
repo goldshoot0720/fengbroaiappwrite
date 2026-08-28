@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildSimilarSubscriptionMatches,
   findSimilarSubscriptions,
   getSubscriptionSimilarityTerm,
   subscriptionContainsSimilarityTerm,
 } from "../../lib/subscriptionSimilarity.ts";
+import { subscriptionMatchesSearch } from "../../lib/subscriptionSearch.ts";
 
 const subscription = (id, name, note = "") => ({ $id: id, name, note });
 
@@ -32,4 +34,30 @@ test("findSimilarSubscriptions excludes the current record", () => {
     findSimilarSubscriptions(records, current).map((item) => item.$id),
     ["original", "note-match"],
   );
+});
+
+test("buildSimilarSubscriptionMatches keeps row summaries consistent", () => {
+  const records = [
+    subscription("copy", "SuperGrok (複製)"),
+    subscription("original", "SuperGrok"),
+    subscription("note-match", "其他服務", "SuperGrok Lite"),
+  ];
+
+  const matches = buildSimilarSubscriptionMatches(records);
+  assert.deepEqual(matches.get("copy"), { term: "SuperGrok", count: 2 });
+  assert.deepEqual(matches.get("original"), { term: "SuperGrok", count: 2 });
+  assert.deepEqual(matches.get("note-match"), undefined);
+});
+
+test("subscription search scopes similar-service results to name and note", () => {
+  const record = {
+    ...subscription("a", "其他服務", "沒有相關備註"),
+    site: "https://supergrok.example",
+    account: "supergrok-account",
+    currency: "TWD",
+  };
+
+  assert.equal(subscriptionMatchesSearch(record, "SuperGrok"), true);
+  assert.equal(subscriptionMatchesSearch(record, "SuperGrok", "service-note"), false);
+  assert.equal(subscriptionMatchesSearch({ ...record, note: "SuperGrok 方案" }, "supergrok", "service-note"), true);
 });

@@ -36,7 +36,8 @@ import {
   subscriptionFormToCsvValues,
   toSubscriptionForm,
 } from "@/lib/subscriptionFields";
-import { findSimilarSubscriptions, getSubscriptionSimilarityTerm } from "@/lib/subscriptionSimilarity";
+import { buildSimilarSubscriptionMatches, type SubscriptionSimilarityMatch } from "@/lib/subscriptionSimilarity";
+import { subscriptionMatchesSearch, type SubscriptionSearchScope } from "@/lib/subscriptionSearch";
 import { Subscription, SubscriptionFormData } from "@/types";
 
 const INITIAL_FORM: SubscriptionFormData = emptySubscriptionForm();
@@ -77,6 +78,31 @@ function SubscriptionPriceDisplay({
         ≈ NT$ {twdAmount.toLocaleString()}
       </div>
     </div>
+  );
+}
+
+function SimilarServicesButton({
+  match,
+  onSelect,
+}: {
+  match: SubscriptionSimilarityMatch;
+  onSelect: (term: string) => void;
+}) {
+  const label = `查看包含「${match.term}」的相似服務`;
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      onClick={() => onSelect(match.term)}
+      className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
+      title={`${label}（${match.count} 筆）`}
+      aria-label={label}
+    >
+      <Search className="h-3.5 w-3.5" />
+      相似服務
+    </Button>
   );
 }
 
@@ -465,6 +491,7 @@ export default function SubscriptionManagement() {
   } = useSubscriptions();
   const [initializingTable, setInitializingTable] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchScope, setSearchScope] = useState<SubscriptionSearchScope>("all");
   const [renewalFilter, setRenewalFilter] = useState<"all" | "renewing" | "stopped">("all");
   const [dueFilter, setDueFilter] = useState<"all" | "expired" | "7days" | "30days" | "nodate">("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
@@ -517,6 +544,16 @@ export default function SubscriptionManagement() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const bulkDeleteInputRef = useRef<HTMLInputElement>(null);
 
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchScope("all");
+    setSearchQuery(value);
+  }, []);
+
+  const clearSearchQuery = useCallback(() => {
+    setSearchScope("all");
+    setSearchQuery("");
+  }, []);
+
   const saveTrash = useCallback((items: TrashedSubscription[]) => {
     setTrashedSubscriptions(items);
     window.localStorage.setItem(SUBSCRIPTION_TRASH_KEY, JSON.stringify(items));
@@ -568,15 +605,16 @@ export default function SubscriptionManagement() {
     return [...new Set(values)].sort();
   }, [subscriptions]);
 
-  const expiredSubscriptions = useMemo(
-    () => scopedSubscriptions.filter((sub) => sub.nextdate && getSubscriptionExpiryInfo(sub).daysRemaining < 0),
-    [scopedSubscriptions]
-  );
+  const expiredSubscriptions = useMemo(() => scopedSubscriptions.filter((sub) => {
+    if (!sub.nextdate) return false;
+    return getSubscriptionExpiryInfo(sub).daysRemaining < 0;
+  }), [scopedSubscriptions]);
 
-  const dueSoonSubscriptions = useMemo(
-    () => scopedSubscriptions.filter((sub) => sub.nextdate && getSubscriptionExpiryInfo(sub).daysRemaining >= 0 && getSubscriptionExpiryInfo(sub).daysRemaining <= 7),
-    [scopedSubscriptions]
-  );
+  const dueSoonSubscriptions = useMemo(() => scopedSubscriptions.filter((sub) => {
+    if (!sub.nextdate) return false;
+    const { daysRemaining } = getSubscriptionExpiryInfo(sub);
+    return daysRemaining >= 0 && daysRemaining <= 7;
+  }), [scopedSubscriptions]);
 
   const noDateSubscriptions = useMemo(
     () => scopedSubscriptions.filter((sub) => !sub.nextdate),
@@ -615,19 +653,7 @@ export default function SubscriptionManagement() {
   }, [scopedSubscriptions]);
 
   const similarServiceMatches = useMemo(() => {
-    const matches = new Map<string, { term: string; count: number }>();
-
-    scopedSubscriptions.forEach((subscription) => {
-      const similar = findSimilarSubscriptions(scopedSubscriptions, subscription);
-      if (similar.length === 0) return;
-
-      matches.set(subscription.$id, {
-        term: getSubscriptionSimilarityTerm(subscription.name),
-        count: similar.length,
-      });
-    });
-
-    return matches;
+    return buildSimilarSubscriptionMatches(scopedSubscriptions);
   }, [scopedSubscriptions]);
 
   const filteredSubscriptions = useMemo(() => {
@@ -660,16 +686,8 @@ export default function SubscriptionManagement() {
     }
 
     if (!searchQuery.trim()) return result;
-    const query = searchQuery.toLowerCase();
-    return result.filter((sub) =>
-      sub.$id?.toLowerCase().includes(query) ||
-      sub.name?.toLowerCase().includes(query) ||
-      sub.site?.toLowerCase().includes(query) ||
-      sub.account?.toLowerCase().includes(query) ||
-      sub.note?.toLowerCase().includes(query) ||
-      sub.currency?.toLowerCase().includes(query)
-    );
-  }, [scopedSubscriptions, renewalFilter, dueFilter, monthFilter, searchQuery]);
+    return result.filter((sub) => subscriptionMatchesSearch(sub, searchQuery, searchScope));
+  }, [scopedSubscriptions, renewalFilter, dueFilter, monthFilter, searchQuery, searchScope]);
 
   const isAllSelected = filteredSubscriptions.length > 0 && filteredSubscriptions.every((sub) => selectedIds.has(sub.$id));
 
@@ -707,7 +725,7 @@ export default function SubscriptionManagement() {
       setDueFilter("all");
       setRenewalFilter("all");
       setMonthFilter("all");
-      setSearchQuery("");
+      clearSearchQuery();
       return;
     }
 
@@ -716,28 +734,28 @@ export default function SubscriptionManagement() {
     if (type === "dueSoon") {
       setDueFilter("7days");
       setRenewalFilter("all");
-      setSearchQuery("");
+      clearSearchQuery();
       return;
     }
 
     if (type === "noDate") {
       setDueFilter("nodate");
       setRenewalFilter("all");
-      setSearchQuery("");
+      clearSearchQuery();
       return;
     }
 
     if (type === "stopped") {
       setDueFilter("all");
       setRenewalFilter("stopped");
-      setSearchQuery("");
+      clearSearchQuery();
       return;
     }
 
     const topDuplicate = duplicateGroups[0];
     setDueFilter("all");
     setRenewalFilter("all");
-    setSearchQuery(topDuplicate?.[0]?.name || "");
+    handleSearchChange(topDuplicate?.[0]?.name || "");
   };
 
   const handleFindSimilarServices = (term: string) => {
@@ -745,6 +763,7 @@ export default function SubscriptionManagement() {
     setRenewalFilter("all");
     setMonthFilter("all");
     setSelectedIds(new Set());
+    setSearchScope("service-note");
     setSearchQuery(term);
   };
 
@@ -992,7 +1011,7 @@ export default function SubscriptionManagement() {
       setDueFilter("expired");
       setRenewalFilter("all");
       setMonthFilter("all");
-      setSearchQuery("");
+      clearSearchQuery();
       setVoiceFeedback("已篩選已過期訂閱。");
       return;
     }
@@ -1000,7 +1019,7 @@ export default function SubscriptionManagement() {
       setDueFilter("30days");
       setRenewalFilter("all");
       setMonthFilter("all");
-      setSearchQuery("");
+      clearSearchQuery();
       setVoiceFeedback("已篩選 30 天內扣款。");
       return;
     }
@@ -1021,7 +1040,7 @@ export default function SubscriptionManagement() {
     }
     if (command.action === "search") {
       const query = extractVoiceSearchQuery(voiceTranscript);
-      setSearchQuery(query);
+      handleSearchChange(query);
       setVoiceFeedback(`已搜尋：${query}`);
       return;
     }
@@ -1620,20 +1639,7 @@ export default function SubscriptionManagement() {
                 ) : (
                   <div className="break-words font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
                 )}
-                {similarServices ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleFindSimilarServices(similarServices.term)}
-                    className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
-                    title={`查看包含「${similarServices.term}」的相似服務（${similarServices.count} 筆）`}
-                    aria-label={`查看包含「${similarServices.term}」的相似服務`}
-                  >
-                    <Search className="h-3.5 w-3.5" />
-                    相似服務
-                  </Button>
-                ) : null}
+                {similarServices ? <SimilarServicesButton match={similarServices} onSelect={handleFindSimilarServices} /> : null}
               </div>
               {sub.note ? (
                 <div className="mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">
@@ -1742,8 +1748,8 @@ export default function SubscriptionManagement() {
         description="以 subscription 表長期使用的欄位為準：服務名稱、網站、價格、下次扣款、備註、帳號、幣別與是否續訂。"
         searchPlaceholder="搜尋服務名稱、網站、帳號或備註..."
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onClearSearch={() => setSearchQuery("")}
+        onSearchChange={handleSearchChange}
+        onClearSearch={clearSearchQuery}
         recentSearchKey="subscription-management"
         legacyRecentSearchKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
         showRecentSearches
@@ -1920,7 +1926,7 @@ export default function SubscriptionManagement() {
             setRenewalFilter("all");
             setDueFilter("all");
             setMonthFilter("all");
-            setSearchQuery("");
+            clearSearchQuery();
           }}>
             清除篩選
           </Button>
@@ -2318,7 +2324,13 @@ export default function SubscriptionManagement() {
         <EmptyState
           icon={<Search className="h-10 w-10" />}
           title={subscriptions.length === 0 ? "尚無訂閱資料" : "無搜尋結果"}
-          description={subscriptions.length === 0 ? "從上方快速新增第一筆訂閱資料。" : `找不到符合「${searchQuery}」與目前篩選條件的訂閱。`}
+          description={
+            subscriptions.length === 0
+              ? "從上方快速新增第一筆訂閱資料。"
+              : searchScope === "service-note"
+                ? `找不到服務名稱或備註包含「${searchQuery}」的訂閱。`
+                : `找不到符合「${searchQuery}」與目前篩選條件的訂閱。`
+          }
         />
       ) : (
         <>
@@ -2389,20 +2401,7 @@ export default function SubscriptionManagement() {
                         ) : (
                           <div className="font-semibold text-gray-900 dark:text-gray-100">{sub.name}</div>
                         )}
-                        {similarServices ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleFindSimilarServices(similarServices.term)}
-                            className="rounded-lg border-accent/50 text-[var(--accent-strong)] hover:bg-accent/10"
-                            title={`查看包含「${similarServices.term}」的相似服務（${similarServices.count} 筆）`}
-                            aria-label={`查看包含「${similarServices.term}」的相似服務`}
-                          >
-                            <Search className="h-3.5 w-3.5" />
-                            相似服務
-                          </Button>
-                        ) : null}
+                        {similarServices ? <SimilarServicesButton match={similarServices} onSelect={handleFindSimilarServices} /> : null}
                       </div>
                       {sub.note ? (
                         <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">

@@ -2,6 +2,11 @@ import type { Subscription } from "@/types";
 
 type SubscriptionSimilarityRecord = Pick<Subscription, "$id" | "name" | "note">;
 
+export type SubscriptionSimilarityMatch = {
+  term: string;
+  count: number;
+};
+
 const COPY_SUFFIX_PATTERN = /\s*[（(]\s*(?:複製|copy)\s*[）)]\s*$/iu;
 
 function normalizeSimilarityText(value?: string | null) {
@@ -43,4 +48,23 @@ export function findSimilarSubscriptions(
       candidate.$id !== subscription.$id &&
       subscriptionContainsSimilarityTerm(candidate, term),
   );
+}
+
+/** Build the per-row match summary used by the subscription list. */
+export function buildSimilarSubscriptionMatches(
+  subscriptions: readonly SubscriptionSimilarityRecord[],
+) {
+  const matches = new Map<string, SubscriptionSimilarityMatch>();
+
+  subscriptions.forEach((subscription) => {
+    const similar = findSimilarSubscriptions(subscriptions, subscription);
+    if (similar.length === 0) return;
+
+    matches.set(subscription.$id, {
+      term: getSubscriptionSimilarityTerm(subscription.name),
+      count: similar.length,
+    });
+  });
+
+  return matches;
 }
