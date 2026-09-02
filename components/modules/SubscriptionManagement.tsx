@@ -1912,11 +1912,11 @@ export default function SubscriptionManagement() {
           { key: "nodate", label: "未排扣款", count: noDateSubscriptions.length },
         ]}
         summaries={[
-          { label: "訂閱總數", value: stats.total, tone: "blue" },
-          { label: "續訂數量", value: renewingSubscriptions.length, detail: "目前標記為續訂中", tone: "blue" },
           { label: "本月月費", value: formatCurrency(stats.totalMonthlyFee), tone: "green" },
           { label: "下月月費", value: formatCurrency(stats.nextMonthFee), tone: "neutral" },
           { label: "不續訂", value: stoppedSubscriptions.length, detail: "需留意是否還要保留資料", tone: stoppedSubscriptions.length > 0 ? "amber" : "neutral" },
+          { label: "訂閱總數", value: stats.total, tone: "blue" },
+          { label: "續訂數量", value: renewingSubscriptions.length, detail: "目前標記為續訂中", tone: "blue" },
         ]}
         suggestions={[
           expiredSubscriptions.length > 0
