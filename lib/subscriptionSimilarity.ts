@@ -83,6 +83,40 @@ export function getSubscriptionSimilarityTerm(name?: string | null) {
   return term || (name || "").trim();
 }
 
+/**
+ * Return the family terms for a service name: every prefix of its
+ * `/`-delimited path. For 「身心科/門診」 this is `["身心科", "身心科/門診"]`,
+ * so sibling services like 「身心科/處方籤」 that share only a leading path
+ * segment still count as related.
+ */
+function getSubscriptionFamilyTerms(name?: string | null) {
+  const term = getSubscriptionSimilarityTerm(name);
+  if (!term) return [];
+
+  const segments = term
+    .split(/[\/／]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const terms: string[] = [];
+  for (let i = 1; i <= segments.length; i += 1) {
+    terms.push(segments.slice(0, i).join("/"));
+  }
+  return terms;
+}
+
+/** True when two service names share a leading `/`-delimited path segment. */
+function sharesFamilyTerm(
+  left: Pick<Subscription, "name">,
+  right: Pick<Subscription, "name">,
+) {
+  const leftTerms = getSubscriptionFamilyTerms(left.name);
+  if (leftTerms.length === 0) return false;
+
+  const rightTerms = new Set(getSubscriptionFamilyTerms(right.name));
+  return leftTerms.some((term) => rightTerms.has(term));
+}
+
 /** Match only the service name and note fields for the related-services action. */
 export function subscriptionContainsSimilarityTerm(
   subscription: Pick<Subscription, "name" | "note">,
@@ -112,6 +146,7 @@ export function findSimilarSubscriptions(
 
   return subscriptions.filter((candidate) => {
     if (candidate.$id === subscription.$id) return false;
+    if (sharesFamilyTerm(subscription, candidate)) return true;
     if (subscriptionContainsSimilarityTerm(candidate, term)) return true;
     const candidateTerm = getSubscriptionSimilarityTerm(candidate.name);
     return (
@@ -132,15 +167,23 @@ function pickSubscriptionSimilarityTerm(
   similar: readonly SubscriptionSimilarityRecord[],
 ) {
   const ownTerm = getSubscriptionSimilarityTerm(subscription.name);
+  const rows = [subscription, ...similar];
+
+  // Candidate keywords come from every full name and every shared path
+  // prefix across the group, so a sibling group such as
+  // 「身心科/處方籤」 + 「身心科/門診」 resolves to the common prefix 「身心科」.
   const candidates = [
     ...new Set(
-      [ownTerm, ...similar.map((item) => getSubscriptionSimilarityTerm(item.name))]
+      rows
+        .flatMap((row) => [
+          ...getSubscriptionFamilyTerms(row.name),
+          getSubscriptionSimilarityTerm(row.name),
+        ])
         .filter((term) => term && subscriptionContainsSimilarityTerm(subscription, term)),
     ),
   ];
   if (candidates.length === 0) return ownTerm;
 
-  const rows = [subscription, ...similar];
   const coverage = (term: string) =>
     rows.filter((row) => subscriptionContainsSimilarityTerm(row, term)).length;
 

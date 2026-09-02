@@ -64,6 +64,19 @@ test("similarity is symmetric so shorter and longer names share one group", () =
   assert.deepEqual(matches.get("psych-outpatient"), { term: "身心科", count: 2 });
 });
 
+test("similarity links sibling paths that share a prefix but are not substrings", () => {
+  const records = [
+    subscription("psych-prescription", "身心科/處方籤"),
+    subscription("psych-outpatient", "身心科/門診"),
+    subscription("psych-unrelated", "牙醫"),
+  ];
+
+  const matches = buildSimilarSubscriptionMatches(records);
+  assert.deepEqual(matches.get("psych-prescription"), { term: "身心科", count: 1 });
+  assert.deepEqual(matches.get("psych-outpatient"), { term: "身心科", count: 1 });
+  assert.equal(matches.has("psych-unrelated"), false);
+});
+
 test("subscription search scopes similar-service results to name and note", () => {
   const record = {
     ...subscription("a", "其他服務", "沒有相關備註"),
