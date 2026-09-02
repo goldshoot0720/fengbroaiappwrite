@@ -2010,17 +2010,43 @@ export default function SubscriptionManagement() {
       />
 
       <DataCard className="p-3">
-        <RecentSearchInput
-          value={searchQuery}
-          onChange={handleSearchChange}
-          onClearSearch={clearSearchQuery}
-          placeholder="搜尋服務名稱、網站、帳號或備註..."
-          storageKey="subscription-management"
-          legacyStorageKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
-          showRecentSearches
-          className="mb-3"
-        />
-        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-800">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <RecentSearchInput
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onClearSearch={clearSearchQuery}
+            placeholder="搜尋服務名稱、網站、帳號或備註..."
+            storageKey="subscription-management"
+            legacyStorageKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
+            showRecentSearches
+            className="min-w-0 flex-1"
+          />
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:w-auto lg:shrink-0">
+            <Select value={renewalFilter} onValueChange={(value: "all" | "renewing" | "stopped") => setRenewalFilter(value)}>
+              <SelectTrigger className="w-full lg:w-40">
+                <SelectValue placeholder="續訂狀態" />
+              </SelectTrigger>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                <SelectItem value="all">全部續訂狀態</SelectItem>
+                <SelectItem value="renewing">續訂中</SelectItem>
+                <SelectItem value="stopped">不續訂</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <SelectTrigger className="w-full lg:w-36">
+                <SelectValue placeholder="扣款月份" />
+              </SelectTrigger>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                <SelectItem value="all">全部月份</SelectItem>
+                <SelectItem value={NO_MONTH_FILTER}>無月份 ({noDateSubscriptions.length})</SelectItem>
+                {monthOptions.map((month) => (
+                  <SelectItem key={month.value} value={month.value}>{month.value} ({month.count})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-200 pt-3 dark:border-gray-800">
           <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("all")}>
             全部
           </Button>
@@ -2041,30 +2067,6 @@ export default function SubscriptionManagement() {
               重複提醒 ({duplicateGroups.length})
             </Button>
           )}
-        </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
-          <Select value={renewalFilter} onValueChange={(value: "all" | "renewing" | "stopped") => setRenewalFilter(value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="續訂狀態" />
-            </SelectTrigger>
-            <SelectContent className="w-[var(--radix-select-trigger-width)]">
-              <SelectItem value="all">全部續訂狀態</SelectItem>
-              <SelectItem value="renewing">續訂中</SelectItem>
-              <SelectItem value="stopped">不續訂</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={monthFilter} onValueChange={setMonthFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="扣款月份" />
-            </SelectTrigger>
-            <SelectContent className="w-[var(--radix-select-trigger-width)]">
-              <SelectItem value="all">全部月份</SelectItem>
-              <SelectItem value={NO_MONTH_FILTER}>無月份 ({noDateSubscriptions.length})</SelectItem>
-              {monthOptions.map((month) => (
-                <SelectItem key={month.value} value={month.value}>{month.value} ({month.count})</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       </DataCard>
 
