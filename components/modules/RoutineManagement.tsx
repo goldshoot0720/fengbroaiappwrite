@@ -925,8 +925,10 @@ export default function RoutineManagement() {
             onSubmit={handleVoiceText}
             onConfirm={() => {
               if (pendingVoiceCommand) void executeRoutineVoiceCommand(pendingVoiceCommand);
-        }}
-        onCancelPending={() => setPendingVoiceCommand(null)}
+            }}
+            onCancelPending={() => setPendingVoiceCommand(null)}
+          />
+        }
       />
 
       {error && (
