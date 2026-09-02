@@ -993,6 +993,7 @@ export default function CommonDocumentManagement() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         recentSearchKey="document-management"
+        density="compact"
         workspaceCountText={`共 ${commondocument.length} 份文件`}
         workspaceDescription="整理文件名稱、分類、封面與可預覽狀態，優先補齊封面、分類與快取可用性。"
         activeMode={workbenchMode}

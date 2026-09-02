@@ -768,6 +768,7 @@ export default function BankManagement() {
         searchPlaceholder="搜尋名稱、網站、地址、卡號、帳號..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        density="compact"
         workspaceCountText={`所有資產 ${formatCurrency(allAssetTotal)}，銀行 ${formatCurrency(taiwanBankAssetTotal)}，電子票證 ${formatCurrency(electronicTicketAssetTotal)}`}
         workspaceDescription="台灣的銀行才是銀行喔！中華郵政也屬於台灣銀行；銀行以外的先歸類為電子票證喔！資產分成所有資產、銀行總資產、電子票證總資產。"
         activeMode={workbenchMode}
@@ -874,32 +875,33 @@ export default function BankManagement() {
             </Button>
           </>
         }
-      />
-
-      <VoiceCommandBar
-        title="銀行語音指令"
-        description="說完會自動結束 · 安全操作直接執行 · 收入／刪除需確認"
-        helpText={BANK_VOICE_HELP}
-        accent="sky"
-        transcript={voiceTranscript}
-        onTranscriptChange={(value) => {
-          setVoiceTranscript(value);
-          setPendingVoiceCommand(null);
-        }}
-        feedback={voiceFeedback}
-        isListening={isVoiceListening}
-        isSupported={isVoiceSupported}
-        canStop={canStopVoiceRecording}
-        elapsedMs={voiceElapsedMs}
-        placeholder="例：搜尋 中信 / 有餘額 / 新增收入 500 / 匯出 CSV"
-        samples={["有餘額", "待補資訊", "重新整理", "匯出 CSV"]}
-        pending={pendingVoiceCommand}
-        onToggleListen={toggleVoiceInput}
-        onSubmit={handleVoiceText}
-        onConfirm={() => {
-          if (pendingVoiceCommand) void executeBankVoiceCommand(pendingVoiceCommand);
-        }}
-        onCancelPending={() => setPendingVoiceCommand(null)}
+        voicePanel={
+          <VoiceCommandBar
+            title="銀行語音指令"
+            description="說完會自動結束 · 安全操作直接執行 · 收入／刪除需確認"
+            helpText={BANK_VOICE_HELP}
+            accent="sky"
+            transcript={voiceTranscript}
+            onTranscriptChange={(value) => {
+              setVoiceTranscript(value);
+              setPendingVoiceCommand(null);
+            }}
+            feedback={voiceFeedback}
+            isListening={isVoiceListening}
+            isSupported={isVoiceSupported}
+            canStop={canStopVoiceRecording}
+            elapsedMs={voiceElapsedMs}
+            placeholder="例：搜尋 中信 / 有餘額 / 新增收入 500 / 匯出 CSV"
+            samples={["有餘額", "待補資訊", "重新整理", "匯出 CSV"]}
+            pending={pendingVoiceCommand}
+            onToggleListen={toggleVoiceInput}
+            onSubmit={handleVoiceText}
+            onConfirm={() => {
+              if (pendingVoiceCommand) void executeBankVoiceCommand(pendingVoiceCommand);
+            }}
+            onCancelPending={() => setPendingVoiceCommand(null)}
+          />
+        }
       />
 
       {exporting && (

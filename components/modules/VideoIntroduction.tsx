@@ -1570,6 +1570,7 @@ export default function VideoIntroduction() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         recentSearchKey="video-management"
+        density="compact"
         workspaceCountText={`共 ${videos.length} 部影片`}
         workspaceDescription="整理影片名稱、來源、封面與檔案狀態，優先處理缺少封面、缺少影片檔與多段影片資料。"
         activeMode={workbenchMode}

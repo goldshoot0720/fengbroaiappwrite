@@ -1294,6 +1294,7 @@ export default function ImageGallery() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         recentSearchKey="image-management"
+        density="compact"
         workspaceCountText={`共 ${images.length} 張圖片`}
         workspaceDescription="集中整理圖片名稱、分類、標籤與備註，優先處理重複圖片、缺少分類與標註不足的內容。"
         activeMode={workbenchMode}

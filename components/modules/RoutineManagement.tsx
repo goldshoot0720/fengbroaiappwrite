@@ -823,6 +823,7 @@ export default function RoutineManagement() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         recentSearchKey="routine-management"
+        density="compact"
         workspaceCountText={`共 ${routines.length} 項例行`}
         workspaceDescription="整理例行事項、日期、連結與照片，優先補齊日期節奏、參考連結與追蹤素材。"
         activeMode={workbenchMode}
@@ -901,30 +902,29 @@ export default function RoutineManagement() {
             </Button>
           </>
         }
-      />
-
-      <VoiceCommandBar
-        title="例行語音指令"
-        description="說完會自動結束 · 安全操作直接執行 · 新增／刪除需確認"
-        helpText={ROUTINE_VOICE_HELP}
-        accent="emerald"
-        transcript={voiceTranscript}
-        onTranscriptChange={(value) => {
-          setVoiceTranscript(value);
-          setPendingVoiceCommand(null);
-        }}
-        feedback={voiceFeedback}
-        isListening={isVoiceListening}
-        isSupported={isVoiceSupported}
-        canStop={canStopVoiceRecording}
-        elapsedMs={voiceElapsedMs}
-        placeholder="例：搜尋 倒垃圾 / 有日期 / 列表 / 匯出 CSV"
-        samples={["有日期", "有連結", "列表", "重新整理"]}
-        pending={pendingVoiceCommand}
-        onToggleListen={toggleVoiceInput}
-        onSubmit={handleVoiceText}
-        onConfirm={() => {
-          if (pendingVoiceCommand) void executeRoutineVoiceCommand(pendingVoiceCommand);
+        voicePanel={
+          <VoiceCommandBar
+            title="例行語音指令"
+            description="說完會自動結束 · 安全操作直接執行 · 新增／刪除需確認"
+            helpText={ROUTINE_VOICE_HELP}
+            accent="emerald"
+            transcript={voiceTranscript}
+            onTranscriptChange={(value) => {
+              setVoiceTranscript(value);
+              setPendingVoiceCommand(null);
+            }}
+            feedback={voiceFeedback}
+            isListening={isVoiceListening}
+            isSupported={isVoiceSupported}
+            canStop={canStopVoiceRecording}
+            elapsedMs={voiceElapsedMs}
+            placeholder="例：搜尋 倒垃圾 / 有日期 / 列表 / 匯出 CSV"
+            samples={["有日期", "有連結", "列表", "重新整理"]}
+            pending={pendingVoiceCommand}
+            onToggleListen={toggleVoiceInput}
+            onSubmit={handleVoiceText}
+            onConfirm={() => {
+              if (pendingVoiceCommand) void executeRoutineVoiceCommand(pendingVoiceCommand);
         }}
         onCancelPending={() => setPendingVoiceCommand(null)}
       />

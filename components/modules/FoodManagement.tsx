@@ -1505,6 +1505,7 @@ export default function FoodManagement() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         recentSearchKey="food-management"
+        density="compact"
         searchExtras={
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex min-w-[260px] flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950">
@@ -1670,32 +1671,33 @@ export default function FoodManagement() {
             </Button>
           </div>
         }
-      />
-
-      <VoiceCommandBar
-        title="語音 CRUD 管理"
-        description="說完會自動結束 · 安全操作直接執行 · 新增／刪除需確認"
-        helpText={FOOD_VOICE_HELP}
-        accent="emerald"
-        transcript={voiceTranscript}
-        onTranscriptChange={(value) => {
-          setVoiceTranscript(value);
-          setPendingVoiceCommand(null);
-        }}
-        feedback={voiceFeedback}
-        isListening={isVoiceListening}
-        isSupported={isVoiceSupported}
-        canStop={canStopVoiceRecording}
-        elapsedMs={voiceElapsedMs}
-        placeholder="例：新增牛奶 2 瓶 7 天後到期 / 搜尋 Costco / 把第一筆庫存加 3 / 刪除選取"
-        samples={["7 天內", "已過期", "無日期", "清除篩選"]}
-        pending={pendingVoiceCommand}
-        onToggleListen={toggleVoiceInput}
-        onSubmit={handleVoiceText}
-        onConfirm={() => {
-          if (pendingVoiceCommand) void executeVoiceCommand(pendingVoiceCommand);
-        }}
-        onCancelPending={() => setPendingVoiceCommand(null)}
+        voicePanel={
+          <VoiceCommandBar
+            title="語音 CRUD 管理"
+            description="說完會自動結束 · 安全操作直接執行 · 新增／刪除需確認"
+            helpText={FOOD_VOICE_HELP}
+            accent="emerald"
+            transcript={voiceTranscript}
+            onTranscriptChange={(value) => {
+              setVoiceTranscript(value);
+              setPendingVoiceCommand(null);
+            }}
+            feedback={voiceFeedback}
+            isListening={isVoiceListening}
+            isSupported={isVoiceSupported}
+            canStop={canStopVoiceRecording}
+            elapsedMs={voiceElapsedMs}
+            placeholder="例：新增牛奶 2 瓶 7 天後到期 / 搜尋 Costco / 把第一筆庫存加 3 / 刪除選取"
+            samples={["7 天內", "已過期", "無日期", "清除篩選"]}
+            pending={pendingVoiceCommand}
+            onToggleListen={toggleVoiceInput}
+            onSubmit={handleVoiceText}
+            onConfirm={() => {
+              if (pendingVoiceCommand) void executeVoiceCommand(pendingVoiceCommand);
+            }}
+            onCancelPending={() => setPendingVoiceCommand(null)}
+          />
+        }
       />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,1fr)]">

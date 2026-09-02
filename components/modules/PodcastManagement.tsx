@@ -683,6 +683,7 @@ export default function PodcastManagement() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         recentSearchKey="podcast-management"
+        density="compact"
         workspaceCountText={`共 ${podcast.length} 個播客`}
         workspaceDescription="集中整理播客名稱、媒體檔、封面與分類，優先處理缺少媒體、封面或分類的項目。"
         activeMode={workbenchMode}
