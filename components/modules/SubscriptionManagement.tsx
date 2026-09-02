@@ -51,6 +51,9 @@ const INITIAL_FORM: SubscriptionFormData = emptySubscriptionForm();
 
 const SUBSCRIPTION_TABLE_COL_SPAN = 5;
 
+/** 「加入銀行」下拉選單的銀行選項 */
+const BANK_OPTIONS = ["台新銀行", "中國信託", "玉山銀行", "台北富邦", "國泰世華"];
+
 /** 列表用價格：0 不顯示；非台幣第一列原幣、第二列換算台幣 */
 function SubscriptionPriceDisplay({
   price,
@@ -345,7 +348,7 @@ function SubscriptionFormCard({
   const toneClass = tone === "green"
     ? "border-green-200 bg-green-50/70 dark:border-green-800 dark:bg-green-900/10"
     : "border-blue-200 bg-blue-50/70 dark:border-blue-800 dark:bg-blue-900/10";
-  const [selectedBank, setSelectedBank] = useState("玉山銀行");
+  const [selectedBank, setSelectedBank] = useState(BANK_OPTIONS[0]);
 
   const handleAddBank = () => {
     const bankLine = `銀行: ${selectedBank}`;
@@ -506,7 +509,11 @@ function SubscriptionFormCard({
             <SelectValue placeholder="選擇銀行" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="玉山銀行">玉山銀行</SelectItem>
+            {BANK_OPTIONS.map((bank) => (
+              <SelectItem key={bank} value={bank}>
+                {bank}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
