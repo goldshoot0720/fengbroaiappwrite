@@ -14,7 +14,7 @@ import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useCrud, fetchApi } from "@/hooks/useApi";
 import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { getExportFilename } from "@/lib/utils";
+import { getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
 import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
@@ -824,8 +824,23 @@ export default function RoutineManagement() {
         onSearchChange={setSearchQuery}
         recentSearchKey="routine-management"
         density="compact"
-        workspaceCountText={`共 ${routines.length} 項例行`}
-        workspaceDescription="整理例行事項、日期、連結與照片，優先補齊日期節奏、參考連結與追蹤素材。"
+        intro={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="font-display text-xl font-semibold tracking-tight text-[var(--foreground)] sm:text-2xl">
+              鋒兄例行
+            </h1>
+            <span className="text-sm text-[var(--muted-foreground)]">
+              共 {routines.length} 項
+            </span>
+            <span className="text-xs font-medium uppercase tracking-[0.15em] text-[var(--accent-strong)]">
+              {getCurrentAccountLabel()}
+            </span>
+            <span className="surface-inset inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-[var(--muted-foreground)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              即時同步
+            </span>
+          </div>
+        }
         activeMode={workbenchMode}
         onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
         modeItems={[
@@ -905,7 +920,7 @@ export default function RoutineManagement() {
         voicePanel={
           <VoiceCommandBar
             title="例行語音指令"
-            description="說完會自動結束 · 安全操作直接執行 · 新增／刪除需確認"
+            description=""
             helpText={ROUTINE_VOICE_HELP}
             accent="emerald"
             transcript={voiceTranscript}

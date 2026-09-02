@@ -21,7 +21,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
 import { FoodFormData, Food } from "@/types";
 import { formatDate, formatDaysRemaining } from "@/lib/formatters";
-import { getExportFilename } from "@/lib/utils";
+import { getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
 
 const INITIAL_FORM: FoodFormData = { name: "", amount: 0, todate: "", photo: "", price: 0, shop: "", photohash: "" };
 const QUICK_ADD_PRESETS: Record<string, { label: string; amount?: number; days: number; shop?: string }> = {
@@ -1569,30 +1569,20 @@ export default function FoodManagement() {
           </div>
         }
         intro={
-          <div className="space-y-4">
-            <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
-              <div className="min-w-0 space-y-2">
-                <p className="text-micro text-[var(--muted-foreground)]">
-                  Workspace Section
-                </p>
-                <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
-                  鋒兄食品 <span className="text-base font-medium text-[var(--muted-foreground)]">（＋商品庫存）</span>
-                </h1>
-                <p className="text-base leading-7 text-[var(--muted-foreground)]">
-                  共 {foods.length} 項食品
-                </p>
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
-                  APPWRITE-.ENV
-                </p>
-              </div>
-              <div className="surface-inset inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-sm text-[var(--muted-foreground)] 2xl:self-auto">
-                <div className="h-2 w-2 rounded-full bg-success" />
-                <span>即時同步</span>
-              </div>
-            </div>
-            <p className="max-w-4xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
-              食品與商品庫存走同一套 CRUD：新增、編輯、複製會先進入表格內編輯列，確認後才寫入；刪除與批次刪除保留確認流程，避免誤刪。
-            </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="font-display text-xl font-semibold tracking-tight text-[var(--foreground)] sm:text-2xl">
+              鋒兄食品 <span className="text-base font-medium text-[var(--muted-foreground)]">（＋商品庫存）</span>
+            </h1>
+            <span className="text-sm text-[var(--muted-foreground)]">
+              共 {foods.length} 項
+            </span>
+            <span className="text-xs font-medium uppercase tracking-[0.15em] text-[var(--accent-strong)]">
+              {getCurrentAccountLabel()}
+            </span>
+            <span className="surface-inset inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-[var(--muted-foreground)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              即時同步
+            </span>
           </div>
         }
         activeMode={filterMode}
@@ -1674,7 +1664,7 @@ export default function FoodManagement() {
         voicePanel={
           <VoiceCommandBar
             title="語音 CRUD 管理"
-            description="說完會自動結束 · 安全操作直接執行 · 新增／刪除需確認"
+            description=""
             helpText={FOOD_VOICE_HELP}
             accent="emerald"
             transcript={voiceTranscript}

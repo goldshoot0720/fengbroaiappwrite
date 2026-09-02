@@ -39,11 +39,10 @@ import { formatCurrency } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { getExportFilename } from "@/lib/utils";
+import { getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
 import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
-import { SectionHeader } from "@/components/ui/section-header";
 import { isTaiwanBankAccount } from "@/lib/bankClassification";
 import { BANK_CSV_HEADERS, parseBankCsv, toBankCsvRow } from "@/lib/bankCsv";
 import { INITIAL_BANK_FORM, bankToFormData } from "@/lib/bankForm";
@@ -753,17 +752,21 @@ export default function BankManagement() {
         title="鋒兄銀行"
         description="資產總覽、帳戶工作台與異常整理入口都集中在同一頁，先找得到，再快速更新餘額與資訊。"
         intro={
-          <SectionHeader
-            title="鋒兄銀行（＋電子票證）"
-            subtitle={`所有資產 ${formatCurrency(allAssetTotal)}，銀行 ${formatCurrency(taiwanBankAssetTotal)}，電子票證 ${formatCurrency(electronicTicketAssetTotal)}`}
-            showAccountLabel={true}
-            action={
-              <div className="surface-inset flex items-center gap-2 rounded-xl px-4 py-2 text-sm text-[var(--muted-foreground)]">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-success" />
-                <span>即時同步</span>
-              </div>
-            }
-          />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="font-display text-xl font-semibold tracking-tight text-[var(--foreground)] sm:text-2xl">
+              鋒兄銀行（＋電子票證）
+            </h1>
+            <span className="text-sm text-[var(--muted-foreground)]">
+              所有資產 {formatCurrency(allAssetTotal)} · 銀行 {formatCurrency(taiwanBankAssetTotal)} · 電子票證 {formatCurrency(electronicTicketAssetTotal)}
+            </span>
+            <span className="text-xs font-medium uppercase tracking-[0.15em] text-[var(--accent-strong)]">
+              {getCurrentAccountLabel()}
+            </span>
+            <span className="surface-inset inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-[var(--muted-foreground)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              即時同步
+            </span>
+          </div>
         }
         searchPlaceholder="搜尋名稱、網站、地址、卡號、帳號..."
         searchQuery={searchQuery}
@@ -878,7 +881,7 @@ export default function BankManagement() {
         voicePanel={
           <VoiceCommandBar
             title="銀行語音指令"
-            description="說完會自動結束 · 安全操作直接執行 · 收入／刪除需確認"
+            description=""
             helpText={BANK_VOICE_HELP}
             accent="sky"
             transcript={voiceTranscript}
