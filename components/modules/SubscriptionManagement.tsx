@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { AlertTriangle, ArchiveRestore, CheckSquare, ChevronDown, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, SearchX, Square, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArchiveRestore, CheckSquare, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Pencil, Plus, RefreshCw, Search, SearchX, Square, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -568,6 +568,7 @@ export default function SubscriptionManagement() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [duplicatesCollapsed, setDuplicatesCollapsed] = useState(true);
   const [trashedSubscriptions, setTrashedSubscriptions] = useState<TrashedSubscription[]>([]);
   const [bulkDeleteInput, setBulkDeleteInput] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
@@ -2057,18 +2058,32 @@ export default function SubscriptionManagement() {
 
       {duplicateGroups.length > 0 && (
         <DataCard className="border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900 dark:bg-amber-950/20">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">AI 重複訂閱提醒</h3>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <button
+              type="button"
+              onClick={() => setDuplicatesCollapsed((collapsed) => !collapsed)}
+              className="flex items-center gap-2 text-left"
+              aria-expanded={!duplicatesCollapsed}
+              aria-controls="duplicate-reminder-content"
+            >
+              <ChevronUp className={`h-4 w-4 shrink-0 text-amber-700 transition-transform dark:text-amber-300 ${duplicatesCollapsed ? "rotate-180" : ""}`} />
+              <span className="text-sm font-semibold text-amber-900 dark:text-amber-200">AI 重複訂閱提醒</span>
+              <span className="rounded-full bg-amber-200/70 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
+                {duplicateGroups.length} 組
+              </span>
+            </button>
+            {!duplicatesCollapsed && (
+              <Button type="button" variant="outline" size="sm" className="border-amber-300 bg-white/80 text-amber-900 hover:bg-white dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200" onClick={() => applyQuickFilter("duplicates")}>
+                查看第一組重複
+              </Button>
+            )}
+          </div>
+          {!duplicatesCollapsed && (
+            <div id="duplicate-reminder-content">
               <p className="mt-1 text-sm text-amber-800/90 dark:text-amber-300/90">
                 這裡只做提醒，不直接幫你刪。先確認是不是不同方案、不同帳號，避免誤清理。
               </p>
-            </div>
-            <Button type="button" variant="outline" size="sm" className="border-amber-300 bg-white/80 text-amber-900 hover:bg-white dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200" onClick={() => applyQuickFilter("duplicates")}>
-              查看第一組重複
-            </Button>
-          </div>
-          {duplicateGroups.some((group) => group.some((sub) => sub.$id === inlineEditingId)) && (
+              {duplicateGroups.some((group) => group.some((sub) => sub.$id === inlineEditingId)) && (
             <div className="mt-4">
               <SubscriptionFormCard
                 title={`編輯 ${inlineEditForm.name || "訂閱"}`}
@@ -2121,6 +2136,8 @@ export default function SubscriptionManagement() {
               );
             })}
           </div>
+            </div>
+          )}
         </DataCard>
       )}
 

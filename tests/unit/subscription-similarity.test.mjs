@@ -48,7 +48,20 @@ test("buildSimilarSubscriptionMatches keeps row summaries consistent", () => {
   const matches = buildSimilarSubscriptionMatches(records);
   assert.deepEqual(matches.get("copy"), { term: "SuperGrok", count: 2 });
   assert.deepEqual(matches.get("original"), { term: "SuperGrok", count: 2 });
-  assert.deepEqual(matches.get("note-match"), undefined);
+  assert.deepEqual(matches.get("note-match"), { term: "SuperGrok", count: 2 });
+});
+
+test("similarity is symmetric so shorter and longer names share one group", () => {
+  const records = [
+    subscription("psych-short", "身心科"),
+    subscription("psych-dup", "身心科"),
+    subscription("psych-outpatient", "身心科/門診"),
+  ];
+
+  const matches = buildSimilarSubscriptionMatches(records);
+  assert.deepEqual(matches.get("psych-short"), { term: "身心科", count: 2 });
+  assert.deepEqual(matches.get("psych-dup"), { term: "身心科", count: 2 });
+  assert.deepEqual(matches.get("psych-outpatient"), { term: "身心科", count: 2 });
 });
 
 test("subscription search scopes similar-service results to name and note", () => {

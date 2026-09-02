@@ -96,7 +96,13 @@ export function subscriptionContainsSimilarityTerm(
   );
 }
 
-/** Find other active subscriptions whose service or note contains the same keyword. */
+/**
+ * Find other active subscriptions related to this one. The relation is
+ * symmetric: a partner whose service or note contains this subscription's
+ * keyword counts, and so does a partner whose keyword appears in this
+ * subscription's own text, so short names such as 「身心科」 stay linked to
+ * longer ones such as 「身心科/門診」.
+ */
 export function findSimilarSubscriptions(
   subscriptions: readonly SubscriptionSimilarityRecord[],
   subscription: SubscriptionSimilarityRecord,
@@ -104,11 +110,43 @@ export function findSimilarSubscriptions(
   const term = getSubscriptionSimilarityTerm(subscription.name);
   if (!term) return [];
 
-  return subscriptions.filter(
-    (candidate) =>
-      candidate.$id !== subscription.$id &&
-      subscriptionContainsSimilarityTerm(candidate, term),
-  );
+  return subscriptions.filter((candidate) => {
+    if (candidate.$id === subscription.$id) return false;
+    if (subscriptionContainsSimilarityTerm(candidate, term)) return true;
+    const candidateTerm = getSubscriptionSimilarityTerm(candidate.name);
+    return (
+      candidateTerm !== "" &&
+      subscriptionContainsSimilarityTerm(subscription, candidateTerm)
+    );
+  });
+}
+
+/**
+ * Pick the keyword that best explains a similarity group: prefer the term
+ * (this subscription's own or a partner's) that is contained by the most
+ * records, so the follow-up search lands on the whole group instead of a
+ * single long-named record. Ties go to the shorter keyword.
+ */
+function pickSubscriptionSimilarityTerm(
+  subscription: SubscriptionSimilarityRecord,
+  similar: readonly SubscriptionSimilarityRecord[],
+) {
+  const ownTerm = getSubscriptionSimilarityTerm(subscription.name);
+  const candidates = [
+    ...new Set(
+      [ownTerm, ...similar.map((item) => getSubscriptionSimilarityTerm(item.name))]
+        .filter((term) => term && subscriptionContainsSimilarityTerm(subscription, term)),
+    ),
+  ];
+  if (candidates.length === 0) return ownTerm;
+
+  const rows = [subscription, ...similar];
+  const coverage = (term: string) =>
+    rows.filter((row) => subscriptionContainsSimilarityTerm(row, term)).length;
+
+  return candidates.sort(
+    (left, right) => coverage(right) - coverage(left) || left.length - right.length,
+  )[0];
 }
 
 /** Build the per-row match summary used by the subscription list. */
@@ -122,7 +160,7 @@ export function buildSimilarSubscriptionMatches(
     if (similar.length === 0) return;
 
     matches.set(subscription.$id, {
-      term: getSubscriptionSimilarityTerm(subscription.name),
+      term: pickSubscriptionSimilarityTerm(subscription, similar),
       count: similar.length,
     });
   });
