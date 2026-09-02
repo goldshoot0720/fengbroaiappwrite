@@ -43,12 +43,12 @@ type FinanceAlertNotice = {
 interface EnhancedDashboardProps {
   onNavigate: (moduleId: string) => void;
   title?: string;
-  onlyTitle?: boolean;
 }
 
-export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", onlyTitle = false }: EnhancedDashboardProps) {
-  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats(!onlyTitle);
-  const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats(!onlyTitle);
+export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }: EnhancedDashboardProps) {
+  const [activeView, setActiveView] = useState<"summary" | "full">("summary");
+  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats();
+  const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats();
   const {
     permission: notificationPermission,
     permissionDismissed,
@@ -65,25 +65,28 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
   const [trafficAlert, setTrafficAlert] = useState<MediaTrafficAlertPolicy | null>(null);
   const lastTrafficAlertTotal = useRef<number | null>(null);
 
+  // 切到「完整儀表」時才索取流量首頁提醒／到期通知／Tube 通知。
+  const showFullPane = activeView === "full";
+
   useEffect(() => {
-    if (!onlyTitle) {
+    if (activeView !== "summary") {
       setTrafficAlert(null);
       return;
     }
     if (lastTrafficAlertTotal.current === traffic.total) return;
     lastTrafficAlertTotal.current = traffic.total;
     setTrafficAlert(claimMediaTrafficHomepageAlert(traffic.total, window.localStorage));
-  }, [onlyTitle, traffic.total]);
+  }, [activeView, traffic.total]);
 
   useExpiryNotifications({
     stats,
     financeAlerts,
-    enabled: !onlyTitle && !loading && !dashboardError,
+    enabled: showFullPane && !loading && !dashboardError,
     depsKey: `${stats.subscriptionsExpiring3DaysList.length}-${stats.foodsExpiring7DaysList.length}-${stats.expiredFoodsList.length}-${financeAlerts.length}`,
   });
 
   useEffect(() => {
-    if (onlyTitle) return;
+    if (!showFullPane) return;
     let active = true;
     const loadTubeNotice = async () => {
       try {
@@ -105,7 +108,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     return () => {
       active = false;
     };
-  }, [onlyTitle]);
+  }, [showFullPane]);
 
   useEffect(() => {
     let active = true;
@@ -162,21 +165,140 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
     );
   }
 
-  if (onlyTitle) {
-    return (
-      <div className="space-y-6 lg:space-y-8">
-        <PageTitle title={title} description="先處理今天需要注意的事，再前往常用模組。" />
-        <FinanceAlertsNoticeCard
-          alerts={financeAlerts}
-          dismissed={financeAlertsDismissed}
-          onDismiss={handleDismissFinanceAlerts}
-          onNavigate={() => onNavigate("fengbro-finance")}
+  return (
+    <div className="space-y-6 lg:space-y-8">
+      <DashboardViewToggle activeView={activeView} onChange={setActiveView} />
+      {activeView === "full" ? (
+        <DashboardFullView
+          title={title}
+          stats={stats}
+          mediaStats={mediaStats}
+          mediaSetupRequired={mediaSetupRequired}
+          traffic={traffic}
+          financeAlerts={financeAlerts}
+          financeAlertsDismissed={financeAlertsDismissed}
+          handleDismissFinanceAlerts={handleDismissFinanceAlerts}
+          onNavigate={onNavigate}
+          loading={loading}
+          mediaLoading={mediaLoading}
+          dashboardError={dashboardError}
+          mediaError={mediaError}
+          tubeRecentVideos={tubeRecentVideos}
+          tubeNoticeDismissed={tubeNoticeDismissed}
+          handleDismissTubeNotice={handleDismissTubeNotice}
+          notificationPermission={notificationPermission}
+          permissionDismissed={permissionDismissed}
+          isIOS={isIOS}
+          isStandalone={isStandalone}
+          handleRequestPermission={() => void handleRequestPermission()}
+          dismissBanner={dismissBanner}
         />
-        {trafficAlert ? <MediaTrafficHomepageAlert policy={trafficAlert} total={traffic.total} /> : null}
-        <HomeTaskBoard onNavigate={onNavigate} stats={stats} />
-      </div>
-    );
-  }
+      ) : (
+        <div className="space-y-6 lg:space-y-8">
+          <PageTitle title={title} description="先處理今天需要注意的事，再前往常用模組。" />
+          <FinanceAlertsNoticeCard
+            alerts={financeAlerts}
+            dismissed={financeAlertsDismissed}
+            onDismiss={handleDismissFinanceAlerts}
+            onNavigate={() => onNavigate("fengbro-finance")}
+          />
+          {trafficAlert ? <MediaTrafficHomepageAlert policy={trafficAlert} total={traffic.total} /> : null}
+          <HomeTaskBoard
+            onNavigate={onNavigate}
+            stats={stats}
+            onShowFullDashboard={() => setActiveView("full")}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardViewToggle({
+  activeView,
+  onChange,
+}: {
+  activeView: "summary" | "full";
+  onChange: (view: "summary" | "full") => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-1 rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] p-1">
+      <button
+        type="button"
+        onClick={() => onChange("summary")}
+        aria-pressed={activeView === "summary"}
+        className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${
+          activeView === "summary"
+            ? "bg-[color:var(--panel-strong)] text-[var(--foreground)] shadow-sm"
+            : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+        }`}
+      >
+        精簡
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("full")}
+        aria-pressed={activeView === "full"}
+        className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${
+          activeView === "full"
+            ? "bg-[color:var(--panel-strong)] text-[var(--foreground)] shadow-sm"
+            : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+        }`}
+      >
+        完整儀表
+      </button>
+    </div>
+  );
+}
+
+function DashboardFullView(props: {
+  title: string;
+  stats: ReturnType<typeof useDashboardStats>["stats"];
+  mediaStats: ReturnType<typeof useMediaStats>["stats"];
+  mediaSetupRequired: boolean;
+  traffic: ReturnType<typeof useMediaTraffic>;
+  financeAlerts: FinanceAlertNotice[];
+  financeAlertsDismissed: boolean;
+  handleDismissFinanceAlerts: () => void;
+  onNavigate: (moduleId: string) => void;
+  loading: boolean;
+  mediaLoading: boolean;
+  dashboardError: string | null;
+  mediaError: string | null;
+  tubeRecentVideos: FengbroTubeRecentVideo[];
+  tubeNoticeDismissed: boolean;
+  handleDismissTubeNotice: () => void;
+  notificationPermission: ReturnType<typeof useNotificationPermission>["permission"];
+  permissionDismissed: boolean;
+  isIOS: boolean;
+  isStandalone: boolean;
+  handleRequestPermission: () => void;
+  dismissBanner: () => void;
+}) {
+  const {
+    title,
+    stats,
+    mediaStats,
+    mediaSetupRequired,
+    traffic,
+    financeAlerts,
+    financeAlertsDismissed,
+    handleDismissFinanceAlerts,
+    onNavigate,
+    loading,
+    mediaLoading,
+    dashboardError,
+    mediaError,
+    tubeRecentVideos,
+    tubeNoticeDismissed,
+    handleDismissTubeNotice,
+    notificationPermission,
+    permissionDismissed,
+    isIOS,
+    isStandalone,
+    handleRequestPermission,
+    dismissBanner,
+  } = props;
 
   const error = dashboardError || mediaError;
 
@@ -335,9 +457,11 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄儀表", 
 function HomeTaskBoard({
   onNavigate,
   stats,
+  onShowFullDashboard,
 }: {
   onNavigate: (moduleId: string) => void;
   stats: ReturnType<typeof useDashboardStats>["stats"];
+  onShowFullDashboard?: () => void;
 }) {
   const attentionItems = [
     { label: "已過期食品", value: stats.expiredFoods, moduleId: "food" },
@@ -350,7 +474,7 @@ function HomeTaskBoard({
     { label: "鋒兄訂閱", description: "管理扣款與到期日", moduleId: "subscription", icon: <CreditCard size={18} /> },
     { label: "鋒兄食品", description: "查看庫存與保存期限", moduleId: "food", icon: <Package size={18} /> },
     { label: "鋒兄例行", description: "記錄最近執行日期", moduleId: "routine", icon: <CalendarClock size={18} /> },
-    { label: "鋒兄儀表", description: "查看完整系統摘要", moduleId: "dashboard", icon: <TrendingUp size={18} /> },
+    { label: "鋒兄銀行", description: "查看餘額與帳戶總覽", moduleId: "bank-stats", icon: <Building2 size={18} /> },
   ];
 
   return (
@@ -363,9 +487,11 @@ function HomeTaskBoard({
               {totalAttention > 0 ? `目前有 ${totalAttention} 項需要注意。` : "目前沒有緊急項目。"}
             </p>
           </div>
-          <Button variant="outline" onClick={() => onNavigate("dashboard")} className="min-h-11 shrink-0 rounded-xl">
-            查看完整儀表
-          </Button>
+          {onShowFullDashboard ? (
+            <Button variant="outline" onClick={onShowFullDashboard} className="min-h-11 shrink-0 rounded-xl">
+              查看完整儀表
+            </Button>
+          ) : null}
         </div>
         <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {attentionItems.map((item) => (

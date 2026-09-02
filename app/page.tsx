@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  BarChart3,
   Building2,
   CalendarClock,
   CreditCard,
@@ -35,6 +34,12 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { MenuItem } from "@/types";
 
 const SITE_VISIT_SESSION_KEY = "fengbro-site-visit-logged";
+const LAST_MODULE_STORAGE_KEY = "fengbro:last-module";
+
+/** 合併後「儀表」不再獨立成項，舊紀錄一律落到同頁的鋒兄首頁。 */
+function normalizeStoredModule(stored: string): string {
+  return stored === "dashboard" ? "home" : stored;
+}
 
 const ModuleFallback = () => (
   <div className="flex min-h-[40vh] items-center justify-center">
@@ -113,7 +118,6 @@ const MENU_ITEMS: MenuItem[] = [
     icon: <Home size={18} />,
     children: [
       { id: "home", label: "首頁", icon: <Home size={18} /> },
-      { id: "dashboard", label: "儀表", icon: <BarChart3 size={18} /> },
     ],
   },
   {
@@ -162,6 +166,7 @@ const MENU_ITEMS: MenuItem[] = [
 ];
 
 const APPWRITE_REQUIRED_MODULES = new Set([
+  "home",
   "dashboard",
   "subscription",
   "food",
@@ -177,13 +182,28 @@ const APPWRITE_REQUIRED_MODULES = new Set([
 ]);
 
 export default function DashboardPage() {
-  const [currentModule, setCurrentModule] = useState("home");
+  const [currentModule, setCurrentModule] = useState<string>(() => {
+    if (typeof window === "undefined") return "home";
+    try {
+      return normalizeStoredModule(
+        window.localStorage.getItem(LAST_MODULE_STORAGE_KEY) || "home"
+      );
+    } catch {
+      return "home";
+    }
+  });
+
   const [appwriteSetupMissing, setAppwriteSetupMissing] = useState(
     () => !hasRequiredAppwriteConfig({ requireApiKey: true })
   );
 
   const handleModuleChange = useCallback((moduleId: string) => {
     setCurrentModule(moduleId);
+    try {
+      window.localStorage.setItem(LAST_MODULE_STORAGE_KEY, moduleId);
+    } catch {
+      // localStorage 不可用時（例如隱私模式），僅本次瀏覽期間有效。
+    }
     if (hasRequiredAppwriteConfig({ requireApiKey: true })) {
       void fetchApi(API_ENDPOINTS.MENU_USAGE, {
         method: "POST",
@@ -212,6 +232,23 @@ export default function DashboardPage() {
     });
   }, []);
 
+  // 離開網站／切到背景前記住目前選單，下次回來沿用。
+  useEffect(() => {
+    const rememberModule = () => {
+      try {
+        window.localStorage.setItem(LAST_MODULE_STORAGE_KEY, currentModule);
+      } catch {
+        // localStorage 不可用時忽略。
+      }
+    };
+    document.addEventListener("visibilitychange", rememberModule);
+    window.addEventListener("pagehide", rememberModule);
+    return () => {
+      document.removeEventListener("visibilitychange", rememberModule);
+      window.removeEventListener("pagehide", rememberModule);
+    };
+  }, [currentModule]);
+
   const currentContent = useMemo(() => {
     if (appwriteSetupMissing && APPWRITE_REQUIRED_MODULES.has(currentModule)) {
       return <AppwriteSetupEmptyState onNavigate={() => handleModuleChange("settings")} />;
@@ -219,11 +256,13 @@ export default function DashboardPage() {
 
     switch (currentModule) {
       case "home":
-        return (
-          <EnhancedDashboard onNavigate={handleModuleChange} title="鋒兄首頁" onlyTitle />
-        );
       case "dashboard":
-        return <EnhancedDashboard onNavigate={handleModuleChange} title="鋒兄儀表" />;
+        return (
+          <EnhancedDashboard
+            onNavigate={handleModuleChange}
+            title="鋒兄首頁"
+          />
+        );
       case "subscription":
         return <SubscriptionManagement />;
       case "food":

@@ -62,7 +62,6 @@ interface DashboardLayoutProps {
 /** Primary bottom-tab destinations on phone (thumb zone). */
 const MOBILE_PRIMARY_TAB_IDS = [
   "home",
-  "dashboard",
   "subscription",
   "food",
 ] as const;
@@ -205,8 +204,8 @@ export default function DashboardLayout({
         {/* Main content */}
         <main className="min-w-0 flex-1 px-3 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-4 md:px-6 md:pb-10 md:pt-6 xl:px-8 xl:pb-12 xl:pt-8">
           <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
-            {currentModule === "home" ? <SleepWarningBanner /> : null}
-            {currentModule === "home" && (
+            {(currentModule === "home" || currentModule === "dashboard") ? <SleepWarningBanner /> : null}
+            {(currentModule === "home" || currentModule === "dashboard") && (
               <div className="relative overflow-hidden rounded-2xl md:rounded-[28px]">
                 <BirthdayEasterEgg inline />
               </div>
@@ -551,7 +550,7 @@ function MobileBottomNav({
       aria-label="手機快捷選單"
       className="fixed inset-x-0 bottom-0 z-[var(--z-dock)] border-t border-[var(--line-soft)] bg-[color:var(--panel-veil)]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
     >
-      <div className="mx-auto grid h-[3.75rem] max-w-[1680px] grid-cols-5 items-stretch px-1">
+      <div className="mx-auto grid h-[3.75rem] max-w-[1680px] grid-cols-4 items-stretch px-1">
         {tabs.map(({ id, item, shortLabel }) => {
           const isActive = currentModule === id;
           return (

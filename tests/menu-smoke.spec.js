@@ -8,7 +8,7 @@ const topLevelMenus = [
 ];
 
 const groupedChildren = {
-  鋒兄首頁: [/^首頁$/, /^儀表$/],
+  鋒兄首頁: [/^首頁$/],
   鋒兄管理: [
     /^訂閱$/,
     /^食品$/,
