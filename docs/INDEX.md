@@ -14,23 +14,22 @@
 
 | # | 模組名稱 | 說明 | 說明文件 |
 |---|---------|------|---------|
-| 1 | [鋒兄首頁](./01_home.md) | 系統概覽與快速入口 | [01_home.md](./01_home.md) |
-| 2 | [鋒兄儀表](./02_dashboard.md) | 跨模組統計、到期與媒體流量 | [02_dashboard.md](./02_dashboard.md) |
-| 3 | [鋒兄訂閱](./03_subscription.md) | 訂閱、扣款日、CSV、本機垃圾桶 | [03_subscription.md](./03_subscription.md) |
-| 4 | [鋒兄食品](./04_food.md) | 食品／商品庫存與過期管理 | [04_food.md](./04_food.md) |
-| 5 | [鋒兄筆記](./05_notes.md) | 筆記、附件預覽、本機垃圾桶 | [05_notes.md](./05_notes.md) |
-| 6 | [鋒兄文件](./10_documents.md) | PDF、Office、程式碼、ZIP | [10_documents.md](./10_documents.md) |
-| 7 | [鋒兄常用](./06_common_accounts.md) | 常用帳號、網站與連結 | [06_common_accounts.md](./06_common_accounts.md) |
-| 8 | [鋒兄圖片](./07_images.md) | 圖片上傳、藝廊與快取 | [07_images.md](./07_images.md) |
-| 9 | [鋒兄影片](./08_videos.md) | 串流播放、佇列與快取 | [08_videos.md](./08_videos.md) |
-| 10 | [鋒兄音樂](./09_music.md) | 播放、歌詞、佇列與快取 | [09_music.md](./09_music.md) |
-| 11 | [鋒兄播客](./11_podcast.md) | 播客播放、批次上傳與快取 | [11_podcast.md](./11_podcast.md) |
-| 12 | [鋒兄銀行](./12_bank.md) | 銀行帳戶、電子票證與餘額 | [12_bank.md](./12_bank.md) |
-| 13 | [鋒兄例行](./13_routine.md) | 例行公事與日期遞移 | [13_routine.md](./13_routine.md) |
-| 14 | [鋒兄設定](./14_settings.md) | Appwrite、建表、儲存與主題 | [14_settings.md](./14_settings.md) |
-| 15 | [鋒兄關於](./15_about.md) | 更新內容、架構與文件中心 | [15_about.md](./15_about.md) |
+| 1 | [鋒兄首頁](./01_home.md) | 系統總覽、快速入口與完整儀表（同頁切換） | [01_home.md](./01_home.md) |
+| 2 | [鋒兄訂閱](./03_subscription.md) | 訂閱、扣款日、CSV、本機垃圾桶 | [03_subscription.md](./03_subscription.md) |
+| 3 | [鋒兄食品](./04_food.md) | 食品／商品庫存與過期管理 | [04_food.md](./04_food.md) |
+| 4 | [鋒兄筆記](./05_notes.md) | 筆記、附件預覽、本機垃圾桶 | [05_notes.md](./05_notes.md) |
+| 5 | [鋒兄文件](./10_documents.md) | PDF、Office、程式碼、ZIP | [10_documents.md](./10_documents.md) |
+| 6 | [鋒兄常用](./06_common_accounts.md) | 常用帳號、網站與連結 | [06_common_accounts.md](./06_common_accounts.md) |
+| 7 | [鋒兄圖片](./07_images.md) | 圖片上傳、藝廊與快取 | [07_images.md](./07_images.md) |
+| 8 | [鋒兄影片](./08_videos.md) | 串流播放、佇列與快取 | [08_videos.md](./08_videos.md) |
+| 9 | [鋒兄音樂](./09_music.md) | 播放、歌詞、佇列與快取 | [09_music.md](./09_music.md) |
+| 10 | [鋒兄播客](./11_podcast.md) | 播客播放、批次上傳與快取 | [11_podcast.md](./11_podcast.md) |
+| 11 | [鋒兄銀行](./12_bank.md) | 銀行帳戶、電子票證與餘額 | [12_bank.md](./12_bank.md) |
+| 12 | [鋒兄例行](./13_routine.md) | 例行公事與日期遞移 | [13_routine.md](./13_routine.md) |
+| 13 | [鋒兄設定](./14_settings.md) | Appwrite、建表、儲存與主題 | [14_settings.md](./14_settings.md) |
+| 14 | [鋒兄關於](./15_about.md) | 更新內容、架構與文件中心 | [15_about.md](./15_about.md) |
 
-桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁、儀表；鋒兄管理包含訂閱、食品、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、YouTube/Bilibili。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
+桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁（同一頁可切精簡待辦與完整儀表）；鋒兄管理包含訂閱、食品、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、YouTube/Bilibili。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
 
 ---
 
