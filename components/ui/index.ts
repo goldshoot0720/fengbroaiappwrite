@@ -5,8 +5,6 @@ export { Button, buttonVariants } from "./button";
 export { Input } from "./input";
 export { Textarea } from "./textarea";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
-export { Badge } from "./badge";
-export { Separator } from "./separator";
 
 // 表格元件
 export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table";

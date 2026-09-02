@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Play, Download, CheckCircle, AlertCircle, Loader, Trash2, HardDrive, Plus, Edit, X, Upload, Search, ListPlus, FolderUp, Monitor, Tv, ChevronDown, ChevronUp, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
-import SimpleVideoPlayer from "@/components/ui/simple-video-player";
 import { useVideoCache } from "@/hooks/useVideoCache";
 import { useVideos, VideoData } from "@/hooks/useVideos";
 import { DataCard } from "@/components/ui/data-card";
