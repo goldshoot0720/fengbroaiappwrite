@@ -173,12 +173,12 @@ export function FriendlyAiCrudShell({
                   <div
                     key={item.label}
                     className={cn(
-                      "min-w-[10rem] flex-1 basis-48 rounded-2xl border p-4 shadow-sm",
+                      "w-fit rounded-2xl border px-4 py-3 shadow-sm",
                       toneStyles[item.tone || "neutral"]
                     )}
                   >
                     <div className="text-xs font-semibold uppercase tracking-wide opacity-80">{item.label}</div>
-                    <div className="mt-2 text-2xl font-black">{item.value}</div>
+                    <div className="mt-1.5 text-2xl font-black leading-none">{item.value}</div>
                     {item.detail ? <div className="mt-1 text-xs opacity-80">{item.detail}</div> : null}
                   </div>
                 ))}

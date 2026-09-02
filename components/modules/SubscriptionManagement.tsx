@@ -1866,6 +1866,30 @@ export default function SubscriptionManagement() {
         </DataCard>
       )}
 
+      <VoiceCommandBar
+        title="AI 語音指令"
+        description="說完會自動結束 · 安全操作直接執行 · 新增／刪除仍需確認"
+        helpText={SUBSCRIPTION_VOICE_HELP}
+        accent="sky"
+        transcript={voiceTranscript}
+        onTranscriptChange={(value) => {
+          setVoiceTranscript(value);
+          setPendingVoiceCommand(null);
+        }}
+        feedback={voiceFeedback}
+        isListening={isVoiceListening}
+        isSupported={isVoiceSupported}
+        canStop={canStopVoiceRecording}
+        elapsedMs={voiceElapsedMs}
+        placeholder="也可以打字：匯出 CSV / 搜尋 Netflix / 新增訂閱 Netflix 100 元 / 刪除選取"
+        samples={["重新整理", "已過期", "7 天內", "匯出 CSV"]}
+        pending={pendingVoiceCommand}
+        onToggleListen={toggleVoiceInput}
+        onSubmit={handleVoiceText}
+        onConfirm={() => void executeVoiceCommand()}
+        onCancelPending={() => setPendingVoiceCommand(null)}
+      />
+
       <FriendlyAiCrudShell
         title="鋒兄訂閱"
         description="以 subscription 表長期使用的欄位為準：服務名稱、網站、價格、下次扣款、備註、帳號、幣別與是否續訂。"
@@ -1898,9 +1922,6 @@ export default function SubscriptionManagement() {
                 <span>即時同步</span>
               </div>
             </div>
-            <p className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
-              以目前 Appwrite `subscription` 表為準，聚焦服務名稱、網站、價格、下次扣款、備註、帳號、幣別與是否續訂，先看即將到期與不續訂項目，再快速新增與批次清理。
-            </p>
           </div>
         }
         activeMode={dueFilter}
@@ -1914,7 +1935,7 @@ export default function SubscriptionManagement() {
         summaries={[
           { label: "本月月費", value: formatCurrency(stats.totalMonthlyFee), tone: "green" },
           { label: "下月月費", value: formatCurrency(stats.nextMonthFee), tone: "neutral" },
-          { label: "不續訂", value: stoppedSubscriptions.length, detail: "需留意是否還要保留資料", tone: stoppedSubscriptions.length > 0 ? "amber" : "neutral" },
+          { label: "不續訂", value: stoppedSubscriptions.length, tone: stoppedSubscriptions.length > 0 ? "amber" : "neutral" },
           { label: "訂閱總數", value: stats.total, tone: "blue" },
           { label: "續訂數量", value: renewingSubscriptions.length, detail: "目前標記為續訂中", tone: "blue" },
         ]}
@@ -1976,30 +1997,6 @@ export default function SubscriptionManagement() {
             </div>
           </div>
         }
-      />
-
-      <VoiceCommandBar
-        title="AI 語音指令"
-        description="說完會自動結束 · 安全操作直接執行 · 新增／刪除仍需確認"
-        helpText={SUBSCRIPTION_VOICE_HELP}
-        accent="sky"
-        transcript={voiceTranscript}
-        onTranscriptChange={(value) => {
-          setVoiceTranscript(value);
-          setPendingVoiceCommand(null);
-        }}
-        feedback={voiceFeedback}
-        isListening={isVoiceListening}
-        isSupported={isVoiceSupported}
-        canStop={canStopVoiceRecording}
-        elapsedMs={voiceElapsedMs}
-        placeholder="也可以打字：匯出 CSV / 搜尋 Netflix / 新增訂閱 Netflix 100 元 / 刪除選取"
-        samples={["重新整理", "已過期", "7 天內", "匯出 CSV"]}
-        pending={pendingVoiceCommand}
-        onToggleListen={toggleVoiceInput}
-        onSubmit={handleVoiceText}
-        onConfirm={() => void executeVoiceCommand()}
-        onCancelPending={() => setPendingVoiceCommand(null)}
       />
 
       <DataCard className="p-4">
