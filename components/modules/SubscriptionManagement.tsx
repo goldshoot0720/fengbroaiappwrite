@@ -345,6 +345,19 @@ function SubscriptionFormCard({
   const toneClass = tone === "green"
     ? "border-green-200 bg-green-50/70 dark:border-green-800 dark:bg-green-900/10"
     : "border-blue-200 bg-blue-50/70 dark:border-blue-800 dark:bg-blue-900/10";
+  const [selectedBank, setSelectedBank] = useState("玉山銀行");
+
+  const handleAddBank = () => {
+    const bankLine = `銀行: ${selectedBank}`;
+    if ((form.note ?? "").trim().length === 0) {
+      onChange({ ...form, note: bankLine });
+      return;
+    }
+    const lines = (form.note ?? "").split("\n");
+    // 若最後一行已是同一間銀行的標記則不重複加入
+    if (lines[lines.length - 1].trim() === bankLine) return;
+    onChange({ ...form, note: [...lines, bankLine].join("\n") });
+  };
 
   return (
     <DataCard className={`p-4 sm:p-5 ${toneClass}`}>
@@ -487,8 +500,8 @@ function SubscriptionFormCard({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button onClick={onSave}>{saveLabel}</Button>
         <Button variant="outline" onClick={onCancel}>取消</Button>
-        <Button variant="outline">加入銀行</Button>
-        <Select value="玉山銀行">
+        <Button variant="outline" onClick={handleAddBank}>加入銀行</Button>
+        <Select value={selectedBank} onValueChange={setSelectedBank}>
           <SelectTrigger aria-label="銀行" className="w-[140px]">
             <SelectValue placeholder="選擇銀行" />
           </SelectTrigger>
