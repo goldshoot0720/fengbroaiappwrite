@@ -180,7 +180,7 @@ const TABLE_SCHEMAS = {
       { key: 'snapshotDate', type: 'datetime', required: true }
     ]
   },
-  // 錨兄比價：使用者手動商品與價格紀錄（records 以 JSON 字串存放）
+  // 比價：使用者手動商品與價格紀錄（records 以 JSON 字串存放）
   manualprice: {
     name: "manualprice",
     attributes: [
@@ -190,7 +190,7 @@ const TABLE_SCHEMAS = {
       { key: 'localId', type: 'string', size: 100, required: false }
     ]
   },
-  // 錨兄關於：網站到站次數維一筆計數文件
+  // 關於頁：網站到站次數，維一筆計數文件
   sitevisit: {
     name: "sitevisit",
     attributes: [
@@ -198,7 +198,7 @@ const TABLE_SCHEMAS = {
       { key: 'lastVisitAt', type: 'datetime', required: false }
     ]
   },
-  // 錨兄關於：每個選單（模組）的使用次數與最後使用時間
+  // 關於頁：每個選單（模組）的使用次數與最後使用時間
   menuusage: {
     name: "menuusage",
     attributes: [

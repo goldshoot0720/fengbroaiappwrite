@@ -118,6 +118,9 @@ export function FriendlyAiCrudShell({
   const [suggestionsOpen, setSuggestionsOpen] = useState(defaultSuggestionsOpen);
   const toggleSuggestionsLabel = suggestionsOpen ? "收起 AI 建議" : "展開 AI 建議";
   const compact = density === "compact";
+  // Only kicks in for modules that hide the shell's own search bar (currently just subscription),
+  // so it never changes the layout for modules still relying on the default search block.
+  const summariesBesideVoice = hideSearch && Boolean(voicePanel);
 
   return (
     <section
@@ -146,8 +149,20 @@ export function FriendlyAiCrudShell({
           ) : null}
         </div>
 
-        <div className={cn("flex flex-col", compact ? "gap-2.5" : "gap-4")}>
-          <div className={cn("surface-inset rounded-2xl shadow-sm", compact ? "p-2.5 sm:p-3" : "p-3 sm:p-4")}>
+        <div
+          className={cn(
+            "flex flex-col",
+            compact ? "gap-2.5" : "gap-4",
+            summariesBesideVoice && "xl:flex-row xl:items-start"
+          )}
+        >
+          <div
+            className={cn(
+              "surface-inset rounded-2xl shadow-sm",
+              compact ? "p-2.5 sm:p-3" : "p-3 sm:p-4",
+              summariesBesideVoice && "xl:shrink-0"
+            )}
+          >
             {/* ── Search input with recent searches ── */}
             {!hideSearch ? (
               <RecentSearchInput
@@ -223,7 +238,8 @@ export function FriendlyAiCrudShell({
                 : extraPanel
                   ? "grid gap-2.5 xl:grid-cols-[1fr_auto] xl:items-start"
                   : "flex flex-col",
-              !voicePanel && !extraPanel && (compact ? "gap-2.5" : "gap-4")
+              !voicePanel && !extraPanel && (compact ? "gap-2.5" : "gap-4"),
+              summariesBesideVoice && "xl:min-w-0 xl:flex-1"
             )}
           >
             {voicePanel ? (

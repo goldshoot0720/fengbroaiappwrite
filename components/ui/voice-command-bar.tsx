@@ -109,10 +109,12 @@ export function VoiceCommandBar({
               </div>
               <div>
                 <h3 className={cn("text-sm font-semibold", styles.title)}>{title}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {description}
-                  {isListening ? ` · 錄音中 ${formatRecordingClock(elapsedMs)}` : ""}
-                </p>
+                {description || isListening ? (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {description}
+                    {isListening ? ` · 錄音中 ${formatRecordingClock(elapsedMs)}` : ""}
+                  </p>
+                ) : null}
               </div>
               {isListening && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-200">

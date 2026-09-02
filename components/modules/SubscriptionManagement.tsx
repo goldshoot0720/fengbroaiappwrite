@@ -1908,7 +1908,7 @@ export default function SubscriptionManagement() {
           { label: "下月月費", value: formatCurrency(stats.nextMonthFee), tone: "neutral" },
           { label: "不續訂", value: stoppedSubscriptions.length, tone: stoppedSubscriptions.length > 0 ? "amber" : "neutral" },
           { label: "訂閱總數", value: stats.total, tone: "blue" },
-          { label: "續訂數量", value: renewingSubscriptions.length, detail: "目前標記為續訂中", tone: "blue" },
+          { label: "續訂數量", value: renewingSubscriptions.length, tone: "blue" },
         ]}
         suggestions={[
           expiredSubscriptions.length > 0
@@ -1971,7 +1971,7 @@ export default function SubscriptionManagement() {
         voicePanel={
           <VoiceCommandBar
             title="AI 語音指令"
-            description="說完會自動結束 · 安全操作直接執行 · 新增／刪除仍需確認"
+            description=""
             helpText={SUBSCRIPTION_VOICE_HELP}
             accent="sky"
             transcript={voiceTranscript}
@@ -2019,7 +2019,7 @@ export default function SubscriptionManagement() {
             storageKey="subscription-management"
             legacyStorageKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
             showRecentSearches
-            className="min-w-0 flex-1"
+            className="min-w-0 w-full max-w-[33em]"
           />
           <div className="grid grid-cols-2 gap-2 lg:flex lg:w-auto lg:shrink-0">
             <Select value={renewalFilter} onValueChange={(value: "all" | "renewing" | "stopped") => setRenewalFilter(value)}>
