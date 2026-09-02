@@ -1,7 +1,7 @@
 {
   "snapshotDate": "2026-09-02",
   "totalFiles": 261,
-  "totalLines": 90772,
+  "totalLines": 90774,
   "scope": "core-source",
   "sourceDirs": [
     "app",
@@ -16,7 +16,7 @@
     {
       "label": "TSX",
       "files": 67,
-      "lines": 54918
+      "lines": 54920
     },
     {
       "label": "TypeScript",

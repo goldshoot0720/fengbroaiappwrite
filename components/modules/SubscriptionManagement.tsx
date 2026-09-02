@@ -787,7 +787,7 @@ export default function SubscriptionManagement() {
     setInlineAddForm(INITIAL_FORM);
   };
 
-  const applyQuickFilter = (type: "all" | "dueSoon" | "noDate" | "stopped" | "duplicates") => {
+  const applyQuickFilter = (type: "all" | "expired" | "dueSoon" | "noDate" | "stopped" | "duplicates") => {
     if (type === "all") {
       setDueFilter("all");
       setRenewalFilter("all");
@@ -797,6 +797,13 @@ export default function SubscriptionManagement() {
     }
 
     setMonthFilter("all");
+
+    if (type === "expired") {
+      setDueFilter("expired");
+      setRenewalFilter("all");
+      clearSearchQuery();
+      return;
+    }
 
     if (type === "dueSoon") {
       setDueFilter("7days");
@@ -1894,14 +1901,6 @@ export default function SubscriptionManagement() {
             </span>
           </div>
         }
-        activeMode={dueFilter}
-        onModeChange={(mode) => setDueFilter(mode as typeof dueFilter)}
-        modeItems={[
-          { key: "all", label: "全部", count: subscriptions.length },
-          { key: "expired", label: "已過期", count: expiredSubscriptions.length },
-          { key: "7days", label: "7 天內", count: dueSoonSubscriptions.length },
-          { key: "nodate", label: "未排扣款", count: noDateSubscriptions.length },
-        ]}
         summaries={[
           { label: "本月月費", value: formatCurrency(stats.totalMonthlyFee), tone: "green" },
           { label: "下月月費", value: formatCurrency(stats.nextMonthFee), tone: "neutral" },
@@ -1998,6 +1997,9 @@ export default function SubscriptionManagement() {
         <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-800">
           <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("all")}>
             全部
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("expired")}>
+            已過期 ({expiredSubscriptions.length})
           </Button>
           <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("dueSoon")}>
             7 天內 ({dueSoonSubscriptions.length})
