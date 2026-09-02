@@ -351,15 +351,11 @@ function SubscriptionFormCard({
   const [selectedBank, setSelectedBank] = useState(BANK_OPTIONS[0]);
 
   const handleAddBank = () => {
-    const bankLine = `銀行: ${selectedBank}`;
-    if ((form.note ?? "").trim().length === 0) {
-      onChange({ ...form, note: bankLine });
-      return;
-    }
-    const lines = (form.note ?? "").split("\n");
-    // 若最後一行已是同一間銀行的標記則不重複加入
-    if (lines[lines.length - 1].trim() === bankLine) return;
-    onChange({ ...form, note: [...lines, bankLine].join("\n") });
+    const lastLine = (form.note ?? "").split("\n").pop()?.trim() ?? "";
+    // 若最後一行已是該銀行名稱（含舊的「銀行: 」前綴寫法）則不重複加入
+    if (lastLine === selectedBank || lastLine === `銀行: ${selectedBank}`) return;
+    const note = (form.note ?? "").trim();
+    onChange({ ...form, note: note ? `${note}\n${selectedBank}` : selectedBank });
   };
 
   return (
