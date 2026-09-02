@@ -484,9 +484,18 @@ function SubscriptionFormCard({
           />
         </div>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button onClick={onSave}>{saveLabel}</Button>
         <Button variant="outline" onClick={onCancel}>取消</Button>
+        <Button variant="outline">加入銀行</Button>
+        <Select value="玉山銀行">
+          <SelectTrigger aria-label="銀行" className="w-[140px]">
+            <SelectValue placeholder="選擇銀行" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="玉山銀行">玉山銀行</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
     </DataCard>
   );
