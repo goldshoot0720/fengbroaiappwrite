@@ -54,6 +54,9 @@ const SUBSCRIPTION_TABLE_COL_SPAN = 5;
 /** 「加入銀行」下拉選單的銀行選項 */
 const BANK_OPTIONS = ["台新銀行", "中國信託", "玉山銀行", "台北富邦", "國泰世華"];
 
+/** 「加入付款平台」下拉選單的平台選項 */
+const PAYMENT_PLATFORM_OPTIONS = ["PayPal", "Google Play"];
+
 /** 列表用價格：0 不顯示；非台幣第一列原幣、第二列換算台幣 */
 function SubscriptionPriceDisplay({
   price,
@@ -349,6 +352,7 @@ function SubscriptionFormCard({
     ? "border-green-200 bg-green-50/70 dark:border-green-800 dark:bg-green-900/10"
     : "border-blue-200 bg-blue-50/70 dark:border-blue-800 dark:bg-blue-900/10";
   const [selectedBank, setSelectedBank] = useState(BANK_OPTIONS[0]);
+  const [selectedPaymentPlatform, setSelectedPaymentPlatform] = useState(PAYMENT_PLATFORM_OPTIONS[0]);
 
   const handleAddBank = () => {
     const lastLine = (form.note ?? "").split("\n").pop()?.trim() ?? "";
@@ -356,6 +360,13 @@ function SubscriptionFormCard({
     if (lastLine === selectedBank || lastLine === `銀行: ${selectedBank}`) return;
     const note = (form.note ?? "").trim();
     onChange({ ...form, note: note ? `${note}\n${selectedBank}` : selectedBank });
+  };
+
+  const handleAddPaymentPlatform = () => {
+    const lastLine = (form.note ?? "").split("\n").pop()?.trim() ?? "";
+    if (lastLine === selectedPaymentPlatform) return;
+    const note = (form.note ?? "").trim();
+    onChange({ ...form, note: note ? `${note}\n${selectedPaymentPlatform}` : selectedPaymentPlatform });
   };
 
   return (
@@ -508,6 +519,19 @@ function SubscriptionFormCard({
             {BANK_OPTIONS.map((bank) => (
               <SelectItem key={bank} value={bank}>
                 {bank}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" onClick={handleAddPaymentPlatform}>加入付款平台</Button>
+        <Select value={selectedPaymentPlatform} onValueChange={setSelectedPaymentPlatform}>
+          <SelectTrigger aria-label="付款平台" className="w-[140px]">
+            <SelectValue placeholder="選擇付款平台" />
+          </SelectTrigger>
+          <SelectContent>
+            {PAYMENT_PLATFORM_OPTIONS.map((platform) => (
+              <SelectItem key={platform} value={platform}>
+                {platform}
               </SelectItem>
             ))}
           </SelectContent>
