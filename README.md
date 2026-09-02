@@ -85,8 +85,6 @@ lib/                    # Appwrite 設定、比價／新聞／金融邏輯
 docs/INDEX.md           # 選單與資料表現況索引
 ```
 
-獨立路由：`/finance`（金融連線狀態）、`/bank`（示範假資料，非正式銀行模組）、`/lyrics-test`。
-
 ## 排程（Vercel cron）
 
 - 每日推播到期、補送到期通知
