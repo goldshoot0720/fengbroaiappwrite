@@ -180,7 +180,7 @@ const TABLE_SCHEMAS = {
       { key: 'snapshotDate', type: 'datetime', required: true }
     ]
   },
-  // 鋒兄比價：使用者手動商品與價格紀錄（records 以 JSON 字串存放）
+  // 錨兄比價：使用者手動商品與價格紀錄（records 以 JSON 字串存放）
   manualprice: {
     name: "manualprice",
     attributes: [
@@ -188,6 +188,23 @@ const TABLE_SCHEMAS = {
       { key: 'currency', type: 'string', size: 20, required: false },
       { key: 'recordsJson', type: 'string', size: 20000, required: false },
       { key: 'localId', type: 'string', size: 100, required: false }
+    ]
+  },
+  // 錨兄關於：網站到站次數維一筆計數文件
+  sitevisit: {
+    name: "sitevisit",
+    attributes: [
+      { key: 'count', type: 'integer', required: false },
+      { key: 'lastVisitAt', type: 'datetime', required: false }
+    ]
+  },
+  // 錨兄關於：每個選單（模組）的使用次數與最後使用時間
+  menuusage: {
+    name: "menuusage",
+    attributes: [
+      { key: 'moduleId', type: 'string', size: 60, required: true },
+      { key: 'count', type: 'integer', required: false },
+      { key: 'lastUsedAt', type: 'datetime', required: false }
     ]
   }
 };

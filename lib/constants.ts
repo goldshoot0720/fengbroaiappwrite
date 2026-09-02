@@ -100,6 +100,9 @@ export const API_ENDPOINTS = {
   CHECK_EXPIRY: "/api/check-expiry",
   RESEND_EXPIRY_NOTIFY: "/api/resend-expiry-notify",
   NOTIFICATION_SELFCHECK: "/api/notification-selfcheck",
+  SITE_VISIT: "/api/site-visit",
+  MENU_USAGE: "/api/menu-usage",
+  GITHUB_REPO_STATS: "/api/github-repo-stats",
 } as const;
 
 // 動畫設定

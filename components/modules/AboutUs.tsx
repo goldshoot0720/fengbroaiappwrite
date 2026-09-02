@@ -6,6 +6,10 @@ import { DataCard } from "@/components/ui/data-card";
 import { PageTitle } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
 import codebaseStats from "@/config/codebase-stats.json";
+import { useAboutStats } from "@/hooks/useAboutStats";
+import { useBanks } from "@/hooks/useBanks";
+import { getModuleLabel } from "@/lib/moduleLabels";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 
 const NAV_SECTIONS = [
   { id: "troubleshooting", title: "障礙排除手冊", icon: AlertTriangle },
@@ -228,6 +232,7 @@ export default function AboutUs({ onNavigate }: { onNavigate: (moduleId: string)
       ) : null}
       <AboutBanner />
       <PageTitle title="鋒兄關於" description="產品更新、系統架構、模組導覽與技術文件中心" />
+      <SiteUsageStatsSection />
       <AboutSubpageLinks onNavigate={onNavigate} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:gap-6">
@@ -356,6 +361,17 @@ function AboutSubpageLinks({ onNavigate }: { onNavigate: (moduleId: string) => v
 }
 
 function AboutBanner() {
+  const { githubStats, siteVisit } = useAboutStats();
+
+  const daysLabel = githubStats?.daysSinceCreated != null ? `${githubStats.daysSinceCreated} 天` : "—";
+  const daysDetail = githubStats?.createdAt
+    ? `參考 GitHub 建立日 ${formatDate(githubStats.createdAt)}`
+    : "GitHub 資料載入中或暫時取不到";
+  const visitLabel = siteVisit?.exists ? String(siteVisit.count) : "—";
+  const visitDetail = siteVisit?.exists
+    ? "每個瀏覽器 session 計一次"
+    : "尚未在「鋒兄設定」初始化 sitevisit 表";
+
   return (
     <div className="rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-900 p-6 text-white shadow-xl sm:p-8">
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
@@ -366,13 +382,86 @@ function AboutBanner() {
             這裡不是品牌介紹頁，而是專案現況入口。你可以直接看到最近改了什麼、系統怎麼分層、{MODULE_COUNT} 個可導覽葉模組目前各自負責什麼，以及後續實作應該從哪份文件接手。
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MetricCard label="模組數" value={String(MODULE_COUNT)} detail="日常工作台、工具、子工具" />
           <MetricCard label="文件頁" value="18+" detail="模組文件、使用手冊、架構文件" />
           <MetricCard label="程式碼行數" value={codebaseStats.totalLines.toLocaleString()} detail={`共 ${codebaseStats.totalFiles} 檔，核心原始碼（app / components / hooks / lib…）`} />
-          <MetricCard label="技術骨架" value="AI CRUD" detail="統一摘要卡、搜尋、批次操作與 AI 建議" />
+          <MetricCard label="技術骰架" value="AI CRUD" detail="統一摘要卡、搜尋、批次操作與 AI 建議" />
+          <MetricCard label="網站營運天數" value={daysLabel} detail={daysDetail} />
+          <MetricCard label="網站到站次數" value={visitLabel} detail={visitDetail} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function SiteUsageStatsSection() {
+  const { menuUsage, loading: statsLoading } = useAboutStats();
+  const { banks, loading: banksLoading } = useBanks();
+
+  const sortedByDeposit = useMemo(
+    () => banks.slice().sort((a, b) => (b.deposit || 0) - (a.deposit || 0)),
+    [banks]
+  );
+  const maxBank = sortedByDeposit[0];
+  const minBank = sortedByDeposit[sortedByDeposit.length - 1];
+
+  const topMenus = (menuUsage?.items || []).slice(0, 5);
+
+  return (
+    <section aria-labelledby="site-usage-stats-title" className="rounded-2xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] p-4">
+      <div className="mb-3">
+        <h2 id="site-usage-stats-title" className="text-base font-semibold text-[var(--foreground)]">選單使用與銀行存款統計</h2>
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">選單點擊次數跟銀行存款現況都依實際使用與資料自動更新，尚無資料時先顯示預設狀態。</p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">選單使用次數與頻率（Top 5）</h3>
+          {statsLoading ? (
+            <p className="mt-2 text-sm text-[var(--muted-foreground)]">載入中…</p>
+          ) : topMenus.length === 0 ? (
+            <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+              尚沒有選單使用紀錄，可能是還沒切換過其他頁面，或 menuusage 表尚未在「鋒兄設定」初始化。
+            </p>
+          ) : (
+            <ol className="mt-2 space-y-1.5">
+              {topMenus.map((item, index) => (
+                <li
+                  key={item.moduleId}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-veil)] px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 truncate text-[var(--foreground)]">
+                    {index + 1}. {getModuleLabel(item.moduleId)}
+                  </span>
+                  <span className="shrink-0 text-xs text-[var(--muted-foreground)]">{item.count} 次</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StatTile
+            label="銀行最高存款"
+            value={maxBank ? formatCurrency(maxBank.deposit || 0) : banksLoading ? "載入中…" : "—"}
+            detail={maxBank ? `${maxBank.name} · 更新於 ${formatDate(maxBank.$updatedAt)}` : "尚無銀行資料"}
+          />
+          <StatTile
+            label="銀行最低存款"
+            value={minBank ? formatCurrency(minBank.deposit || 0) : banksLoading ? "載入中…" : "—"}
+            detail={minBank ? `${minBank.name} · 更新於 ${formatDate(minBank.$updatedAt)}` : "尚無銀行資料"}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StatTile({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-veil)] p-3">
+      <div className="text-xs font-medium text-[var(--muted-foreground)]">{label}</div>
+      <div className="mt-1 text-xl font-bold text-[var(--foreground)]">{value}</div>
+      <div className="mt-1 text-xs text-[var(--muted-foreground)]">{detail}</div>
     </div>
   );
 }

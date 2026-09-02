@@ -30,7 +30,11 @@ import {
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { hasRequiredAppwriteConfig } from "@/lib/utils";
+import { fetchApi } from "@/hooks/useApi";
+import { API_ENDPOINTS } from "@/lib/constants";
 import { MenuItem } from "@/types";
+
+const SITE_VISIT_SESSION_KEY = "fengbro-site-visit-logged";
 
 const ModuleFallback = () => (
   <div className="flex min-h-[40vh] items-center justify-center">
@@ -180,11 +184,33 @@ export default function DashboardPage() {
 
   const handleModuleChange = useCallback((moduleId: string) => {
     setCurrentModule(moduleId);
+    if (hasRequiredAppwriteConfig({ requireApiKey: true })) {
+      void fetchApi(API_ENDPOINTS.MENU_USAGE, {
+        method: "POST",
+        body: JSON.stringify({ moduleId }),
+      }).catch(() => {
+        // 選單使用統計只是裝飾性資訊，失敗不影響導覽。
+      });
+    }
   }, []);
 
   useEffect(() => {
     setAppwriteSetupMissing(!hasRequiredAppwriteConfig({ requireApiKey: true }));
   }, [currentModule]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!hasRequiredAppwriteConfig({ requireApiKey: true })) return;
+    try {
+      if (window.sessionStorage.getItem(SITE_VISIT_SESSION_KEY)) return;
+      window.sessionStorage.setItem(SITE_VISIT_SESSION_KEY, "1");
+    } catch {
+      // sessionStorage 不可用時（例如隱私模式），仍然允許這次計數，不並中斷。
+    }
+    void fetchApi(API_ENDPOINTS.SITE_VISIT, { method: "POST" }).catch(() => {
+      // 到站計數只是裝飾性資訊，失敗不影響使用。
+    });
+  }, []);
 
   const currentContent = useMemo(() => {
     if (appwriteSetupMissing && APPWRITE_REQUIRED_MODULES.has(currentModule)) {
