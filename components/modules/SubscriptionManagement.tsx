@@ -2045,10 +2045,10 @@ export default function SubscriptionManagement() {
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           <Select value={renewalFilter} onValueChange={(value: "all" | "renewing" | "stopped") => setRenewalFilter(value)}>
             <SelectTrigger>
-              <SelectValue placeholder="續訂状態" />
+              <SelectValue placeholder="續訂狀態" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部續訂状態</SelectItem>
+            <SelectContent className="w-[var(--radix-select-trigger-width)]">
+              <SelectItem value="all">全部續訂狀態</SelectItem>
               <SelectItem value="renewing">續訂中</SelectItem>
               <SelectItem value="stopped">不續訂</SelectItem>
             </SelectContent>
@@ -2057,7 +2057,7 @@ export default function SubscriptionManagement() {
             <SelectTrigger>
               <SelectValue placeholder="扣款月份" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="w-[var(--radix-select-trigger-width)]">
               <SelectItem value="all">全部月份</SelectItem>
               <SelectItem value={NO_MONTH_FILTER}>無月份 ({noDateSubscriptions.length})</SelectItem>
               {monthOptions.map((month) => (
