@@ -1849,7 +1849,7 @@ export default function SubscriptionManagement() {
   if (loading) return <FullPageLoading text="載入訂閱資料中..." />;
 
   return (
-    <div className="space-y-4 lg:space-y-6">
+    <div className="space-y-3 lg:space-y-4">
       {error && (
         <DataCard className="border-red-200 bg-red-50 p-4 text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           <div className="flex items-start justify-between gap-4">
@@ -1866,30 +1866,6 @@ export default function SubscriptionManagement() {
         </DataCard>
       )}
 
-      <VoiceCommandBar
-        title="AI 語音指令"
-        description="說完會自動結束 · 安全操作直接執行 · 新增／刪除仍需確認"
-        helpText={SUBSCRIPTION_VOICE_HELP}
-        accent="sky"
-        transcript={voiceTranscript}
-        onTranscriptChange={(value) => {
-          setVoiceTranscript(value);
-          setPendingVoiceCommand(null);
-        }}
-        feedback={voiceFeedback}
-        isListening={isVoiceListening}
-        isSupported={isVoiceSupported}
-        canStop={canStopVoiceRecording}
-        elapsedMs={voiceElapsedMs}
-        placeholder="也可以打字：匯出 CSV / 搜尋 Netflix / 新增訂閱 Netflix 100 元 / 刪除選取"
-        samples={["重新整理", "已過期", "7 天內", "匯出 CSV"]}
-        pending={pendingVoiceCommand}
-        onToggleListen={toggleVoiceInput}
-        onSubmit={handleVoiceText}
-        onConfirm={() => void executeVoiceCommand()}
-        onCancelPending={() => setPendingVoiceCommand(null)}
-      />
-
       <FriendlyAiCrudShell
         title="鋒兄訂閱"
         description="以 subscription 表長期使用的欄位為準：服務名稱、網站、價格、下次扣款、備註、帳號、幣別與是否續訂。"
@@ -1900,28 +1876,22 @@ export default function SubscriptionManagement() {
         recentSearchKey="subscription-management"
         legacyRecentSearchKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
         showRecentSearches
+        density="compact"
         intro={
-          <div className="space-y-4">
-            <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
-              <div className="min-w-0 space-y-2">
-                <p className="text-micro text-[var(--muted-foreground)]">
-                  Workspace Section
-                </p>
-                <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
-                  鋒兄訂閱
-                </h1>
-                <p className="text-base leading-7 text-[var(--muted-foreground)]">
-                  共 {subscriptions.length} 項訂閱
-                </p>
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--accent-strong)]">
-                  {getCurrentAccountLabel()}
-                </p>
-              </div>
-              <div className="surface-inset inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-sm text-[var(--muted-foreground)] 2xl:self-auto">
-                <div className="h-2 w-2 rounded-full bg-success" />
-                <span>即時同步</span>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="font-display text-xl font-semibold tracking-tight text-[var(--foreground)] sm:text-2xl">
+              鋒兄訂閱
+            </h1>
+            <span className="text-sm text-[var(--muted-foreground)]">
+              共 {subscriptions.length} 項
+            </span>
+            <span className="text-xs font-medium uppercase tracking-[0.15em] text-[var(--accent-strong)]">
+              {getCurrentAccountLabel()}
+            </span>
+            <span className="surface-inset inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-[var(--muted-foreground)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              即時同步
+            </span>
           </div>
         }
         activeMode={dueFilter}
@@ -1997,10 +1967,35 @@ export default function SubscriptionManagement() {
             </div>
           </div>
         }
+        voicePanel={
+          <VoiceCommandBar
+            title="AI 語音指令"
+            description="說完會自動結束 · 安全操作直接執行 · 新增／刪除仍需確認"
+            helpText={SUBSCRIPTION_VOICE_HELP}
+            accent="sky"
+            transcript={voiceTranscript}
+            onTranscriptChange={(value) => {
+              setVoiceTranscript(value);
+              setPendingVoiceCommand(null);
+            }}
+            feedback={voiceFeedback}
+            isListening={isVoiceListening}
+            isSupported={isVoiceSupported}
+            canStop={canStopVoiceRecording}
+            elapsedMs={voiceElapsedMs}
+            placeholder="也可以打字：匯出 CSV / 搜尋 Netflix / 新增訂閱 Netflix 100 元 / 刪除選取"
+            samples={["重新整理", "已過期", "7 天內", "匯出 CSV"]}
+            pending={pendingVoiceCommand}
+            onToggleListen={toggleVoiceInput}
+            onSubmit={handleVoiceText}
+            onConfirm={() => void executeVoiceCommand()}
+            onCancelPending={() => setPendingVoiceCommand(null)}
+          />
+        }
       />
 
-      <DataCard className="p-4">
-        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4 dark:border-gray-800">
+      <DataCard className="p-3">
+        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-800">
           <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("all")}>
             全部
           </Button>
@@ -2019,7 +2014,7 @@ export default function SubscriptionManagement() {
             </Button>
           )}
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <div className="mt-3 grid gap-2 md:grid-cols-3 xl:grid-cols-4">
           <Select value={renewalFilter} onValueChange={(value: "all" | "renewing" | "stopped") => setRenewalFilter(value)}>
             <SelectTrigger>
               <SelectValue placeholder="續訂狀態" />
@@ -2054,8 +2049,8 @@ export default function SubscriptionManagement() {
       </DataCard>
 
       {duplicateGroups.length > 0 && (
-        <DataCard className="border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900 dark:bg-amber-950/20">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <DataCard className="border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900 dark:bg-amber-950/20">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <button
               type="button"
               onClick={() => setDuplicatesCollapsed((collapsed) => !collapsed)}
@@ -2497,7 +2492,7 @@ export default function SubscriptionManagement() {
             </DataCard>
           </div>
 
-          <div className="space-y-3 lg:hidden">
+          <div className="space-y-2 lg:hidden">
             {filteredSubscriptions.map((sub) => {
               const expiry = getSubscriptionExpiryInfo(sub);
               const isEditing = inlineEditingId === sub.$id;
@@ -2524,7 +2519,7 @@ export default function SubscriptionManagement() {
               }
 
               return (
-                <DataCard key={sub.$id} className="p-4">
+                <DataCard key={sub.$id} className="p-3">
                   <div className="flex items-start gap-3">
                     <button type="button" onClick={() => toggleSelect(sub.$id)} className="mt-1 text-gray-500 hover:text-blue-600">
                       {selectedIds.has(sub.$id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
@@ -2560,7 +2555,7 @@ export default function SubscriptionManagement() {
                       ) : null}
                     </div>
                   </div>
-                  <div className="mt-4 space-y-2 text-sm">
+                  <div className="mt-2.5 space-y-1.5 text-sm">
                     <div>
                       <div className="text-gray-900 dark:text-gray-100">
                         {sub.nextdate ? formatDate(sub.nextdate) : "未設定扣款日"}
@@ -2601,7 +2596,7 @@ export default function SubscriptionManagement() {
                     </div>
                     <SubscriptionPriceDisplay price={sub.price} currency={sub.currency} />
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
                     <Button
                       type="button"
                       size="sm"

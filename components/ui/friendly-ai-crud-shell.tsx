@@ -53,6 +53,14 @@ interface FriendlyAiCrudShellProps {
   showRecentSearches?: boolean;
   /** Start with the AI 建議 panel expanded (defaults to collapsed). */
   defaultSuggestionsOpen?: boolean;
+  /** "compact" tightens outer padding, gaps and chip sizing for data-dense modules. Defaults to "cozy" (unchanged). */
+  density?: "cozy" | "compact";
+  /**
+   * Optional panel rendered beside the AI 建議 panel on the same row (e.g. a
+   * module's VoiceCommandBar). When omitted the AI 建議 panel keeps its
+   * existing full-width position below the search/summary area.
+   */
+  voicePanel?: ReactNode;
 }
 
 const toneStyles: Record<Tone, string> = {
@@ -93,16 +101,25 @@ export function FriendlyAiCrudShell({
   legacyRecentSearchKeys,
   showRecentSearches = true,
   defaultSuggestionsOpen = false,
+  density = "cozy",
+  voicePanel,
 }: FriendlyAiCrudShellProps) {
   const storageKey = recentSearchKey || title;
   const suggestionsContentId = useId();
   const [suggestionsOpen, setSuggestionsOpen] = useState(defaultSuggestionsOpen);
   const toggleSuggestionsLabel = suggestionsOpen ? "收起 AI 建議" : "展開 AI 建議";
+  const compact = density === "compact";
 
   return (
-    <section data-slot="module-workbench" className="surface-panel overflow-hidden rounded-2xl p-3 sm:p-4 md:p-5 xl:p-6">
-      <div className="flex flex-col gap-4 md:gap-5">
-        <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+    <section
+      data-slot="module-workbench"
+      className={cn(
+        "surface-panel overflow-hidden rounded-2xl",
+        compact ? "p-3 sm:p-3.5 md:p-4" : "p-3 sm:p-4 md:p-5 xl:p-6"
+      )}
+    >
+      <div className={cn("flex flex-col", compact ? "gap-3" : "gap-4 md:gap-5")}>
+        <div className={cn("flex flex-col 2xl:flex-row 2xl:items-start 2xl:justify-between", compact ? "gap-3" : "gap-4")}>
           <div className="min-w-0 flex-1">
             {intro ?? (
               <WorkspaceModuleIntro
@@ -120,8 +137,8 @@ export function FriendlyAiCrudShell({
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="surface-inset rounded-2xl p-3 shadow-sm sm:p-4">
+        <div className={cn("flex flex-col", compact ? "gap-2.5" : "gap-4")}>
+          <div className={cn("surface-inset rounded-2xl shadow-sm", compact ? "p-2.5 sm:p-3" : "p-3 sm:p-4")}>
             {/* ── Search input with recent searches ── */}
             <RecentSearchInput
               value={searchQuery}
@@ -132,9 +149,9 @@ export function FriendlyAiCrudShell({
               legacyStorageKeys={legacyRecentSearchKeys}
               showRecentSearches={showRecentSearches}
             />
-            {searchExtras ? <div className="mt-3">{searchExtras}</div> : null}
+            {searchExtras ? <div className={compact ? "mt-2" : "mt-3"}>{searchExtras}</div> : null}
             {modeItems.length > 0 ? (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className={cn("flex flex-wrap gap-2", compact ? "mt-2.5" : "mt-4")}>
                 {modeItems.map((mode) => {
                   const selected = mode.key === activeMode;
                   return (
@@ -143,7 +160,8 @@ export function FriendlyAiCrudShell({
                       type="button"
                       onClick={() => onModeChange?.(mode.key)}
                       className={cn(
-                        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                        "inline-flex items-center gap-2 rounded-full border text-sm font-medium transition-colors",
+                        compact ? "px-2.5 py-1" : "px-3 py-1.5",
                         selected
                           ? "border-foreground bg-foreground text-background"
                           : "border-[var(--line-soft)] bg-[var(--panel-soft)] text-[var(--muted-foreground)] hover:border-accent hover:bg-accent/10 hover:text-foreground"
@@ -168,17 +186,18 @@ export function FriendlyAiCrudShell({
               </div>
             ) : null}
             {summaries.length > 0 ? (
-              <div className="mt-4 flex flex-wrap gap-3">
+              <div className={cn("flex flex-wrap", compact ? "mt-2.5 gap-2" : "mt-4 gap-3")}>
                 {summaries.map((item) => (
                   <div
                     key={item.label}
                     className={cn(
-                      "w-fit rounded-2xl border px-4 py-3 shadow-sm",
+                      "w-fit rounded-2xl border shadow-sm",
+                      compact ? "px-3 py-2" : "px-4 py-3",
                       toneStyles[item.tone || "neutral"]
                     )}
                   >
                     <div className="text-xs font-semibold uppercase tracking-wide opacity-80">{item.label}</div>
-                    <div className="mt-1.5 text-2xl font-black leading-none">{item.value}</div>
+                    <div className={cn("font-black leading-none", compact ? "mt-1 text-lg" : "mt-1.5 text-2xl")}>{item.value}</div>
                     {item.detail ? <div className="mt-1 text-xs opacity-80">{item.detail}</div> : null}
                   </div>
                 ))}
@@ -186,51 +205,63 @@ export function FriendlyAiCrudShell({
             ) : null}
           </div>
 
-          <div className="flex flex-col rounded-2xl border border-[var(--line-strong)] bg-slate-950 text-white shadow-sm dark:bg-[var(--panel-strong)] dark:text-[var(--foreground)]">
-            <button
-              type="button"
-              onClick={() => setSuggestionsOpen((open) => !open)}
-              className="flex items-center justify-between gap-2 p-3 text-left sm:p-4"
-              aria-expanded={suggestionsOpen}
-              aria-controls={suggestionsContentId}
-              aria-label={toggleSuggestionsLabel}
-              title={toggleSuggestionsLabel}
-            >
-              <span className="flex items-center gap-2 text-sm font-semibold text-slate-200 dark:text-[var(--foreground)]">
-                <Sparkles className="h-4 w-4 text-amber-300" />
-                AI 建議
-              </span>
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 text-slate-400 transition-transform duration-200",
-                  suggestionsOpen && "rotate-180"
-                )}
-              />
-            </button>
-            {suggestionsOpen ? (
-              <div id={suggestionsContentId} className="px-3 pb-3 sm:px-4 sm:pb-4">
-                {suggestions.length > 0 ? (
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {suggestions.map((item) => (
-                      <div
-                        key={item.title}
-                        className={cn(
-                          "rounded-2xl border px-4 py-3",
-                          suggestionToneStyles[item.tone || "neutral"]
-                        )}
-                      >
-                        <div className="text-sm font-semibold">{item.title}</div>
-                        <div className="mt-1 text-sm leading-6 text-slate-300 dark:text-[var(--muted-foreground)]">{item.body}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6 text-slate-300 dark:border-[var(--line-soft)] dark:bg-[var(--panel-soft)] dark:text-[var(--muted-foreground)]">
-                    資料一進來，這裡就會開始提示異常、重複與下一步整理方向。
-                  </div>
-                )}
-              </div>
+          <div
+            className={cn(
+              voicePanel
+                ? "grid gap-2.5 xl:grid-cols-2 xl:items-start"
+                : "flex flex-col",
+              !voicePanel && (compact ? "gap-2.5" : "gap-4")
+            )}
+          >
+            {voicePanel ? (
+              <div className="min-w-0">{voicePanel}</div>
             ) : null}
+            <div className="flex min-w-0 flex-col rounded-2xl border border-[var(--line-strong)] bg-slate-950 text-white shadow-sm dark:bg-[var(--panel-strong)] dark:text-[var(--foreground)]">
+              <button
+                type="button"
+                onClick={() => setSuggestionsOpen((open) => !open)}
+                className={cn("flex items-center justify-between gap-2 text-left", compact ? "p-2.5 sm:p-3" : "p-3 sm:p-4")}
+                aria-expanded={suggestionsOpen}
+                aria-controls={suggestionsContentId}
+                aria-label={toggleSuggestionsLabel}
+                title={toggleSuggestionsLabel}
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-200 dark:text-[var(--foreground)]">
+                  <Sparkles className="h-4 w-4 text-amber-300" />
+                  AI 建議
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 text-slate-400 transition-transform duration-200",
+                    suggestionsOpen && "rotate-180"
+                  )}
+                />
+              </button>
+              {suggestionsOpen ? (
+                <div id={suggestionsContentId} className={cn(compact ? "px-2.5 pb-2.5 sm:px-3 sm:pb-3" : "px-3 pb-3 sm:px-4 sm:pb-4")}>
+                  {suggestions.length > 0 ? (
+                    <div className={cn("grid gap-3", voicePanel ? "lg:grid-cols-1 xl:grid-cols-1" : "sm:grid-cols-2 xl:grid-cols-3")}>
+                      {suggestions.map((item) => (
+                        <div
+                          key={item.title}
+                          className={cn(
+                            "rounded-2xl border px-4 py-3",
+                            suggestionToneStyles[item.tone || "neutral"]
+                          )}
+                        >
+                          <div className="text-sm font-semibold">{item.title}</div>
+                          <div className="mt-1 text-sm leading-6 text-slate-300 dark:text-[var(--muted-foreground)]">{item.body}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6 text-slate-300 dark:border-[var(--line-soft)] dark:bg-[var(--panel-soft)] dark:text-[var(--muted-foreground)]">
+                      資料一進來，這裡就會開始提示異常、重複與下一步整理方向。
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

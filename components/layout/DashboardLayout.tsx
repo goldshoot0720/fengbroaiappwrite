@@ -212,18 +212,20 @@ export default function DashboardLayout({
               </div>
             )}
             <div className="surface-panel pad-panel rounded-2xl md:rounded-[28px] xl:rounded-[32px]">
-              <div className="mb-5 flex flex-col gap-3 border-b border-[var(--line-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">語音 CRUD 管理</p>
-                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">快速導覽與操作目前頁面</p>
+              {currentModule !== "subscription" ? (
+                <div className="mb-5 flex flex-col gap-3 border-b border-[var(--line-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">語音 CRUD 管理</p>
+                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">快速導覽與操作目前頁面</p>
+                  </div>
+                  <GlobalVoiceCommandPanel
+                    currentModule={currentModule}
+                    menuItems={menuItems}
+                    onNavigate={onModuleChange}
+                    docked
+                  />
                 </div>
-                <GlobalVoiceCommandPanel
-                  currentModule={currentModule}
-                  menuItems={menuItems}
-                  onNavigate={onModuleChange}
-                  docked
-                />
-              </div>
+              ) : null}
               {children}
             </div>
           </div>
