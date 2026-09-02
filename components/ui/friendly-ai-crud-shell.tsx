@@ -61,6 +61,11 @@ interface FriendlyAiCrudShellProps {
    * existing full-width position below the search/summary area.
    */
   voicePanel?: ReactNode;
+  /**
+   * Optional compact control rendered in the same row as voicePanel/AI 建議
+   * (e.g. a "清除篩選" button), instead of taking its own full-width row below.
+   */
+  extraPanel?: ReactNode;
 }
 
 const toneStyles: Record<Tone, string> = {
@@ -103,6 +108,7 @@ export function FriendlyAiCrudShell({
   defaultSuggestionsOpen = false,
   density = "cozy",
   voicePanel,
+  extraPanel,
 }: FriendlyAiCrudShellProps) {
   const storageKey = recentSearchKey || title;
   const suggestionsContentId = useId();
@@ -208,9 +214,11 @@ export function FriendlyAiCrudShell({
           <div
             className={cn(
               voicePanel
-                ? "grid gap-2.5 xl:grid-cols-2 xl:items-start"
-                : "flex flex-col",
-              !voicePanel && (compact ? "gap-2.5" : "gap-4")
+                ? cn("grid gap-2.5 xl:items-start", extraPanel ? "xl:grid-cols-[1fr_1fr_auto]" : "xl:grid-cols-2")
+                : extraPanel
+                  ? "grid gap-2.5 xl:grid-cols-[1fr_auto] xl:items-start"
+                  : "flex flex-col",
+              !voicePanel && !extraPanel && (compact ? "gap-2.5" : "gap-4")
             )}
           >
             {voicePanel ? (
@@ -262,6 +270,9 @@ export function FriendlyAiCrudShell({
                 </div>
               ) : null}
             </div>
+            {extraPanel ? (
+              <div className="flex items-start xl:justify-end">{extraPanel}</div>
+            ) : null}
           </div>
         </div>
       </div>

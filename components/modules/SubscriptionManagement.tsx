@@ -1991,6 +1991,20 @@ export default function SubscriptionManagement() {
             onCancelPending={() => setPendingVoiceCommand(null)}
           />
         }
+        extraPanel={
+          <Button
+            variant="outline"
+            className="rounded-xl bg-white/80 dark:bg-transparent"
+            onClick={() => {
+              setRenewalFilter("all");
+              setDueFilter("all");
+              setMonthFilter("all");
+              clearSearchQuery();
+            }}
+          >
+            清除篩選
+          </Button>
+        }
       />
 
       <DataCard className="p-3">
@@ -2016,13 +2030,13 @@ export default function SubscriptionManagement() {
             </Button>
           )}
         </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-3 xl:grid-cols-4">
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
           <Select value={renewalFilter} onValueChange={(value: "all" | "renewing" | "stopped") => setRenewalFilter(value)}>
             <SelectTrigger>
-              <SelectValue placeholder="續訂狀態" />
+              <SelectValue placeholder="續訂状態" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部續訂狀態</SelectItem>
+              <SelectItem value="all">全部續訂状態</SelectItem>
               <SelectItem value="renewing">續訂中</SelectItem>
               <SelectItem value="stopped">不續訂</SelectItem>
             </SelectContent>
@@ -2039,14 +2053,6 @@ export default function SubscriptionManagement() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => {
-            setRenewalFilter("all");
-            setDueFilter("all");
-            setMonthFilter("all");
-            clearSearchQuery();
-          }}>
-            清除篩選
-          </Button>
         </div>
       </DataCard>
 
