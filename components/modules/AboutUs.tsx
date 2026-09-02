@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import codebaseStats from "@/config/codebase-stats.json";
 import { useAboutStats } from "@/hooks/useAboutStats";
 import { useBanks } from "@/hooks/useBanks";
+import { useBankSessionCompare } from "@/hooks/useBankSessionCompare";
 import { getModuleLabel } from "@/lib/moduleLabels";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 
@@ -42,30 +43,29 @@ const ABOUT_SUBPAGES = [
 ] as const;
 
 const MODULES = [
-  { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與各模組快速入口" },
-  { num: 2, name: "鋒兄儀表", category: "總覽", desc: "跨模組統計、異常提醒、媒體流量與摘要卡" },
-  { num: 3, name: "鋒兄訂閱", category: "生活", desc: "訂閱、扣款日、CSV 匯入匯出、本機垃圾桶與整理提醒" },
-  { num: 4, name: "鋒兄食品 （＋商品庫存）", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
-  { num: 5, name: "鋒兄筆記", category: "知識", desc: "快速筆記、附件預覽、本機垃圾桶與釘選工作台" },
-  { num: 6, name: "鋒兄常用", category: "入口", desc: "常用站點、複製、置頂與最近使用控制台" },
-  { num: 7, name: "鋒兄圖片", category: "媒體", desc: "圖片管理、標籤整理與工作台摘要" },
-  { num: 8, name: "鋒兄影片", category: "媒體", desc: "影片播放、封面管理與播放佇列" },
-  { num: 9, name: "鋒兄音樂", category: "媒體", desc: "音樂播放、歌詞、整理摘要與媒體控制" },
-  { num: 10, name: "鋒兄文件", category: "知識", desc: "文件預覽、分類、匯入匯出與技術內容整理" },
-  { num: 11, name: "鋒兄播客", category: "媒體", desc: "播客播放、批次上傳與摘要式管理" },
-  { num: 12, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、電子票證、餘額與異常提醒" },
-  { num: 13, name: "鋒兄例行", category: "任務", desc: "例行事項、日期遞移與週期追蹤" },
-  { num: 14, name: "鋒兄設定", category: "維運", desc: "Appwrite 設定、Table 初始化、資料統計與 system config" },
-  { num: 15, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、版本資訊與文件中心" },
-  { num: 16, name: "鋒兄比價", category: "工具", desc: "手動商品與價格紀錄（manualprice）" },
-  { num: 17, name: "手機比價", category: "工具", desc: "地標網通與傑昇通信雙來源，含週期歷史" },
-  { num: 18, name: "圖片 + 語音 = 影片", category: "工具", desc: "FFmpeg 把圖片與語音合成影片" },
-  { num: 19, name: "PNG / JPEG 轉換", category: "工具", desc: "瀏覽器端圖片格式轉換" },
-  { num: 20, name: "影片合併", category: "工具", desc: "多段影片合併" },
-  { num: 21, name: "YT / B站轉 MP3/MP4", category: "工具", desc: "YouTube / Bilibili 下載轉檔" },
-  { num: 22, name: "鋒兄Tube", category: "子工具", desc: "頻道最新影片與倒台指數" },
-  { num: 23, name: "鋒兄金融", category: "子工具", desc: "CNBC / Yahoo 報價與自訂標的 CSV" },
-  { num: 24, name: "鋒兄新聞", category: "子工具", desc: "鎖定網站焦點、人口統計與便當等面板" },
+  { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與各模組快速入口，同一頁可切換精簡待辦與完整儀表" },
+  { num: 2, name: "鋒兄訂閱", category: "生活", desc: "訂閱、扣款日、CSV 匯入匯出、本機垃圾桶與整理提醒" },
+  { num: 3, name: "鋒兄食品 （＋商品庫存）", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
+  { num: 4, name: "鋒兄筆記", category: "知識", desc: "快速筆記、附件預覽、本機垃圾桶與釘選工作台" },
+  { num: 5, name: "鋒兄常用", category: "入口", desc: "常用站點、複製、置頂與最近使用控制台" },
+  { num: 6, name: "鋒兄圖片", category: "媒體", desc: "圖片管理、標籤整理與工作台摘要" },
+  { num: 7, name: "鋒兄影片", category: "媒體", desc: "影片播放、封面管理與播放佇列" },
+  { num: 8, name: "鋒兄音樂", category: "媒體", desc: "音樂播放、歌詞、整理摘要與媒體控制" },
+  { num: 9, name: "鋒兄文件", category: "知識", desc: "文件預覽、分類、匯入匯出與技術內容整理" },
+  { num: 10, name: "鋒兄播客", category: "媒體", desc: "播客播放、批次上傳與摘要式管理" },
+  { num: 11, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、電子票證、餘額與異常提醒" },
+  { num: 12, name: "鋒兄例行", category: "任務", desc: "例行事項、日期遞移與週期追蹤" },
+  { num: 13, name: "鋒兄設定", category: "維運", desc: "Appwrite 設定、Table 初始化、資料統計與 system config" },
+  { num: 14, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、版本資訊與文件中心" },
+  { num: 15, name: "鋒兄比價", category: "工具", desc: "手動商品與價格紀錄（manualprice）" },
+  { num: 16, name: "手機比價", category: "工具", desc: "地標網通與傑昇通信雙來源，含週期歷史" },
+  { num: 17, name: "圖片 + 語音 = 影片", category: "工具", desc: "FFmpeg 把圖片與語音合成影片" },
+  { num: 18, name: "PNG / JPEG 轉換", category: "工具", desc: "瀏覽器端圖片格式轉換" },
+  { num: 19, name: "影片合併", category: "工具", desc: "多段影片合併" },
+  { num: 20, name: "YT / B站轉 MP3/MP4", category: "工具", desc: "YouTube / Bilibili 下載轉檔" },
+  { num: 21, name: "鋒兄Tube", category: "子工具", desc: "頻道最新影片與倒台指數" },
+  { num: 22, name: "鋒兄金融", category: "子工具", desc: "CNBC / Yahoo 報價與自訂標的 CSV" },
+  { num: 23, name: "鋒兄新聞", category: "子工具", desc: "鎖定網站焦點、人口統計與便當等面板" },
 ];
 
 const MODULE_COUNT = MODULES.length;
@@ -398,21 +398,45 @@ function AboutBanner() {
 function SiteUsageStatsSection() {
   const { menuUsage, loading: statsLoading } = useAboutStats();
   const { banks, loading: banksLoading } = useBanks();
-
-  const sortedByDeposit = useMemo(
-    () => banks.slice().sort((a, b) => (b.deposit || 0) - (a.deposit || 0)),
-    [banks]
-  );
-  const maxBank = sortedByDeposit[0];
-  const minBank = sortedByDeposit[sortedByDeposit.length - 1];
+  const {
+    currentTotal,
+    maxTotal,
+    minTotal,
+    lastTotal,
+    highestAccount,
+    delta,
+    lastCapturedAt,
+  } = useBankSessionCompare(banks);
 
   const topMenus = (menuUsage?.items || []).slice(0, 5);
+
+  const deltaLabel =
+    delta == null
+      ? "尚無上次紀錄"
+      : delta === 0
+        ? "與上次相同"
+        : `${delta > 0 ? "比上次多" : "比上次少"} ${formatCurrency(Math.abs(delta))}`;
+
+  const deltaTone =
+    delta == null || delta === 0
+      ? "text-[var(--muted-foreground)]"
+      : delta > 0
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-rose-600 dark:text-rose-400";
+
+  const lastDetail = lastTotal == null
+    ? "第一次使用，尚無上次紀錄"
+    : `上次 ${formatCurrency(lastTotal)} · ${lastCapturedAt ? formatDate(lastCapturedAt) : ""}`;
+
+  const maxDetail = highestAccount
+    ? `目前最高帳戶 ${highestAccount.name} · ${formatCurrency(highestAccount.deposit)}`
+    : "尚無銀行資料";
 
   return (
     <section aria-labelledby="site-usage-stats-title" className="rounded-2xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] p-4">
       <div className="mb-3">
         <h2 id="site-usage-stats-title" className="text-base font-semibold text-[var(--foreground)]">選單使用與銀行存款統計</h2>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">選單點擊次數跟銀行存款現況都依實際使用與資料自動更新，尚無資料時先顯示預設狀態。</p>
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">選單點擊次數跟銀行存款現況都依實際使用與資料自動更新，尚無資料時先顯示預設狀態。銀行最高／最低存款指「總存款」的歷史極值，會跟上次使用網站的紀錄比對。</p>
       </div>
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
         <div>
@@ -441,14 +465,25 @@ function SiteUsageStatsSection() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <StatTile
-            label="銀行最高存款"
-            value={maxBank ? formatCurrency(maxBank.deposit || 0) : banksLoading ? "載入中…" : "—"}
-            detail={maxBank ? `${maxBank.name} · 更新於 ${formatDate(maxBank.$updatedAt)}` : "尚無銀行資料"}
+            label="目前總存款"
+            value={banksLoading ? "載入中…" : formatCurrency(currentTotal)}
+            detail={lastTotal == null ? "第一次使用，尚無上次紀錄" : `上次 ${formatDate(lastCapturedAt ?? "")}`}
           />
           <StatTile
-            label="銀行最低存款"
-            value={minBank ? formatCurrency(minBank.deposit || 0) : banksLoading ? "載入中…" : "—"}
-            detail={minBank ? `${minBank.name} · 更新於 ${formatDate(minBank.$updatedAt)}` : "尚無銀行資料"}
+            label="與上次比對"
+            value={banksLoading ? "載入中…" : deltaLabel}
+            detail={lastTotal == null ? "—" : `上次 ${formatCurrency(lastTotal)}`}
+            valueClassName={banksLoading ? undefined : deltaTone}
+          />
+          <StatTile
+            label="銀行最高存款（總存款歷史高點）"
+            value={banksLoading ? "載入中…" : formatCurrency(maxTotal)}
+            detail={maxDetail}
+          />
+          <StatTile
+            label="銀行最低存款（總存款歷史低點）"
+            value={banksLoading ? "載入中…" : formatCurrency(minTotal)}
+            detail={lastDetail}
           />
         </div>
       </div>
@@ -456,11 +491,11 @@ function SiteUsageStatsSection() {
   );
 }
 
-function StatTile({ label, value, detail }: { label: string; value: string; detail: string }) {
+function StatTile({ label, value, detail, valueClassName }: { label: string; value: string; detail: string; valueClassName?: string }) {
   return (
     <div className="rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-veil)] p-3">
       <div className="text-xs font-medium text-[var(--muted-foreground)]">{label}</div>
-      <div className="mt-1 text-xl font-bold text-[var(--foreground)]">{value}</div>
+      <div className={`mt-1 text-xl font-bold text-[var(--foreground)] ${valueClassName ?? ""}`}>{value}</div>
       <div className="mt-1 text-xs text-[var(--muted-foreground)]">{detail}</div>
     </div>
   );
