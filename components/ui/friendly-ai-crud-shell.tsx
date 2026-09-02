@@ -51,6 +51,8 @@ interface FriendlyAiCrudShellProps {
   legacyRecentSearchKeys?: readonly string[];
   /** Keep a visible recent-search row below the search controls. */
   showRecentSearches?: boolean;
+  /** Skip rendering the built-in search input (module renders its own search bar elsewhere, e.g. beside its filter chips). */
+  hideSearch?: boolean;
   /** Start with the AI 建議 panel expanded (defaults to collapsed). */
   defaultSuggestionsOpen?: boolean;
   /** "compact" tightens outer padding, gaps and chip sizing for data-dense modules. Defaults to "cozy" (unchanged). */
@@ -105,6 +107,7 @@ export function FriendlyAiCrudShell({
   recentSearchKey,
   legacyRecentSearchKeys,
   showRecentSearches = true,
+  hideSearch = false,
   defaultSuggestionsOpen = false,
   density = "cozy",
   voicePanel,
@@ -146,18 +149,20 @@ export function FriendlyAiCrudShell({
         <div className={cn("flex flex-col", compact ? "gap-2.5" : "gap-4")}>
           <div className={cn("surface-inset rounded-2xl shadow-sm", compact ? "p-2.5 sm:p-3" : "p-3 sm:p-4")}>
             {/* ── Search input with recent searches ── */}
-            <RecentSearchInput
-              value={searchQuery}
-              onChange={onSearchChange}
-              onClearSearch={onClearSearch}
-              placeholder={searchPlaceholder}
-              storageKey={storageKey}
-              legacyStorageKeys={legacyRecentSearchKeys}
-              showRecentSearches={showRecentSearches}
-            />
-            {searchExtras ? <div className={compact ? "mt-2" : "mt-3"}>{searchExtras}</div> : null}
+            {!hideSearch ? (
+              <RecentSearchInput
+                value={searchQuery}
+                onChange={onSearchChange}
+                onClearSearch={onClearSearch}
+                placeholder={searchPlaceholder}
+                storageKey={storageKey}
+                legacyStorageKeys={legacyRecentSearchKeys}
+                showRecentSearches={showRecentSearches}
+              />
+            ) : null}
+            {searchExtras ? <div className={cn(!hideSearch && (compact ? "mt-2" : "mt-3"))}>{searchExtras}</div> : null}
             {modeItems.length > 0 ? (
-              <div className={cn("flex flex-wrap gap-2", compact ? "mt-2.5" : "mt-4")}>
+              <div className={cn("flex flex-wrap gap-2", !hideSearch && (compact ? "mt-2.5" : "mt-4"))}>
                 {modeItems.map((mode) => {
                   const selected = mode.key === activeMode;
                   return (
@@ -192,7 +197,7 @@ export function FriendlyAiCrudShell({
               </div>
             ) : null}
             {summaries.length > 0 ? (
-              <div className={cn("flex flex-wrap", compact ? "mt-2.5 gap-2" : "mt-4 gap-3")}>
+              <div className={cn("flex flex-wrap", (!hideSearch || modeItems.length > 0) ? (compact ? "mt-2.5 gap-2" : "mt-4 gap-3") : (compact ? "gap-2" : "gap-3"))}>
                 {summaries.map((item) => (
                   <div
                     key={item.label}

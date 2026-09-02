@@ -12,6 +12,7 @@ import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { useSubscriptions, getSubscriptionExpiryInfo } from "@/hooks/useSubscriptions";
@@ -1883,6 +1884,7 @@ export default function SubscriptionManagement() {
         recentSearchKey="subscription-management"
         legacyRecentSearchKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
         showRecentSearches
+        hideSearch
         density="compact"
         intro={
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -2008,6 +2010,16 @@ export default function SubscriptionManagement() {
       />
 
       <DataCard className="p-3">
+        <RecentSearchInput
+          value={searchQuery}
+          onChange={handleSearchChange}
+          onClearSearch={clearSearchQuery}
+          placeholder="搜尋服務名稱、網站、帳號或備註..."
+          storageKey="subscription-management"
+          legacyStorageKeys={LEGACY_SUBSCRIPTION_RECENT_SEARCH_KEYS}
+          showRecentSearches
+          className="mb-3"
+        />
         <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-800">
           <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => applyQuickFilter("all")}>
             全部
