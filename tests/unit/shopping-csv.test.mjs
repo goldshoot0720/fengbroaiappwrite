@@ -15,13 +15,14 @@ const sample = {
   currency: "TWD",
   quantity: 1,
   shop: "PChome, 測試",
-  pickupMethod: "取貨付款",
+  pickupMethod: "門市購買",
+  imageUrl: "https://example.com/dishwasher.jpg",
   account: "buyer@example.com",
   note: "比價後決定, 含逗號",
 };
 
 describe("shopping CSV", () => {
-  it("exports the nine Appwrite fields and round-trips quoted notes", () => {
+  it("exports the ten Appwrite fields and round-trips quoted notes", () => {
     assert.deepEqual(SHOPPING_CSV_HEADERS, [
       "name",
       "plannedDate",
@@ -30,12 +31,13 @@ describe("shopping CSV", () => {
       "quantity",
       "shop",
       "pickupMethod",
+      "imageUrl",
       "account",
       "note",
     ]);
 
     const csv = buildShoppingCsv([sample]);
-    assert.match(csv, /^name,plannedDate,price,currency,quantity,shop,pickupMethod,account,note\n/);
+    assert.match(csv, /^name,plannedDate,price,currency,quantity,shop,pickupMethod,imageUrl,account,note\n/);
     assert.match(csv, /"PChome, 測試"/);
 
     const { data, errors } = parseShoppingCsv(`\uFEFF${csv}`);
@@ -48,7 +50,8 @@ describe("shopping CSV", () => {
         currency: "TWD",
         quantity: 1,
         shop: "PChome, 測試",
-        pickupMethod: "取貨付款",
+        pickupMethod: "門市購買",
+        imageUrl: "https://example.com/dishwasher.jpg",
         account: "buyer@example.com",
         note: "比價後決定, 含逗號",
       },
@@ -57,9 +60,9 @@ describe("shopping CSV", () => {
 
   it("accepts Chinese headers and currency/pickup labels, and matches by name", () => {
     const csv = [
-      "購物名稱,預定購買日,預定價格,幣別,預定數量,預定商店,取貨方式,帳號,備註",
-      " 米 10kg ,2026/09/30,499,台幣,2,家樂福,宅配,owner@example.com,補貨",
-      "鮮奶,2026.10.01,98,日圓,1,超市,超商取貨,,試喝",
+      "購物名稱,預定購買日,預定價格,幣別,預定數量,預定商店,取貨方式,圖片網址,帳號,備註",
+      " 米 10kg ,2026/09/30,499,台幣,2,家樂福,宅配/郵寄,,owner@example.com,補貨",
+      "鮮奶,2026.10.01,98,日圓,1,超市,超商取貨,https://example.com/milk.png,,試喝",
     ].join("\n");
 
     const { data, errors } = parseShoppingCsv(csv);
@@ -68,9 +71,11 @@ describe("shopping CSV", () => {
     assert.equal(data[0].plannedDate, "2026-09-30");
     assert.equal(data[0].currency, "TWD");
     assert.equal(data[0].quantity, 2);
-    assert.equal(data[0].pickupMethod, "宅配");
+    assert.equal(data[0].pickupMethod, "宅配/郵寄");
+    assert.equal(data[0].imageUrl, "");
     assert.equal(data[1].currency, "JPY");
     assert.equal(data[1].pickupMethod, "超商取貨");
+    assert.equal(data[1].imageUrl, "https://example.com/milk.png");
     assert.equal(
       shoppingImportKey(data[0]),
       shoppingImportKey({ name: "米 10kg" }),
@@ -108,6 +113,7 @@ describe("shopping CSV", () => {
         quantity: 1,
         shop: "",
         pickupMethod: "",
+        imageUrl: "",
         account: "",
         note: "",
       },

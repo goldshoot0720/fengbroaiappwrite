@@ -5,6 +5,8 @@ import {
   CalendarDays,
   Copy,
   Download,
+  ImagePlus,
+  Link2,
   Pencil,
   Plus,
   RefreshCw,
@@ -14,6 +16,7 @@ import {
   Trash2,
   Upload,
   Users,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -49,10 +52,13 @@ import {
   shoppingImportKey,
 } from "@/lib/shoppingCsv";
 import { formatCurrencyWithExchange } from "@/lib/formatters";
-import { getExportFilename } from "@/lib/utils";
+import { getExportFilename, getAppwriteHeaders } from "@/lib/utils";
 import type { ShoppingItem, ShoppingItemFormData } from "@/types";
 
 type StatusFilter = "all" | "due" | "today" | "upcoming" | "nodate";
+
+/** 取貨方式下拉中代表「自行輸入」的選項值 */
+const PICKUP_METHOD_CUSTOM = "__custom__";
 
 function NativeSelect({
   id,
@@ -91,6 +97,10 @@ export default function ShoppingListManagement() {
   const [pendingDelete, setPendingDelete] = useState<ShoppingItem | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const imageUploadRef = useRef<HTMLInputElement>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
   const importCloseTimer = useRef<number | null>(null);
   const [importPreview, setImportPreview] = useState<{ data: ShoppingItemFormData[]; errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
@@ -127,7 +137,7 @@ export default function ShoppingListManagement() {
     };
   }, []);
 
-  const busy = saving || deletingId !== null || importing;
+  const busy = saving || deletingId !== null || importing || imageUploading;
 
   const itemNames = useMemo(
     () => [...new Set(items.map((item) => item.name.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-Hant")),
@@ -141,6 +151,18 @@ export default function ShoppingListManagement() {
     () => [...new Set(items.map((item) => item.pickupMethod?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "zh-Hant")),
     [items],
   );
+
+  const currentPickupInPresets = Boolean(form.pickupMethod && SHOPPING_PICKUP_METHOD_PRESETS.includes(form.pickupMethod));
+  const pickupSelectValue = currentPickupInPresets || !form.pickupMethod ? form.pickupMethod || "" : PICKUP_METHOD_CUSTOM;
+
+  const handlePickupSelectChange = (value: string) => {
+    if (value === PICKUP_METHOD_CUSTOM) {
+      // 進入自行輸入模式，保留空值讓使用者輸入
+      setForm((current) => ({ ...current, pickupMethod: "" }));
+      return;
+    }
+    setForm((current) => ({ ...current, pickupMethod: value }));
+  };
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("zh-Hant");
@@ -164,6 +186,7 @@ export default function ShoppingListManagement() {
     setEditingId(null);
     setForm(emptyShoppingItemForm(name));
     setActionError(null);
+    resetImageState();
     setFormOpen(true);
   };
 
@@ -171,6 +194,7 @@ export default function ShoppingListManagement() {
     setEditingId(item.$id);
     setForm(toShoppingItemForm(item));
     setActionError(null);
+    resetImageState();
     setFormOpen(true);
   };
 
@@ -178,6 +202,7 @@ export default function ShoppingListManagement() {
     setEditingId(null);
     setForm({ ...toShoppingItemForm(item), name: `${item.name || "未命名"} (複製)` });
     setActionError(null);
+    resetImageState();
     setFormOpen(true);
   };
 
@@ -186,6 +211,7 @@ export default function ShoppingListManagement() {
     setEditingId(null);
     setForm(emptyShoppingItemForm());
     setActionError(null);
+    resetImageState();
   };
 
   useEffect(() => {
@@ -198,18 +224,30 @@ export default function ShoppingListManagement() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (busy) return;
+    if (busy || imageUploading) return;
     setSaving(true);
     setActionError(null);
     try {
+      let formToSubmit = form;
+      // 有選擇本機圖片時，先上傳取得圖片網址
+      if (imageFile) {
+        setImageUploading(true);
+        try {
+          const uploadedUrl = await uploadSelectedImage();
+          if (!uploadedUrl) throw new Error("圖片上傳失敗，請稍後再試");
+          formToSubmit = { ...form, imageUrl: uploadedUrl };
+        } finally {
+          setImageUploading(false);
+        }
+      }
       const result = editingId
         ? await fetchApi<ShoppingItem>(`${API_ENDPOINTS.SHOPPING_LIST}/${encodeURIComponent(editingId)}`, {
             method: "PUT",
-            body: JSON.stringify(form),
+            body: JSON.stringify(formToSubmit),
           })
         : await fetchApi<ShoppingItem>(API_ENDPOINTS.SHOPPING_LIST, {
             method: "POST",
-            body: JSON.stringify(form),
+            body: JSON.stringify(formToSubmit),
           });
       setItems((prev) => {
         const next = editingId
@@ -240,6 +278,61 @@ export default function ShoppingListManagement() {
       setActionError(deleteError instanceof Error ? deleteError.message : "刪除失敗，請確認連線後再試一次。");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const resetImageState = () => {
+    setImageFile(null);
+    setImageUploading(false);
+    setImagePreviewUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return "";
+    });
+  };
+
+  const handleImageFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setActionError(`圖片大小超過限制：${Math.round(file.size / 1024 / 1024)}MB > 50MB`);
+      return;
+    }
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      setActionError("只支援 JPG、PNG、GIF、WEBP 圖片格式");
+      return;
+    }
+    setImageFile(file);
+    setImagePreviewUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    // 選取檔案後，清空網址輸入，避免兩者並存造成混淆
+    setForm((current) => ({ ...current, imageUrl: "" }));
+    setActionError(null);
+  };
+
+  const uploadSelectedImage = async (): Promise<string> => {
+    if (!imageFile) return "";
+    setImageUploading(true);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append("file", imageFile);
+      const response = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: getAppwriteHeaders(),
+        body: formDataUpload,
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "圖片上傳失敗");
+      }
+      const data = await response.json();
+      return data.url as string;
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -351,7 +444,7 @@ export default function ShoppingListManagement() {
             鋒兄購物清單
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            記錄想買的商品、預定購買日、預算與取貨方式。預定購買日前 3 天會開始提醒，到期當天仍會通知。
+            記錄想買的商品、預定購買日、預算、取貨方式與商品圖片。預定購買日前 3 天會開始提醒，到期當天仍會通知。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -470,19 +563,30 @@ export default function ShoppingListManagement() {
                 {shopNames.map((name) => <option key={name} value={name} />)}
               </datalist>
             </FormField>
-            <FormField label="預定取貨方式" htmlFor="shopping-pickup">
-              <Input
+            <FormField label="預定購買／取貨方式" htmlFor="shopping-pickup">
+              <NativeSelect
                 id="shopping-pickup"
-                maxLength={100}
-                list="shopping-pickup-presets"
-                value={form.pickupMethod || ""}
-                onChange={(event) => setForm((current) => ({ ...current, pickupMethod: event.target.value }))}
-                placeholder="取貨付款、宅配或自行輸入"
-              />
-              <datalist id="shopping-pickup-presets">
-                {SHOPPING_PICKUP_METHOD_PRESETS.map((method) => <option key={method} value={method} />)}
-                {pickupMethods.map((method) => <option key={method} value={method} />)}
-              </datalist>
+                value={pickupSelectValue}
+                onChange={handlePickupSelectChange}
+              >
+                <option value="">未設定</option>
+                {SHOPPING_PICKUP_METHOD_PRESETS.map((method) => <option key={method} value={method}>{method}</option>)}
+                {pickupMethods
+                  .filter((method) => !SHOPPING_PICKUP_METHOD_PRESETS.includes(method))
+                  .map((method) => <option key={method} value={method}>{method}</option>)}
+                <option value={PICKUP_METHOD_CUSTOM}>自行輸入…</option>
+              </NativeSelect>
+              {pickupSelectValue === PICKUP_METHOD_CUSTOM ? (
+                <Input
+                  id="shopping-pickup-custom"
+                  className="mt-2"
+                  maxLength={30}
+                  value={form.pickupMethod || ""}
+                  onChange={(event) => setForm((current) => ({ ...current, pickupMethod: event.target.value }))}
+                  placeholder="輸入其他取貨方式"
+                  autoFocus
+                />
+              ) : null}
             </FormField>
             <FormField label="帳號" htmlFor="shopping-account">
               <Input
@@ -492,6 +596,92 @@ export default function ShoppingListManagement() {
                 onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}
                 placeholder="Email、使用者名稱或辨識名稱"
               />
+            </FormField>
+            <FormField label="商品圖片" htmlFor="shopping-image" className="sm:col-span-2 xl:col-span-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative min-w-0 flex-1">
+                  <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="shopping-image"
+                    className="pl-9 pr-9"
+                    maxLength={2000}
+                    value={form.imageUrl || ""}
+                    onChange={(event) => {
+                      // 手動輸入網址時，清除已選取的檔案
+                      setImageFile(null);
+                      setImagePreviewUrl((prev) => {
+                        if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+                        return "";
+                      });
+                      setForm((current) => ({ ...current, imageUrl: event.target.value }));
+                    }}
+                    placeholder="貼上圖片網址，或按右側「上傳圖片」"
+                  />
+                  {form.imageUrl ? (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      onClick={() => setForm((current) => ({ ...current, imageUrl: "" }))}
+                      aria-label="清除圖片網址"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  ) : null}
+                </div>
+                <input
+                  ref={imageUploadRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  onChange={handleImageFileSelect}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => imageUploadRef.current?.click()}
+                  disabled={busy}
+                >
+                  {imageFile ? <ImagePlus className="text-accent" /> : <Upload />}
+                  {imageFile ? "已選取圖片" : "上傳圖片"}
+                </Button>
+                {(imageFile || imagePreviewUrl) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={resetImageState}
+                    disabled={busy}
+                  >
+                    <X />
+                    移除
+                  </Button>
+                )}
+                {!imageFile && !imagePreviewUrl && form.imageUrl ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setForm((current) => ({ ...current, imageUrl: "" }))}
+                    disabled={busy}
+                  >
+                    <X />
+                    移除圖片
+                  </Button>
+                ) : null}
+              </div>
+              {(imagePreviewUrl || form.imageUrl) ? (
+                <div className="mt-3 flex items-center gap-3 rounded-xl border border-[var(--line-soft)] bg-muted/30 p-3">
+                  {/* 預覽圖：本機檔案以 blob 優先；編輯既有圖片用網址 */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreviewUrl || form.imageUrl || ""}
+                    alt={`${form.name || "商品"}圖片預覽`}
+                    className="h-24 w-24 shrink-0 rounded-lg border border-[var(--line-soft)] object-cover"
+                  />
+                  <div className="min-w-0 text-sm leading-6 text-muted-foreground">
+                    <p className="truncate">{imageFile ? imageFile.name : (form.imageUrl || "")}</p>
+                    <p>{imageUploading ? "上傳中…" : "儲存後圖片會跟著這筆購物項目保存。"}</p>
+                  </div>
+                </div>
+              ) : null}
             </FormField>
             <FormField label="備註" htmlFor="shopping-note" className="sm:col-span-2 xl:col-span-3">
               <Textarea
@@ -577,9 +767,20 @@ export default function ShoppingListManagement() {
                   return (
                     <TableRow key={item.$id}>
                       <TableCell>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-foreground">{item.name}</p>
-                          {item.note ? <p className="truncate text-xs text-muted-foreground">{item.note}</p> : null}
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          {item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.imageUrl}
+                              alt=""
+                              loading="lazy"
+                              className="size-10 shrink-0 rounded-lg border border-[var(--line-soft)] bg-muted object-cover"
+                            />
+                          ) : null}
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">{item.name}</p>
+                            {item.note ? <p className="truncate text-xs text-muted-foreground">{item.note}</p> : null}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -650,11 +851,22 @@ export default function ShoppingListManagement() {
               return (
                 <div key={item.$id} className="surface-inset rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="break-words font-semibold text-foreground">{item.name}</p>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        {[item.shop, item.pickupMethod].filter(Boolean).join(" · ") || "未填商店"}
-                      </p>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.imageUrl}
+                          alt=""
+                          loading="lazy"
+                          className="size-12 shrink-0 rounded-xl border border-[var(--line-soft)] bg-muted object-cover"
+                        />
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold text-foreground">{item.name}</p>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          {[item.shop, item.pickupMethod].filter(Boolean).join(" · ") || "未填商店"}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <Button type="button" variant="ghost" size="icon" onClick={() => openEditForm(item)} disabled={busy || loading} aria-label={`編輯 ${item.name}`}><Pencil /></Button>

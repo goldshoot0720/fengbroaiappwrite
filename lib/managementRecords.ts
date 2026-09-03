@@ -82,12 +82,13 @@ export const QUOTA_SERVICE_TYPE_OPTIONS: ReadonlyArray<{ value: QuotaServiceType
 ];
 
 export const SHOPPING_PICKUP_METHOD_PRESETS: ReadonlyArray<string> = [
-  "取貨付款",
-  "宅配",
+  "門市購買",
+  "超商取貨付款",
+  "蝦皮取貨付款",
+  "宅配/郵寄",
   "超商取貨",
-  "面交",
-  "門市自取",
-  "郵寄",
+  "蝦皮取貨",
+  "門市取貨",
 ];
 
 export const SHOPPING_CURRENCY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
@@ -166,6 +167,7 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "quantity", type: "integer", required: false },
       { key: "shop", type: "string", size: 100, required: false },
       { key: "pickupMethod", type: "string", size: 30, required: false },
+      { key: "imageUrl", type: "url", required: false },
       { key: "account", type: "string", size: 200, required: false },
       { key: "note", type: "string", size: 3337, required: false },
     ],
@@ -562,6 +564,7 @@ export function emptyShoppingItemForm(name = ""): ShoppingItemFormData {
     quantity: 1,
     shop: "",
     pickupMethod: "",
+    imageUrl: "",
     account: "",
     note: "",
   };
@@ -576,6 +579,7 @@ export function toShoppingItemForm(source: ShoppingItem): ShoppingItemFormData {
     quantity: source.quantity == null ? 1 : Number(source.quantity),
     shop: source.shop || "",
     pickupMethod: source.pickupMethod || "",
+    imageUrl: source.imageUrl || "",
     account: source.account || "",
     note: source.note || "",
   };
@@ -592,6 +596,7 @@ export function buildShoppingItemWritePayload(
   const plannedDate = asOptionalDate(body.plannedDate);
   const quantity = asNonNegativeInteger(body.quantity, "預定數量");
   if (quantity < 1) throw new Error("預定數量必須是 1 以上的整數");
+  const imageUrl = asOptionalUrl(body.imageUrl, "商品圖片網址", 2000);
 
   const payload: Record<string, unknown> = {
     name,
@@ -599,11 +604,13 @@ export function buildShoppingItemWritePayload(
     currency: asChoice(body.currency, shoppingCurrencies, "TWD", "幣別"),
     quantity,
     shop: asText(body.shop, "預定商店", 100),
-    pickupMethod: asText(body.pickupMethod, "預定取貨方式", 100),
+    pickupMethod: asText(body.pickupMethod, "預定取貨方式", 30),
     account: asText(body.account, "帳號", 200),
     note: asText(body.note, "備註", 3337),
   };
 
+  if (imageUrl) payload.imageUrl = imageUrl;
+  else if (mode === "update") payload.imageUrl = null;
   if (plannedDate) payload.plannedDate = plannedDate;
   else if (mode === "update") payload.plannedDate = null;
   return payload;

@@ -102,8 +102,10 @@ export interface ShoppingItem {
   currency?: string;
   quantity?: number;
   shop?: string;
-  // 取貨方式：取貨付款／宅配，或自行輸入其他方式（例如 超商取貨、面交）
+  // 取貨方式：門市購買／超商取貨付款／宅配等，或自行輸入其他方式
   pickupMethod?: string;
+  // 商品圖片：Appwrite Storage 網址或任意外部圖片網址
+  imageUrl?: string;
   account?: string;
   note?: string;
   $createdAt?: string;
@@ -118,6 +120,7 @@ export interface ShoppingItemFormData {
   quantity?: number;
   shop?: string;
   pickupMethod?: string;
+  imageUrl?: string;
   account?: string;
   note?: string;
 }
