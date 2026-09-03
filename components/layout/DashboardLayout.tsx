@@ -246,9 +246,7 @@ export default function DashboardLayout({
         {...(isSidebarOpen && isMobile ? { inert: true as unknown as boolean } : {})}
         aria-hidden={isSidebarOpen && isMobile ? true : undefined}
       >
-        <MusicQueuePanel />
-        <PodcastQueuePanel />
-        <VideoQueuePanel />
+        <DeferredMediaQueues />
         <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4 md:bottom-6">
           <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} docked />
         </div>
@@ -260,6 +258,39 @@ export default function DashboardLayout({
 // ─────────────────────────────────────────────
 // Desktop Horizontal Top Navigation (2 rows)
 // ─────────────────────────────────────────────
+
+function DeferredMediaQueues() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const enable = () => {
+      if (!cancelled) setReady(true);
+    };
+    const idle = window.requestIdleCallback;
+    if (typeof idle === "function") {
+      const id = idle(enable, { timeout: 1500 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(id);
+      };
+    }
+    const timer = window.setTimeout(enable, 1);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  if (!ready) return null;
+  return (
+    <>
+      <MusicQueuePanel />
+      <PodcastQueuePanel />
+      <VideoQueuePanel />
+    </>
+  );
+}
 
 function DesktopTopNav({
   activeLabel,

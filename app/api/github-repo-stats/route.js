@@ -31,6 +31,8 @@ export async function GET() {
       repo: GITHUB_REPO,
       createdAt,
       daysSinceCreated,
+    }, {
+      headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
     });
   } catch (err) {
     console.error("GET /github-repo-stats error:", err);

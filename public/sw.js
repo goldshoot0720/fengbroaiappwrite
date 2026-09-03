@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v13';
+const CACHE_NAME = 'fengbro-ai-v14';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -254,34 +254,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (request.destination === 'style' || request.destination === 'script') {
-    event.respondWith(
-      fetch(request)
+  function staleWhileRevalidate(req) {
+    return caches.match(req).then((cached) => {
+      const fetching = fetch(req)
         .then((response) => {
           if (response.status === 200) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone)).catch(() => {});
           }
           return response;
         })
-        .catch(() => caches.match(request))
-    );
-    return;
+        .catch(() => cached);
+      return cached || fetching;
+    });
   }
 
-  if (request.destination === 'image' || request.destination === 'font') {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          if (response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
-          }
-          return response;
-        });
-      })
-    );
+  if (
+    requestUrl.pathname.startsWith('/_next/static/') ||
+    request.destination === 'style' ||
+    request.destination === 'script' ||
+    request.destination === 'image' ||
+    request.destination === 'font'
+  ) {
+    event.respondWith(staleWhileRevalidate(request));
     return;
   }
 

@@ -199,7 +199,8 @@ export default function DashboardPage() {
   // Start with the same shell on server and client, then restore the local choice.
   // Reading localStorage in the initializer caused hydration errors on reload.
   const [currentModule, setCurrentModule] = useState<string>("home");
-  const [appwriteSetupMissing, setAppwriteSetupMissing] = useState(true);
+  const [setupChecked, setSetupChecked] = useState(false);
+  const [appwriteSetupMissing, setAppwriteSetupMissing] = useState(false);
 
   useEffect(() => {
     try {
@@ -210,6 +211,7 @@ export default function DashboardPage() {
       // Keep the homepage when localStorage is unavailable.
     }
     setAppwriteSetupMissing(!hasRequiredAppwriteConfig({ requireApiKey: true }));
+    setSetupChecked(true);
   }, []);
 
   const handleModuleChange = useCallback((moduleId: string) => {
@@ -265,6 +267,9 @@ export default function DashboardPage() {
   }, [currentModule]);
 
   const currentContent = useMemo(() => {
+    if (!setupChecked && APPWRITE_REQUIRED_MODULES.has(currentModule)) {
+      return <ModuleFallback />;
+    }
     if (appwriteSetupMissing && APPWRITE_REQUIRED_MODULES.has(currentModule)) {
       return <AppwriteSetupEmptyState onNavigate={() => handleModuleChange("settings")} />;
     }
@@ -350,7 +355,7 @@ export default function DashboardPage() {
       default:
         return <NotFoundModule />;
     }
-  }, [appwriteSetupMissing, currentModule, handleModuleChange]);
+  }, [appwriteSetupMissing, currentModule, handleModuleChange, setupChecked]);
 
   return (
     <DashboardLayout

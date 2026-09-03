@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppwriteSetup } from "@/hooks/useAppwriteSetup";
 import { useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { readSessionCache, writeSessionCache } from "@/lib/sessionDataCache";
 
 export interface MediaStats {
   totalImages: number;
@@ -57,6 +58,8 @@ type StorageStatsResponse = {
 };
 
 const DEFAULT_STORAGE_LIMIT = Math.floor(1.8 * 1024 * 1024 * 1024);
+const MEDIA_STATS_CACHE_NAME = "media-stats";
+const MEDIA_STATS_TTL_MS = 60_000;
 
 const EMPTY_MEDIA_STATS: MediaStats = {
   totalImages: 0,
@@ -129,11 +132,17 @@ export function useMediaStats(enabled = true) {
       return;
     }
 
-    setLoading(true);
+    const cached = readSessionCache<MediaStats>(MEDIA_STATS_CACHE_NAME, MEDIA_STATS_TTL_MS);
+    if (cached) {
+      setStats(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     try {
-      const response = await fetch(buildStorageStatsUrl(config), { cache: "no-store" });
+      const response = await fetch(buildStorageStatsUrl(config), { cache: "default" });
       const data = (await response.json().catch(() => ({}))) as StorageStatsResponse;
       if (!response.ok) {
         throw new Error(data.error || `HTTP error! status: ${response.status}`);
@@ -152,7 +161,7 @@ export function useMediaStats(enabled = true) {
       const documents = storage.documents;
       const other = storage.other;
 
-      setStats({
+      const nextStats: MediaStats = {
         totalImages: getRecordCount(records, "images", toFiniteNumber(images?.count)),
         totalVideos: getRecordCount(records, "videos", toFiniteNumber(videos?.count)),
         totalMusic: getRecordCount(records, "music", toFiniteNumber(music?.count)),
@@ -171,7 +180,9 @@ export function useMediaStats(enabled = true) {
         totalFiles: toFiniteNumber(storage.totalFiles),
         storageLimit: toFiniteNumber(storage.storageLimit, DEFAULT_STORAGE_LIMIT),
         usagePercentage: toFiniteNumber(storage.usagePercentage),
-      });
+      };
+      setStats(nextStats);
+      writeSessionCache(MEDIA_STATS_CACHE_NAME, nextStats);
     } catch (err) {
       if (requestId !== requestSequence.current) return;
 

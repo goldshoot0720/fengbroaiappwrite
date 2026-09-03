@@ -610,6 +610,8 @@ export async function GET(request) {
         },
         records: mediaRecordCounts,
       }
+    }, {
+      headers: { "Cache-Control": "private, max-age=30" },
     });
 
   } catch (err) {

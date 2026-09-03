@@ -5,6 +5,7 @@ import { convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { useAppwriteSetup } from "@/hooks/useAppwriteSetup";
 import { useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { readSessionCache, writeSessionCache } from "@/lib/sessionDataCache";
 
 interface Food {
   $id: string;
@@ -63,6 +64,8 @@ interface DashboardStats {
   overdueSubscriptionsList: SubscriptionDetail[];
 }
 
+const DASHBOARD_STATS_TTL_MS = 60_000;
+
 const EMPTY_STATS: DashboardStats = {
   totalFoods: 0,
   totalSubscriptions: 0,
@@ -97,13 +100,16 @@ const emptyTableResult = <T,>(): TableLoadResult<T> => ({
   missingError: null,
 });
 
+function dashboardStatsCacheName(includeExtended: boolean) {
+  return includeExtended ? "dashboard-stats-full" : "dashboard-stats-summary";
+}
+
 async function loadTable<T>(
   api: string,
-  cacheParam: string,
   signal?: AbortSignal
 ): Promise<TableLoadResult<T>> {
   try {
-    const result = await fetchApi<T[]>(api + cacheParam, { signal });
+    const result = await fetchApi<T[]>(api, { signal });
     return { data: Array.isArray(result) ? result : [], missingError: null };
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
@@ -162,7 +168,6 @@ export function useDashboardStats(includeExtended = true) {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
-    const cacheParam = `?t=${Date.now()}`;
     setError(null);
 
     if (!hasDatabaseConfig) {
@@ -172,7 +177,16 @@ export function useDashboardStats(includeExtended = true) {
       return;
     }
     setSetupRequired(false);
-    setLoading(true);
+    const cached = readSessionCache<DashboardStats>(
+      dashboardStatsCacheName(includeExtended),
+      DASHBOARD_STATS_TTL_MS,
+    );
+    if (cached) {
+      setStats(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
     try {
       // Single parallel fetch — no double round-trip "check then load".
@@ -184,19 +198,19 @@ export function useDashboardStats(includeExtended = true) {
         banksResult,
         routinesResult,
       ] = await Promise.all([
-        loadTable<Food>("/api/food", cacheParam, controller.signal),
-        loadTable<Subscription>("/api/subscription", cacheParam, controller.signal),
+        loadTable<Food>("/api/food", controller.signal),
+        loadTable<Subscription>("/api/subscription", controller.signal),
         includeExtended
-          ? loadTable<unknown>("/api/article", cacheParam, controller.signal)
+          ? loadTable<unknown>("/api/article", controller.signal)
           : Promise.resolve(emptyTableResult<unknown>()),
         includeExtended
-          ? loadTable<unknown>("/api/commonaccount", cacheParam, controller.signal)
+          ? loadTable<unknown>("/api/commonaccount", controller.signal)
           : Promise.resolve(emptyTableResult<unknown>()),
         includeExtended
-          ? loadTable<{ deposit?: number }>("/api/bank", cacheParam, controller.signal)
+          ? loadTable<{ deposit?: number }>("/api/bank", controller.signal)
           : Promise.resolve(emptyTableResult<{ deposit?: number }>()),
         includeExtended
-          ? loadTable<unknown>("/api/routine", cacheParam, controller.signal)
+          ? loadTable<unknown>("/api/routine", controller.signal)
           : Promise.resolve(emptyTableResult<unknown>()),
       ]);
 
@@ -294,7 +308,7 @@ export function useDashboardStats(includeExtended = true) {
       const totalAnnualFee = totalMonthlyFee;
       const totalBankDeposit = banks.reduce((total, bank) => total + (bank.deposit || 0), 0);
 
-      setStats({
+      const nextStats: DashboardStats = {
         totalFoods: foods.length,
         totalSubscriptions: subscriptions.length,
         totalArticles: articles.length,
@@ -316,7 +330,9 @@ export function useDashboardStats(includeExtended = true) {
         subscriptionsExpiring3DaysList,
         subscriptionsExpiring7DaysList,
         overdueSubscriptionsList,
-      });
+      };
+      setStats(nextStats);
+      writeSessionCache(dashboardStatsCacheName(includeExtended), nextStats);
     } catch (err) {
       if (controller.signal.aborted || requestId !== requestSequence.current) return;
       console.error("獲取統計數據失敗:", err);

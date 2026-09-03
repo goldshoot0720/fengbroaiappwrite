@@ -18,6 +18,7 @@ import { FaviconImage } from "@/components/ui/favicon-image";
 import { NotificationPermissionBanner } from "@/components/notifications/NotificationPermissionBanner";
 import { formatCurrency, formatDaysRemaining } from "@/lib/formatters";
 import { FoodDetail, SubscriptionDetail } from "@/types";
+import { readSessionCache, writeSessionCache } from "@/lib/sessionDataCache";
 
 type FengbroTubeRecentVideo = {
   videoId: string;
@@ -47,8 +48,9 @@ interface EnhancedDashboardProps {
 
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }: EnhancedDashboardProps) {
   const [activeView, setActiveView] = useState<"summary" | "full">("summary");
-  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats();
-  const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats();
+  const showFullPane = activeView === "full";
+  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats(showFullPane);
+  const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats(showFullPane);
   const {
     permission: notificationPermission,
     permissionDismissed,
@@ -64,9 +66,6 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
   const traffic = useMediaTraffic();
   const [trafficAlert, setTrafficAlert] = useState<MediaTrafficAlertPolicy | null>(null);
   const lastTrafficAlertTotal = useRef<number | null>(null);
-
-  // 切到「完整儀表」時才索取流量首頁提醒／到期通知／Tube 通知。
-  const showFullPane = activeView === "full";
 
   useEffect(() => {
     if (activeView !== "summary") {
@@ -120,12 +119,17 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
           return;
         }
 
+        const cached = readSessionCache<FinanceAlertNotice[]>("finance-alerts", 120_000);
+        if (cached) setFinanceAlerts(cached);
+
         const response = await fetch("/api/fengbro-finance");
         const data = (await response.json()) as { financeAlerts?: FinanceAlertNotice[] };
         if (!active) return;
-        setFinanceAlerts(data.financeAlerts || []);
+        const alerts = data.financeAlerts || [];
+        setFinanceAlerts(alerts);
+        writeSessionCache("finance-alerts", alerts);
       } catch {
-        if (active) setFinanceAlerts([]);
+        if (active) setFinanceAlerts((current) => current);
       }
     };
 

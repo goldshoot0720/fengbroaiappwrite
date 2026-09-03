@@ -48,11 +48,33 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/:path*.(ico|png|jpg|jpeg|webp|svg|woff2)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400",
+          },
+        ],
+      },
+      {
         source: "/pdf.worker.min.mjs",
         headers: [
           {
             key: "Content-Type",
             value: "application/javascript",
+          },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
