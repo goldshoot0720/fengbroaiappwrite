@@ -192,6 +192,15 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "featured", type: "boolean", required: false, default: false },
     ],
   },
+  // 通知設定（Resend API Key／收件 Email／通知密碼）：單一文件 documentId = "main"
+  notificationsettings: {
+    name: "notificationsettings",
+    attributes: [
+      { key: "passwordHash", type: "string", size: 300, required: false },
+      { key: "fromEmail", type: "string", size: 300, required: false },
+      { key: "slotsJson", type: "string", size: 20000, required: false },
+    ],
+  },
 };
 
 // Tables whose schema setup is purely additive: 建立/更新不刪除既有資料，只補欄位。
@@ -202,6 +211,7 @@ export const ADDITIVE_SETUP_TABLES: readonly string[] = [
   "shoppinglist",
   "tubechannel",
   "financeinstrument",
+  "notificationsettings",
 ];
 
 function asText(value: unknown, label = "欄位", maxLength?: number): string {
