@@ -27,6 +27,7 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
   if (seed) {
     addCollection("trialpurchase");
     addCollection("reinstall");
+    addCollection("quota");
     for (let index = 1; index <= accountCount; index += 1) {
       const number = String(index).padStart(2, "0");
       addDocument("trialpurchase", {
@@ -37,6 +38,16 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
         note: index === 1 ? "隔離測試：33 個帳號，非真實服務或優惠。" : "示範帳號",
       }, `trial-${number}`);
     }
+    addDocument("quota", {
+      name: "AI 對話（示範）", serviceType: "ai", account: "ai-user@example.test",
+      quotaRemaining: 120, quotaRatio: 60, quotaExpiry: "2026-09-30T00:00:00.000Z",
+      ratio5h: 100, expiry5h: "上午", ratioWeek: 80, expiryWeek: "09-30", ratioMonth: 50, expiryMonth: "2026-09-30",
+      note: "隔離測試：僅供互動測試。",
+    }, "quota-ai");
+    addDocument("quota", {
+      name: "一般服務（示範）", serviceType: "general", account: "general@example.test",
+      quotaRemaining: 5, quotaRatio: 25, note: "示範一般額度。",
+    }, "quota-general");
     addDocument("reinstall", { name: "Windows 編輯器（示範）", system: "win", softwareType: "paid",
       licenseType: "paid_serial", serial: "DEMO-AAAA-BBBB-CCCC-NOT-A-REAL-LICENSE", site: "https://example.test/editor", note: "假序號，僅供互動測試。" }, "software-win");
     addDocument("reinstall", { name: "Mac 免費工具（示範）", system: "mac", softwareType: "free",

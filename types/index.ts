@@ -134,6 +134,44 @@ export interface ReinstallSoftwareFormData {
   note?: string;
 }
 
+// 額度管理：一筆代表「一個服務 × 一個帳號」
+export type QuotaServiceType = "general" | "ai";
+
+export interface Quota {
+  $id: string;
+  name: string;
+  serviceType: QuotaServiceType;
+  account?: string;
+  quotaRemaining: number;
+  quotaRatio?: number;
+  quotaExpiry?: string;
+  ratio5h?: number;
+  expiry5h?: string;
+  ratioWeek?: number;
+  expiryWeek?: string;
+  ratioMonth?: number;
+  expiryMonth?: string;
+  note?: string;
+  $createdAt?: string;
+  $updatedAt?: string;
+}
+
+export interface QuotaFormData {
+  name: string;
+  serviceType: QuotaServiceType;
+  account?: string;
+  quotaRemaining: number;
+  quotaRatio?: number;
+  quotaExpiry?: string;
+  ratio5h?: number;
+  expiry5h?: string;
+  ratioWeek?: number;
+  expiryWeek?: string;
+  ratioMonth?: number;
+  expiryMonth?: string;
+  note?: string;
+}
+
 // 圖片相關類型
 export interface ImageFile {
   name: string;

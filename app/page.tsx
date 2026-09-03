@@ -9,6 +9,7 @@ import {
   CreditCard,
   FileText,
   FolderOpen,
+  Gauge,
   Home,
   Image as ImageIcon,
   Info,
@@ -92,6 +93,10 @@ const ReinstallManagement = dynamic(
   () => import("@/components/modules/ReinstallManagement"),
   { loading: ModuleFallback }
 );
+const QuotaManagement = dynamic(
+  () => import("@/components/modules/QuotaManagement"),
+  { loading: ModuleFallback }
+);
 const ImageGallery = dynamic(() => import("@/components/modules/ImageGallery"), {
   loading: ModuleFallback,
 });
@@ -138,6 +143,7 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "subscription", label: "訂閱", icon: <CreditCard size={18} /> },
       { id: "trial-purchase", label: "試用/首購", icon: <BadgePercent size={18} /> },
       { id: "reinstall", label: "重灌", icon: <Laptop size={18} /> },
+      { id: "quota", label: "額度", icon: <Gauge size={18} /> },
       { id: "food", label: "食品", icon: <Package size={18} /> },
       { id: "common", label: "常用", icon: <Star size={18} /> },
       { id: "bank-stats", label: "銀行", icon: <Building2 size={18} /> },
@@ -183,6 +189,7 @@ const APPWRITE_REQUIRED_MODULES = new Set([
   "subscription",
   "trial-purchase",
   "reinstall",
+  "quota",
   "food",
   "notes",
   "common",
@@ -289,6 +296,8 @@ export default function DashboardPage() {
         return <TrialPurchaseManagement onNavigate={handleModuleChange} />;
       case "reinstall":
         return <ReinstallManagement onNavigate={handleModuleChange} />;
+      case "quota":
+        return <QuotaManagement onNavigate={handleModuleChange} />;
       case "food":
         return <FoodManagement />;
       case "notes":

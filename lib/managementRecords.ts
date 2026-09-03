@@ -1,5 +1,8 @@
 import type {
   PurchaseStatus,
+  Quota,
+  QuotaFormData,
+  QuotaServiceType,
   ReinstallLicenseType,
   ReinstallSoftware,
   ReinstallSoftwareFormData,
@@ -63,6 +66,11 @@ export const REINSTALL_CURRENCY_OPTIONS: ReadonlyArray<{
   { value: "CNY", label: "人民幣" },
 ];
 
+export const QUOTA_SERVICE_TYPE_OPTIONS: ReadonlyArray<{ value: QuotaServiceType; label: string }> = [
+  { value: "general", label: "一般" },
+  { value: "ai", label: "AI 服務" },
+];
+
 const trialStatuses = new Set(TRIAL_STATUS_OPTIONS.map((option) => option.value));
 const purchaseStatuses = new Set(PURCHASE_STATUS_OPTIONS.map((option) => option.value));
 const reinstallSystems = new Set(REINSTALL_SYSTEM_OPTIONS.map((option) => option.value));
@@ -70,6 +78,7 @@ const reinstallSoftwareTypes = new Set(REINSTALL_SOFTWARE_TYPE_OPTIONS.map((opti
 const reinstallLicenseTypes = new Set(REINSTALL_LICENSE_TYPE_OPTIONS.map((option) => option.value));
 const reinstallPeriodUnits = new Set(REINSTALL_PERIOD_UNIT_OPTIONS.map((option) => option.value));
 const reinstallCurrencies = new Set(REINSTALL_CURRENCY_OPTIONS.map((option) => option.value));
+const quotaServiceTypes = new Set(QUOTA_SERVICE_TYPE_OPTIONS.map((option) => option.value));
 
 export const MANAGEMENT_TABLE_SCHEMAS = {
   trialpurchase: {
@@ -99,6 +108,24 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "subscriptionPrice", type: "integer", required: false },
       { key: "subscriptionCurrency", type: "string", size: 10, required: false },
       { key: "site", type: "url", required: false },
+      { key: "note", type: "string", size: 3337, required: false },
+    ],
+  },
+  quota: {
+    name: "quota",
+    attributes: [
+      { key: "name", type: "string", size: 100, required: true },
+      { key: "serviceType", type: "string", size: 20, required: false },
+      { key: "account", type: "string", size: 200, required: false },
+      { key: "quotaRemaining", type: "integer", required: false },
+      { key: "quotaRatio", type: "integer", required: false },
+      { key: "quotaExpiry", type: "datetime", required: false },
+      { key: "ratio5h", type: "integer", required: false },
+      { key: "expiry5h", type: "string", size: 10, required: false },
+      { key: "ratioWeek", type: "integer", required: false },
+      { key: "expiryWeek", type: "string", size: 10, required: false },
+      { key: "ratioMonth", type: "integer", required: false },
+      { key: "expiryMonth", type: "string", size: 10, required: false },
       { key: "note", type: "string", size: 3337, required: false },
     ],
   },
@@ -337,5 +364,108 @@ export function buildReinstallSoftwareWritePayload(
 
   if (site) payload.site = site;
   else if (mode === "update") payload.site = null;
+  return payload;
+}
+
+// 鋒兄額度：一筆代表「一個服務 × 一個帳號」
+const FIVE_HOUR_MERIDIEM_PATTERN = /^(上午|下午)$/;
+const WEEK_DATE_PATTERN = /^(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])$/;
+const YEAR_MONTH_DAY_PATTERN = /^\d{4}-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])$/;
+
+function asQuotaServiceType(value: unknown): QuotaServiceType {
+  return asChoice(value, quotaServiceTypes, "general", "服務類型");
+}
+
+function asOptionalText(value: unknown, label: string, maxLength: number): string {
+  return asText(value, label, maxLength);
+}
+
+function asOptionalDatePart(value: unknown, pattern: RegExp, label: string, humanExample: string): string {
+  const normalized = asText(value, label, 10);
+  if (!normalized) return "";
+  if (!pattern.test(normalized)) {
+    throw new Error(`${label}格式需為 ${humanExample}（例如 ${humanExample}）`);
+  }
+  return normalized;
+}
+
+export function quotaDateKindLabel(kind: "5h" | "week" | "month"): string {
+  if (kind === "5h") return "5 小時到期";
+  if (kind === "week") return "一週到期";
+  return "一月到期";
+}
+
+export function emptyQuotaForm(name = ""): QuotaFormData {
+  return {
+    name,
+    serviceType: "general",
+    account: "",
+    quotaRemaining: 0,
+    quotaRatio: 0,
+    quotaExpiry: "",
+    ratio5h: 0,
+    expiry5h: "",
+    ratioWeek: 0,
+    expiryWeek: "",
+    ratioMonth: 0,
+    expiryMonth: "",
+    note: "",
+  };
+}
+
+export function toQuotaForm(source: Quota): QuotaFormData {
+  return {
+    name: source.name || "",
+    serviceType: asQuotaServiceType(source.serviceType),
+    account: source.account || "",
+    quotaRemaining: Number(source.quotaRemaining || 0),
+    quotaRatio: source.quotaRatio == null ? 0 : Number(source.quotaRatio),
+    quotaExpiry: source.quotaExpiry ? source.quotaExpiry.slice(0, 10) : "",
+    ratio5h: source.ratio5h == null ? 0 : Number(source.ratio5h),
+    expiry5h: source.expiry5h || "",
+    ratioWeek: source.ratioWeek == null ? 0 : Number(source.ratioWeek),
+    expiryWeek: source.expiryWeek || "",
+    ratioMonth: source.ratioMonth == null ? 0 : Number(source.ratioMonth),
+    expiryMonth: source.expiryMonth || "",
+    note: source.note || "",
+  };
+}
+
+export function buildQuotaWritePayload(
+  body: Record<string, unknown>,
+  mode: "create" | "update",
+): Record<string, unknown> {
+  validateBody(body);
+  const name = asText(body.name, "服務名稱", 100);
+  if (!name) throw new Error("請填寫服務名稱");
+
+  const serviceType = asQuotaServiceType(body.serviceType);
+  const quotaExpiry = asOptionalDate(body.quotaExpiry);
+  const payload: Record<string, unknown> = {
+    name,
+    serviceType,
+    account: asOptionalText(body.account, "帳號", 200),
+    quotaRemaining: asNonNegativeInteger(body.quotaRemaining, "額度剩餘次數"),
+    quotaRatio: asNonNegativeInteger(body.quotaRatio, "額度剩餘比例"),
+    note: asOptionalText(body.note, "備註", 3337),
+  };
+  if (quotaExpiry) payload.quotaExpiry = quotaExpiry;
+  else if (mode === "update") payload.quotaExpiry = null;
+
+  if (serviceType === "ai") {
+    payload.ratio5h = asNonNegativeInteger(body.ratio5h, "5 小時比例");
+    payload.expiry5h = asOptionalDatePart(body.expiry5h, FIVE_HOUR_MERIDIEM_PATTERN, "5 小時到期", "上午/下午");
+    payload.ratioWeek = asNonNegativeInteger(body.ratioWeek, "一週比例");
+    payload.expiryWeek = asOptionalDatePart(body.expiryWeek, WEEK_DATE_PATTERN, "一週到期", "月-日");
+    payload.ratioMonth = asNonNegativeInteger(body.ratioMonth, "一月比例");
+    payload.expiryMonth = asOptionalDatePart(body.expiryMonth, YEAR_MONTH_DAY_PATTERN, "一月到期", "西元年-月-日");
+  } else {
+    payload.ratio5h = 0;
+    payload.expiry5h = "";
+    payload.ratioWeek = 0;
+    payload.expiryWeek = "";
+    payload.ratioMonth = 0;
+    payload.expiryMonth = "";
+  }
   return payload;
 }

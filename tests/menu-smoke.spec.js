@@ -13,6 +13,7 @@ const groupedChildren = {
     /^訂閱$/,
     /^試用\/首購$/,
     /^重灌$/,
+    /^額度$/,
     /^食品$/,
     /^常用$/,
     /^銀行$/,
@@ -147,6 +148,24 @@ test("trial-purchase and reinstall pages are reachable from the management menu"
     await page.getByRole("button", { name: "取消" }).click();
   }
 
+  await topNav.getByRole("button", { name: /^額度$/ }).click();
+  await page.waitForTimeout(700);
+  await expect(
+    page.getByRole("heading", { name: /鋒兄額度|尚未設定 Appwrite/ }).first()
+  ).toBeVisible({ timeout: 15000 });
+
+  const addQuota = page.getByRole("button", { name: /新增紀錄/ });
+  if (await addQuota.isVisible().catch(() => false)) {
+    await addQuota.click();
+    await expect(page.getByLabel("服務名稱")).toBeVisible();
+    await expect(page.getByLabel("服務類型")).toBeVisible();
+    await expect(page.getByLabel("額度剩餘次數")).toBeVisible();
+    await page.getByLabel("服務類型").selectOption("ai");
+    await expect(page.getByLabel("5 小時比例（%）")).toBeVisible();
+    await expect(page.getByLabel("一週到期（月／日）")).toBeVisible();
+    await page.getByRole("button", { name: "取消" }).click();
+  }
+
   await topNav.getByRole("button", { name: /^設定$/ }).click();
   await page.waitForTimeout(250);
   await topNav.getByRole("button", { name: /鋒兄關於/ }).click();
@@ -156,6 +175,7 @@ test("trial-purchase and reinstall pages are reachable from the management menu"
   await page.getByRole("button", { name: /功能模組/ }).click();
   await expect(page.getByText("鋒兄試用／首購")).toBeVisible();
   await expect(page.getByText("鋒兄重灌")).toBeVisible();
+  await expect(page.getByText("鋒兄額度")).toBeVisible();
 });
 
 test("subscription currency dropdown", async ({ page }) => {

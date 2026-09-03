@@ -98,6 +98,47 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
     assert.equal((await api("/api/reinstall")).body.length, 3);
   });
 
+  it("creates and edits AI/general quota fields, clears dates on general, and deletes only the target account", async () => {
+    const data = { name: "測試額度服務", serviceType: "ai", account: "quota-new@example.test",
+      quotaRemaining: 10, quotaRatio: 40, quotaExpiry: "2026-10-31",
+      ratio5h: 90, expiry5h: "下午", ratioWeek: 70, expiryWeek: "11-15", ratioMonth: 30, expiryMonth: "2026-12-01",
+      note: "AI 測試額度" };
+    const created = await api("/api/quota", "POST", data);
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const id = created.body.$id;
+    assert.equal(created.body.quotaExpiry, "2026-10-31T00:00:00.000Z");
+    assert.equal(created.body.expiry5h, "下午");
+    assert.equal(created.body.expiryWeek, "11-15");
+    assert.equal(created.body.expiryMonth, "2026-12-01");
+    assert.equal(created.body.ratio5h, 90);
+
+    const flipped = await api(`/api/quota/${id}`, "PUT", { ...data, serviceType: "general", ratio5h: 0, expiry5h: "", ratioWeek: 0, expiryWeek: "", ratioMonth: 0, expiryMonth: "", quotaExpiry: "" });
+    assert.equal(flipped.status, 200, JSON.stringify(flipped.body));
+    assert.equal(flipped.body.serviceType, "general");
+    assert.equal(flipped.body.expiry5h, "");
+    assert.equal(flipped.body.expiryWeek, "");
+    assert.equal(flipped.body.expiryMonth, "");
+    assert.equal(flipped.body.quotaExpiry, null);
+
+    const deleted = await api(`/api/quota/${id}`, "DELETE");
+    assert.equal(deleted.status, 200);
+    assert.equal((await api("/api/quota")).body.length, 2);
+    assert.equal((await api(`/api/quota/${id}`, "DELETE")).status, 404);
+  });
+
+  it("rejects invalid quota values before writing", async () => {
+    const beforeWrites = fixture.writes.length;
+    for (const data of [null, [], { name: "" },
+      { name: "test", serviceType: "ai", ratio5h: -1 },
+      { name: "test", serviceType: "ai", expiry5h: "中午" },
+      { name: "test", serviceType: "ai", expiryWeek: "9/30" },
+      { name: "test", serviceType: "ai", expiryMonth: "2026/12/01" },
+      { name: "test", serviceType: "weird", quotaRemaining: 3 }]) {
+      assert.equal((await api("/api/quota", "POST", data)).status, 400);
+    }
+    assert.equal(fixture.writes.length, beforeWrites);
+  });
+
   it("does not use a similarly named table or another endpoint's cached collection", async () => {
     const other = await startManagementFixture({ seed: false });
     other.addCollection("trialpurchase_backup");
@@ -131,7 +172,7 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
   it("creates both tables privately and repeated setup preserves every existing document", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {
-      for (const tableName of ["trialpurchase", "reinstall"]) {
+      for (const tableName of ["trialpurchase", "reinstall", "quota"]) {
         const result = await api("/api/create-table", "POST", { tableName }, empty);
         assert.equal(result.status, 200, JSON.stringify(result.body));
         assert.equal(result.body.success, true);
