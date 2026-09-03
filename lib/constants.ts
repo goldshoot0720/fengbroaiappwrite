@@ -49,6 +49,9 @@ export const DATE_THRESHOLDS = {
   SUBSCRIPTION_WARNING: 7,
 } as const;
 
+// 網站起源日：本專案承繼自 nextshadcn20250928，故以該專案名稱日期為起算點。
+export const SITE_ORIGIN_DATE = "2025-09-28";
+
 // 顏色主題
 export const THEME_COLORS = {
   primary: {
@@ -108,7 +111,6 @@ export const API_ENDPOINTS = {
   NOTIFICATION_SELFCHECK: "/api/notification-selfcheck",
   SITE_VISIT: "/api/site-visit",
   MENU_USAGE: "/api/menu-usage",
-  GITHUB_REPO_STATS: "/api/github-repo-stats",
 } as const;
 
 // 動畫設定

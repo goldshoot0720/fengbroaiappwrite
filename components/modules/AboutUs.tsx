@@ -7,6 +7,7 @@ import { PageTitle } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
 import codebaseStats from "@/config/codebase-stats.json";
 import { useAboutStats } from "@/hooks/useAboutStats";
+import { SITE_ORIGIN_DATE } from "@/lib/constants";
 import { useBanks } from "@/hooks/useBanks";
 import { useBankSessionCompare } from "@/hooks/useBankSessionCompare";
 import { getModuleLabel } from "@/lib/moduleLabels";
@@ -377,12 +378,17 @@ function AboutSubpageLinks({ onNavigate }: { onNavigate: (moduleId: string) => v
 }
 
 function AboutBanner() {
-  const { githubStats, siteVisit } = useAboutStats();
+  const { siteVisit } = useAboutStats();
+  const [daysSinceOrigin, setDaysSinceOrigin] = useState(0);
 
-  const daysLabel = githubStats?.daysSinceCreated != null ? `${githubStats.daysSinceCreated} 天` : "—";
-  const daysDetail = githubStats?.createdAt
-    ? `參考 GitHub 建立日 ${formatDate(githubStats.createdAt)}`
-    : "GitHub 資料載入中或暫時取不到";
+  useEffect(() => {
+    setDaysSinceOrigin(
+      Math.max(0, Math.floor((Date.now() - new Date(SITE_ORIGIN_DATE).getTime()) / 86_400_000))
+    );
+  }, []);
+
+  const daysLabel = daysSinceOrigin > 0 ? `${daysSinceOrigin} 天` : "—";
+  const daysDetail = `自起源日 ${SITE_ORIGIN_DATE}（承繼 nextshadcn20250928）起算`;
   const visitLabel = siteVisit?.exists ? String(siteVisit.count) : "—";
   const visitDetail = siteVisit?.exists
     ? "每個瀏覽器 session 計一次"
