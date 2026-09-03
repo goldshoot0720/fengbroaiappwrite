@@ -63,6 +63,7 @@ interface DatabaseStats {
 
 interface CreateProgress {
   tableName: string;
+  action: "create" | "delete";
   totalColumns: number;
   currentColumn: number;
   percent: number;
@@ -687,9 +688,19 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
     }
   };
 
-  const handleCreateTable = async (tableName: string, isUpdate = false, rebuild = false) => {
+  const handleCreateTable = async (tableName: string, isUpdate = false, rebuild = false, deleteOnly = false) => {
     const additiveSetup = ADDITIVE_SETUP_TABLES.includes(tableName);
-    if (rebuild) {
+    if (deleteOnly) {
+      const confirmed = confirm(
+        `⚠️ 警告：刪除 ${tableName} 表格（不重建）\n\n` +
+        `這個操作將：\n` +
+        `1. 永久刪除現有 Table 及其所有資料\n` +
+        `2. 不會自動重建\n\n` +
+        `之後可再按「建立」以最新結構重建。\n\n` +
+        `確定要刪除嗎？`
+      );
+      if (!confirmed) return;
+    } else if (rebuild) {
       const confirmed = confirm(
         `⚠️ 警告：刪除並重建 ${tableName} 表格\n\n` +
         `這個操作將：\n` +
@@ -718,6 +729,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
     setCreating(tableName);
     setProgress({
       tableName,
+      action: deleteOnly ? "delete" : "create",
       totalColumns: 0,
       currentColumn: 0,
       percent: 0,
@@ -733,6 +745,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
       const params = new URLSearchParams();
       params.set('table', tableName);
       if (rebuild) params.set('rebuild', '1');
+      if (deleteOnly) params.set('deleteonly', '1');
       if (config.endpoint) params.set('_endpoint', config.endpoint);
       if (config.projectId) params.set('_project', config.projectId);
       if (config.databaseId) params.set('_database', config.databaseId);
@@ -748,7 +761,9 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             setProgress(prev => prev ? {
               ...prev,
               totalColumns: data.totalColumns,
-              message: `開始建立 ${data.tableName} (${data.totalColumns} 欄位)`
+              message: prev.action === "delete"
+                ? `開始刪除 ${data.tableName}...`
+                : `開始建立 ${data.tableName} (${data.totalColumns} 欄位)`
             } : null);
             break;
           case 'progress':
@@ -1203,6 +1218,18 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                             ) : (
                               <><Plus size={12} /> 建立</>
                             )}
+                          </Button>
+                        )}
+                        {!col.error && ADDITIVE_SETUP_TABLES.includes(col.name) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-xs text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={() => handleCreateTable(col.name, false, false, true)}
+                            disabled={creating !== null}
+                            title="永久刪除整張 Table（不自動重建，資料將全部遺失）"
+                          >
+                            {creating === col.name ? <Loader2 size={12} className="animate-spin" /> : "刪除"}
                           </Button>
                         )}
                         {ADDITIVE_SETUP_TABLES.includes(col.name) && col.schemaMismatch && !col.error && (
@@ -1972,7 +1999,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                 ) : (
                   <Loader2 size={20} className="text-blue-500 animate-spin" />
                 )}
-                建立 {progress.tableName} Table
+                {progress.action === "delete" ? "刪除" : "建立"} {progress.tableName} Table
               </h3>
               {(progress.isComplete || progress.isError) && (
                 <Button variant="ghost" size="sm" onClick={closeProgressDialog}>

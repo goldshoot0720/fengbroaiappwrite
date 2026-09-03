@@ -314,6 +314,28 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
     } finally { await empty.close(); }
   });
 
+  it("deletes an additive table without recreating it (deleteonly)", async () => {
+    const empty = await startManagementFixture({ seed: false });
+    try {
+      const created = await api("/api/create-table", "POST", { tableName: "financeinstrument" }, empty);
+      assert.equal(created.status, 200);
+      assert.ok(empty.collections.has("financeinstrument"));
+
+      const del = await api("/api/create-table", "POST", { tableName: "financeinstrument", deleteOnly: true }, empty);
+      assert.equal(del.status, 200, JSON.stringify(del.body));
+      assert.equal(del.body.success, true);
+      assert.ok(!empty.collections.has("financeinstrument"), "collection removed after deleteonly");
+      assert.match(del.body.message, /未重建/);
+
+      // GET (SSE) path with deleteonly=1 deletes too and does not recreate.
+      const sseDel = await api("/api/create-table?table=financeinstrument&deleteonly=1", "GET", undefined, empty);
+      assert.equal(sseDel.status, 200);
+      assert.match(sseDel.body, /"type":"complete"/);
+      assert.doesNotMatch(sseDel.body, /financeinstrument 已就緒/);
+      assert.ok(!empty.collections.has("financeinstrument"));
+    } finally { await empty.close(); }
+  });
+
   it("reports SSE setup completion and schema failures honestly", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {

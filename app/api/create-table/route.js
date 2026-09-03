@@ -250,7 +250,10 @@ export async function GET(request) {
 
         if (Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, tableName)) {
           // rebuild=1：先刪除既有同名 collection 再重新建立（破壞性，僅供「刪除重建」按鈕使用）
-          if (searchParams.get("rebuild") === "1") {
+          // deleteonly=1：只刪除既有同名 collection，不重建（供「刪除」按鈕使用）
+          const rebuild = searchParams.get("rebuild") === "1";
+          const deleteOnly = searchParams.get("deleteonly") === "1";
+          if (rebuild || deleteOnly) {
             const rebuildClient = new sdk.Client()
               .setEndpoint(endpoint)
               .setProject(projectId)
@@ -266,6 +269,11 @@ export async function GET(request) {
             if (existing.length > 0) {
               await new Promise((resolve) => setTimeout(resolve, 500));
             }
+          }
+          if (deleteOnly) {
+            send({ type: "complete", success: true, message: `${tableName} 已刪除（未重建）。` });
+            controller.close();
+            return;
           }
           const result = await initializeManagementTable({ endpoint, projectId, databaseId, apiKey }, tableName, send);
           send({ type: 'complete', ...result });
@@ -407,7 +415,7 @@ export async function GET(request) {
 // POST /api/create-table - Non-streaming endpoint (kept for backward compatibility)
 export async function POST(request) {
   try {
-    const { tableName, rebuild } = await request.json();
+    const { tableName, rebuild, deleteOnly } = await request.json();
 
     const schema = TABLE_SCHEMAS[tableName];
     if (!schema) {
@@ -432,7 +440,7 @@ export async function POST(request) {
     }
 
     if (Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, tableName)) {
-      if (rebuild === true || rebuild === "1") {
+      if (rebuild === true || rebuild === "1" || deleteOnly === true || deleteOnly === "1") {
         const rebuildClient = new sdk.Client()
           .setEndpoint(endpoint)
           .setProject(projectId)
@@ -447,6 +455,9 @@ export async function POST(request) {
         if (existing.length > 0) {
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
+      }
+      if (deleteOnly === true || deleteOnly === "1") {
+        return NextResponse.json({ success: true, collectionId: null, message: `${tableName} 已刪除（未重建）。` });
       }
       const result = await initializeManagementTable({ endpoint, projectId, databaseId, apiKey }, tableName);
       return NextResponse.json(result);
