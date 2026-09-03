@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { TABLE_SCHEMAS } from "../create-table/route";
 import { createAppwrite } from "../_lib/appwriteClient";
+import { ADDITIVE_SETUP_TABLES } from "../../../lib/managementRecords";
 
 
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ function compareSchema(expected, actual, tableName = 'unknown') {
     const act = actualMap[key];
     
     if (!act) {
-      if (exp.required || tableName === "trialpurchase" || tableName === "reinstall") {
+      if (exp.required || tableName === "trialpurchase" || tableName === "reinstall" || ADDITIVE_SETUP_TABLES.includes(tableName)) {
         console.log(`[compareSchema:${tableName}] ❌ Missing required attribute: ${key}`);
         hasError = true;
       } else {
