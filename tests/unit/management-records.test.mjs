@@ -5,6 +5,7 @@ import {
   buildTrialPurchaseWritePayload,
   emptyReinstallSoftwareForm,
   emptyTrialPurchaseForm,
+  matchesReinstallViewPassword,
   safeSoftwareUrl,
 } from "../../lib/managementRecords.ts";
 
@@ -87,12 +88,13 @@ describe("reinstall software records", () => {
       softwareType: "free",
       licenseType: "none",
       serial: "",
+      viewPassword: "",
       site: "",
       note: "",
     });
   });
 
-  it("never keeps a serial when the license type says no serial", () => {
+  it("never keeps a serial or view password when the license type says no serial", () => {
     const payload = buildReinstallSoftwareWritePayload(
       {
         name: "7-Zip",
@@ -100,15 +102,17 @@ describe("reinstall software records", () => {
         softwareType: "free",
         licenseType: "none",
         serial: "SHOULD-NOT-BE-SAVED",
+        viewPassword: "SHOULD-NOT-BE-SAVED",
         site: "https://www.7-zip.org",
       },
       "create",
     );
     assert.equal(payload.serial, "");
+    assert.equal(payload.viewPassword, "");
     assert.equal(payload.site, "https://www.7-zip.org/");
   });
 
-  it("keeps paid serials and clears empty websites on update", () => {
+  it("keeps paid serials and view passwords, and clears empty websites on update", () => {
     const paid = buildReinstallSoftwareWritePayload(
       {
         name: "付費軟體",
@@ -116,13 +120,29 @@ describe("reinstall software records", () => {
         softwareType: "paid",
         licenseType: "paid_serial",
         serial: " AAAA-BBBB ",
+        viewPassword: " secret ",
       },
       "create",
     );
     assert.equal(paid.serial, "AAAA-BBBB");
+    assert.equal(paid.viewPassword, "secret");
 
     const cleared = buildReinstallSoftwareWritePayload({ name: "付費軟體", site: "" }, "update");
     assert.equal(cleared.site, null);
+  });
+
+  it("rejects an oversized view password and matches the stored value", () => {
+    assert.throws(
+      () => buildReinstallSoftwareWritePayload({
+        name: "付費軟體",
+        licenseType: "paid_serial",
+        viewPassword: "x".repeat(101),
+      }, "create"),
+      /查看密碼/,
+    );
+    assert.equal(matchesReinstallViewPassword("secret", "secret"), true);
+    assert.equal(matchesReinstallViewPassword(" secret ", "secret"), true);
+    assert.equal(matchesReinstallViewPassword("secret", "wrong"), false);
   });
 
   it("rejects non-web protocols", () => {

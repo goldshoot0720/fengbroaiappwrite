@@ -71,6 +71,7 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "softwareType", type: "string", size: 20, required: false },
       { key: "licenseType", type: "string", size: 20, required: false },
       { key: "serial", type: "string", size: 500, required: false },
+      { key: "viewPassword", type: "string", size: 100, required: false },
       { key: "site", type: "url", required: false },
       { key: "note", type: "string", size: 3337, required: false },
     ],
@@ -203,6 +204,7 @@ export function emptyReinstallSoftwareForm(): ReinstallSoftwareFormData {
     softwareType: "free",
     licenseType: "none",
     serial: "",
+    viewPassword: "",
     site: "",
     note: "",
   };
@@ -215,9 +217,14 @@ export function toReinstallSoftwareForm(source: ReinstallSoftware): ReinstallSof
     softwareType: asChoice(source.softwareType, reinstallSoftwareTypes, "free"),
     licenseType: asChoice(source.licenseType, reinstallLicenseTypes, "none"),
     serial: source.serial || "",
+    viewPassword: source.viewPassword || "",
     site: source.site || "",
     note: source.note || "",
   };
+}
+
+export function matchesReinstallViewPassword(stored: string | undefined, entered: string): boolean {
+  return (stored || "").trim() === entered.trim();
 }
 
 export function buildReinstallSoftwareWritePayload(
@@ -236,6 +243,7 @@ export function buildReinstallSoftwareWritePayload(
     softwareType: asChoice(body.softwareType, reinstallSoftwareTypes, "free", "軟體類型"),
     licenseType,
     serial: licenseType === "paid_serial" ? asText(body.serial, "付費序號", 500) : "",
+    viewPassword: licenseType === "paid_serial" ? asText(body.viewPassword, "查看密碼", 100) : "",
     note: asText(body.note, "備註", 3337),
   };
 

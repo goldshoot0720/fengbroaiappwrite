@@ -58,7 +58,7 @@
 | 14 | sitevisit | 2 | 到站統計 |
 | 15 | menuusage | 3 | 選單使用統計 |
 | 16 | trialpurchase | 8 | 試用／首購（服務 × 帳號） |
-| 17 | reinstall | 7 | 重灌軟體（Win／Mac） |
+| 17 | reinstall | 8 | 重灌軟體（Win／Mac，含查看密碼） |
 
 ### 表格操作
 

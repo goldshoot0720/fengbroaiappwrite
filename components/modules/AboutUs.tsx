@@ -46,7 +46,7 @@ const MODULES = [
   { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與各模組快速入口，同一頁可切換精簡待辦與完整儀表" },
   { num: 2, name: "鋒兄訂閱", category: "生活", desc: "訂閱、扣款日、CSV 匯入匯出、本機垃圾桶與整理提醒" },
   { num: 3, name: "鋒兄試用／首購", category: "生活", desc: "依服務展開多帳號，追蹤試用、首購狀態與試用／首購／到期日（扣款日），支援 CSV 匯入匯出" },
-  { num: 4, name: "鋒兄重灌", category: "生活", desc: "Windows／Mac 重灌軟體清單，付費序號預設隱藏" },
+  { num: 4, name: "鋒兄重灌", category: "生活", desc: "Windows／Mac 重灌軟體清單，付費序號預設隱藏，可設查看密碼" },
   { num: 5, name: "鋒兄食品 （＋商品庫存）", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
   { num: 6, name: "鋒兄筆記", category: "知識", desc: "快速筆記、附件預覽、本機垃圾桶與釘選工作台" },
   { num: 7, name: "鋒兄常用", category: "入口", desc: "常用站點、複製、置頂與最近使用控制台" },
@@ -87,7 +87,7 @@ const DOC_GROUPS = [
     items: [
       ["03_subscription.md", "訂閱 schema、篩選、CSV 與到期邏輯"],
       ["16_trial_purchase.md", "試用／首購：服務下多帳號、狀態 CRUD 與 CSV"],
-      ["17_reinstall.md", "重灌軟體：Win／Mac 清單與序號遮罩"],
+      ["17_reinstall.md", "重灌軟體：Win／Mac 清單、序號遮罩與查看密碼"],
       ["04_food.md", "食品工作台、到期分區與批次清理"],
       ["05_notes.md", "筆記模板、AI 摘要與知識整理"],
       ["06_common_accounts.md", "常用入口、置頂與最近使用"],
@@ -116,7 +116,7 @@ const RELEASE_ITEMS = [
     bullets: [
       "鋒兄管理新增「試用/首購」與「重灌」：獨立 trialpurchase、reinstall 資料表，不改既有訂閱／食品資料。",
       "試用／首購依服務名稱歸組，點服務名稱展開帳號；可標示已試用／尚未試用，以及已首購／未首購／無提供首購。可匯出／匯入 CSV，相同服務與帳號會更新。",
-      "重灌軟體分 Windows／Mac，付費序號預設隱藏；刪除前需確認，預設焦點在取消。",
+      "重灌軟體分 Windows／Mac，付費序號預設隱藏；可另設查看密碼，清單需先輸入才顯示序號。刪除前需確認，預設焦點在取消。",
       "設定頁可建立或補齊這兩張表；新表不開放公開讀寫，重試初始化會保留既有紀錄。",
     ],
   },

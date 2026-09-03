@@ -105,6 +105,7 @@ export interface ReinstallSoftware {
   softwareType: ReinstallSoftwareType;
   licenseType: ReinstallLicenseType;
   serial?: string;
+  viewPassword?: string;
   site?: string;
   note?: string;
   $createdAt?: string;
@@ -117,6 +118,7 @@ export interface ReinstallSoftwareFormData {
   softwareType: ReinstallSoftwareType;
   licenseType: ReinstallLicenseType;
   serial?: string;
+  viewPassword?: string;
   site?: string;
   note?: string;
 }

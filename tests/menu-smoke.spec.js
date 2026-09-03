@@ -135,6 +135,9 @@ test("trial-purchase and reinstall pages are reachable from the management menu"
     await expect(page.getByLabel("服務名稱")).toBeVisible();
     await expect(page.getByLabel("使用系統")).toBeVisible();
     await expect(page.getByLabel("授權方式")).toBeVisible();
+    await page.getByLabel("授權方式").selectOption("paid_serial");
+    await expect(page.getByLabel("付費序號")).toBeVisible();
+    await expect(page.getByLabel("查看密碼")).toBeVisible();
     await page.getByRole("button", { name: "取消" }).click();
   }
 

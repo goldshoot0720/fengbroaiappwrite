@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   ExternalLink,
   Eye,
@@ -25,6 +26,7 @@ import { useManagementCrud } from "@/hooks/useManagementCrud";
 import { API_ENDPOINTS } from "@/lib/constants";
 import {
   emptyReinstallSoftwareForm,
+  matchesReinstallViewPassword,
   REINSTALL_LICENSE_TYPE_OPTIONS,
   REINSTALL_SOFTWARE_TYPE_OPTIONS,
   REINSTALL_SYSTEM_OPTIONS,
@@ -94,20 +96,29 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ReinstallSoftwareFormData>(() => emptyReinstallSoftwareForm());
   const [showFormSerial, setShowFormSerial] = useState(false);
+  const [showFormViewPassword, setShowFormViewPassword] = useState(false);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ReinstallSoftware | null>(null);
+  const [pendingReveal, setPendingReveal] = useState<ReinstallSoftware | null>(null);
+  const [revealPassword, setRevealPassword] = useState("");
+  const [revealError, setRevealError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const revealInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setFormOpen(false);
     setEditingId(null);
     setForm(emptyReinstallSoftwareForm());
     setShowFormSerial(false);
+    setShowFormViewPassword(false);
     setRevealedIds(new Set());
     setActionError(null);
     setPendingDelete(null);
+    setPendingReveal(null);
+    setRevealPassword("");
+    setRevealError(null);
   }, [accountVersion]);
 
   useEffect(() => {
@@ -139,6 +150,8 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const refresh = () => {
     setRevealedIds(new Set());
     setShowFormSerial(false);
+    setShowFormViewPassword(false);
+    setPendingReveal(null);
     void fetchAll();
   };
 
@@ -146,6 +159,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     setEditingId(null);
     setForm(emptyReinstallSoftwareForm());
     setShowFormSerial(false);
+    setShowFormViewPassword(false);
     setActionError(null);
     setFormOpen(true);
   };
@@ -154,6 +168,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     setEditingId(item.$id);
     setForm(toReinstallSoftwareForm(item));
     setShowFormSerial(false);
+    setShowFormViewPassword(false);
     setActionError(null);
     setFormOpen(true);
   };
@@ -163,6 +178,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     setEditingId(null);
     setForm(emptyReinstallSoftwareForm());
     setShowFormSerial(false);
+    setShowFormViewPassword(false);
     setActionError(null);
   };
 
@@ -172,7 +188,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     setSaving(true);
     setActionError(null);
     try {
-      const payload = form.licenseType === "none" ? { ...form, serial: "" } : form;
+      const payload = form.licenseType === "none" ? { ...form, serial: "", viewPassword: "" } : form;
       if (editingId) await update(editingId, payload);
       else await create(payload);
       setRevealedIds(new Set());
@@ -204,13 +220,46 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     }
   };
 
-  const toggleSerial = (id: string) => {
+  const hideSerial = (id: string) => {
     setRevealedIds((current) => {
       const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.delete(id);
       return next;
     });
+  };
+
+  const revealSerial = (id: string) => {
+    setRevealedIds((current) => new Set(current).add(id));
+  };
+
+  const requestRevealSerial = (item: ReinstallSoftware) => {
+    if (revealedIds.has(item.$id)) {
+      hideSerial(item.$id);
+      return;
+    }
+    if ((item.viewPassword || "").trim()) {
+      setPendingReveal(item);
+      setRevealPassword("");
+      setRevealError(null);
+      return;
+    }
+    revealSerial(item.$id);
+  };
+
+  const closeRevealDialog = () => {
+    setPendingReveal(null);
+    setRevealPassword("");
+    setRevealError(null);
+  };
+
+  const confirmRevealSerial = () => {
+    if (!pendingReveal) return;
+    if (!matchesReinstallViewPassword(pendingReveal.viewPassword, revealPassword)) {
+      setRevealError("查看密碼不正確");
+      return;
+    }
+    revealSerial(pendingReveal.$id);
+    closeRevealDialog();
   };
 
   return (
@@ -221,7 +270,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
             鋒兄重灌
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            整理 Windows 與 Mac 重灌時需要的軟體、網站和授權資訊；付費序號預設保持隱藏。
+            整理 Windows 與 Mac 重灌時需要的軟體、網站和授權資訊；付費序號預設保持隱藏，可另設查看密碼。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -250,7 +299,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
               <h2 className="font-display text-xl font-semibold text-foreground">
                 {editingId ? "編輯重灌軟體" : "新增重灌軟體"}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">儲存安裝時真正需要找到的資訊，序號欄位不會預設攤開。</p>
+              <p className="mt-1 text-sm text-muted-foreground">儲存安裝時真正需要找到的資訊。付費序號與查看密碼都不會預設攤開。</p>
             </div>
           </div>
 
@@ -282,37 +331,48 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                 value={form.licenseType}
                 onChange={(value) => {
                   const licenseType = value as ReinstallLicenseType;
-                  setForm((current) => ({ ...current, licenseType, serial: licenseType === "none" ? "" : current.serial }));
+                  setForm((current) => ({
+                    ...current,
+                    licenseType,
+                    serial: licenseType === "none" ? "" : current.serial,
+                    viewPassword: licenseType === "none" ? "" : current.viewPassword,
+                  }));
                   setShowFormSerial(false);
+                  setShowFormViewPassword(false);
                 }}
               >
                 {REINSTALL_LICENSE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </NativeSelect>
             </FormField>
             {form.licenseType === "paid_serial" ? (
-              <FormField label="付費序號" htmlFor="reinstall-serial">
-                <div className="relative">
-                  <Input
+              <>
+                <FormField label="付費序號" htmlFor="reinstall-serial">
+                  <SecretInput
                     id="reinstall-serial"
                     maxLength={500}
-                    type={showFormSerial ? "text" : "password"}
                     value={form.serial || ""}
-                    onChange={(event) => setForm((current) => ({ ...current, serial: event.target.value }))}
-                    className="pr-11 font-mono"
-                    autoComplete="off"
+                    visible={showFormSerial}
+                    onChange={(value) => setForm((current) => ({ ...current, serial: value }))}
+                    onToggleVisible={() => setShowFormSerial((visible) => !visible)}
                     placeholder="輸入序號"
+                    showLabel="顯示付費序號"
+                    hideLabel="隱藏付費序號"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowFormSerial((visible) => !visible)}
-                    aria-label={showFormSerial ? "隱藏付費序號" : "顯示付費序號"}
-                    aria-pressed={showFormSerial}
-                    className="absolute right-0 top-0 flex size-10 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent/10 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                  >
-                    {showFormSerial ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
-              </FormField>
+                </FormField>
+                <FormField label="查看密碼" htmlFor="reinstall-view-password">
+                  <SecretInput
+                    id="reinstall-view-password"
+                    maxLength={100}
+                    value={form.viewPassword || ""}
+                    visible={showFormViewPassword}
+                    onChange={(value) => setForm((current) => ({ ...current, viewPassword: value }))}
+                    onToggleVisible={() => setShowFormViewPassword((visible) => !visible)}
+                    placeholder="選填，清單顯示序號時需輸入"
+                    showLabel="顯示查看密碼"
+                    hideLabel="隱藏查看密碼"
+                  />
+                </FormField>
+              </>
             ) : null}
             <FormField label="軟體網站" htmlFor="reinstall-site">
               <Input
@@ -410,7 +470,10 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                   <Cell label="序號">
                     {hasSerial ? (
                       <div className="space-y-2">
-                        <StatusBadge status="warning">付費序號</StatusBadge>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <StatusBadge status="warning">付費序號</StatusBadge>
+                          {item.viewPassword?.trim() ? <StatusBadge status="info">需查看密碼</StatusBadge> : null}
+                        </div>
                         <div className="flex min-w-0 items-center gap-2">
                           <code className="min-w-0 flex-1 break-all rounded-lg bg-background/60 px-2 py-1 text-sm text-foreground">
                             {item.serial ? (serialRevealed ? item.serial : "•••• •••• ••••") : "尚未填序號"}
@@ -421,7 +484,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                               variant="ghost"
                               size="icon"
                               className="shrink-0"
-                              onClick={() => toggleSerial(item.$id)}
+                              onClick={() => requestRevealSerial(item)}
                               aria-label={serialRevealed ? `隱藏 ${item.name} 序號` : `顯示 ${item.name} 序號`}
                               aria-pressed={serialRevealed}
                             >
@@ -455,8 +518,52 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
 
       <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" />
-        付費序號只在你主動點擊眼睛按鈕後顯示；切換頁面後會再次隱藏。
+        付費序號只在你主動點擊眼睛按鈕後顯示；若有設定查看密碼，需先輸入正確密碼。切換頁面後會再次隱藏。這只是畫面遮罩，不是加密保管庫。
       </p>
+      <Dialog.Root open={pendingReveal !== null} onOpenChange={(open) => { if (!open) closeRevealDialog(); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[120] bg-foreground/35" />
+          <Dialog.Content
+            className="surface-raised fixed left-1/2 top-1/2 z-[121] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 outline-none"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              revealInputRef.current?.focus();
+            }}
+          >
+            <Dialog.Title className="font-display text-xl font-semibold text-foreground">輸入查看密碼</Dialog.Title>
+            <Dialog.Description className="mt-3 text-sm leading-7 text-muted-foreground">
+              顯示「{pendingReveal?.name}」的付費序號前，請輸入這筆紀錄的查看密碼。
+            </Dialog.Description>
+            <form
+              className="mt-5 space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                confirmRevealSerial();
+              }}
+            >
+              <FormField label="查看密碼" htmlFor="reinstall-reveal-password">
+                <Input
+                  ref={revealInputRef}
+                  id="reinstall-reveal-password"
+                  type="password"
+                  value={revealPassword}
+                  onChange={(event) => {
+                    setRevealPassword(event.target.value);
+                    setRevealError(null);
+                  }}
+                  autoComplete="off"
+                  placeholder="輸入查看密碼"
+                />
+              </FormField>
+              {revealError ? <p role="alert" className="text-sm font-medium text-destructive">{revealError}</p> : null}
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeRevealDialog}>取消</Button>
+                <Button type="submit">顯示序號</Button>
+              </div>
+            </form>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       <ManagementDeleteDialog
         open={pendingDelete !== null}
         recordName={pendingDelete ? `${pendingDelete.name}／${optionLabel(REINSTALL_SYSTEM_OPTIONS, pendingDelete.system)}` : ""}
@@ -466,6 +573,52 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
       />
     </section>
+  );
+}
+
+function SecretInput({
+  id,
+  value,
+  visible,
+  onChange,
+  onToggleVisible,
+  placeholder,
+  maxLength,
+  showLabel,
+  hideLabel,
+}: {
+  id: string;
+  value: string;
+  visible: boolean;
+  onChange: (value: string) => void;
+  onToggleVisible: () => void;
+  placeholder: string;
+  maxLength: number;
+  showLabel: string;
+  hideLabel: string;
+}) {
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        maxLength={maxLength}
+        type={visible ? "text" : "password"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="pr-11 font-mono"
+        autoComplete="off"
+        placeholder={placeholder}
+      />
+      <button
+        type="button"
+        onClick={onToggleVisible}
+        aria-label={visible ? hideLabel : showLabel}
+        aria-pressed={visible}
+        className="absolute right-0 top-0 flex size-10 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent/10 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      >
+        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
   );
 }
 
