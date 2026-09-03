@@ -249,6 +249,24 @@ export async function GET(request) {
         }
 
         if (Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, tableName)) {
+          // rebuild=1：先刪除既有同名 collection 再重新建立（破壞性，僅供「刪除重建」按鈕使用）
+          if (searchParams.get("rebuild") === "1") {
+            const rebuildClient = new sdk.Client()
+              .setEndpoint(endpoint)
+              .setProject(projectId)
+              .setKey(apiKey);
+            const rebuildDatabases = new sdk.Databases(rebuildClient);
+            const allCollections = await rebuildDatabases.listCollections(databaseId);
+            const existing = allCollections.collections.filter((col) => col.name === tableName);
+            for (const col of existing) {
+              await rebuildDatabases.deleteCollection(databaseId, col.$id);
+              clearCollectionCache(databaseId);
+              send({ type: "progress", step: "cleanup", message: `已刪除舊 Table ${col.$id}` });
+            }
+            if (existing.length > 0) {
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+          }
           const result = await initializeManagementTable({ endpoint, projectId, databaseId, apiKey }, tableName, send);
           send({ type: 'complete', ...result });
           controller.close();
@@ -389,7 +407,7 @@ export async function GET(request) {
 // POST /api/create-table - Non-streaming endpoint (kept for backward compatibility)
 export async function POST(request) {
   try {
-    const { tableName } = await request.json();
+    const { tableName, rebuild } = await request.json();
 
     const schema = TABLE_SCHEMAS[tableName];
     if (!schema) {
@@ -414,6 +432,22 @@ export async function POST(request) {
     }
 
     if (Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, tableName)) {
+      if (rebuild === true || rebuild === "1") {
+        const rebuildClient = new sdk.Client()
+          .setEndpoint(endpoint)
+          .setProject(projectId)
+          .setKey(apiKey);
+        const rebuildDatabases = new sdk.Databases(rebuildClient);
+        const allCollections = await rebuildDatabases.listCollections(databaseId);
+        const existing = allCollections.collections.filter((col) => col.name === tableName);
+        for (const col of existing) {
+          await rebuildDatabases.deleteCollection(databaseId, col.$id);
+          clearCollectionCache(databaseId);
+        }
+        if (existing.length > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
       const result = await initializeManagementTable({ endpoint, projectId, databaseId, apiKey }, tableName);
       return NextResponse.json(result);
     }

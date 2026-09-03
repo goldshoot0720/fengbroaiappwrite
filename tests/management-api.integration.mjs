@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { startManagementFixture } from "./helpers/appwrite-management-fixture.mjs";
+import { MANAGEMENT_TABLE_SCHEMAS } from "../lib/managementRecords.ts";
 
 const baseUrl = process.env.MANAGEMENT_TEST_URL || "http://127.0.0.1:3000";
 let fixture;
@@ -290,6 +291,26 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
         assert.equal(empty.documents.get(tableName)[0].$id, "keep-me");
       }
       assert.ok(empty.writes.every((write) => write.method !== "DELETE"));
+    } finally { await empty.close(); }
+  });
+
+  it("rebuilds an additive table by deleting the old collection first", async () => {
+    const empty = await startManagementFixture({ seed: false });
+    try {
+      const first = await api("/api/create-table", "POST", { tableName: "financeinstrument" }, empty);
+      assert.equal(first.status, 200);
+      empty.addDocument("financeinstrument", { name: "toBeDeleted" }, "stale-doc");
+      const writesBefore = empty.writes.length;
+
+      const rebuilt = await api("/api/create-table", "POST", { tableName: "financeinstrument", rebuild: true }, empty);
+      assert.equal(rebuilt.status, 200, JSON.stringify(rebuilt.body));
+      assert.equal(rebuilt.body.success, true);
+      // Rebuild issues a collection DELETE, then a fresh collection with the full latest attributes.
+      assert.ok(empty.writes.slice(writesBefore).some((write) => write.method === "DELETE"));
+      const latest = empty.collections.get("financeinstrument");
+      assert.ok(latest, "fresh collection exists after rebuild");
+      assert.equal(latest.attributes.length, MANAGEMENT_TABLE_SCHEMAS.financeinstrument.attributes.length);
+      assert.equal(empty.documents.get("financeinstrument").length, 0);
     } finally { await empty.close(); }
   });
 
