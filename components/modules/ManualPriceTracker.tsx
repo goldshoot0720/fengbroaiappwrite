@@ -1,19 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ClipboardList, Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { ClipboardList, Download, Pencil, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
 import {
   buildManualPriceCsv,
   mergeManualPriceProducts,
   parseManualPriceCsv,
-  type ManualPriceCsvProduct,
 } from "@/lib/manualPriceCsv";
-import { getAppwriteConfig, getExportFilename } from "@/lib/utils";
-import { fetchApi } from "@/hooks/useApi";
+import { getExportFilename } from "@/lib/utils";
+import { useRemoteListSync } from "@/hooks/useRemoteListSync";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { APPWRITE_CONFIG_CHANGED_EVENT } from "@/hooks/useAppwriteSetup";
 
 type ManualPriceRecord = {
   id: string;
@@ -32,8 +30,6 @@ type ManualPriceProduct = {
   createdAt: number;
   updatedAt: number;
   records: ManualPriceRecord[];
-  /** Appwrite document id after sync (absent for local-only rows). */
-  $id?: string;
 };
 
 /** Shape returned by GET /api/manualprice (records already parsed). */
@@ -47,7 +43,8 @@ type RemoteManualPriceProduct = {
   records: ManualPriceRecord[];
 };
 
-const STORAGE_KEY = "fengbro.tools.manualPrice.products";
+/** 舊版 localStorage 快取 key：僅作為一次性遷移來源，成功載入雲端後即清除。 */
+const LEGACY_STORAGE_KEY = "fengbro.tools.manualPrice.products";
 const MAX_PRODUCTS = 50;
 const MAX_RECORDS_PER_PRODUCT = 200;
 
@@ -65,7 +62,7 @@ function createId() {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Content fingerprint for a product, ignoring $id / timestamps. */
+/** Content fingerprint for a product, ignoring id / timestamps. */
 function manualPriceProductSignature(product: ManualPriceProduct): string {
   return JSON.stringify({
     name: product.name,
@@ -79,13 +76,35 @@ function manualPriceProductSignature(product: ManualPriceProduct): string {
   });
 }
 
-/** Local cache copy without the Appwrite document id. */
-function toLocalCacheProducts(products: ManualPriceProduct[]): ManualPriceProduct[] {
-  return products.map((product) => {
-    const { $id, ...rest } = product;
-    void $id;
-    return rest as ManualPriceProduct;
-  });
+/** 讀取舊版 localStorage 資料，僅在雲端空白時作為一次性遷移來源。 */
+function loadLegacyProducts(): ManualPriceProduct[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => normalizeProduct(item as Partial<ManualPriceProduct>))
+      .filter((item): item is ManualPriceProduct => item != null)
+      .slice(0, MAX_PRODUCTS);
+  } catch {
+    return [];
+  }
+}
+
+/** 遠端文件 → 客戶端商品（本機 key 沿用 localId，保留多裝置冪等合併）。 */
+function productFromRemoteRow(row: RemoteManualPriceProduct): ManualPriceProduct | null {
+  const name = typeof row.name === "string" ? row.name.trim() : "";
+  if (!name) return null;
+  return {
+    id: row.localId || row.id,
+    name,
+    currency: normalizeCurrency(row.currency),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    records: sortRecords(Array.isArray(row.records) ? row.records : []),
+  };
 }
 
 function todayIsoDate() {
@@ -157,22 +176,6 @@ function normalizeProduct(input: Partial<ManualPriceProduct>): ManualPriceProduc
     updatedAt: typeof input.updatedAt === "number" ? input.updatedAt : now,
     records: sortRecords(records),
   };
-}
-
-function loadProducts(): ManualPriceProduct[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item) => normalizeProduct(item as Partial<ManualPriceProduct>))
-      .filter((item): item is ManualPriceProduct => item != null)
-      .slice(0, MAX_PRODUCTS);
-  } catch {
-    return [];
-  }
 }
 
 function buildChartPath(points: Array<{ x: number; y: number }>) {
@@ -367,9 +370,7 @@ function ManualPriceTrendChart({
 }
 
 export default function ManualPriceTracker() {
-  const [products, setProducts] = useState<ManualPriceProduct[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
 
   const [productName, setProductName] = useState("");
   const [productCurrency, setProductCurrency] = useState<ManualPriceCurrency>("TWD");
@@ -382,208 +383,58 @@ export default function ManualPriceTracker() {
   const [formError, setFormError] = useState("");
   const csvInputRef = useRef<HTMLInputElement>(null);
 
-  // ── 雲端同步層：Appwrite 設定存在時以 /api/manualprice 為主 ──
-  const [cloudReady, setCloudReady] = useState(false);
-  const [cloudKey, setCloudKey] = useState("");
-  const [syncState, setSyncState] = useState<"idle" | "syncing" | "error">("idle");
-  const loadRevision = useRef(0);
-  const hydratedRef = useRef(false);
-  hydratedRef.current = hydrated;
-  const productsRef = useRef<ManualPriceProduct[]>([]);
-  productsRef.current = products;
-  const cloudReadyRef = useRef(false);
-  cloudReadyRef.current = cloudReady;
-  const syncChain = useRef<Promise<void>>(Promise.resolve());
-  /** 已成功寫入遠端的快照：product.id → { $id, signature } */
-  const remoteSnapshot = useRef(new Map<string, { $id?: string; signature: string }>());
+  // 雲端同步層：/api/manualprice（Appwrite）為唯一資料源，不使用 localStorage。
+  const {
+    items: products,
+    setItems: persistProducts,
+    syncState,
+    loadVersion,
+    refresh: reloadCloud,
+  } = useRemoteListSync<ManualPriceProduct>({
+    endpoint: API_ENDPOINTS.MANUAL_PRICE,
+    loadLocal: loadLegacyProducts,
+    toLocal: (row) => productFromRemoteRow(row as RemoteManualPriceProduct),
+    remoteDocId: (row) =>
+      row && typeof row === "object" ? ((row as { id?: unknown }).id as string | undefined) : undefined,
+    toBody: (product) => ({
+      name: product.name,
+      currency: product.currency,
+      records: product.records,
+      localId: product.id,
+    }),
+    localId: (product) => product.id,
+    signature: manualPriceProductSignature,
+  });
 
-  const refreshCloud = useCallback(() => {
-    const config = getAppwriteConfig();
-    const ready = Boolean(
-      config.endpoint && config.projectId && config.databaseId && config.apiKey
-    );
-    setCloudReady(ready);
-    setCloudKey(
-      ready ? `${config.endpoint}|${config.projectId}|${config.databaseId}|${config.apiKey}` : ""
-    );
-  }, []);
+  const bootLoaded = loadVersion > 0;
+  const bootFailed = !bootLoaded && syncState === "error";
 
+  // 舊版 localStorage 資料完成遷移（畫面資料已與雲端一致或被編輯）後才清除，
+  // 避免首次上傳尚未完成時關閉分頁造成資料遺失。
   useEffect(() => {
-    refreshCloud();
-    window.addEventListener(APPWRITE_CONFIG_CHANGED_EVENT, refreshCloud);
-    window.addEventListener("storage", refreshCloud);
-    return () => {
-      window.removeEventListener(APPWRITE_CONFIG_CHANGED_EVENT, refreshCloud);
-      window.removeEventListener("storage", refreshCloud);
-    };
-  }, [refreshCloud]);
-
-  // 本機快取先上屏，雲端就緒後再以伺服器資料為準覆蓋。
-  useEffect(() => {
-    const loaded = loadProducts();
-    setProducts(loaded);
-    if (loaded[0]) setSelectedProductId(loaded[0].id);
-    setHydrated(true);
-  }, []);
-
-  // 維持本機離線快取（同步進行中也保留最近畫面資料）。
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(toLocalCacheProducts(productsRef.current))
+    if (typeof window === "undefined" || loadVersion === 0) return;
+    const legacy = loadLegacyProducts();
+    const stillMigrating =
+      legacy.length > 0 &&
+      legacy.length === products.length &&
+      legacy.every(
+        (item, index) =>
+          manualPriceProductSignature(item) === manualPriceProductSignature(products[index])
       );
-    } catch {}
-  }, [hydrated, products]);
-
-  // 帳號/設定切換或首次就緒：以遠端覆蓋本機；遠端空白時才把本機舊資料遷移上去。
-  useEffect(() => {
-    if (!cloudReady || !cloudKey) return;
-    const revision = ++loadRevision.current;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const remote = await fetchApi<RemoteManualPriceProduct[]>(API_ENDPOINTS.MANUAL_PRICE, {
-          cache: "no-store",
-        });
-        if (cancelled || revision !== loadRevision.current) return;
-        const rows = Array.isArray(remote) ? remote : [];
-        const remoteProducts: ManualPriceProduct[] = rows.map((row) => ({
-          id: row.localId || row.id,
-          name: row.name,
-          currency: normalizeCurrency(row.currency),
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-          records: sortRecords(Array.isArray(row.records) ? row.records : []),
-          $id: row.id,
-        }));
-
-        if (remoteProducts.length === 0) {
-          // 首次雲端啟用：把本機舊資料上傳（localId 冪等），保留現有畫面。
-          const local = loadProducts();
-          if (local.length > 0) {
-            remoteSnapshot.current = new Map();
-            setProducts(local);
-            setSyncState("idle");
-            setFormError("");
-            return;
-          }
-        }
-
-        const nextSnapshot = new Map<string, { $id?: string; signature: string }>();
-        for (const product of remoteProducts) {
-          nextSnapshot.set(product.id, {
-            $id: product.$id,
-            signature: manualPriceProductSignature(product),
-          });
-        }
-        remoteSnapshot.current = nextSnapshot;
-        setProducts(remoteProducts);
-        setSelectedProductId((current) =>
-          current && remoteProducts.some((p) => p.id === current)
-            ? current
-            : remoteProducts[0]?.id ?? null
-        );
-        setFormError("");
-      } catch (err) {
-        if (cancelled || revision !== loadRevision.current) return;
-        const message = err instanceof Error ? err.message : "載入雲端失敗";
-        // Table 尚未建立或離線：保留本機資料繼續編輯，不阻斷操作。
-        if (!/不存在|not found|network|fetch|load failed/i.test(message)) {
-          setFormError(message);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [cloudKey, cloudReady]);
-
-  // 內容有變動才同步：逐筆 upsert；本機移除且曾上傳的才刪除。
-  useEffect(() => {
-    if (!hydrated || !cloudReady || !cloudKey) return;
-    const timer = window.setTimeout(() => {
-      const current = productsRef.current;
-      syncChain.current = syncChain.current
-        .then(() => syncProductsToCloud(current))
-        .catch(() => {
-          // 單次同步失敗不中斷後續佇列
-        });
-    }, 400);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudKey, cloudReady, hydrated, products]);
-
-  const persistProducts = useCallback((next: ManualPriceProduct[]) => {
-    // 使用者在本機編輯時，作廢進行中的遠端載入，避免覆蓋剛輸入的資料。
-    loadRevision.current += 1;
-    setProducts(next);
-  }, []);
-
-  // 同步完畢後把「已確認的 $id」寫回 state，避免重複新增。
-  const adoptRemoteIds = useCallback((withIds: Map<string, string>) => {
-    if (withIds.size === 0) return;
-    setProducts((current) =>
-      current.map((product) => {
-        const remoteId = withIds.get(product.id);
-        return remoteId && product.$id !== remoteId ? { ...product, $id: remoteId } : product;
-      })
-    );
-  }, []);
-
-  async function syncProductsToCloud(current: ManualPriceProduct[]) {
-    if (!cloudReadyRef.current) return;
-    setSyncState("syncing");
-    const nextSnapshot = new Map<string, { $id?: string; signature: string }>();
-    const adopted = new Map<string, string>();
+    if (stillMigrating) return;
     try {
-      for (const product of current) {
-        const signature = manualPriceProductSignature(product);
-        const known = remoteSnapshot.current.get(product.id);
-        if (known?.$id && known.signature === signature) {
-          nextSnapshot.set(product.id, known);
-          continue;
-        }
-        const body = {
-          name: product.name,
-          currency: product.currency,
-          records: product.records,
-          localId: product.id,
-        };
-        const saved = known?.$id
-          ? await fetchApi<RemoteManualPriceProduct>(
-              `${API_ENDPOINTS.MANUAL_PRICE}/${encodeURIComponent(known.$id)}`,
-              { method: "PUT", body: JSON.stringify(body) }
-            )
-          : await fetchApi<RemoteManualPriceProduct>(API_ENDPOINTS.MANUAL_PRICE, {
-              method: "POST",
-              body: JSON.stringify(body),
-            });
-        const remoteId = saved?.id;
-        if (remoteId) adopted.set(product.id, remoteId);
-        nextSnapshot.set(product.id, { $id: remoteId, signature });
-      }
-      // 只刪「這台裝置曾載入、且已從本機清單移除」的遠端文件，避免誤刪他端新增。
-      for (const [localId, known] of remoteSnapshot.current) {
-        if (known.$id && !current.some((product) => product.id === localId)) {
-          await fetchApi(`${API_ENDPOINTS.MANUAL_PRICE}/${encodeURIComponent(known.$id)}`, {
-            method: "DELETE",
-          });
-        }
-      }
-      remoteSnapshot.current = nextSnapshot;
-      adoptRemoteIds(adopted);
-      setSyncState("idle");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "同步失敗";
-      if (!/不存在|not found|network|fetch|load failed/i.test(message)) {
-        setFormError(message);
-      }
-      setSyncState("error");
-      throw err;
-    }
-  }
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch {}
+  }, [loadVersion, products]);
+
+  // 雲端載入／帳號切換後，確保選中的商品仍存在。
+  useEffect(() => {
+    setSelectedProductId((current) =>
+      current && products.some((product) => product.id === current)
+        ? current
+        : products[0]?.id ?? null
+    );
+  }, [products]);
 
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === selectedProductId) ?? null,
@@ -788,7 +639,7 @@ export default function ManualPriceTracker() {
 
   const handleExportCsv = useCallback(() => {
     try {
-      const csv = buildManualPriceCsv(products as ManualPriceCsvProduct[]);
+      const csv = buildManualPriceCsv(products);
       const BOM = "\uFEFF";
       const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
@@ -833,10 +684,7 @@ export default function ManualPriceTracker() {
             if (!ok) return;
           }
 
-          const merged = mergeManualPriceProducts(
-            products as ManualPriceCsvProduct[],
-            data
-          ) as ManualPriceProduct[];
+          const merged = mergeManualPriceProducts(products, data);
           persistProducts(merged);
 
           if (!selectedProductId || !merged.some((p) => p.id === selectedProductId)) {
@@ -862,6 +710,58 @@ export default function ManualPriceTracker() {
     [persistProducts, products, selectedProductId]
   );
 
+  if (bootFailed) {
+    return (
+      <DataCard className="space-y-4 p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+            <ClipboardList size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">手動價格紀錄</h3>
+            <p className="text-sm text-muted-foreground">
+              資料直接儲存於 Appwrite 雲端（manualprice），不使用本機 localStorage。
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-rose-700">無法載入雲端資料</p>
+            <p className="mt-1 text-xs text-rose-600">
+              請確認網路連線正常，且 manualprice Table 已在「鋒兄設定」中初始化。
+            </p>
+          </div>
+          <Button type="button" variant="outline" className="gap-2" onClick={() => reloadCloud()}>
+            <RefreshCw size={16} />
+            重試
+          </Button>
+        </div>
+      </DataCard>
+    );
+  }
+
+  if (!bootLoaded) {
+    return (
+      <DataCard className="space-y-4 p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+            <ClipboardList size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">手動價格紀錄</h3>
+            <p className="text-sm text-muted-foreground">
+              資料直接儲存於 Appwrite 雲端（manualprice），不使用本機 localStorage。
+            </p>
+          </div>
+        </div>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-300 border-t-violet-700" />
+          正在從雲端載入手動價格資料…
+        </p>
+      </DataCard>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <DataCard className="space-y-4 p-6">
@@ -873,39 +773,37 @@ export default function ManualPriceTracker() {
             <div>
               <h3 className="text-lg font-semibold">手動價格紀錄</h3>
               <p className="text-sm text-muted-foreground">
-                自行輸入商品與價錢，保存歷史紀錄並檢視走勢圖。可輸出／輸入 CSV；資料以 Appwrite 雲端為主，本機瀏覽器僅作離線快取。
+                自行輸入商品與價錢，保存歷史紀錄並檢視走勢圖。可輸出／輸入 CSV；資料直接儲存於 Appwrite 雲端（manualprice），不使用本機 localStorage。
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {cloudReady && (
+            <span
+              className={
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium " +
+                (syncState === "syncing"
+                  ? "bg-violet-100 text-violet-700"
+                  : syncState === "error"
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-emerald-100 text-emerald-700")
+              }
+            >
               <span
                 className={
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium " +
+                  "h-1.5 w-1.5 rounded-full " +
                   (syncState === "syncing"
-                    ? "bg-violet-100 text-violet-700"
+                    ? "animate-pulse bg-violet-500"
                     : syncState === "error"
-                      ? "bg-rose-100 text-rose-700"
-                      : "bg-emerald-100 text-emerald-700")
+                      ? "bg-rose-500"
+                      : "bg-emerald-500")
                 }
-              >
-                <span
-                  className={
-                    "h-1.5 w-1.5 rounded-full " +
-                    (syncState === "syncing"
-                      ? "animate-pulse bg-violet-500"
-                      : syncState === "error"
-                        ? "bg-rose-500"
-                        : "bg-emerald-500")
-                  }
-                />
-                {syncState === "syncing"
-                  ? "同步中…"
-                  : syncState === "error"
-                    ? "同步失敗（保留本機編輯）"
-                    : "已同步雲端"}
-              </span>
-            )}
+              />
+              {syncState === "syncing"
+                ? "同步中…"
+                : syncState === "error"
+                  ? "同步失敗（可編輯，稍後自動重試）"
+                  : "已同步雲端"}
+            </span>
             <input
               ref={csvInputRef}
               type="file"

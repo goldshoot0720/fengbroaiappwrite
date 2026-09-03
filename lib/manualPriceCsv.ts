@@ -1,5 +1,5 @@
 /**
- * CSV export / import for 手動價格紀錄 (localStorage products + price history).
+ * CSV export / import for 手動價格紀錄 (Appwrite manualprice products + price history).
  *
  * One row per price record. Products with no records export a single empty-price row.
  *
