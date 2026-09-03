@@ -8,6 +8,7 @@
  */
 
 import {
+  REMOVED_FENGBRO_TUBE_HANDLES,
   getFengbroTubeHandle,
   normalizeFengbroTubeChannels,
   stripRemovedFengbroTubeChannels,
@@ -156,6 +157,34 @@ export function mergeFengbroTubeChannels(
   );
 }
 
+/** Remove channels that were dropped from the product defaults; return { kept, removedHandles }. */
+function partitionRemovedFengbroTubeChannels(channels: FengbroTubeChannelConfig[]) {
+  const kept: FengbroTubeChannelConfig[] = [];
+  const removedHandles: string[] = [];
+  for (const channel of channels) {
+    const handle = getFengbroTubeHandle(channel.sourceUrl);
+    if (REMOVED_FENGBRO_TUBE_HANDLES.has(handle)) {
+      removedHandles.push(handle);
+    } else {
+      kept.push(channel);
+    }
+  }
+  return { kept, removedHandles };
+}
+
+/** Add an explicit error when every parsed channel was a removed default, so imports never fail silently. */
+function withRemovedDiagnostic(
+  result: { kept: FengbroTubeChannelConfig[]; removedHandles: string[] },
+  errors: string[]
+): { data: FengbroTubeChannelConfig[]; errors: string[] } {
+  if (result.removedHandles.length > 0) {
+    errors.push(
+      `略過已下架的預設頻道 ${result.removedHandles.length} 個：@${[...new Set(result.removedHandles)].join("、@")}`
+    );
+  }
+  return { data: result.kept, errors };
+}
+
 export function parseFengbroTubeCsv(text: string): {
   data: FengbroTubeChannelConfig[];
   errors: string[];
@@ -202,10 +231,10 @@ export function parseFengbroTubeCsv(text: string): {
         data.push(channel);
         if (data.length >= MAX_CHANNELS) break;
       }
-      return {
-        data: stripRemovedFengbroTubeChannels(normalizeFengbroTubeChannels(data)),
-        errors,
-      };
+      return withRemovedDiagnostic(
+        partitionRemovedFengbroTubeChannels(normalizeFengbroTubeChannels(data)),
+        errors
+      );
     }
 
     errors.push('表頭缺少必要欄位 "sourceUrl"（頻道網址）');
@@ -256,8 +285,8 @@ export function parseFengbroTubeCsv(text: string): {
     }
   }
 
-  return {
-    data: stripRemovedFengbroTubeChannels(normalizeFengbroTubeChannels(data)),
-    errors,
-  };
+  return withRemovedDiagnostic(
+    partitionRemovedFengbroTubeChannels(normalizeFengbroTubeChannels(data)),
+    errors
+  );
 }
