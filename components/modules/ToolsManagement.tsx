@@ -4428,7 +4428,7 @@ export default function ToolsManagement({
     } finally {
       setTubeLoading(false);
     }
-  }, [tubeChannelConfigs]);
+  }, [setTubeChannelConfigs, tubeChannelConfigs]);
 
   const clearTubeChannelForm = useCallback(() => {
     setTubeChannelAliasDraft("");
@@ -4453,7 +4453,7 @@ export default function ToolsManagement({
     });
     clearTubeChannelForm();
     setTubeLoadedOnce(false);
-  }, [clearTubeChannelForm, editingTubeChannelUrl, tubeChannelAliasDraft, tubeChannelUrlDraft]);
+  }, [clearTubeChannelForm, editingTubeChannelUrl, tubeChannelAliasDraft, tubeChannelUrlDraft, setTubeChannelConfigs]);
 
   const handleEditTubeChannel = useCallback((channel: FengbroTubeChannelConfig) => {
     setTubeChannelManagerOpen(true);
@@ -4474,14 +4474,14 @@ export default function ToolsManagement({
     setTubeChannelConfigs((currentChannels) => currentChannels.filter((channel) => channel.sourceUrl !== sourceUrl));
     if (editingTubeChannelUrl === sourceUrl) clearTubeChannelForm();
     setTubeLoadedOnce(false);
-  }, [clearTubeChannelForm, editingTubeChannelUrl, tubeChannelConfigs]);
+  }, [clearTubeChannelForm, editingTubeChannelUrl, setTubeChannelConfigs, tubeChannelConfigs]);
 
   const handleResetTubeChannels = useCallback(() => {
     if (typeof window !== "undefined" && !window.confirm(`確定還原預設 ${DEFAULT_FENGBRO_TUBE_CHANNELS.length} 個頻道？`)) return;
     setTubeChannelConfigs(DEFAULT_FENGBRO_TUBE_CHANNELS);
     clearTubeChannelForm();
     setTubeLoadedOnce(false);
-  }, [clearTubeChannelForm]);
+  }, [clearTubeChannelForm, setTubeChannelConfigs]);
 
   const handleExportTubeChannelsCsv = useCallback(() => {
     try {
@@ -4547,7 +4547,7 @@ export default function ToolsManagement({
       reader.onerror = () => setTubeError("讀取 CSV 檔案失敗");
       reader.readAsText(file, "UTF-8");
     },
-    [tubeChannelConfigs]
+    [setTubeChannelConfigs, tubeChannelConfigs]
   );
 
   useEffect(() => {
@@ -4705,7 +4705,7 @@ export default function ToolsManagement({
       })
     );
     setFinanceLoadedOnce(false);
-  }, [customFinanceDraft, editingCustomFinanceKey]);
+  }, [customFinanceDraft, editingCustomFinanceKey, setCustomFinanceInstruments]);
 
   const handleEditCustomFinanceInstrument = useCallback((instrument: CustomFinanceInstrument) => {
     setFinanceError("");
@@ -4806,7 +4806,7 @@ export default function ToolsManagement({
       reader.onerror = () => setFinanceError("讀取 CSV 檔案失敗");
       reader.readAsText(file, "UTF-8");
     },
-    [customFinanceInstruments]
+    [customFinanceInstruments, setCustomFinanceInstruments]
   );
 
   const handleToggleFeaturedFinanceQuoteId = useCallback((quoteId: string) => {
@@ -4831,7 +4831,7 @@ export default function ToolsManagement({
         return { ...instrument, featured: willFeature ? true : undefined };
       })
     );
-  }, [featuredFinanceQuoteIds]);
+  }, [featuredFinanceQuoteIds, setCustomFinanceInstruments]);
 
   const handleAddDefaultFinanceInstrument = useCallback((id: string) => {
     if (!DEFAULT_FINANCE_INSTRUMENT_IDS.includes(id)) return;
@@ -4867,7 +4867,7 @@ export default function ToolsManagement({
       }
       setFinanceLoadedOnce(false);
     },
-    [clearCustomFinanceForm, editingCustomFinanceKey]
+    [clearCustomFinanceForm, editingCustomFinanceKey, setCustomFinanceInstruments]
   );
 
   // 雲端自選標的載入完成後，用最新清單重新抓取報價。

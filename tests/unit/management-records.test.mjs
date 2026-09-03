@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildFengbroTubeChannelWritePayload,
+  buildFinanceInstrumentWritePayload,
   buildReinstallSoftwareWritePayload,
   buildTrialPurchaseWritePayload,
   emptyReinstallSoftwareForm,
@@ -220,5 +222,98 @@ describe("reinstall software records", () => {
     assert.throws(() => buildReinstallSoftwareWritePayload({ name: "工具", licenseType: "unknown" }, "create"), /授權方式/);
     assert.equal(safeSoftwareUrl("javascript:alert(1)"), undefined);
     assert.equal(safeSoftwareUrl("https://example.test"), "https://example.test/");
+  });
+});
+
+describe("tube channel records", () => {
+  it("normalizes an @handle into a YouTube /videos URL and keeps the alias", () => {
+    assert.deepEqual(
+      buildFengbroTubeChannelWritePayload({ alias: " 一個狠人 ", sourceUrl: "@henren778" }, "create"),
+      { sourceUrl: "https://www.youtube.com/@henren778/videos", alias: "一個狠人" },
+    );
+  });
+
+  it("keeps a Bilibili space URL as-is without a trailing slash", () => {
+    const payload = buildFengbroTubeChannelWritePayload(
+      { sourceUrl: "https://space.bilibili.com/123456789/" },
+      "create",
+    );
+    assert.equal(payload.sourceUrl, "https://space.bilibili.com/123456789");
+  });
+
+  it("rejects blank or non-YouTube/Bilibili URLs", () => {
+    assert.throws(() => buildFengbroTubeChannelWritePayload({ sourceUrl: "" }, "create"), /YouTube 頻道網址|正確/);
+    assert.throws(
+      () => buildFengbroTubeChannelWritePayload({ sourceUrl: "https://example.com/not-a-channel" }, "create"),
+      /正確/,
+    );
+    assert.throws(() => buildFengbroTubeChannelWritePayload(null, "create"), /物件/);
+  });
+});
+
+describe("finance instrument records", () => {
+  it("normalizes a complete create payload", () => {
+    const payload = buildFinanceInstrumentWritePayload(
+      {
+        name: " 台積電 ",
+        symbol: "2330.tw",
+        provider: "yahoo",
+        group: "taiwan",
+        imageUrls: ["https://example.com/a.png"],
+        youtubeUrl: "https://www.youtube.com/watch?v=abc",
+        bilibiliUrl: "",
+        relatedLinks: [{ label: "PTT 股板", url: "https://ptt.cc/bbs/stock/index.html" }],
+        featured: true,
+      },
+      "create",
+    );
+    assert.equal(payload.name, "台積電");
+    assert.equal(payload.symbol, "2330.TW");
+    assert.equal(payload.provider, "yahoo");
+    assert.equal(payload.group, "taiwan");
+    assert.equal(payload.imageUrls, "https://example.com/a.png");
+    assert.equal(payload.relatedLinks, JSON.stringify([{ label: "PTT 股板", url: "https://ptt.cc/bbs/stock/index.html" }]));
+    assert.equal(payload.youtubeUrl, "https://www.youtube.com/watch?v=abc");
+    assert.equal(payload.featured, true);
+  });
+
+  it("joins multi-image rows with newlines and clears URLs on update", () => {
+    const payload = buildFinanceInstrumentWritePayload(
+      {
+        name: "多圖標的",
+        symbol: "SOXL",
+        provider: "cnbc",
+        group: "us",
+        imageUrls: ["https://example.com/1.png", "https://example.com/2.png"],
+        youtubeUrl: "https://www.youtube.com/watch?v=abc",
+        bilibiliUrl: "https://www.bilibili.com/video/BV1xx",
+        relatedLinks: [],
+      },
+      "create",
+    );
+    assert.equal(payload.imageUrls, "https://example.com/1.png\nhttps://example.com/2.png");
+
+    const cleared = buildFinanceInstrumentWritePayload(
+      { name: "多圖標的", symbol: "SOXL", provider: "cnbc", group: "us", imageUrls: [], youtubeUrl: "", bilibiliUrl: "", relatedLinks: [], featured: false },
+      "update",
+    );
+    assert.equal(cleared.youtubeUrl, null);
+    assert.equal(cleared.bilibiliUrl, null);
+    assert.equal(cleared.imageUrls, "");
+  });
+
+  it("rejects invalid fields and unsafe URLs", () => {
+    assert.throws(() => buildFinanceInstrumentWritePayload({ name: "", symbol: "X" }, "create"), /名稱/);
+    assert.throws(() => buildFinanceInstrumentWritePayload({ name: "標的", symbol: "" }, "create"), /代號/);
+    assert.throws(() => buildFinanceInstrumentWritePayload({ name: "標的", symbol: "X", provider: "bloomberg" }, "create"), /來源/);
+    assert.throws(
+      () => buildFinanceInstrumentWritePayload({ name: "標的", symbol: "X", imageUrls: "not-an-array" }, "create"),
+      /圖片網址必須是陣列/,
+    );
+    assert.throws(
+      () => buildFinanceInstrumentWritePayload({ name: "標的", symbol: "X", youtubeUrl: "javascript:alert(1)" }, "create"),
+      /http 或 https/,
+    );
+    assert.throws(() => buildFinanceInstrumentWritePayload(null, "create"), /物件/);
   });
 });

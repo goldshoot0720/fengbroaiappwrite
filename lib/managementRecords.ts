@@ -1,6 +1,5 @@
 import type {
   FinanceCustomGroup,
-  FinanceCustomProvider,
   FinanceInstrument,
   FinanceInstrumentFormData,
   FengbroTubeChannel,
@@ -675,9 +674,17 @@ export function buildFinanceInstrumentWritePayload(
   const symbol = asText(body.symbol, "標的代號", 64).toUpperCase();
   if (!symbol) throw new Error("請填寫標的代號");
   if (!name) throw new Error("請填寫標的名稱");
-  const provider = asText(body.provider) === "yahoo" ? ("yahoo" as const) : ("cnbc" as const);
+  const providerText = asText(body.provider);
+  if (providerText !== "" && providerText !== "cnbc" && providerText !== "yahoo") {
+    throw new Error("報價來源不正確");
+  }
+  const provider: "yahoo" | "cnbc" = providerText === "yahoo" ? "yahoo" : "cnbc";
   const group = asFinanceGroup(body.group);
 
+  const hasImageUrls = body.imageUrls !== undefined && body.imageUrls !== null && body.imageUrls !== "";
+  const hasRelatedLinks = body.relatedLinks !== undefined && body.relatedLinks !== null && body.relatedLinks !== "";
+  if (hasImageUrls && !Array.isArray(body.imageUrls)) throw new Error("圖片網址必須是陣列");
+  if (hasRelatedLinks && !Array.isArray(body.relatedLinks)) throw new Error("相關連結必須是陣列");
   const imageUrlsRaw = Array.isArray(body.imageUrls) ? body.imageUrls : [];
   const imageUrls = imageUrlsRaw
     .map((value) => asText(value, "圖片網址", 2000))

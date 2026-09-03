@@ -498,7 +498,6 @@ export default function ManualPriceTracker() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloudKey, cloudReady]);
 
   // 內容有變動才同步：逐筆 upsert；本機移除且曾上傳的才刪除。

@@ -162,7 +162,7 @@ export function useRemoteListSync<T>(
         throw err;
       }
     })();
-  }, [endpoint, loadLocal, localId, remoteDocId, signature, toLocal]);
+  }, [endpoint, loadLocal, localId, migrateLocalWhenRemoteEmpty, remoteDocId, signature, toLocal]);
 
   // 啟用或設定就緒時載入遠端；每次從停用切回啟用也重新整理。
   useEffect(() => {
