@@ -121,6 +121,10 @@ export async function initializeManagementTable(config, tableName, send = () => 
           case "integer": await databases.createIntegerAttribute({ ...params, min: 0 }); break;
           case "datetime": await databases.createDatetimeAttribute(params); break;
           case "url": await databases.createUrlAttribute(params); break;
+          case "boolean": await databases.createBooleanAttribute({
+            ...params,
+            ...(attr.default !== undefined ? { xdefault: attr.default } : {}),
+          }); break;
         }
       } catch (error) {
         if (error.code !== 409) throw error;

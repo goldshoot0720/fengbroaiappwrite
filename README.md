@@ -11,7 +11,7 @@
 - **鋒兄首頁 / 儀表** — 到期、餘額、媒體流量與容量摘要
 - **鋒兄訂閱** — 扣款日、多幣別、CSV、本機垃圾桶
 - **鋒兄試用/首購** — 依服務展開多帳號、試用／首購狀態、價格與試用／首購／到期日（扣款日）
-- **鋒兄重灌** — Windows／Mac 軟體、授權序號（預設隱藏，可設查看密碼）、網站與備註
+- **鋒兄重灌** — Windows／Mac 軟體、授權序號（預設隱藏，可設查看密碼）、訂閱週期與費用、網站與備註
 - **鋒兄食品** — 庫存、到期、商品庫存
 - **鋒兄筆記 / 文件** — 筆記附件預覽；PDF／Office／程式碼／ZIP
 - **鋒兄常用** — 網站群組、favicon、行內編輯
@@ -54,7 +54,7 @@
 
 `food` · `subscription` · `trialpurchase` · `reinstall` · `article` · `commonaccount` · `bank` · `routine` · `image` · `video` · `music` · `podcast` · `commondocument` · `landtophistory` · `manualprice` · `sitevisit` · `menuusage`
 
-新增的 `trialpurchase`（8 欄位）與 `reinstall`（8 欄位）採獨立資料表，不變更既有訂閱／食品資料。初始化只新增資料表或補齊缺少欄位，重試不刪除紀錄；新表不授予公開存取權限，沿用伺服器 API key 操作。序號遮罩與查看密碼只是畫面隱藏，不是加密保管庫。
+新增的 `trialpurchase`（8 欄位）與 `reinstall`（12 欄位）採獨立資料表，不變更既有訂閱／食品資料。初始化只新增資料表或補齊缺少欄位，重試不刪除紀錄；新表不授予公開存取權限，沿用伺服器 API key 操作。序號遮罩與查看密碼只是畫面隱藏，不是加密保管庫。
 
 另有 Web Push 訂閱表由 `/api/push-subscribe` 動態建立。
 

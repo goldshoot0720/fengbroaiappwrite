@@ -5,7 +5,10 @@ import {
   buildTrialPurchaseWritePayload,
   emptyReinstallSoftwareForm,
   emptyTrialPurchaseForm,
+  formatReinstallSubscriptionPeriod,
   matchesReinstallViewPassword,
+  parseReinstallSubscriptionPeriod,
+  reinstallSubscriptionPeriodLabel,
   safeSoftwareUrl,
 } from "../../lib/managementRecords.ts";
 
@@ -89,6 +92,11 @@ describe("reinstall software records", () => {
       licenseType: "none",
       serial: "",
       viewPassword: "",
+      subscriptionSoftware: false,
+      subscriptionPeriodCount: 1,
+      subscriptionPeriodUnit: "month",
+      subscriptionPrice: 0,
+      subscriptionCurrency: "TWD",
       site: "",
       note: "",
     });
@@ -143,6 +151,60 @@ describe("reinstall software records", () => {
     assert.equal(matchesReinstallViewPassword("secret", "secret"), true);
     assert.equal(matchesReinstallViewPassword(" secret ", "secret"), true);
     assert.equal(matchesReinstallViewPassword("secret", "wrong"), false);
+  });
+
+  it("stores subscription period as ?年/?月 with TWD/USD/JPY/CNY fees", () => {
+    const payload = buildReinstallSoftwareWritePayload(
+      {
+        name: "Adobe",
+        subscriptionSoftware: true,
+        subscriptionPeriodCount: 1,
+        subscriptionPeriodUnit: "year",
+        subscriptionPrice: 990,
+        subscriptionCurrency: "USD",
+      },
+      "create",
+    );
+    assert.equal(payload.subscriptionSoftware, true);
+    assert.equal(payload.subscriptionPeriod, "1年");
+    assert.equal(payload.subscriptionPrice, 990);
+    assert.equal(payload.subscriptionCurrency, "USD");
+
+    const fromLabel = buildReinstallSoftwareWritePayload(
+      { name: "Adobe", subscriptionSoftware: true, subscriptionPeriod: "3月", subscriptionPrice: "120", subscriptionCurrency: "JPY" },
+      "create",
+    );
+    assert.equal(fromLabel.subscriptionPeriod, "3月");
+    assert.equal(fromLabel.subscriptionCurrency, "JPY");
+
+    const cleared = buildReinstallSoftwareWritePayload(
+      { name: "Adobe", subscriptionSoftware: false, subscriptionPeriod: "1年", subscriptionPrice: 990, subscriptionCurrency: "USD" },
+      "create",
+    );
+    assert.equal(cleared.subscriptionSoftware, false);
+    assert.equal(cleared.subscriptionPeriod, "");
+    assert.equal(cleared.subscriptionPrice, 0);
+    assert.equal(cleared.subscriptionCurrency, "TWD");
+
+    assert.deepEqual(parseReinstallSubscriptionPeriod("2年"), { count: 2, unit: "year" });
+    assert.equal(formatReinstallSubscriptionPeriod(3, "month"), "3月");
+    assert.equal(reinstallSubscriptionPeriodLabel("1年"), "1 年");
+    assert.equal(reinstallSubscriptionPeriodLabel("3月"), "3 個月");
+  });
+
+  it("rejects invalid subscription period and currency", () => {
+    assert.throws(
+      () => buildReinstallSoftwareWritePayload({ name: "Adobe", subscriptionSoftware: true, subscriptionPeriod: "一年" }, "create"),
+      /訂閱週期/,
+    );
+    assert.throws(
+      () => buildReinstallSoftwareWritePayload({ name: "Adobe", subscriptionSoftware: true, subscriptionPeriodCount: 0 }, "create"),
+      /1 以上/,
+    );
+    assert.throws(
+      () => buildReinstallSoftwareWritePayload({ name: "Adobe", subscriptionSoftware: true, subscriptionCurrency: "EUR" }, "create"),
+      /訂閱費用幣別/,
+    );
   });
 
   it("rejects non-web protocols", () => {

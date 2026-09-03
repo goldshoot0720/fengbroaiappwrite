@@ -4,6 +4,8 @@ import type {
   ReinstallSoftware,
   ReinstallSoftwareFormData,
   ReinstallSoftwareType,
+  ReinstallSubscriptionCurrency,
+  ReinstallSubscriptionPeriodUnit,
   ReinstallSystem,
   TrialPurchase,
   TrialPurchaseFormData,
@@ -43,11 +45,31 @@ export const REINSTALL_LICENSE_TYPE_OPTIONS: ReadonlyArray<{
   { value: "paid_serial", label: "付費序號" },
 ];
 
+export const REINSTALL_PERIOD_UNIT_OPTIONS: ReadonlyArray<{
+  value: ReinstallSubscriptionPeriodUnit;
+  label: string;
+}> = [
+  { value: "month", label: "月" },
+  { value: "year", label: "年" },
+];
+
+export const REINSTALL_CURRENCY_OPTIONS: ReadonlyArray<{
+  value: ReinstallSubscriptionCurrency;
+  label: string;
+}> = [
+  { value: "TWD", label: "台幣" },
+  { value: "USD", label: "美元" },
+  { value: "JPY", label: "日圓" },
+  { value: "CNY", label: "人民幣" },
+];
+
 const trialStatuses = new Set(TRIAL_STATUS_OPTIONS.map((option) => option.value));
 const purchaseStatuses = new Set(PURCHASE_STATUS_OPTIONS.map((option) => option.value));
 const reinstallSystems = new Set(REINSTALL_SYSTEM_OPTIONS.map((option) => option.value));
 const reinstallSoftwareTypes = new Set(REINSTALL_SOFTWARE_TYPE_OPTIONS.map((option) => option.value));
 const reinstallLicenseTypes = new Set(REINSTALL_LICENSE_TYPE_OPTIONS.map((option) => option.value));
+const reinstallPeriodUnits = new Set(REINSTALL_PERIOD_UNIT_OPTIONS.map((option) => option.value));
+const reinstallCurrencies = new Set(REINSTALL_CURRENCY_OPTIONS.map((option) => option.value));
 
 export const MANAGEMENT_TABLE_SCHEMAS = {
   trialpurchase: {
@@ -72,6 +94,10 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "licenseType", type: "string", size: 20, required: false },
       { key: "serial", type: "string", size: 500, required: false },
       { key: "viewPassword", type: "string", size: 100, required: false },
+      { key: "subscriptionSoftware", type: "boolean", required: false, default: false },
+      { key: "subscriptionPeriod", type: "string", size: 20, required: false },
+      { key: "subscriptionPrice", type: "integer", required: false },
+      { key: "subscriptionCurrency", type: "string", size: 10, required: false },
       { key: "site", type: "url", required: false },
       { key: "note", type: "string", size: 3337, required: false },
     ],
@@ -86,6 +112,14 @@ function asText(value: unknown, label = "欄位", maxLength?: number): string {
     throw new Error(`${label}最多 ${maxLength} 個字元`);
   }
   return normalized;
+}
+
+function asBoolean(value: unknown, fallback = false, label = "欄位"): boolean {
+  if (value == null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  if (value === "true" || value === "yes" || value === 1 || value === "1") return true;
+  if (value === "false" || value === "no" || value === 0 || value === "0") return false;
+  throw new Error(`${label}不正確`);
 }
 
 function asNonNegativeInteger(value: unknown, label: string): number {
@@ -205,12 +239,39 @@ export function emptyReinstallSoftwareForm(): ReinstallSoftwareFormData {
     licenseType: "none",
     serial: "",
     viewPassword: "",
+    subscriptionSoftware: false,
+    subscriptionPeriodCount: 1,
+    subscriptionPeriodUnit: "month",
+    subscriptionPrice: 0,
+    subscriptionCurrency: "TWD",
     site: "",
     note: "",
   };
 }
 
+export function parseReinstallSubscriptionPeriod(value?: string): {
+  count: number;
+  unit: ReinstallSubscriptionPeriodUnit;
+} {
+  const match = String(value || "").trim().match(/^([1-9]\d{0,3})(年|月)$/);
+  if (!match) return { count: 1, unit: "month" };
+  return { count: Number(match[1]), unit: match[2] === "年" ? "year" : "month" };
+}
+
+export function formatReinstallSubscriptionPeriod(
+  count: number,
+  unit: ReinstallSubscriptionPeriodUnit,
+): string {
+  return `${count}${unit === "year" ? "年" : "月"}`;
+}
+
+export function reinstallSubscriptionPeriodLabel(value?: string): string {
+  const parsed = parseReinstallSubscriptionPeriod(value);
+  return parsed.unit === "year" ? `${parsed.count} 年` : `${parsed.count} 個月`;
+}
+
 export function toReinstallSoftwareForm(source: ReinstallSoftware): ReinstallSoftwareFormData {
+  const period = parseReinstallSubscriptionPeriod(source.subscriptionPeriod);
   return {
     name: source.name || "",
     system: asChoice(source.system, reinstallSystems, "win"),
@@ -218,6 +279,11 @@ export function toReinstallSoftwareForm(source: ReinstallSoftware): ReinstallSof
     licenseType: asChoice(source.licenseType, reinstallLicenseTypes, "none"),
     serial: source.serial || "",
     viewPassword: source.viewPassword || "",
+    subscriptionSoftware: Boolean(source.subscriptionSoftware),
+    subscriptionPeriodCount: period.count,
+    subscriptionPeriodUnit: period.unit,
+    subscriptionPrice: Number(source.subscriptionPrice || 0),
+    subscriptionCurrency: asChoice(source.subscriptionCurrency, reinstallCurrencies, "TWD"),
     site: source.site || "",
     note: source.note || "",
   };
@@ -225,6 +291,21 @@ export function toReinstallSoftwareForm(source: ReinstallSoftware): ReinstallSof
 
 export function matchesReinstallViewPassword(stored: string | undefined, entered: string): boolean {
   return (stored || "").trim() === entered.trim();
+}
+
+function asSubscriptionPeriod(body: Record<string, unknown>, enabled: boolean): string {
+  if (!enabled) return "";
+  const raw = asText(body.subscriptionPeriod);
+  if (raw) {
+    if (!/^[1-9]\d{0,3}(年|月)$/.test(raw)) throw new Error("訂閱週期必須是 ?年 或 ?月，例如 1年、3月");
+    return raw;
+  }
+  const count = body.subscriptionPeriodCount == null || body.subscriptionPeriodCount === ""
+    ? 1
+    : asNonNegativeInteger(body.subscriptionPeriodCount, "訂閱週期");
+  if (count < 1) throw new Error("訂閱週期必須是 1 以上的整數");
+  const unit = asChoice(body.subscriptionPeriodUnit, reinstallPeriodUnits, "month", "訂閱週期");
+  return formatReinstallSubscriptionPeriod(count, unit);
 }
 
 export function buildReinstallSoftwareWritePayload(
@@ -236,6 +317,7 @@ export function buildReinstallSoftwareWritePayload(
   if (!name) throw new Error("請填寫服務名稱");
 
   const licenseType = asChoice(body.licenseType, reinstallLicenseTypes, "none", "授權方式");
+  const subscriptionSoftware = asBoolean(body.subscriptionSoftware, false, "訂閱制軟體");
   const site = asOptionalUrl(body.site);
   const payload: Record<string, unknown> = {
     name,
@@ -244,6 +326,12 @@ export function buildReinstallSoftwareWritePayload(
     licenseType,
     serial: licenseType === "paid_serial" ? asText(body.serial, "付費序號", 500) : "",
     viewPassword: licenseType === "paid_serial" ? asText(body.viewPassword, "查看密碼", 100) : "",
+    subscriptionSoftware,
+    subscriptionPeriod: asSubscriptionPeriod(body, subscriptionSoftware),
+    subscriptionPrice: subscriptionSoftware ? asNonNegativeInteger(body.subscriptionPrice, "訂閱費用") : 0,
+    subscriptionCurrency: subscriptionSoftware
+      ? asChoice(body.subscriptionCurrency, reinstallCurrencies, "TWD", "訂閱費用幣別")
+      : "TWD",
     note: asText(body.note, "備註", 3337),
   };
 

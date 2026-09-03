@@ -97,6 +97,8 @@ export interface TrialPurchaseFormData {
 export type ReinstallSystem = "win" | "mac";
 export type ReinstallSoftwareType = "trial" | "free" | "paid";
 export type ReinstallLicenseType = "none" | "paid_serial";
+export type ReinstallSubscriptionPeriodUnit = "year" | "month";
+export type ReinstallSubscriptionCurrency = "TWD" | "USD" | "JPY" | "CNY";
 
 export interface ReinstallSoftware {
   $id: string;
@@ -106,6 +108,10 @@ export interface ReinstallSoftware {
   licenseType: ReinstallLicenseType;
   serial?: string;
   viewPassword?: string;
+  subscriptionSoftware: boolean;
+  subscriptionPeriod?: string;
+  subscriptionPrice: number;
+  subscriptionCurrency: ReinstallSubscriptionCurrency;
   site?: string;
   note?: string;
   $createdAt?: string;
@@ -119,6 +125,11 @@ export interface ReinstallSoftwareFormData {
   licenseType: ReinstallLicenseType;
   serial?: string;
   viewPassword?: string;
+  subscriptionSoftware: boolean;
+  subscriptionPeriodCount: number;
+  subscriptionPeriodUnit: ReinstallSubscriptionPeriodUnit;
+  subscriptionPrice: number;
+  subscriptionCurrency: ReinstallSubscriptionCurrency;
   site?: string;
   note?: string;
 }

@@ -63,7 +63,9 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
     }
     for (const data of [{ name: "test", system: "linux" }, { name: "test", site: "javascript:alert(1)" },
       { name: "test", licenseType: "paid_serial", serial: "x".repeat(501) },
-      { name: "test", licenseType: "paid_serial", viewPassword: "x".repeat(101) }]) {
+      { name: "test", licenseType: "paid_serial", viewPassword: "x".repeat(101) },
+      { name: "test", subscriptionSoftware: true, subscriptionPeriod: "一年" },
+      { name: "test", subscriptionSoftware: true, subscriptionCurrency: "EUR" }]) {
       assert.equal((await api("/api/reinstall", "POST", data)).status, 400);
     }
     assert.equal(fixture.writes.length, beforeWrites);
@@ -71,16 +73,25 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
 
   it("persists reinstall fields, clears an old serial for no-license, and deletes", async () => {
     const data = { name: "測試軟體", system: "mac", softwareType: "paid", licenseType: "paid_serial",
-      serial: "DEMO-KEY", viewPassword: "view-me", site: "https://example.test/install", note: "測試" };
+      serial: "DEMO-KEY", viewPassword: "view-me", subscriptionSoftware: true, subscriptionPeriodCount: 1,
+      subscriptionPeriodUnit: "year", subscriptionPrice: 990, subscriptionCurrency: "USD",
+      site: "https://example.test/install", note: "測試" };
     const created = await api("/api/reinstall", "POST", data);
     assert.equal(created.status, 201, JSON.stringify(created.body));
     assert.equal(created.body.serial, "DEMO-KEY");
     assert.equal(created.body.viewPassword, "view-me");
+    assert.equal(created.body.subscriptionSoftware, true);
+    assert.equal(created.body.subscriptionPeriod, "1年");
+    assert.equal(created.body.subscriptionPrice, 990);
+    assert.equal(created.body.subscriptionCurrency, "USD");
     const id = created.body.$id;
-    const updated = await api(`/api/reinstall/${id}`, "PUT", { ...data, system: "win", softwareType: "free", licenseType: "none", site: "" });
+    const updated = await api(`/api/reinstall/${id}`, "PUT", { ...data, system: "win", softwareType: "free", licenseType: "none", site: "", subscriptionSoftware: false });
     assert.equal(updated.status, 200);
     assert.equal(updated.body.serial, "");
     assert.equal(updated.body.viewPassword, "");
+    assert.equal(updated.body.subscriptionSoftware, false);
+    assert.equal(updated.body.subscriptionPeriod, "");
+    assert.equal(updated.body.subscriptionPrice, 0);
     assert.equal(updated.body.site, null);
     assert.equal(updated.body.system, "win");
     assert.equal((await api(`/api/reinstall/${id}`, "DELETE")).status, 200);

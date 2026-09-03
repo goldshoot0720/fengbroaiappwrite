@@ -29,7 +29,7 @@
 | 13 | [鋒兄設定](./14_settings.md) | Appwrite、建表、儲存與主題 | [14_settings.md](./14_settings.md) |
 | 14 | [鋒兄關於](./15_about.md) | 更新內容、架構與文件中心 | [15_about.md](./15_about.md) |
 | 15 | [鋒兄試用/首購](./16_trial_purchase.md) | 服務下多帳號、試用／首購狀態與試用／首購／到期日（扣款日） | [16_trial_purchase.md](./16_trial_purchase.md) |
-| 16 | [鋒兄重灌](./17_reinstall.md) | Windows／Mac 軟體、隱藏序號、查看密碼與安裝資訊 | [17_reinstall.md](./17_reinstall.md) |
+| 16 | [鋒兄重灌](./17_reinstall.md) | Windows／Mac 軟體、隱藏序號、查看密碼、訂閱週期與費用 | [17_reinstall.md](./17_reinstall.md) |
 
 桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁（同一頁可切精簡待辦與完整儀表）；鋒兄管理包含訂閱、試用/首購、重灌、食品、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、YouTube/Bilibili。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
 
@@ -93,7 +93,7 @@
 | 14 | sitevisit | 2 | 到站統計 | `/api/site-visit` |
 | 15 | menuusage | 3 | 選單使用統計 | `/api/menu-usage` |
 | 16 | trialpurchase | 8 | 鋒兄試用/首購 | [16_trial_purchase.md](./16_trial_purchase.md) |
-| 17 | reinstall | 8 | 鋒兄重灌 | [17_reinstall.md](./17_reinstall.md) |
+| 17 | reinstall | 12 | 鋒兄重灌 | [17_reinstall.md](./17_reinstall.md) |
 
 另有 Web Push 訂閱 collection，由 `/api/push-subscribe` 動態建立，不在一鍵建表清單裡。
 

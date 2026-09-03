@@ -477,7 +477,7 @@ function HomeTaskBoard({
   const quickActions = [
     { label: "鋒兄訂閱", description: "管理扣款與到期日", moduleId: "subscription", icon: <CreditCard size={18} /> },
     { label: "鋒兄試用／首購", description: "依服務展開帳號、狀態與 CSV", moduleId: "trial-purchase", icon: <BadgePercent size={18} /> },
-    { label: "鋒兄重灌", description: "Win／Mac 軟體、隱藏序號與查看密碼", moduleId: "reinstall", icon: <Laptop size={18} /> },
+    { label: "鋒兄重灌", description: "Win／Mac 軟體、序號、查看密碼與訂閱", moduleId: "reinstall", icon: <Laptop size={18} /> },
     { label: "鋒兄食品", description: "查看庫存與保存期限", moduleId: "food", icon: <Package size={18} /> },
     { label: "鋒兄例行", description: "記錄最近執行日期", moduleId: "routine", icon: <CalendarClock size={18} /> },
     { label: "鋒兄銀行", description: "查看餘額與帳戶總覽", moduleId: "bank-stats", icon: <Building2 size={18} /> },

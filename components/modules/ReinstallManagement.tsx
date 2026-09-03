@@ -24,12 +24,16 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
 import { API_ENDPOINTS } from "@/lib/constants";
+import { formatCurrencyWithExchange } from "@/lib/formatters";
 import {
   emptyReinstallSoftwareForm,
   matchesReinstallViewPassword,
+  REINSTALL_CURRENCY_OPTIONS,
   REINSTALL_LICENSE_TYPE_OPTIONS,
+  REINSTALL_PERIOD_UNIT_OPTIONS,
   REINSTALL_SOFTWARE_TYPE_OPTIONS,
   REINSTALL_SYSTEM_OPTIONS,
+  reinstallSubscriptionPeriodLabel,
   safeSoftwareUrl,
   toReinstallSoftwareForm,
 } from "@/lib/managementRecords";
@@ -38,11 +42,14 @@ import type {
   ReinstallSoftware,
   ReinstallSoftwareFormData,
   ReinstallSoftwareType,
+  ReinstallSubscriptionCurrency,
+  ReinstallSubscriptionPeriodUnit,
   ReinstallSystem,
 } from "@/types";
 
 type SystemFilter = "all" | ReinstallSystem;
 type SoftwareFilter = "all" | ReinstallSoftwareType;
+type SubscriptionFilter = "all" | "yes" | "no";
 
 interface ReinstallManagementProps {
   onNavigate?: (moduleId: string) => void;
@@ -92,6 +99,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const [query, setQuery] = useState("");
   const [systemFilter, setSystemFilter] = useState<SystemFilter>("all");
   const [softwareFilter, setSoftwareFilter] = useState<SoftwareFilter>("all");
+  const [subscriptionFilter, setSubscriptionFilter] = useState<SubscriptionFilter>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ReinstallSoftwareFormData>(() => emptyReinstallSoftwareForm());
@@ -137,10 +145,13 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
           .some((value) => String(value || "").toLocaleLowerCase("zh-Hant").includes(normalizedQuery));
         const matchesSystem = systemFilter === "all" || item.system === systemFilter;
         const matchesSoftware = softwareFilter === "all" || item.softwareType === softwareFilter;
-        return matchesQuery && matchesSystem && matchesSoftware;
+        const matchesSubscription = subscriptionFilter === "all"
+          || (subscriptionFilter === "yes" && item.subscriptionSoftware)
+          || (subscriptionFilter === "no" && !item.subscriptionSoftware);
+        return matchesQuery && matchesSystem && matchesSoftware && matchesSubscription;
       })
       .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
-  }, [items, query, softwareFilter, systemFilter]);
+  }, [items, query, softwareFilter, subscriptionFilter, systemFilter]);
 
   const windowsCount = items.filter((item) => item.system === "win").length;
   const macCount = items.filter((item) => item.system === "mac").length;
@@ -270,7 +281,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
             鋒兄重灌
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            整理 Windows 與 Mac 重灌時需要的軟體、網站和授權資訊；付費序號預設保持隱藏，可另設查看密碼。
+            整理 Windows 與 Mac 重灌時需要的軟體、網站和授權資訊；付費序號預設保持隱藏，可另設查看密碼。訂閱制軟體可記下週期與費用。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -325,6 +336,60 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                 {REINSTALL_SOFTWARE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </NativeSelect>
             </FormField>
+            <FormField label="訂閱制軟體" htmlFor="reinstall-subscription">
+              <NativeSelect
+                id="reinstall-subscription"
+                value={form.subscriptionSoftware ? "yes" : "no"}
+                onChange={(value) => setForm((current) => ({ ...current, subscriptionSoftware: value === "yes" }))}
+              >
+                <option value="no">否</option>
+                <option value="yes">是</option>
+              </NativeSelect>
+            </FormField>
+            {form.subscriptionSoftware ? (
+              <>
+                <FormField label="訂閱週期" htmlFor="reinstall-subscription-period">
+                  <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
+                    <Input
+                      id="reinstall-subscription-period"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      value={form.subscriptionPeriodCount}
+                      onChange={(event) => setForm((current) => ({ ...current, subscriptionPeriodCount: Number(event.target.value) || 0 }))}
+                    />
+                    <NativeSelect
+                      id="reinstall-subscription-period-unit"
+                      value={form.subscriptionPeriodUnit}
+                      onChange={(value) => setForm((current) => ({ ...current, subscriptionPeriodUnit: value as ReinstallSubscriptionPeriodUnit }))}
+                    >
+                      {REINSTALL_PERIOD_UNIT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </NativeSelect>
+                  </div>
+                </FormField>
+                <FormField label="訂閱費用" htmlFor="reinstall-subscription-price">
+                  <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
+                    <Input
+                      id="reinstall-subscription-price"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={form.subscriptionPrice}
+                      onChange={(event) => setForm((current) => ({ ...current, subscriptionPrice: Number(event.target.value) || 0 }))}
+                    />
+                    <NativeSelect
+                      id="reinstall-subscription-currency"
+                      value={form.subscriptionCurrency}
+                      onChange={(value) => setForm((current) => ({ ...current, subscriptionCurrency: value as ReinstallSubscriptionCurrency }))}
+                    >
+                      {REINSTALL_CURRENCY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </NativeSelect>
+                  </div>
+                </FormField>
+              </>
+            ) : null}
             <FormField label="授權方式" htmlFor="reinstall-license-type">
               <NativeSelect
                 id="reinstall-license-type"
@@ -406,7 +471,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
         </form>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_160px_160px]">
         <label className="relative min-w-0">
           <span className="sr-only">搜尋服務、網站或備註</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -424,6 +489,14 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
           <NativeSelect id="reinstall-software-filter" value={softwareFilter} onChange={(value) => setSoftwareFilter(value as SoftwareFilter)}>
             <option value="all">全部軟體類型</option>
             {REINSTALL_SOFTWARE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </NativeSelect>
+        </label>
+        <label>
+          <span className="sr-only">篩選訂閱制</span>
+          <NativeSelect id="reinstall-subscription-filter" value={subscriptionFilter} onChange={(value) => setSubscriptionFilter(value as SubscriptionFilter)}>
+            <option value="all">全部訂閱狀態</option>
+            <option value="yes">訂閱制</option>
+            <option value="no">非訂閱制</option>
           </NativeSelect>
         </label>
       </div>
@@ -463,9 +536,19 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                   <Cell label="服務名稱"><h2 className="break-words font-semibold text-foreground">{item.name}</h2></Cell>
                   <Cell label="系統"><StatusBadge status="info">{optionLabel(REINSTALL_SYSTEM_OPTIONS, item.system)}</StatusBadge></Cell>
                   <Cell label="軟體類型">
-                    <StatusBadge status={item.softwareType === "free" ? "success" : item.softwareType === "trial" ? "warning" : "info"}>
-                      {optionLabel(REINSTALL_SOFTWARE_TYPE_OPTIONS, item.softwareType)}
-                    </StatusBadge>
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap gap-1.5">
+                        <StatusBadge status={item.softwareType === "free" ? "success" : item.softwareType === "trial" ? "warning" : "info"}>
+                          {optionLabel(REINSTALL_SOFTWARE_TYPE_OPTIONS, item.softwareType)}
+                        </StatusBadge>
+                        {item.subscriptionSoftware ? <StatusBadge status="warning">訂閱制</StatusBadge> : null}
+                      </div>
+                      {item.subscriptionSoftware ? (
+                        <p className="text-sm tabular-nums text-muted-foreground">
+                          {reinstallSubscriptionPeriodLabel(item.subscriptionPeriod)} · {formatCurrencyWithExchange(item.subscriptionPrice, item.subscriptionCurrency || "TWD")}
+                        </p>
+                      ) : null}
+                    </div>
                   </Cell>
                   <Cell label="序號">
                     {hasSerial ? (
