@@ -1,5 +1,8 @@
 /**
- * CSV export / import for 鋒兄Tube channel list (localStorage).
+ * CSV export / import for 鋒兄Tube channel list.
+ *
+ * The channel list is stored in the Appwrite `tubechannel` table
+ * (no localStorage); this module only builds / parses the CSV payload.
  *
  * Columns: alias,sourceUrl
  */

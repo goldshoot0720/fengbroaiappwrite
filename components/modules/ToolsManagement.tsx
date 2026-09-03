@@ -13,7 +13,6 @@ import {
   isBrokenFengbroTubeTitle,
   normalizeFengbroTubeChannels,
   normalizeFengbroTubeSource,
-  stripRemovedFengbroTubeChannels,
   toFengbroTubeChannelConfig,
 } from "@/lib/fengbroTubeChannels";
 import {
@@ -428,7 +427,6 @@ const SOURCE_KEY = "fengbro.tools.priceHistory.source";
 const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
 const LANDTOP_APPLE_QUERY_KEY = "fengbro.tools.landtop.appleQuery";
 const LANDTOP_SAMSUNG_QUERY_KEY = "fengbro.tools.landtop.samsungQuery";
-const TUBE_CHANNELS_KEY = "fengbro.tools.tube.channels";
 
 /** /api/tubechannel 文件 → 頻道設定。 */
 function tubeChannelFromRow(row: unknown): FengbroTubeChannelConfig | null {
@@ -549,24 +547,12 @@ const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
 ];
 const DEFAULT_FINANCE_INSTRUMENT_IDS = DEFAULT_FINANCE_INSTRUMENTS.map((instrument) => instrument.id);
 
-function getSavedTubeChannels() {
-  if (typeof window === "undefined") return DEFAULT_FENGBRO_TUBE_CHANNELS;
-
-  try {
-    const savedTubeChannels = window.localStorage.getItem(TUBE_CHANNELS_KEY);
-    if (!savedTubeChannels) return DEFAULT_FENGBRO_TUBE_CHANNELS;
-    const parsedChannels = JSON.parse(savedTubeChannels) as unknown;
-    if (!Array.isArray(parsedChannels)) return DEFAULT_FENGBRO_TUBE_CHANNELS;
-    const normalized = normalizeFengbroTubeChannels(parsedChannels);
-    const channels = stripRemovedFengbroTubeChannels(normalized);
-    // Persist cleanup so removed defaults do not reappear after refresh.
-    if (channels.length !== normalized.length) {
-      window.localStorage.setItem(TUBE_CHANNELS_KEY, JSON.stringify(channels));
-    }
-    return channels.length > 0 ? channels : DEFAULT_FENGBRO_TUBE_CHANNELS;
-  } catch {
-    return DEFAULT_FENGBRO_TUBE_CHANNELS;
-  }
+/**
+ * 鋒兄Tube 頻道清單完全以 Appwrite `tubechannel` 資料表為唯一來源，
+ * 不讀取也不寫入 localStorage；雲端載入前的初始值即為空清單。
+ */
+function getInitialTubeChannels(): FengbroTubeChannelConfig[] {
+  return [];
 }
 
 function getSavedCustomFinanceInstruments() {
@@ -4021,7 +4007,7 @@ export default function ToolsManagement({
   const tubeSync = useRemoteListSync<FengbroTubeChannelConfig>({
     endpoint: API_ENDPOINTS.TUBE_CHANNEL,
     enabled: appwriteSetup.hasDatabaseConfig,
-    loadLocal: getSavedTubeChannels,
+    loadLocal: getInitialTubeChannels,
     toLocal: tubeChannelFromRow,
     remoteDocId: (row) =>
       row && typeof row === "object" ? ((row as { $id?: unknown }).$id as string | undefined) : undefined,
@@ -4118,11 +4104,6 @@ export default function ToolsManagement({
 
     } catch {}
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(TUBE_CHANNELS_KEY, JSON.stringify(tubeChannelConfigs));
-  }, [tubeChannelConfigs]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
