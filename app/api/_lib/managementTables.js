@@ -100,7 +100,13 @@ export function managementRoutes(tableName, buildPayload) {
 export async function deleteManagementTable(config, tableName) {
   const databases = new Databases(new Client().setEndpoint(config.endpoint).setProject(config.projectId).setKey(config.apiKey));
   const databaseId = config.databaseId;
-  const collection = await findManagementTable(databases, databaseId, tableName);
+  let collection;
+  try {
+    collection = await findManagementTable(databases, databaseId, tableName);
+  } catch (error) {
+    const detail = error?.response ? JSON.stringify(error.response).slice(0, 500) : "";
+    throw new Error(`deleteManagementTable find 失敗 (db=${databaseId}): ${error.message}${detail ? " " + detail : ""}`, { cause: error });
+  }
   if (!collection) return 0;
   await databases.deleteCollection({ databaseId, collectionId: collection.$id });
   clearCollectionCache(databaseId);
