@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  Copy,
   Download,
   ExternalLink,
   Eye,
@@ -200,6 +201,15 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const openEditForm = (item: ReinstallSoftware) => {
     setEditingId(item.$id);
     setForm(toReinstallSoftwareForm(item));
+    setShowFormSerial(false);
+    setShowFormViewPassword(false);
+    setActionError(null);
+    setFormOpen(true);
+  };
+
+  const openCopyForm = (item: ReinstallSoftware) => {
+    setEditingId(null);
+    setForm({ ...toReinstallSoftwareForm(item), name: `${item.name || "未命名"} (複製)` });
     setShowFormSerial(false);
     setShowFormViewPassword(false);
     setActionError(null);
@@ -671,7 +681,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
         />
       ) : (
         <div className="surface-inset overflow-hidden rounded-2xl">
-          <div className="hidden grid-cols-[minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_88px] gap-4 border-b border-[var(--line-soft)] px-5 py-3 text-xs font-semibold text-muted-foreground xl:grid">
+          <div className="hidden grid-cols-[minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px] gap-4 border-b border-[var(--line-soft)] px-5 py-3 text-xs font-semibold text-muted-foreground xl:grid">
             <span>服務名稱</span><span>系統</span><span>軟體類型</span><span>序號</span><span>網站／備註</span><span>操作</span>
           </div>
           <div className="divide-y divide-[var(--line-soft)]">
@@ -680,7 +690,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
               const hasSerial = item.licenseType === "paid_serial";
               const website = safeSoftwareUrl(item.site);
               return (
-                <article key={item.$id} className="grid gap-4 px-4 py-5 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_88px] xl:items-center xl:px-5">
+                <article key={item.$id} className="grid gap-4 px-4 py-5 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px] xl:items-center xl:px-5">
                   <Cell label="服務名稱"><h2 className="break-words font-semibold text-foreground">{item.name}</h2></Cell>
                   <Cell label="系統"><StatusBadge status="info">{optionLabel(REINSTALL_SYSTEM_OPTIONS, item.system)}</StatusBadge></Cell>
                   <Cell label="軟體類型">
@@ -738,6 +748,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                   </Cell>
                   <div className="flex items-center justify-end gap-1 xl:justify-start">
                     <Button type="button" variant="ghost" size="icon" onClick={() => openEditForm(item)} disabled={busy || loading} aria-label={`編輯 ${item.name}`}><Pencil /></Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => openCopyForm(item)} disabled={busy || loading} aria-label={`複製 ${item.name}`} title="複製此軟體紀錄（預先填好欄位，供你確認後新增）"><Copy /></Button>
                     <Button type="button" variant="ghost" size="icon" onClick={() => { setActionError(null); setPendingDelete(item); }} disabled={busy || loading} aria-label={`刪除 ${item.name}`} className="text-destructive hover:text-destructive"><Trash2 /></Button>
                   </div>
                 </article>

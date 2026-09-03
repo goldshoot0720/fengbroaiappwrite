@@ -41,7 +41,7 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
     addDocument("quota", {
       name: "AI 對話（示範）", serviceType: "ai", account: "ai-user@example.test",
       quotaRemaining: 120, quotaRatio: 60, quotaExpiry: "2026-09-30T00:00:00.000Z",
-      ratio5h: 100, expiry5h: "上午", ratioWeek: 80, expiryWeek: "09-30", ratioMonth: 50, expiryMonth: "2026-09-30",
+      ratio5h: 100, expiry5h: "09:00", ratioWeek: 80, expiryWeek: "2026-09-30", ratioMonth: 50, expiryMonth: "2026-09-30",
       note: "隔離測試：僅供互動測試。",
     }, "quota-ai");
     addDocument("quota", {

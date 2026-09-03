@@ -101,14 +101,14 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
   it("creates and edits AI/general quota fields, clears dates on general, and deletes only the target account", async () => {
     const data = { name: "測試額度服務", serviceType: "ai", account: "quota-new@example.test",
       quotaRemaining: 10, quotaRatio: 40, quotaExpiry: "2026-10-31",
-      ratio5h: 90, expiry5h: "下午", ratioWeek: 70, expiryWeek: "11-15", ratioMonth: 30, expiryMonth: "2026-12-01",
+      ratio5h: 90, expiry5h: "14:30", ratioWeek: 70, expiryWeek: "2026-11-15", ratioMonth: 30, expiryMonth: "2026-12-01",
       note: "AI 測試額度" };
     const created = await api("/api/quota", "POST", data);
     assert.equal(created.status, 201, JSON.stringify(created.body));
     const id = created.body.$id;
     assert.equal(created.body.quotaExpiry, "2026-10-31T00:00:00.000Z");
-    assert.equal(created.body.expiry5h, "下午");
-    assert.equal(created.body.expiryWeek, "11-15");
+    assert.equal(created.body.expiry5h, "14:30");
+    assert.equal(created.body.expiryWeek, "2026-11-15");
     assert.equal(created.body.expiryMonth, "2026-12-01");
     assert.equal(created.body.ratio5h, 90);
 

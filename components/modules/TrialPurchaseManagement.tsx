@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   CircleDollarSign,
+  Copy,
   Download,
   Pencil,
   Plus,
@@ -220,6 +221,13 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
   const openEditForm = (item: TrialPurchase) => {
     setEditingId(item.$id);
     setForm(toTrialPurchaseForm(item));
+    setActionError(null);
+    setFormOpen(true);
+  };
+
+  const openCopyForm = (item: TrialPurchase) => {
+    setEditingId(null);
+    setForm({ ...toTrialPurchaseForm(item), name: `${item.name || "未命名"} (複製)` });
     setActionError(null);
     setFormOpen(true);
   };
@@ -629,12 +637,12 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
 
                 {isOpen ? (
                   <div id={`trial-accounts-${encodeURIComponent(group.key)}`} className="border-t border-[var(--line-soft)]">
-                    <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_88px] gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid">
+                    <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_136px] gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid">
                       <span>帳號</span><span>試用／首購／到期日（扣款日）</span><span>價格</span><span>狀態</span><span>備註</span><span>操作</span>
                     </div>
                     <div className="divide-y divide-[var(--line-soft)]">
                       {group.items.map((item) => (
-                        <div key={item.$id} className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_88px] xl:items-center xl:px-5">
+                        <div key={item.$id} className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_136px] xl:items-center xl:px-5">
                           <Cell label="帳號"><span className="break-all font-medium text-foreground">{item.account?.trim() || "未填帳號"}</span></Cell>
                           <Cell label="試用／首購／到期日（扣款日）"><span className="inline-flex items-center gap-2 text-sm text-foreground"><CalendarDays className="size-4 shrink-0 text-muted-foreground" />{formatDate(item.eventDate)}</span></Cell>
                           <Cell label="價格">
@@ -652,6 +660,7 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
                           <Cell label="備註"><p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{item.note?.trim() || "—"}</p></Cell>
                           <div className="flex items-center justify-end gap-1 xl:justify-start">
                             <Button type="button" variant="ghost" size="icon" onClick={() => openEditForm(item)} disabled={busy || loading} aria-label={`編輯 ${group.name} ${item.account || "帳號"}`}><Pencil /></Button>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => openCopyForm(item)} disabled={busy || loading} aria-label={`複製 ${group.name} ${item.account || "帳號"}`} title="複製此帳號紀錄（預先填好欄位，供你確認後新增）"><Copy /></Button>
                             <Button type="button" variant="ghost" size="icon" onClick={() => { setActionError(null); setPendingDelete(item); }} disabled={busy || loading} aria-label={`刪除 ${group.name} ${item.account || "帳號"}`} className="text-destructive hover:text-destructive"><Trash2 /></Button>
                           </div>
                         </div>

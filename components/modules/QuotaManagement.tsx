@@ -1,17 +1,20 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   Bot,
   CalendarDays,
   ChevronDown,
   ChevronUp,
+  Copy,
+  Download,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   Trash2,
+  Upload,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ManagementDeleteDialog } from "@/components/ui/management-delete-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchApi } from "@/hooks/useApi";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
 import { API_ENDPOINTS } from "@/lib/constants";
 import {
@@ -27,6 +31,12 @@ import {
   QUOTA_SERVICE_TYPE_OPTIONS,
   toQuotaForm,
 } from "@/lib/managementRecords";
+import {
+  buildQuotaCsv,
+  parseQuotaCsv,
+  quotaImportKey,
+} from "@/lib/quotaCsv";
+import { getExportFilename } from "@/lib/utils";
 import type { Quota, QuotaFormData, QuotaServiceType } from "@/types";
 
 interface QuotaManagementProps {
@@ -111,6 +121,12 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Quota | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const importCloseTimer = useRef<number | null>(null);
+  const [importPreview, setImportPreview] = useState<{ data: QuotaFormData[]; errors: string[] } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importResult, setImportResult] = useState<{ successCount: number; failCount: number } | null>(null);
 
   useEffect(() => {
     setFormOpen(false);
@@ -119,7 +135,18 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     setActionError(null);
     setExpandedServices(new Set());
     setPendingDelete(null);
+    setImportPreview(null);
+    setImportResult(null);
+    setImporting(false);
+    if (importCloseTimer.current) {
+      window.clearTimeout(importCloseTimer.current);
+      importCloseTimer.current = null;
+    }
   }, [accountVersion]);
+
+  useEffect(() => () => {
+    if (importCloseTimer.current) window.clearTimeout(importCloseTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!formOpen) return;
@@ -166,7 +193,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     [items],
   );
   const aiCount = items.filter((item) => item.serviceType === "ai").length;
-  const busy = saving || deletingId !== null;
+  const busy = saving || deletingId !== null || importing;
 
   const openCreateForm = (name = "") => {
     setEditingId(null);
@@ -178,6 +205,13 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
   const openEditForm = (item: Quota) => {
     setEditingId(item.$id);
     setForm(toQuotaForm(item));
+    setActionError(null);
+    setFormOpen(true);
+  };
+
+  const openCopyForm = (item: Quota) => {
+    setEditingId(null);
+    setForm({ ...toQuotaForm(item), name: `${item.name || "未命名"} (複製)` });
     setActionError(null);
     setFormOpen(true);
   };
@@ -220,6 +254,105 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     }
   };
 
+  const closeImportPreview = () => {
+    if (importing) return;
+    if (importCloseTimer.current) {
+      window.clearTimeout(importCloseTimer.current);
+      importCloseTimer.current = null;
+    }
+    setImportPreview(null);
+    setImportResult(null);
+    setImportProgress({ current: 0, total: 0 });
+  };
+
+  const exportToCsv = () => {
+    if (busy) return;
+    try {
+      const csv = buildQuotaCsv(items);
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("quota");
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setActionError(null);
+    } catch (exportError) {
+      setActionError(exportError instanceof Error ? exportError.message : "匯出 CSV 失敗");
+    }
+  };
+
+  const handleCsvFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setActionError("請選擇 CSV 檔案");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      if (importCloseTimer.current) {
+        window.clearTimeout(importCloseTimer.current);
+        importCloseTimer.current = null;
+      }
+      setImportResult(null);
+      setActionError(null);
+      setImportPreview(parseQuotaCsv(text));
+    };
+    reader.onerror = () => setActionError("讀取 CSV 檔案失敗");
+    reader.readAsText(file, "UTF-8");
+  };
+
+  const executeImport = async () => {
+    if (!importPreview || importPreview.data.length === 0 || importPreview.errors.length > 0 || importing) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportProgress({ current: 0, total: importPreview.data.length });
+    let successCount = 0;
+    let failCount = 0;
+    const index = new Map(items.map((item) => [quotaImportKey(item), item.$id]));
+
+    for (let i = 0; i < importPreview.data.length; i++) {
+      const formData = importPreview.data[i];
+      setImportProgress({ current: i + 1, total: importPreview.data.length });
+      try {
+        const key = quotaImportKey(formData);
+        const existingId = index.get(key);
+        if (existingId) {
+          await fetchApi(`${API_ENDPOINTS.QUOTA}/${encodeURIComponent(existingId)}`, {
+            method: "PUT",
+            body: JSON.stringify(formData),
+          });
+        } else {
+          const created = await fetchApi<Quota>(API_ENDPOINTS.QUOTA, {
+            method: "POST",
+            body: JSON.stringify(formData),
+          });
+          index.set(key, created.$id);
+        }
+        successCount += 1;
+      } catch {
+        failCount += 1;
+      }
+    }
+
+    try {
+      await fetchAll();
+      setImportResult({ successCount, failCount });
+      if (failCount === 0) {
+        importCloseTimer.current = window.setTimeout(() => {
+          setImportPreview(null);
+          setImportResult(null);
+          setImportProgress({ current: 0, total: 0 });
+          importCloseTimer.current = null;
+        }, 1200);
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const toggleService = (key: string) => {
     if (query.trim()) {
       setCollapsedSearchServices((current) => {
@@ -254,9 +387,36 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleCsvFileSelect}
+          />
           <Button type="button" variant="outline" onClick={() => void fetchAll()} disabled={loading || busy}>
             <RefreshCw className={loading ? "animate-spin" : ""} />
             重新整理
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => csvInputRef.current?.click()}
+            disabled={loading || busy}
+            title="從 CSV 匯入額度紀錄（相同服務與帳號會更新）"
+          >
+            <Upload />
+            匯入 CSV
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={exportToCsv}
+            disabled={busy}
+            title="匯出目前全部額度紀錄為 CSV"
+          >
+            <Download />
+            匯出 CSV
           </Button>
           <Button type="button" onClick={() => openCreateForm()} disabled={loading || busy}>
             <Plus />
@@ -363,16 +523,13 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     onChange={(event) => setNumberField("ratio5h")(event.target.value)}
                   />
                 </FormField>
-                <FormField label="5 小時到期（上午／下午）" htmlFor="quota-expiry-5h">
-                  <NativeSelect
+                <FormField label="5 小時到期（24 小時制）" htmlFor="quota-expiry-5h">
+                  <Input
                     id="quota-expiry-5h"
+                    type="time"
                     value={form.expiry5h || ""}
-                    onChange={(value) => setForm((current) => ({ ...current, expiry5h: value }))}
-                  >
-                    <option value="">未填</option>
-                    <option value="上午">上午</option>
-                    <option value="下午">下午</option>
-                  </NativeSelect>
+                    onChange={(event) => setForm((current) => ({ ...current, expiry5h: event.target.value }))}
+                  />
                 </FormField>
                 <FormField label="一週比例（%）" htmlFor="quota-ratio-week">
                   <Input
@@ -386,13 +543,12 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     onChange={(event) => setNumberField("ratioWeek")(event.target.value)}
                   />
                 </FormField>
-                <FormField label="一週到期（月／日）" htmlFor="quota-expiry-week">
+                <FormField label="一週到期（西元年／月／日）" htmlFor="quota-expiry-week">
                   <Input
                     id="quota-expiry-week"
-                    maxLength={5}
+                    type="date"
                     value={form.expiryWeek || ""}
                     onChange={(event) => setForm((current) => ({ ...current, expiryWeek: event.target.value }))}
-                    placeholder="例如 09-30"
                   />
                 </FormField>
                 <FormField label="一月比例（%）" htmlFor="quota-ratio-month">
@@ -519,7 +675,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
 
                 {isOpen ? (
                   <div id={`quota-accounts-${encodeURIComponent(group.key)}`} className="border-t border-[var(--line-soft)]">
-                    <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(8rem,1fr)_minmax(8rem,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)_88px] gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid">
+                    <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(8rem,1fr)_minmax(8rem,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)_136px] gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid">
                       <span>帳號</span><span>剩餘額度</span><span>到期</span><span>類型</span><span>備註</span><span>操作</span>
                     </div>
                     <div className="divide-y divide-[var(--line-soft)]">
@@ -533,7 +689,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                             ]
                           : [];
                         return (
-                          <div key={item.$id} className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(8rem,1fr)_minmax(8rem,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)_88px] xl:items-start xl:px-5">
+                          <div key={item.$id} className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(8rem,1fr)_minmax(8rem,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)_136px] xl:items-start xl:px-5">
                             <Cell label="帳號"><span className="break-all font-medium text-foreground">{item.account?.trim() || "未填帳號"}</span></Cell>
                             <Cell label="剩餘額度">
                               <div className="space-y-1 text-sm tabular-nums text-foreground">
@@ -564,6 +720,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                             <Cell label="備註"><p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{item.note?.trim() || "—"}</p></Cell>
                             <div className="flex items-center justify-end gap-1 xl:justify-start">
                               <Button type="button" variant="ghost" size="icon" onClick={() => openEditForm(item)} disabled={busy || loading} aria-label={`編輯 ${group.name} ${item.account || "帳號"}`}><Pencil /></Button>
+                              <Button type="button" variant="ghost" size="icon" onClick={() => openCopyForm(item)} disabled={busy || loading} aria-label={`複製 ${group.name} ${item.account || "帳號"}`} title="複製此帳號紀錄（預先填好欄位，供你確認後新增）"><Copy /></Button>
                               <Button type="button" variant="ghost" size="icon" onClick={() => { setActionError(null); setPendingDelete(item); }} disabled={busy || loading} aria-label={`刪除 ${group.name} ${item.account || "帳號"}`} className="text-destructive hover:text-destructive"><Trash2 /></Button>
                             </div>
                           </div>
@@ -585,6 +742,97 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
         onCancel={() => { setPendingDelete(null); setActionError(null); }}
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
       />
+      {importPreview ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-foreground/35 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeImportPreview();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quota-csv-import-title"
+            className="surface-raised flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl"
+          >
+            <div className="border-b border-[var(--line-soft)] p-5 sm:p-6">
+              <h2 id="quota-csv-import-title" className="font-display text-xl font-semibold text-foreground">
+                匯入 CSV 預覽
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                相同服務名稱與帳號會更新既有紀錄，其餘新增。有格式錯誤時不會寫入。
+              </p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+              {importResult ? (
+                <div className="mb-4 rounded-xl bg-accent/10 px-3 py-2 text-sm text-foreground">
+                  <p className="font-semibold">匯入完成</p>
+                  <p className="mt-1">成功 {importResult.successCount} 筆 · 失敗 {importResult.failCount} 筆</p>
+                </div>
+              ) : null}
+              {importPreview.errors.length > 0 ? (
+                <div role="alert" className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <p className="font-semibold">格式錯誤</p>
+                  <ul className="mt-1 space-y-1">
+                    {importPreview.errors.map((error, index) => (
+                      <li key={`${index}-${error}`}>• {error}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {importPreview.data.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">將匯入 {importPreview.data.length} 筆</p>
+                  {importPreview.data.map((item, index) => {
+                    const existing = items.some((current) => quotaImportKey(current) === quotaImportKey(item));
+                    return (
+                      <div key={`${item.name}-${item.account || ""}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-accent/8 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-foreground">{item.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{item.account?.trim() || "未填帳號"}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${existing ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"}`}>
+                          {existing ? "更新" : "新增"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">沒有可匯入的資料列。</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-3 border-t border-[var(--line-soft)] p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:p-6">
+              {importing ? (
+                <div className="flex w-full items-center gap-3">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-accent transition-all"
+                      style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <span className="text-sm tabular-nums text-muted-foreground">
+                    {importProgress.current}/{importProgress.total}
+                  </span>
+                </div>
+              ) : importResult ? (
+                <Button type="button" variant="outline" onClick={closeImportPreview}>完成</Button>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={closeImportPreview}>取消</Button>
+                  <Button
+                    type="button"
+                    onClick={() => void executeImport()}
+                    disabled={importPreview.data.length === 0 || importPreview.errors.length > 0}
+                  >
+                    確認匯入（{importPreview.data.length} 筆）
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

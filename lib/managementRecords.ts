@@ -368,8 +368,8 @@ export function buildReinstallSoftwareWritePayload(
 }
 
 // 鋒兄額度：一筆代表「一個服務 × 一個帳號」
-const FIVE_HOUR_MERIDIEM_PATTERN = /^(上午|下午)$/;
-const WEEK_DATE_PATTERN = /^(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])$/;
+// 5 小時到期採 24 小時制（HH:mm，例如 14:30）
+const FIVE_HOUR_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const YEAR_MONTH_DAY_PATTERN = /^\d{4}-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])$/;
 
 function asQuotaServiceType(value: unknown): QuotaServiceType {
@@ -454,9 +454,9 @@ export function buildQuotaWritePayload(
 
   if (serviceType === "ai") {
     payload.ratio5h = asNonNegativeInteger(body.ratio5h, "5 小時比例");
-    payload.expiry5h = asOptionalDatePart(body.expiry5h, FIVE_HOUR_MERIDIEM_PATTERN, "5 小時到期", "上午/下午");
+    payload.expiry5h = asOptionalDatePart(body.expiry5h, FIVE_HOUR_TIME_PATTERN, "5 小時到期", "HH:mm（24 小時制）");
     payload.ratioWeek = asNonNegativeInteger(body.ratioWeek, "一週比例");
-    payload.expiryWeek = asOptionalDatePart(body.expiryWeek, WEEK_DATE_PATTERN, "一週到期", "月-日");
+    payload.expiryWeek = asOptionalDatePart(body.expiryWeek, YEAR_MONTH_DAY_PATTERN, "一週到期", "西元年-月-日");
     payload.ratioMonth = asNonNegativeInteger(body.ratioMonth, "一月比例");
     payload.expiryMonth = asOptionalDatePart(body.expiryMonth, YEAR_MONTH_DAY_PATTERN, "一月到期", "西元年-月-日");
   } else {
