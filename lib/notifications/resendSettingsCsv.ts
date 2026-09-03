@@ -182,3 +182,45 @@ export function parseResendSettingsCsv(
 
   return { slots, errors };
 }
+
+/**
+ * 合併匯入的組到既有 slots（依收件 Email 配對）。
+ * - 相同 Email：以 CSV 的 API Key 覆蓋該組。
+ * - 新 Email：依序補到後方，直到 NOTIFICATION_SETTINGS_MAX_SLOTS 為止，其餘略過。
+ * 回傳合併結果與統計，供 UI 顯示匯入摘要。
+ */
+export function mergeResendSlots(
+  incoming: NotificationSettingSlot[],
+  current: NotificationSettingSlot[]
+): { slots: NotificationSettingSlot[]; added: number; updated: number; skipped: number } {
+  const slots = current.map((slot) => ({ ...slot }));
+  const byEmail = new Map<string, number>();
+  slots.forEach((slot, index) => byEmail.set(slot.toEmail.trim().toLowerCase(), index));
+
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  for (const item of incoming) {
+    const apiKey = String(item.apiKey || "").trim();
+    const toEmail = String(item.toEmail || "").trim();
+    if (!apiKey || !toEmail) {
+      skipped += 1;
+      continue;
+    }
+    const emailKey = toEmail.toLowerCase();
+    const existingIndex = byEmail.get(emailKey);
+    if (existingIndex != null) {
+      slots[existingIndex] = { apiKey, toEmail };
+      updated += 1;
+    } else if (slots.length < NOTIFICATION_SETTINGS_MAX_SLOTS) {
+      slots.push({ apiKey, toEmail });
+      byEmail.set(emailKey, slots.length - 1);
+      added += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+
+  return { slots, added, updated, skipped };
+}

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic, Activity, AlertTriangle, Info } from "lucide-react";
+import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic, Activity, AlertTriangle, Info, Lock, Unlock, Download, Upload } from "lucide-react";
 import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useVoicePreferences } from "@/hooks/useVoicePreferences";
-import { clearAllCaches, getAppwriteConfig } from "@/lib/utils";
+import { clearAllCaches, getAppwriteConfig, getExportFilename } from "@/lib/utils";
 import { notifyAppwriteConfigChanged } from "@/hooks/useAppwriteSetup";
 import { useWebPush } from "@/hooks/useWebPush";
 import { formatFileSize } from "@/lib/formatters";
@@ -18,6 +18,13 @@ import {
   getResendSlotFields,
   createEmptyResendConfig,
 } from "@/lib/notifications/resendConfig";
+import type { NotificationSettingSlot } from "@/lib/notifications/notificationSettings";
+import {
+  buildResendSettingsCsv,
+  parseResendSettingsCsv,
+  mergeResendSlots,
+  type ResendSettingsCsvHeader,
+} from "@/lib/notifications/resendSettingsCsv";
 import {
   runNotificationSelfCheck,
   type SelfCheckReport,
@@ -92,6 +99,15 @@ export default function SettingsManagement() {
   const [resendConfig, setResendConfig] = useState<Record<string, string>>(createEmptyResendConfig);
   const [resendVisibleSlotCount, setResendVisibleSlotCount] = useState(RESEND_DEFAULT_VISIBLE_SLOT_COUNT);
   const [resendTestLoading, setResendTestLoading] = useState(false);
+  // 通知設定雲端化（Appwrite notificationsettings 單一文件）
+  const [resendCloudLoading, setResendCloudLoading] = useState(false);
+  const [resendCloudReady, setResendCloudReady] = useState(false);
+  const [resendHasPassword, setResendHasPassword] = useState(false);
+  const [resendUnlocked, setResendUnlocked] = useState(false);
+  const [resendPassword, setResendPassword] = useState("");
+  const [resendNewPassword, setResendNewPassword] = useState("");
+  const [resendSaving, setResendSaving] = useState(false);
+  const [resendCloudError, setResendCloudError] = useState<string | null>(null);
   const [selfCheckLoading, setSelfCheckLoading] = useState(false);
   const [selfCheckReport, setSelfCheckReport] = useState<SelfCheckReport | null>(null);
   const [bulkMode, setBulkMode] = useState(false);
