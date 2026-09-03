@@ -1168,7 +1168,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                               </span>
                             )}
                           </div>
-                          {col.name === "subscription" && col.collectionId && (
+                          {col.collectionId && (
                             <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                               ID: <span className="font-mono">{col.collectionId}</span>
                             </div>
