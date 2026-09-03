@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
@@ -14,6 +15,7 @@ import {
   Search,
   ShieldCheck,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -22,8 +24,11 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ManagementDeleteDialog } from "@/components/ui/management-delete-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchApi } from "@/hooks/useApi";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
 import { API_ENDPOINTS } from "@/lib/constants";
+import { buildReinstallCsv, parseReinstallCsv, reinstallImportKey } from "@/lib/reinstallCsv";
+import { getExportFilename } from "@/lib/utils";
 import { formatCurrencyWithExchange } from "@/lib/formatters";
 import {
   emptyReinstallSoftwareForm,
@@ -114,6 +119,12 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const [revealError, setRevealError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const revealInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const importCloseTimer = useRef<number | null>(null);
+  const [importPreview, setImportPreview] = useState<{ data: ReinstallSoftwareFormData[]; errors: string[] } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importResult, setImportResult] = useState<{ successCount: number; failCount: number } | null>(null);
 
   useEffect(() => {
     setFormOpen(false);
@@ -127,7 +138,18 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     setPendingReveal(null);
     setRevealPassword("");
     setRevealError(null);
+    setImportPreview(null);
+    setImportResult(null);
+    setImporting(false);
+    if (importCloseTimer.current) {
+      window.clearTimeout(importCloseTimer.current);
+      importCloseTimer.current = null;
+    }
   }, [accountVersion]);
+
+  useEffect(() => () => {
+    if (importCloseTimer.current) window.clearTimeout(importCloseTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!formOpen) return;
@@ -156,7 +178,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const windowsCount = items.filter((item) => item.system === "win").length;
   const macCount = items.filter((item) => item.system === "mac").length;
   const serialCount = items.filter((item) => item.licenseType === "paid_serial").length;
-  const busy = saving || deletingId !== null;
+  const busy = saving || deletingId !== null || importing;
 
   const refresh = () => {
     setRevealedIds(new Set());
@@ -273,6 +295,105 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     closeRevealDialog();
   };
 
+  const closeImportPreview = () => {
+    if (importing) return;
+    if (importCloseTimer.current) {
+      window.clearTimeout(importCloseTimer.current);
+      importCloseTimer.current = null;
+    }
+    setImportPreview(null);
+    setImportResult(null);
+    setImportProgress({ current: 0, total: 0 });
+  };
+
+  const exportToCsv = () => {
+    if (busy) return;
+    try {
+      const csv = buildReinstallCsv(items);
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("reinstall");
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setActionError(null);
+    } catch (exportError) {
+      setActionError(exportError instanceof Error ? exportError.message : "匯出 CSV 失敗");
+    }
+  };
+
+  const handleCsvFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setActionError("請選擇 CSV 檔案");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      if (importCloseTimer.current) {
+        window.clearTimeout(importCloseTimer.current);
+        importCloseTimer.current = null;
+      }
+      setImportResult(null);
+      setActionError(null);
+      setImportPreview(parseReinstallCsv(text));
+    };
+    reader.onerror = () => setActionError("讀取 CSV 檔案失敗");
+    reader.readAsText(file, "UTF-8");
+  };
+
+  const executeImport = async () => {
+    if (!importPreview || importPreview.data.length === 0 || importPreview.errors.length > 0 || importing) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportProgress({ current: 0, total: importPreview.data.length });
+    let successCount = 0;
+    let failCount = 0;
+    const index = new Map(items.map((item) => [reinstallImportKey(item), item.$id]));
+
+    for (let i = 0; i < importPreview.data.length; i++) {
+      const formData = importPreview.data[i];
+      setImportProgress({ current: i + 1, total: importPreview.data.length });
+      try {
+        const key = reinstallImportKey(formData);
+        const existingId = index.get(key);
+        if (existingId) {
+          await fetchApi(`${API_ENDPOINTS.REINSTALL}/${encodeURIComponent(existingId)}`, {
+            method: "PUT",
+            body: JSON.stringify(formData),
+          });
+        } else {
+          const created = await fetchApi<ReinstallSoftware>(API_ENDPOINTS.REINSTALL, {
+            method: "POST",
+            body: JSON.stringify(formData),
+          });
+          index.set(key, created.$id);
+        }
+        successCount += 1;
+      } catch {
+        failCount += 1;
+      }
+    }
+
+    try {
+      await fetchAll();
+      setImportResult({ successCount, failCount });
+      if (failCount === 0) {
+        importCloseTimer.current = window.setTimeout(() => {
+          setImportPreview(null);
+          setImportResult(null);
+          setImportProgress({ current: 0, total: 0 });
+          importCloseTimer.current = null;
+        }, 1200);
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <section className="space-y-6" aria-labelledby="reinstall-title">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -281,13 +402,40 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
             鋒兄重灌
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            整理 Windows 與 Mac 重灌時需要的軟體、網站和授權資訊；付費序號預設保持隱藏，可另設查看密碼。訂閱制軟體可記下週期與費用。
+            整理 Windows 與 Mac 重灌時需要的軟體、網站和授權資訊；付費序號預設保持隱藏，可另設查看密碼。訂閱制軟體可記下週期與費用。可用 CSV 匯出備份或批次匯入。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleCsvFileSelect}
+          />
           <Button type="button" variant="outline" onClick={refresh} disabled={loading || busy}>
             <RefreshCw className={loading ? "animate-spin" : ""} />
             重新整理
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => csvInputRef.current?.click()}
+            disabled={loading || busy}
+            title="從 CSV 匯入重灌軟體（相同服務名稱與系統會更新）"
+          >
+            <Upload />
+            匯入 CSV
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={exportToCsv}
+            disabled={busy}
+            title="匯出目前全部重灌軟體為 CSV（含序號與查看密碼）"
+          >
+            <Download />
+            匯出 CSV
           </Button>
           <Button type="button" onClick={openCreateForm} disabled={loading || busy}>
             <Plus />
@@ -601,7 +749,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
 
       <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" />
-        付費序號只在你主動點擊眼睛按鈕後顯示；若有設定查看密碼，需先輸入正確密碼。切換頁面後會再次隱藏。這只是畫面遮罩，不是加密保管庫。
+        付費序號只在你主動點擊眼睛按鈕後顯示；若有設定查看密碼，需先輸入正確密碼。切換頁面後會再次隱藏。這只是畫面遮罩，不是加密保管庫。CSV 匯出會包含序號與查看密碼，請妥善保管檔案。
       </p>
       <Dialog.Root open={pendingReveal !== null} onOpenChange={(open) => { if (!open) closeRevealDialog(); }}>
         <Dialog.Portal>
@@ -655,6 +803,97 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
         onCancel={() => { setPendingDelete(null); setActionError(null); }}
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
       />
+      {importPreview ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-foreground/35 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeImportPreview();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reinstall-csv-import-title"
+            className="surface-raised flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl"
+          >
+            <div className="border-b border-[var(--line-soft)] p-5 sm:p-6">
+              <h2 id="reinstall-csv-import-title" className="font-display text-xl font-semibold text-foreground">
+                匯入 CSV 預覽
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                相同服務名稱與使用系統會更新既有紀錄，其餘新增。有格式錯誤時不會寫入。檔案含序號與查看密碼。
+              </p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+              {importResult ? (
+                <div className="mb-4 rounded-xl bg-accent/10 px-3 py-2 text-sm text-foreground">
+                  <p className="font-semibold">匯入完成</p>
+                  <p className="mt-1">成功 {importResult.successCount} 筆 · 失敗 {importResult.failCount} 筆</p>
+                </div>
+              ) : null}
+              {importPreview.errors.length > 0 ? (
+                <div role="alert" className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <p className="font-semibold">格式錯誤</p>
+                  <ul className="mt-1 space-y-1">
+                    {importPreview.errors.map((error, index) => (
+                      <li key={`${index}-${error}`}>• {error}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {importPreview.data.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">將匯入 {importPreview.data.length} 筆</p>
+                  {importPreview.data.map((item, index) => {
+                    const existing = items.some((current) => reinstallImportKey(current) === reinstallImportKey(item));
+                    return (
+                      <div key={`${item.name}-${item.system}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-accent/8 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-foreground">{item.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{optionLabel(REINSTALL_SYSTEM_OPTIONS, item.system)}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${existing ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"}`}>
+                          {existing ? "更新" : "新增"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">沒有可匯入的資料列。</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-3 border-t border-[var(--line-soft)] p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:p-6">
+              {importing ? (
+                <div className="flex w-full items-center gap-3">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-accent transition-all"
+                      style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <span className="text-sm tabular-nums text-muted-foreground">
+                    {importProgress.current}/{importProgress.total}
+                  </span>
+                </div>
+              ) : importResult ? (
+                <Button type="button" variant="outline" onClick={closeImportPreview}>完成</Button>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={closeImportPreview}>取消</Button>
+                  <Button
+                    type="button"
+                    onClick={() => void executeImport()}
+                    disabled={importPreview.data.length === 0 || importPreview.errors.length > 0}
+                  >
+                    確認匯入（{importPreview.data.length} 筆）
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
