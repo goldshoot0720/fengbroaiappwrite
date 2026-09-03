@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { clearCollectionCache } from "../_lib/appwriteClient";
+import { initializeManagementTable } from "../_lib/managementTables";
+import { MANAGEMENT_TABLE_SCHEMAS } from "../../../lib/managementRecords";
 
 const sdk = require('node-appwrite');
 
@@ -86,6 +88,7 @@ const TABLE_SCHEMAS = {
       { key: 'continue', type: 'boolean', required: false, default: true }
     ]
   },
+  ...MANAGEMENT_TABLE_SCHEMAS,
   image: {
     name: "image",
     attributes: [
@@ -239,6 +242,13 @@ export async function GET(request) {
 
         if (!endpoint || !projectId || !databaseId || !apiKey) {
           send({ type: 'error', message: 'Missing Appwrite configuration' });
+          controller.close();
+          return;
+        }
+
+        if (Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, tableName)) {
+          const result = await initializeManagementTable({ endpoint, projectId, databaseId, apiKey }, tableName, send);
+          send({ type: 'complete', ...result });
           controller.close();
           return;
         }
@@ -399,6 +409,11 @@ export async function POST(request) {
         { success: false, error: "Missing Appwrite configuration" },
         { status: 500 }
       );
+    }
+
+    if (Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, tableName)) {
+      const result = await initializeManagementTable({ endpoint, projectId, databaseId, apiKey }, tableName);
+      return NextResponse.json(result);
     }
 
     const client = new sdk.Client()

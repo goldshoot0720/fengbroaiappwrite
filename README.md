@@ -10,6 +10,8 @@
 
 - **鋒兄首頁 / 儀表** — 到期、餘額、媒體流量與容量摘要
 - **鋒兄訂閱** — 扣款日、多幣別、CSV、本機垃圾桶
+- **鋒兄試用/首購** — 依服務展開多帳號、試用／首購狀態、價格與重要日期
+- **鋒兄重灌** — Windows／Mac 軟體、授權序號（預設隱藏）、網站與備註
 - **鋒兄食品** — 庫存、到期、商品庫存
 - **鋒兄筆記 / 文件** — 筆記附件預覽；PDF／Office／程式碼／ZIP
 - **鋒兄常用** — 網站群組、favicon、行內編輯
@@ -48,9 +50,11 @@
 
 ## 資料表
 
-設定頁可初始化 **13** 個 collection（見 `app/api/create-table/route.js`）：
+設定頁可初始化 **17** 個 collection（見 `app/api/create-table/route.js`）：
 
-`food` · `subscription` · `article` · `commonaccount` · `bank` · `routine` · `image` · `video` · `music` · `podcast` · `commondocument` · `landtophistory` · `manualprice`
+`food` · `subscription` · `trialpurchase` · `reinstall` · `article` · `commonaccount` · `bank` · `routine` · `image` · `video` · `music` · `podcast` · `commondocument` · `landtophistory` · `manualprice` · `sitevisit` · `menuusage`
+
+新增的 `trialpurchase`（8 欄位）與 `reinstall`（7 欄位）採獨立資料表，不變更既有訂閱／食品資料。初始化只新增資料表或補齊缺少欄位，重試不刪除紀錄；新表不授予公開存取權限，沿用伺服器 API key 操作。序號遮罩只是畫面隱藏，不是加密保管庫。
 
 另有 Web Push 訂閱表由 `/api/push-subscribe` 動態建立。
 
@@ -93,8 +97,14 @@ docs/INDEX.md           # 選單與資料表現況索引
 ## 文件
 
 - 選單與資料表現況：[docs/INDEX.md](docs/INDEX.md)
+- 試用／首購：[docs/16_trial_purchase.md](docs/16_trial_purchase.md)
+- 重灌軟體：[docs/17_reinstall.md](docs/17_reinstall.md)
 - 產品定位：[PRODUCT.md](PRODUCT.md)
-- 使用手冊：[docs/USER_GUIDE.md](docs/USER_GUIDE.md)（日常 CRUD 仍可用；工具／子工具與 13 表以 INDEX 為準）
+- 使用手冊：[docs/USER_GUIDE.md](docs/USER_GUIDE.md)（日常 CRUD 仍可用；工具／子工具與資料表清單以 INDEX 為準）
+
+## 功能驗證
+
+`npm run test:unit` 執行欄位與既有功能單元測試。先啟動 `npm run dev`，再執行 `npm run test:management`，會以只綁定 loopback 的記憶體 Appwrite fixture 驗證新功能 CRUD、33／133 帳號分頁、欄位驗證、權限錯誤與非破壞性建表，不連接正式 Appwrite。若伺服器不在 3000 port，可設定 `MANAGEMENT_TEST_URL`。
 
 ## 授權
 

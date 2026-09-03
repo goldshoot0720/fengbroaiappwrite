@@ -72,6 +72,8 @@ const zh = {
   home: "\u92d2\u5144\u9996\u9801",
   dashboard: "\u92d2\u5144\u5100\u8868",
   subscription: "\u92d2\u5144\u8a02\u95b1",
+  trialPurchase: "鋒兄試用／首購",
+  reinstall: "鋒兄重灌",
   food: "\u92d2\u5144\u98df\u54c1 \uff08\uff0b\u5546\u54c1\u5eab\u5b58\uff09",
   notes: "\u92d2\u5144\u7b46\u8a18",
   common: "\u92d2\u5144\u5e38\u7528",
@@ -91,6 +93,8 @@ const MODULE_VOICE_META: Record<string, { name: string; aliases: string[] }> = {
   home: { name: zh.home, aliases: [zh.home, "\u9996\u9801", "\u4e3b\u9801", "home"] },
   dashboard: { name: zh.dashboard, aliases: [zh.dashboard, "\u5100\u8868", "\u5100\u8868\u677f", "\u7e3d\u89bd", "\u7d71\u8a08", "dashboard"] },
   subscription: { name: zh.subscription, aliases: [zh.subscription, "\u8a02\u95b1", "\u6708\u8cbb", "\u6263\u6b3e", "subscription"] },
+  "trial-purchase": { name: zh.trialPurchase, aliases: [zh.trialPurchase, "試用首購", "試用", "首購", "trial purchase"] },
+  reinstall: { name: zh.reinstall, aliases: [zh.reinstall, "重灌", "重裝", "軟體清單", "reinstall"] },
   food: {
     name: zh.food,
     aliases: [

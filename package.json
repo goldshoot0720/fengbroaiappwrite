@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint app components hooks lib scripts tests types",
     "test:unit": "node --import ./tests/unit/register-ts-paths.mjs --experimental-strip-types --test tests/unit/*.test.mjs",
+    "test:management": "node --import ./tests/unit/register-ts-paths.mjs --experimental-strip-types --test tests/management-api.integration.mjs",
     "ship": "node scripts/auto-ship.mjs"
   },
   "dependencies": {

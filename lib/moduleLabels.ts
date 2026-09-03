@@ -4,6 +4,8 @@ export const MODULE_LABELS: Record<string, string> = {
   home: "首頁",
   dashboard: "儀表",
   subscription: "訂閱",
+  "trial-purchase": "試用/首購",
+  reinstall: "重灌",
   food: "食品",
   common: "常用",
   "bank-stats": "銀行",

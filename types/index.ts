@@ -64,6 +64,63 @@ export interface SubscriptionDetail {
   price: number;
 }
 
+// 試用／首購管理：一筆代表「一個服務 × 一個帳號」
+export type TrialStatus = "tried" | "untried";
+export type PurchaseStatus = "purchased" | "not_purchased" | "unavailable";
+
+export interface TrialPurchase {
+  $id: string;
+  name: string;
+  eventDate?: string;
+  firstPurchasePrice: number;
+  regularPrice: number;
+  account?: string;
+  note?: string;
+  trialStatus: TrialStatus;
+  purchaseStatus: PurchaseStatus;
+  $createdAt?: string;
+  $updatedAt?: string;
+}
+
+export interface TrialPurchaseFormData {
+  name: string;
+  eventDate?: string;
+  firstPurchasePrice: number;
+  regularPrice: number;
+  account?: string;
+  note?: string;
+  trialStatus: TrialStatus;
+  purchaseStatus: PurchaseStatus;
+}
+
+// 重灌軟體管理
+export type ReinstallSystem = "win" | "mac";
+export type ReinstallSoftwareType = "trial" | "free" | "paid";
+export type ReinstallLicenseType = "none" | "paid_serial";
+
+export interface ReinstallSoftware {
+  $id: string;
+  name: string;
+  system: ReinstallSystem;
+  softwareType: ReinstallSoftwareType;
+  licenseType: ReinstallLicenseType;
+  serial?: string;
+  site?: string;
+  note?: string;
+  $createdAt?: string;
+  $updatedAt?: string;
+}
+
+export interface ReinstallSoftwareFormData {
+  name: string;
+  system: ReinstallSystem;
+  softwareType: ReinstallSoftwareType;
+  licenseType: ReinstallLicenseType;
+  serial?: string;
+  site?: string;
+  note?: string;
+}
+
 // 圖片相關類型
 export interface ImageFile {
   name: string;

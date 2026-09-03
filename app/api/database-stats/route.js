@@ -47,7 +47,7 @@ function compareSchema(expected, actual, tableName = 'unknown') {
     const act = actualMap[key];
     
     if (!act) {
-      if (exp.required) {
+      if (exp.required || tableName === "trialpurchase" || tableName === "reinstall") {
         console.log(`[compareSchema:${tableName}] ❌ Missing required attribute: ${key}`);
         hasError = true;
       } else {
@@ -105,8 +105,8 @@ export async function GET(request) {
       }
     });
     
-    // Define expected tables
-    const tableNames = ["article", "bank", "commonaccount", "food", "image", "music", "podcast", "commondocument", "routine", "subscription", "video", "landtophistory", "manualprice", "sitevisit", "menuusage"];
+    // Keep the settings inventory in lock-step with the schemas that can be created.
+    const tableNames = Object.keys(TABLE_SCHEMAS);
     
     // Get each collection's column count and document count dynamically
     const collectionsWithCounts = await Promise.all(

@@ -5,6 +5,8 @@ export const MENU_ITEMS = [
   { id: "home", label: "鋒兄首頁", icon: "Home" },
   { id: "dashboard", label: "鋒兄儀表", icon: "BarChart3" },
   { id: "subscription", label: "鋒兄訂閱", icon: "CreditCard" },
+  { id: "trial-purchase", label: "鋒兄試用/首購", icon: "BadgePercent" },
+  { id: "reinstall", label: "鋒兄重灌", icon: "Laptop" },
   { id: "food", label: "鋒兄食品", icon: "Package" },
   { id: "notes", label: "鋒兄筆記", icon: "FileText" },
   { id: "documents", label: "鋒兄文件", icon: "File" },
@@ -84,6 +86,8 @@ export const THEME_COLORS = {
 export const API_ENDPOINTS = {
   FOOD: "/api/food",
   SUBSCRIPTION: "/api/subscription",
+  TRIAL_PURCHASE: "/api/trial-purchase",
+  REINSTALL: "/api/reinstall",
   BANK: "/api/bank",
   IMAGES: "/api/images",
   IMAGE: "/api/image",

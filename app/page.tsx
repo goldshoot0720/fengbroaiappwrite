@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
+  BadgePercent,
   Building2,
   CalendarClock,
   CreditCard,
@@ -16,6 +17,7 @@ import {
   Play,
   Podcast,
   Landmark,
+  Laptop,
   Clapperboard,
   Film,
   Images,
@@ -82,6 +84,14 @@ const CommonDocumentManagement = dynamic(
 const FoodManagement = dynamic(() => import("@/components/modules/FoodManagement"), {
   loading: ModuleFallback,
 });
+const TrialPurchaseManagement = dynamic(
+  () => import("@/components/modules/TrialPurchaseManagement"),
+  { loading: ModuleFallback }
+);
+const ReinstallManagement = dynamic(
+  () => import("@/components/modules/ReinstallManagement"),
+  { loading: ModuleFallback }
+);
 const ImageGallery = dynamic(() => import("@/components/modules/ImageGallery"), {
   loading: ModuleFallback,
 });
@@ -126,6 +136,8 @@ const MENU_ITEMS: MenuItem[] = [
     icon: <CalendarClock size={18} />,
     children: [
       { id: "subscription", label: "訂閱", icon: <CreditCard size={18} /> },
+      { id: "trial-purchase", label: "試用/首購", icon: <BadgePercent size={18} /> },
+      { id: "reinstall", label: "重灌", icon: <Laptop size={18} /> },
       { id: "food", label: "食品", icon: <Package size={18} /> },
       { id: "common", label: "常用", icon: <Star size={18} /> },
       { id: "bank-stats", label: "銀行", icon: <Building2 size={18} /> },
@@ -169,6 +181,8 @@ const APPWRITE_REQUIRED_MODULES = new Set([
   "home",
   "dashboard",
   "subscription",
+  "trial-purchase",
+  "reinstall",
   "food",
   "notes",
   "common",
@@ -182,20 +196,21 @@ const APPWRITE_REQUIRED_MODULES = new Set([
 ]);
 
 export default function DashboardPage() {
-  const [currentModule, setCurrentModule] = useState<string>(() => {
-    if (typeof window === "undefined") return "home";
-    try {
-      return normalizeStoredModule(
-        window.localStorage.getItem(LAST_MODULE_STORAGE_KEY) || "home"
-      );
-    } catch {
-      return "home";
-    }
-  });
+  // Start with the same shell on server and client, then restore the local choice.
+  // Reading localStorage in the initializer caused hydration errors on reload.
+  const [currentModule, setCurrentModule] = useState<string>("home");
+  const [appwriteSetupMissing, setAppwriteSetupMissing] = useState(true);
 
-  const [appwriteSetupMissing, setAppwriteSetupMissing] = useState(
-    () => !hasRequiredAppwriteConfig({ requireApiKey: true })
-  );
+  useEffect(() => {
+    try {
+      setCurrentModule(normalizeStoredModule(
+        window.localStorage.getItem(LAST_MODULE_STORAGE_KEY) || "home"
+      ));
+    } catch {
+      // Keep the homepage when localStorage is unavailable.
+    }
+    setAppwriteSetupMissing(!hasRequiredAppwriteConfig({ requireApiKey: true }));
+  }, []);
 
   const handleModuleChange = useCallback((moduleId: string) => {
     setCurrentModule(moduleId);
@@ -265,6 +280,10 @@ export default function DashboardPage() {
         );
       case "subscription":
         return <SubscriptionManagement />;
+      case "trial-purchase":
+        return <TrialPurchaseManagement onNavigate={handleModuleChange} />;
+      case "reinstall":
+        return <ReinstallManagement onNavigate={handleModuleChange} />;
       case "food":
         return <FoodManagement />;
       case "notes":

@@ -506,8 +506,9 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
   };
 
   const handleCreateTable = async (tableName: string, isUpdate = false) => {
+    const additiveSetup = tableName === "trialpurchase" || tableName === "reinstall";
     // 如果是更新操作且不在批次模式中，顯示警告
-    if (isUpdate && !bulkModeRef.current) {
+    if (isUpdate && !additiveSetup && !bulkModeRef.current) {
       const confirmed = confirm(
         `⚠️ 警告：更新 ${tableName} 表結構需要重建表格\n\n` +
         `這個操作將：\n` +
@@ -1008,6 +1009,17 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                             ) : (
                               <><Plus size={12} /> 建立</>
                             )}
+                          </Button>
+                        )}
+                        {(col.name === "trialpurchase" || col.name === "reinstall") && col.schemaMismatch && !col.error && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCreateTable(col.name, true)}
+                            disabled={creating !== null}
+                            title="只補齊缺少欄位，保留既有帳號與序號"
+                          >
+                            {creating === col.name ? <Loader2 size={12} className="animate-spin" /> : "補齊欄位"}
                           </Button>
                         )}
                         {false && col.schemaMismatch && !col.error && !recentlyCreated.has(col.name) && (

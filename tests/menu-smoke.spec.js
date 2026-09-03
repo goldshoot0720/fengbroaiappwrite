@@ -11,6 +11,8 @@ const groupedChildren = {
   鋒兄首頁: [/^首頁$/],
   鋒兄管理: [
     /^訂閱$/,
+    /^試用\/首購$/,
+    /^重灌$/,
     /^食品$/,
     /^常用$/,
     /^銀行$/,
@@ -91,6 +93,56 @@ test("desktop top menu smoke test", async ({ page }) => {
 
   expect(pageErrors, `Uncaught page errors:\n${pageErrors.join("\n")}`).toEqual([]);
   expect(apiFailures, `API failures:\n${apiFailures.join("\n")}`).toEqual([]);
+});
+
+test("trial-purchase and reinstall pages are reachable from the management menu", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForTimeout(800);
+
+  const topNav = await getDesktopTopNav(page);
+  await topNav.getByRole("button", { name: /鋒兄管理/ }).click();
+  await page.waitForTimeout(250);
+
+  await topNav.getByRole("button", { name: /^試用\/首購$/ }).click();
+  await page.waitForTimeout(700);
+  await expect(page.locator("main")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /鋒兄試用／首購|尚未設定 Appwrite/ }).first()
+  ).toBeVisible({ timeout: 15000 });
+
+  const addRecord = page.getByRole("button", { name: /新增紀錄/ });
+  if (await addRecord.isVisible().catch(() => false)) {
+    await addRecord.click();
+    await expect(page.getByLabel("服務名稱")).toBeVisible();
+    await expect(page.getByLabel("試用／首購／到期日（扣款日）")).toBeVisible();
+    await expect(page.getByLabel("試用狀態")).toBeVisible();
+    await expect(page.getByLabel("首購狀態")).toBeVisible();
+    await page.getByRole("button", { name: "取消" }).click();
+  }
+
+  await topNav.getByRole("button", { name: /^重灌$/ }).click();
+  await page.waitForTimeout(700);
+  await expect(
+    page.getByRole("heading", { name: /鋒兄重灌|尚未設定 Appwrite/ }).first()
+  ).toBeVisible({ timeout: 15000 });
+
+  const addSoftware = page.getByRole("button", { name: /新增軟體/ });
+  if (await addSoftware.isVisible().catch(() => false)) {
+    await addSoftware.click();
+    await expect(page.getByLabel("服務名稱")).toBeVisible();
+    await expect(page.getByLabel("使用系統")).toBeVisible();
+    await expect(page.getByLabel("授權方式")).toBeVisible();
+    await page.getByRole("button", { name: "取消" }).click();
+  }
+
+  await topNav.getByRole("button", { name: /^設定$/ }).click();
+  await page.waitForTimeout(250);
+  await topNav.getByRole("button", { name: /鋒兄關於/ }).click();
+  await page.waitForTimeout(700);
+  await page.getByRole("button", { name: /功能模組/ }).click();
+  await expect(page.getByText("鋒兄試用／首購")).toBeVisible();
+  await expect(page.getByText("鋒兄重灌")).toBeVisible();
 });
 
 test("subscription currency dropdown", async ({ page }) => {

@@ -45,27 +45,29 @@ const ABOUT_SUBPAGES = [
 const MODULES = [
   { num: 1, name: "鋒兄首頁", category: "入口", desc: "系統總覽與各模組快速入口，同一頁可切換精簡待辦與完整儀表" },
   { num: 2, name: "鋒兄訂閱", category: "生活", desc: "訂閱、扣款日、CSV 匯入匯出、本機垃圾桶與整理提醒" },
-  { num: 3, name: "鋒兄食品 （＋商品庫存）", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
-  { num: 4, name: "鋒兄筆記", category: "知識", desc: "快速筆記、附件預覽、本機垃圾桶與釘選工作台" },
-  { num: 5, name: "鋒兄常用", category: "入口", desc: "常用站點、複製、置頂與最近使用控制台" },
-  { num: 6, name: "鋒兄圖片", category: "媒體", desc: "圖片管理、標籤整理與工作台摘要" },
-  { num: 7, name: "鋒兄影片", category: "媒體", desc: "影片播放、封面管理與播放佇列" },
-  { num: 8, name: "鋒兄音樂", category: "媒體", desc: "音樂播放、歌詞、整理摘要與媒體控制" },
-  { num: 9, name: "鋒兄文件", category: "知識", desc: "文件預覽、分類、匯入匯出與技術內容整理" },
-  { num: 10, name: "鋒兄播客", category: "媒體", desc: "播客播放、批次上傳與摘要式管理" },
-  { num: 11, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、電子票證、餘額與異常提醒" },
-  { num: 12, name: "鋒兄例行", category: "任務", desc: "例行事項、日期遞移與週期追蹤" },
-  { num: 13, name: "鋒兄設定", category: "維運", desc: "Appwrite 設定、Table 初始化、資料統計與 system config" },
-  { num: 14, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、版本資訊與文件中心" },
-  { num: 15, name: "鋒兄比價", category: "工具", desc: "手動商品與價格紀錄（manualprice）" },
-  { num: 16, name: "手機比價", category: "工具", desc: "地標網通與傑昇通信雙來源，含週期歷史" },
-  { num: 17, name: "圖片 + 語音 = 影片", category: "工具", desc: "FFmpeg 把圖片與語音合成影片" },
-  { num: 18, name: "PNG / JPEG 轉換", category: "工具", desc: "瀏覽器端圖片格式轉換" },
-  { num: 19, name: "影片合併", category: "工具", desc: "多段影片合併" },
-  { num: 20, name: "YT / B站轉 MP3/MP4", category: "工具", desc: "YouTube / Bilibili 下載轉檔" },
-  { num: 21, name: "鋒兄Tube", category: "子工具", desc: "頻道最新影片與倒台指數" },
-  { num: 22, name: "鋒兄金融", category: "子工具", desc: "CNBC / Yahoo 報價與自訂標的 CSV" },
-  { num: 23, name: "鋒兄新聞", category: "子工具", desc: "鎖定網站焦點、人口統計與便當等面板" },
+  { num: 3, name: "鋒兄試用／首購", category: "生活", desc: "依服務展開多帳號，追蹤試用、首購狀態與重要日期" },
+  { num: 4, name: "鋒兄重灌", category: "生活", desc: "Windows／Mac 重灌軟體清單，付費序號預設隱藏" },
+  { num: 5, name: "鋒兄食品 （＋商品庫存）", category: "生活", desc: "庫存、到期管理、快速新增與批次清理" },
+  { num: 6, name: "鋒兄筆記", category: "知識", desc: "快速筆記、附件預覽、本機垃圾桶與釘選工作台" },
+  { num: 7, name: "鋒兄常用", category: "入口", desc: "常用站點、複製、置頂與最近使用控制台" },
+  { num: 8, name: "鋒兄圖片", category: "媒體", desc: "圖片管理、標籤整理與工作台摘要" },
+  { num: 9, name: "鋒兄影片", category: "媒體", desc: "影片播放、封面管理與播放佇列" },
+  { num: 10, name: "鋒兄音樂", category: "媒體", desc: "音樂播放、歌詞、整理摘要與媒體控制" },
+  { num: 11, name: "鋒兄文件", category: "知識", desc: "文件預覽、分類、匯入匯出與技術內容整理" },
+  { num: 12, name: "鋒兄播客", category: "媒體", desc: "播客播放、批次上傳與摘要式管理" },
+  { num: 13, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、電子票證、餘額與異常提醒" },
+  { num: 14, name: "鋒兄例行", category: "任務", desc: "例行事項、日期遞移與週期追蹤" },
+  { num: 15, name: "鋒兄設定", category: "維運", desc: "Appwrite 設定、Table 初始化、資料統計與 system config" },
+  { num: 16, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、版本資訊與文件中心" },
+  { num: 17, name: "鋒兄比價", category: "工具", desc: "手動商品與價格紀錄（manualprice）" },
+  { num: 18, name: "手機比價", category: "工具", desc: "地標網通與傑昇通信雙來源，含週期歷史" },
+  { num: 19, name: "圖片 + 語音 = 影片", category: "工具", desc: "FFmpeg 把圖片與語音合成影片" },
+  { num: 20, name: "PNG / JPEG 轉換", category: "工具", desc: "瀏覽器端圖片格式轉換" },
+  { num: 21, name: "影片合併", category: "工具", desc: "多段影片合併" },
+  { num: 22, name: "YT / B站轉 MP3/MP4", category: "工具", desc: "YouTube / Bilibili 下載轉檔" },
+  { num: 23, name: "鋒兄Tube", category: "子工具", desc: "頻道最新影片與倒台指數" },
+  { num: 24, name: "鋒兄金融", category: "子工具", desc: "CNBC / Yahoo 報價與自訂標的 CSV" },
+  { num: 25, name: "鋒兄新聞", category: "子工具", desc: "鎖定網站焦點、人口統計與便當等面板" },
 ];
 
 const MODULE_COUNT = MODULES.length;
@@ -84,6 +86,8 @@ const DOC_GROUPS = [
     title: "模組文件",
     items: [
       ["03_subscription.md", "訂閱 schema、篩選、CSV 與到期邏輯"],
+      ["16_trial_purchase.md", "試用／首購：服務下多帳號與狀態 CRUD"],
+      ["17_reinstall.md", "重灌軟體：Win／Mac 清單與序號遮罩"],
       ["04_food.md", "食品工作台、到期分區與批次清理"],
       ["05_notes.md", "筆記模板、AI 摘要與知識整理"],
       ["06_common_accounts.md", "常用入口、置頂與最近使用"],
@@ -106,6 +110,16 @@ const DOC_GROUPS = [
 ];
 
 const RELEASE_ITEMS = [
+  {
+    date: "2026-09-03",
+    title: "新增試用／首購與重灌管理",
+    bullets: [
+      "鋒兄管理新增「試用/首購」與「重灌」：獨立 trialpurchase、reinstall 資料表，不改既有訂閱／食品資料。",
+      "試用／首購依服務名稱歸組，點服務名稱展開帳號；可標示已試用／尚未試用，以及已首購／未首購／無提供首購。",
+      "重灌軟體分 Windows／Mac，付費序號預設隱藏；刪除前需確認，預設焦點在取消。",
+      "設定頁可建立或補齊這兩張表；新表不開放公開讀寫，重試初始化會保留既有紀錄。",
+    ],
+  },
   {
     date: "2026-08-13",
     title: "訂閱整理欄位接到表單",
@@ -648,7 +662,7 @@ function ModulesOverview() {
     <div className="space-y-6">
       <SectionHeader
         title="功能模組一覽"
-        description={`${MODULE_COUNT} 個葉模組裡，日常 15 項共用資料工作台骨架；工具與子工具走 ToolsManagement 與各自 API。`}
+        description={`${MODULE_COUNT} 個葉模組裡，日常 16 項含試用／首購與重灌；工具與子工具走 ToolsManagement 與各自 API。`}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

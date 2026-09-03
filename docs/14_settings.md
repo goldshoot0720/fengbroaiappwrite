@@ -36,9 +36,9 @@
 | 🟡 黃色 | 空表 | 表格存在但無資料 |
 | 🔴 紅色 | 不存在 | 表格尚未建立 |
 
-### 資料庫表格一覽 (13 個 Collection)
+### 資料庫表格一覽 (17 個 Collection)
 
-欄位數以 `app/api/create-table/route.js` 的 `TABLE_SCHEMAS` 為準。
+欄位數以 `app/api/create-table/route.js` 的 `TABLE_SCHEMAS` 為準。`trialpurchase` 與 `reinstall` 採非破壞性初始化：只新增資料表或補齊缺少欄位，重試不刪除紀錄。
 
 | # | 表格名稱 | 欄位數 | 用途 |
 |---|----------|--------|------|
@@ -55,6 +55,10 @@
 | 11 | commondocument | 8 | 文件管理 |
 | 12 | landtophistory | 9 | 手機比價歷史快照 |
 | 13 | manualprice | 4 | 鋒兄比價手動紀錄 |
+| 14 | sitevisit | 2 | 到站統計 |
+| 15 | menuusage | 3 | 選單使用統計 |
+| 16 | trialpurchase | 8 | 試用／首購（服務 × 帳號） |
+| 17 | reinstall | 7 | 重灌軟體（Win／Mac） |
 
 ### 表格操作
 

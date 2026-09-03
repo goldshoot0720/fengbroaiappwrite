@@ -3,7 +3,7 @@
 本文件對齊 `app/page.tsx` 的真實選單與 `app/api/create-table/route.js` 的建表清單。
 
 > **文件位置**: `docs/INDEX.md`  
-> **最後更新**: 2026-08-13  
+> **最後更新**: 2026-09-03  
 > **來源**: 主頁選單 + 設定頁可建立的 collection
 
 日常 CRUD 的操作細節仍見各模組文件與 [USER_GUIDE.md](./USER_GUIDE.md)。工具／子工具尚未拆成獨立說明檔時，以程式入口為準。
@@ -28,8 +28,10 @@
 | 12 | [鋒兄例行](./13_routine.md) | 例行公事與日期遞移 | [13_routine.md](./13_routine.md) |
 | 13 | [鋒兄設定](./14_settings.md) | Appwrite、建表、儲存與主題 | [14_settings.md](./14_settings.md) |
 | 14 | [鋒兄關於](./15_about.md) | 更新內容、架構與文件中心 | [15_about.md](./15_about.md) |
+| 15 | [鋒兄試用/首購](./16_trial_purchase.md) | 服務下多帳號、試用／首購狀態與重要日期 | [16_trial_purchase.md](./16_trial_purchase.md) |
+| 16 | [鋒兄重灌](./17_reinstall.md) | Windows／Mac 軟體、隱藏序號與安裝資訊 | [17_reinstall.md](./17_reinstall.md) |
 
-桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁（同一頁可切精簡待辦與完整儀表）；鋒兄管理包含訂閱、食品、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、YouTube/Bilibili。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
+桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁（同一頁可切精簡待辦與完整儀表）；鋒兄管理包含訂閱、試用/首購、重灌、食品、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、YouTube/Bilibili。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
 
 ---
 
@@ -37,12 +39,12 @@
 
 | # | 模組名稱 | 說明 | 程式入口 |
 |---|---------|------|---------|
-| 16 | 鋒兄比價 | 手動商品與價格紀錄 | `ManualPriceTracker.tsx` · `/api/manualprice` |
-| 17 | 手機比價 | 地標網通 + 傑昇通信，週期歷史 | `ToolsManagement.tsx` · `/api/landtop` |
-| 18 | 圖片 + 語音 = 影片 | FFmpeg 合成 | `ImageVoiceVideoTool.tsx` · `/api/image-voice-video` |
-| 19 | PNG / JPEG 轉換 | 圖片格式轉換 | `ImageFormatConvertTool.tsx` |
-| 20 | 影片合併 | 多段影片合併 | `VideoMergeTool.tsx` |
-| 21 | YT / B站轉 MP3/MP4 | 下載轉檔 | `YoutubeBilibiliConvertTool.tsx` · `/api/youtube-bilibili-convert` |
+| 17 | 鋒兄比價 | 手動商品與價格紀錄 | `ManualPriceTracker.tsx` · `/api/manualprice` |
+| 18 | 手機比價 | 地標網通 + 傑昇通信，週期歷史 | `ToolsManagement.tsx` · `/api/landtop` |
+| 19 | 圖片 + 語音 = 影片 | FFmpeg 合成 | `ImageVoiceVideoTool.tsx` · `/api/image-voice-video` |
+| 20 | PNG / JPEG 轉換 | 圖片格式轉換 | `ImageFormatConvertTool.tsx` |
+| 21 | 影片合併 | 多段影片合併 | `VideoMergeTool.tsx` |
+| 22 | YT / B站轉 MP3/MP4 | 下載轉檔 | `YoutubeBilibiliConvertTool.tsx` · `/api/youtube-bilibili-convert` |
 
 工具殼層：`components/modules/ToolsManagement.tsx`。
 
@@ -52,9 +54,9 @@
 
 | # | 模組名稱 | 說明 | 程式入口 |
 |---|---------|------|---------|
-| 22 | 鋒兄Tube | 頻道最新影片與倒台指數 | `ToolsManagement.tsx` · `/api/fengbro-tube` |
-| 23 | 鋒兄金融 | CNBC / Yahoo 報價、自訂標的 CSV | `ToolsManagement.tsx` · `/api/fengbro-finance` |
-| 24 | 鋒兄新聞 | 鎖定網站焦點、人口與便當等面板 | `FengbroNewsTool.tsx` · `/api/fengbro-news` |
+| 23 | 鋒兄Tube | 頻道最新影片與倒台指數 | `ToolsManagement.tsx` · `/api/fengbro-tube` |
+| 24 | 鋒兄金融 | CNBC / Yahoo 報價、自訂標的 CSV | `ToolsManagement.tsx` · `/api/fengbro-finance` |
+| 25 | 鋒兄新聞 | 鎖定網站焦點、人口與便當等面板 | `FengbroNewsTool.tsx` · `/api/fengbro-news` |
 
 ---
 
@@ -71,12 +73,12 @@
 
 ## 資料庫 Table 結構總覽
 
-設定頁可建立 **13** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。
+設定頁可建立 **17** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall` 使用非破壞性初始化，重試會保留已有資料。
 
 | # | Collection 名稱 | 欄位數 | 對應模組 | 說明文件 |
 |---|----------------|--------|---------|---------|
 | 1 | food | 7 | 鋒兄食品 | [04_food.md](./04_food.md) |
-| 2 | subscription | 15 | 鋒兄訂閱 | [03_subscription.md](./03_subscription.md) |
+| 2 | subscription | 8 | 鋒兄訂閱 | [03_subscription.md](./03_subscription.md) |
 | 3 | article | 17 | 鋒兄筆記 | [05_notes.md](./05_notes.md) |
 | 4 | commonaccount | 75 | 鋒兄常用 | [06_common_accounts.md](./06_common_accounts.md) |
 | 5 | bank | 9 | 鋒兄銀行 | [12_bank.md](./12_bank.md) |
@@ -88,6 +90,10 @@
 | 11 | commondocument | 8 | 鋒兄文件 | [10_documents.md](./10_documents.md) |
 | 12 | landtophistory | 9 | 手機比價 | `app/api/_lib/landtopHistory.js` |
 | 13 | manualprice | 4 | 鋒兄比價 | `/api/manualprice` |
+| 14 | sitevisit | 2 | 到站統計 | `/api/site-visit` |
+| 15 | menuusage | 3 | 選單使用統計 | `/api/menu-usage` |
+| 16 | trialpurchase | 8 | 鋒兄試用/首購 | [16_trial_purchase.md](./16_trial_purchase.md) |
+| 17 | reinstall | 7 | 鋒兄重灌 | [17_reinstall.md](./17_reinstall.md) |
 
 另有 Web Push 訂閱 collection，由 `/api/push-subscribe` 動態建立，不在一鍵建表清單裡。
 
@@ -113,6 +119,8 @@ docs/
 ├── SYSTEM_ARCHITECTURE.md
 ├── 00_company_introduction.md
 ├── 01_home.md … 15_about.md
+├── 16_trial_purchase.md  # 服務／帳號試用與首購
+├── 17_reinstall.md       # Win／Mac 重灌軟體與序號
 ├── agents/               # 代理協作規則
 ├── design/               # UI/UX 設計稿
 └── research/             # 外部服務考證
@@ -120,5 +128,5 @@ docs/
 
 ---
 
-**文件版本**: v1.3.0  
+**文件版本**: v1.4.0  
 **維護者**: 鋒兄塗哥公關資訊

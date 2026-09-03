@@ -7,7 +7,7 @@ import { useMediaTraffic } from "@/lib/mediaTraffic";
 import { claimMediaTrafficHomepageAlert, formatMediaTrafficGiB, type MediaTrafficAlertPolicy } from "@/lib/mediaTrafficAlert";
 import { useNotificationPermission } from "@/hooks/useNotificationPermission";
 import { useExpiryNotifications, sendExpiryOsNotifications } from "@/hooks/useExpiryNotifications";
-import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Server, FileVideo, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X } from "lucide-react";
+import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Server, FileVideo, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X, BadgePercent, Laptop } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
@@ -472,6 +472,8 @@ function HomeTaskBoard({
   const totalAttention = attentionItems.reduce((total, item) => total + item.value, 0);
   const quickActions = [
     { label: "鋒兄訂閱", description: "管理扣款與到期日", moduleId: "subscription", icon: <CreditCard size={18} /> },
+    { label: "鋒兄試用／首購", description: "依服務展開帳號與狀態", moduleId: "trial-purchase", icon: <BadgePercent size={18} /> },
+    { label: "鋒兄重灌", description: "Win／Mac 軟體與隱藏序號", moduleId: "reinstall", icon: <Laptop size={18} /> },
     { label: "鋒兄食品", description: "查看庫存與保存期限", moduleId: "food", icon: <Package size={18} /> },
     { label: "鋒兄例行", description: "記錄最近執行日期", moduleId: "routine", icon: <CalendarClock size={18} /> },
     { label: "鋒兄銀行", description: "查看餘額與帳戶總覽", moduleId: "bank-stats", icon: <Building2 size={18} /> },
