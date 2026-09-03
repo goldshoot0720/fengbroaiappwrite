@@ -2,6 +2,7 @@ import type {
   FinanceCustomGroup,
   FinanceInstrument,
   FinanceInstrumentFormData,
+  FinanceRelatedLink,
   FengbroTubeChannel,
   FengbroTubeChannelFormData,
   PurchaseStatus,
@@ -186,10 +187,14 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "symbol", type: "string", size: 64, required: true },
       { key: "provider", type: "string", size: 20, required: true },
       { key: "group", type: "string", size: 20, required: false },
-      { key: "imageUrls", type: "string", size: 20000, required: false },
+      { key: "imageUrl1", type: "url", required: false },
+      { key: "imageUrl2", type: "url", required: false },
+      { key: "imageUrl3", type: "url", required: false },
       { key: "youtubeUrl", type: "url", required: false },
       { key: "bilibiliUrl", type: "url", required: false },
-      { key: "relatedLinks", type: "string", size: 20000, required: false },
+      { key: "linkUrl1", type: "string", size: 1000, required: false },
+      { key: "linkUrl2", type: "string", size: 1000, required: false },
+      { key: "linkUrl3", type: "string", size: 1000, required: false },
       { key: "featured", type: "boolean", required: false, default: false },
     ],
   },
@@ -649,7 +654,23 @@ export function buildFengbroTubeChannelWritePayload(
 }
 
 // ── 鋒兄金融：一筆代表「一個自訂追蹤標的（provider + symbol 唯一）」──
+function splitFinanceLinkCell(value: string | undefined): FinanceRelatedLink | undefined {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return undefined;
+  const separatorIndex = trimmed.indexOf("|");
+  const url = separatorIndex >= 0 ? trimmed.slice(separatorIndex + 1).trim() : trimmed;
+  const label = separatorIndex >= 0 ? trimmed.slice(0, separatorIndex).trim() : "";
+  if (!url) return undefined;
+  return { label: label || guessFinanceRelatedLinkLabel(url), url };
+}
+
 export function toFinanceInstrumentForm(source: FinanceInstrument): FinanceInstrumentFormData {
+  const imageUrls = [source.imageUrl1, source.imageUrl2, source.imageUrl3]
+    .map((url) => (url ? String(url).trim() : ""))
+    .filter(Boolean);
+  const relatedLinks = [source.linkUrl1, source.linkUrl2, source.linkUrl3]
+    .map(splitFinanceLinkCell)
+    .filter((link): link is FinanceRelatedLink => link != null);
   return {
     name: source.name || "",
     symbol: source.symbol || "",
@@ -657,10 +678,10 @@ export function toFinanceInstrumentForm(source: FinanceInstrument): FinanceInstr
     group: ["korea", "japan", "taiwan", "us", "other"].includes(source.group)
       ? source.group
       : "other",
-    imageUrls: Array.isArray(source.imageUrls) ? source.imageUrls : [],
+    imageUrls,
     youtubeUrl: source.youtubeUrl || "",
     bilibiliUrl: source.bilibiliUrl || "",
-    relatedLinks: Array.isArray(source.relatedLinks) ? source.relatedLinks : [],
+    relatedLinks,
     featured: Boolean(source.featured),
   };
 }
@@ -696,7 +717,7 @@ export function buildFinanceInstrumentWritePayload(
   const imageUrls = imageUrlsRaw
     .map((value) => asText(value, "圖片網址", 2000))
     .filter(Boolean)
-    .slice(0, 9);
+    .slice(0, 3);
   const youtubeUrl = asOptionalUrl(body.youtubeUrl, "YouTube 網址");
   const bilibiliUrl = asOptionalUrl(body.bilibiliUrl, "Bilibili 網址");
   const relatedLinks = (Array.isArray(body.relatedLinks) ? body.relatedLinks : [])
@@ -709,7 +730,7 @@ export function buildFinanceInstrumentWritePayload(
       return { label: label || guessFinanceRelatedLinkLabel(url), url };
     })
     .filter((link): link is { label: string; url: string } => link != null)
-    .slice(0, 9);
+    .slice(0, 3);
   const featured = asBoolean(body.featured, false, "精選焦點");
 
   const payload: Record<string, unknown> = {
@@ -718,8 +739,12 @@ export function buildFinanceInstrumentWritePayload(
     provider,
     group,
     featured,
-    imageUrls: imageUrls.length ? imageUrls.join("\n") : "",
-    relatedLinks: relatedLinks.length ? JSON.stringify(relatedLinks) : "",
+    imageUrl1: imageUrls[0] ?? "",
+    imageUrl2: imageUrls[1] ?? "",
+    imageUrl3: imageUrls[2] ?? "",
+    linkUrl1: relatedLinks[0] ? `${relatedLinks[0].label}|${relatedLinks[0].url}` : "",
+    linkUrl2: relatedLinks[1] ? `${relatedLinks[1].label}|${relatedLinks[1].url}` : "",
+    linkUrl3: relatedLinks[2] ? `${relatedLinks[2].label}|${relatedLinks[2].url}` : "",
   };
   if (youtubeUrl) payload.youtubeUrl = youtubeUrl;
   else if (mode === "update") payload.youtubeUrl = null;

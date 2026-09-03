@@ -99,7 +99,7 @@
 | 18 | quota | 13 | 鋒兄額度 | 見 `QuotaManagement.tsx` |
 | 19 | shoppinglist | 9 | 鋒兄購物清單 | [18_shopping_list.md](./18_shopping_list.md) |
 | 20 | tubechannel | 2 | 鋒兄Tube 頻道清單 | `/api/tubechannel` |
-| 21 | financeinstrument | 9 | 鋒兄金融自選標的 | `/api/financeinstrument` |
+| 21 | financeinstrument | 13 | 鋒兄金融自選標的 | `/api/financeinstrument` |
 
 另有 Web Push 訂閱 collection，由 `/api/push-subscribe` 動態建立，不在一鍵建表清單裡。
 

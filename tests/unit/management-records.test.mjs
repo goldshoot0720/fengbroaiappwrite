@@ -271,27 +271,42 @@ describe("finance instrument records", () => {
     assert.equal(payload.symbol, "2330.TW");
     assert.equal(payload.provider, "yahoo");
     assert.equal(payload.group, "taiwan");
-    assert.equal(payload.imageUrls, "https://example.com/a.png");
-    assert.equal(payload.relatedLinks, JSON.stringify([{ label: "PTT 股板", url: "https://ptt.cc/bbs/stock/index.html" }]));
+    assert.equal(payload.imageUrl1, "https://example.com/a.png");
+    assert.equal(payload.imageUrl2, "");
+    assert.equal(payload.linkUrl1, "PTT 股板|https://ptt.cc/bbs/stock/index.html");
+    assert.equal(payload.linkUrl2, "");
     assert.equal(payload.youtubeUrl, "https://www.youtube.com/watch?v=abc");
     assert.equal(payload.featured, true);
   });
 
-  it("joins multi-image rows with newlines and clears URLs on update", () => {
+  it("spreads up to three images / links into columns and clears URLs on update", () => {
     const payload = buildFinanceInstrumentWritePayload(
       {
         name: "多圖標的",
         symbol: "SOXL",
         provider: "cnbc",
         group: "us",
-        imageUrls: ["https://example.com/1.png", "https://example.com/2.png"],
+        imageUrls: [
+          "https://example.com/1.png",
+          "https://example.com/2.png",
+          "https://example.com/3.png",
+          "https://example.com/4.png",
+        ],
         youtubeUrl: "https://www.youtube.com/watch?v=abc",
         bilibiliUrl: "https://www.bilibili.com/video/BV1xx",
-        relatedLinks: [],
+        relatedLinks: [
+          { label: "PTT 股板", url: "https://ptt.cc/bbs/stock/index.html" },
+          { label: "鉅亨網", url: "https://news.cnyes.com/" },
+        ],
       },
       "create",
     );
-    assert.equal(payload.imageUrls, "https://example.com/1.png\nhttps://example.com/2.png");
+    assert.equal(payload.imageUrl1, "https://example.com/1.png");
+    assert.equal(payload.imageUrl2, "https://example.com/2.png");
+    assert.equal(payload.imageUrl3, "https://example.com/3.png");
+    assert.equal(payload.linkUrl1, "PTT 股板|https://ptt.cc/bbs/stock/index.html");
+    assert.equal(payload.linkUrl2, "鉅亨網|https://news.cnyes.com/");
+    assert.equal(payload.linkUrl3, "");
 
     const cleared = buildFinanceInstrumentWritePayload(
       { name: "多圖標的", symbol: "SOXL", provider: "cnbc", group: "us", imageUrls: [], youtubeUrl: "", bilibiliUrl: "", relatedLinks: [], featured: false },
@@ -299,7 +314,10 @@ describe("finance instrument records", () => {
     );
     assert.equal(cleared.youtubeUrl, null);
     assert.equal(cleared.bilibiliUrl, null);
-    assert.equal(cleared.imageUrls, "");
+    assert.equal(cleared.imageUrl1, "");
+    assert.equal(cleared.imageUrl2, "");
+    assert.equal(cleared.imageUrl3, "");
+    assert.equal(cleared.linkUrl1, "");
   });
 
   it("rejects invalid fields and unsafe URLs", () => {

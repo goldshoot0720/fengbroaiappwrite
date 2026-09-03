@@ -30,6 +30,7 @@ import {
   isTaiwanYahooStockSource,
   migrateFinanceGroup,
   normalizeCustomFinanceInstrument,
+  normalizeFinanceRelatedLinks,
   parseFinanceQuoteInput,
   type CustomFinanceDraft,
   type CustomFinanceInstrument,
@@ -449,54 +450,34 @@ function financeInstrumentFromRow(row: unknown): CustomFinanceInstrument | null 
     symbol?: unknown;
     provider?: unknown;
     group?: unknown;
-    imageUrls?: unknown;
+    imageUrl1?: unknown;
+    imageUrl2?: unknown;
+    imageUrl3?: unknown;
     youtubeUrl?: unknown;
     bilibiliUrl?: unknown;
-    relatedLinks?: unknown;
+    linkUrl1?: unknown;
+    linkUrl2?: unknown;
+    linkUrl3?: unknown;
     featured?: unknown;
   };
+  const imageUrls = [rec.imageUrl1, rec.imageUrl2, rec.imageUrl3]
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+  const relatedLinkLines = [rec.linkUrl1, rec.linkUrl2, rec.linkUrl3]
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
   const normalized = normalizeCustomFinanceInstrument({
     name: typeof rec.name === "string" ? rec.name : "",
     symbol: typeof rec.symbol === "string" ? rec.symbol : "",
     provider: rec.provider === "yahoo" ? "yahoo" : "cnbc",
     group: migrateFinanceGroup(typeof rec.group === "string" ? rec.group : "other"),
-    imageUrls: splitMultiFinanceCell(rec.imageUrls),
+    imageUrls,
     youtubeUrl: typeof rec.youtubeUrl === "string" ? rec.youtubeUrl : "",
     bilibiliUrl: typeof rec.bilibiliUrl === "string" ? rec.bilibiliUrl : "",
-    relatedLinks: parseFinanceRelatedLinksCell(rec.relatedLinks),
+    relatedLinks: normalizeFinanceRelatedLinks(relatedLinkLines.join("\n")),
     featured: rec.featured === true || rec.featured === "true",
   });
   return normalized;
-}
-
-/** Table 用換行分隔存的圖片網址欄位 → 陣列。 */
-function splitMultiFinanceCell(value: unknown): string[] {
-  if (typeof value !== "string" || !value.trim()) return [];
-  return value
-    .split(/\n+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-/** Table 用 JSON 字串存的相關連結欄位 → 陣列。 */
-function parseFinanceRelatedLinksCell(value: unknown): Array<{ label: string; url: string }> | undefined {
-  if (typeof value !== "string" || !value.trim()) return undefined;
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed)) return undefined;
-    const links = parsed
-      .filter(
-        (link): link is { label: string; url: string } =>
-          Boolean(link) &&
-          typeof link === "object" &&
-          typeof (link as { label?: unknown }).label === "string" &&
-          typeof (link as { url?: unknown }).url === "string"
-      )
-      .slice(0, 9);
-    return links.length > 0 ? links : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function financeInstrumentSignature(instrument: CustomFinanceInstrument): string {
@@ -2338,7 +2319,7 @@ function FengbroFinanceSection({
         .split(/[\n,]+/)
         .map((part) => part.trim())
         .filter(Boolean);
-      if (existing.includes(trimmed) || existing.length >= 9) return;
+      if (existing.includes(trimmed) || existing.length >= 3) return;
       onCustomDraftChange({
         ...customDraft,
         imageUrlsText: [...existing, trimmed].join("\n"),
@@ -2853,7 +2834,7 @@ function FengbroFinanceSection({
                         {filteredStorageImages.map((img) => {
                           const fileUrl = img.file.trim();
                           const selected = selectedDraftImageUrls.includes(fileUrl);
-                          const atLimit = selectedDraftImageUrls.length >= 9 && !selected;
+                          const atLimit = selectedDraftImageUrls.length >= 3 && !selected;
                           return (
                             <button
                               key={img.$id}
@@ -2887,12 +2868,12 @@ function FengbroFinanceSection({
                       </div>
                     )}
                     <p className="text-[10px] text-emerald-900/70">
-                      點選加入 Appwrite Storage 網址（最多 9 張）。顯示時會經 media-proxy 載入。
+                      點選加入 Appwrite Storage 網址（最多 3 張）。顯示時會經 media-proxy 載入。
                     </p>
                   </div>
                 ) : null}
                 <span className="block text-[11px] text-muted-foreground">
-                  最多 9 張，支援外部 URL 或 Appwrite Storage，顯示於報價卡片輪播。
+                  最多 3 張，支援外部 URL 或 Appwrite Storage，顯示於報價卡片輪播。
                 </span>
               </div>
               <label className="space-y-1.5 text-sm">
@@ -2931,7 +2912,7 @@ function FengbroFinanceSection({
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
                 <span className="block text-[11px] text-muted-foreground">
-                  最多 9 個。可只貼網址（自動命名，如 PTT 股板），或用「標籤|網址」自訂顯示名稱。
+                  最多 3 個。可只貼網址（自動命名，如 PTT 股板），或用「標籤|網址」自訂顯示名稱。
                 </span>
               </label>
               <label className="flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2 text-sm sm:col-span-2 lg:col-span-3">

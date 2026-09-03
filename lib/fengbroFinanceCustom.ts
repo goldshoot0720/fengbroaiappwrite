@@ -73,8 +73,8 @@ export function buildCustomFinanceQuoteId(
   return `custom-${idBase}`;
 }
 
-const MAX_CUSTOM_IMAGE_URLS = 9;
-const MAX_CUSTOM_RELATED_LINKS = 9;
+const MAX_CUSTOM_IMAGE_URLS = 3;
+const MAX_CUSTOM_RELATED_LINKS = 3;
 /** Appwrite Storage view URLs with long project/query need more headroom than generic links. */
 const MAX_FINANCE_IMAGE_URL_LEN = 1200;
 

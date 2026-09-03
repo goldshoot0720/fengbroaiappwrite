@@ -233,10 +233,14 @@ export interface FinanceInstrument {
   symbol: string;
   provider: FinanceCustomProvider;
   group: FinanceCustomGroup;
-  imageUrls?: string[];
+  imageUrl1?: string;
+  imageUrl2?: string;
+  imageUrl3?: string;
   youtubeUrl?: string;
   bilibiliUrl?: string;
-  relatedLinks?: FinanceRelatedLink[];
+  linkUrl1?: string;
+  linkUrl2?: string;
+  linkUrl3?: string;
   featured?: boolean;
   $createdAt?: string;
   $updatedAt?: string;
