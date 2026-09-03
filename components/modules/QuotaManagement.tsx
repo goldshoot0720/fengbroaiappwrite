@@ -523,7 +523,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     onChange={(event) => setNumberField("ratio5h")(event.target.value)}
                   />
                 </FormField>
-                <FormField label="5 小時到期（24 小時制）" htmlFor="quota-expiry-5h">
+                <FormField label="5 小時到期" htmlFor="quota-expiry-5h">
                   <Input
                     id="quota-expiry-5h"
                     type="time"
