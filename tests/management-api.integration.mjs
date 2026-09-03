@@ -178,6 +178,73 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
     assert.equal(fixture.writes.length, beforeWrites);
   });
 
+  it("creates/edits/deletes Tube channels and normalizes handles", async () => {
+    const result = await api("/api/tubechannel");
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.length, 1);
+
+    const created = await api("/api/tubechannel", "POST", { alias: "某頻道", sourceUrl: "@new-handle" });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    assert.equal(created.body.sourceUrl, "https://www.youtube.com/@new-handle/videos");
+    assert.equal(created.body.alias, "某頻道");
+    const id = created.body.$id;
+
+    const updated = await api(`/api/tubechannel/${id}`, "PUT", { alias: "改名頻道", sourceUrl: "@new-handle" });
+    assert.equal(updated.status, 200, JSON.stringify(updated.body));
+    assert.equal(updated.body.alias, "改名頻道");
+
+    assert.equal((await api(`/api/tubechannel/${id}`, "DELETE")).status, 200);
+    assert.equal((await api("/api/tubechannel")).body.length, 1);
+    assert.equal((await api(`/api/tubechannel/${id}`, "DELETE")).status, 404);
+  });
+
+  it("rejects invalid Tube channel fields before writing", async () => {
+    const beforeWrites = fixture.writes.length;
+    for (const data of [null, [], { sourceUrl: "" },
+      { sourceUrl: "https://example.com/not-a-channel" },
+      { alias: "x".repeat(201), sourceUrl: "@ok" }]) {
+      assert.equal((await api("/api/tubechannel", "POST", data)).status, 400);
+    }
+    assert.equal(fixture.writes.length, beforeWrites);
+  });
+
+  it("creates/edits/deletes finance instruments with provider+symbol identity", async () => {
+    const result = await api("/api/financeinstrument");
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.length, 1);
+
+    const data = { name: "台積電", symbol: "2330.tw", provider: "yahoo", group: "taiwan",
+      imageUrls: ["https://example.com/a.png"], youtubeUrl: "https://youtube.com/watch?v=abc",
+      bilibiliUrl: "", relatedLinks: [{ label: "PTT 股板", url: "https://ptt.cc/bbs/stock/index.html" }],
+      featured: true };
+    const created = await api("/api/financeinstrument", "POST", data);
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    assert.equal(created.body.symbol, "2330.TW");
+    assert.equal(created.body.name, "台積電");
+    assert.equal(created.body.provider, "yahoo");
+    const id = created.body.$id;
+
+    const updated = await api(`/api/financeinstrument/${id}`, "PUT", { ...data, name: "台積電（改名）", featured: false, bilibiliUrl: "" });
+    assert.equal(updated.status, 200, JSON.stringify(updated.body));
+    assert.equal(updated.body.name, "台積電（改名）");
+    assert.equal(updated.body.featured, false);
+
+    assert.equal((await api(`/api/financeinstrument/${id}`, "DELETE")).status, 200);
+    assert.equal((await api("/api/financeinstrument")).body.length, 1);
+    assert.equal((await api(`/api/financeinstrument/${id}`, "DELETE")).status, 404);
+  });
+
+  it("rejects invalid finance instrument fields before writing", async () => {
+    const beforeWrites = fixture.writes.length;
+    for (const data of [null, [], { name: "" }, { symbol: "" },
+      { name: "test", symbol: "X", provider: "bloomberg" },
+      { name: "test", symbol: "X", imageUrls: "not-an-array" },
+      { name: "test", symbol: "X", youtubeUrl: "javascript:alert(1)" }]) {
+      assert.equal((await api("/api/financeinstrument", "POST", data)).status, 400);
+    }
+    assert.equal(fixture.writes.length, beforeWrites);
+  });
+
   it("does not use a similarly named table or another endpoint's cached collection", async () => {
     const other = await startManagementFixture({ seed: false });
     other.addCollection("trialpurchase_backup");
@@ -211,7 +278,7 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
   it("creates both tables privately and repeated setup preserves every existing document", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {
-      for (const tableName of ["trialpurchase", "reinstall", "quota", "shoppinglist"]) {
+      for (const tableName of ["trialpurchase", "reinstall", "quota", "shoppinglist", "tubechannel", "financeinstrument"]) {
         const result = await api("/api/create-table", "POST", { tableName }, empty);
         assert.equal(result.status, 200, JSON.stringify(result.body));
         assert.equal(result.body.success, true);

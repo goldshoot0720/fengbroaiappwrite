@@ -1,4 +1,10 @@
 import type {
+  FinanceCustomGroup,
+  FinanceCustomProvider,
+  FinanceInstrument,
+  FinanceInstrumentFormData,
+  FengbroTubeChannel,
+  FengbroTubeChannelFormData,
   PurchaseStatus,
   Quota,
   QuotaFormData,
@@ -16,6 +22,9 @@ import type {
   TrialPurchaseFormData,
   TrialStatus,
 } from "@/types";
+
+import { guessFinanceRelatedLinkLabel } from "@/lib/fengbroFinanceCustom";
+import { normalizeFengbroTubeChannels } from "@/lib/fengbroTubeChannels";
 
 export const TRIAL_STATUS_OPTIONS: ReadonlyArray<{ value: TrialStatus; label: string }> = [
   { value: "untried", label: "尚未試用" },
@@ -162,7 +171,38 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "note", type: "string", size: 3337, required: false },
     ],
   },
+  tubechannel: {
+    name: "tubechannel",
+    attributes: [
+      { key: "sourceUrl", type: "string", size: 500, required: true },
+      { key: "alias", type: "string", size: 200, required: false },
+    ],
+  },
+  financeinstrument: {
+    name: "financeinstrument",
+    attributes: [
+      { key: "name", type: "string", size: 200, required: true },
+      { key: "symbol", type: "string", size: 64, required: true },
+      { key: "provider", type: "string", size: 20, required: true },
+      { key: "group", type: "string", size: 20, required: false },
+      { key: "imageUrls", type: "string", size: 12000, required: false },
+      { key: "youtubeUrl", type: "url", required: false },
+      { key: "bilibiliUrl", type: "url", required: false },
+      { key: "relatedLinks", type: "string", size: 12000, required: false },
+      { key: "featured", type: "boolean", required: false, default: false },
+    ],
+  },
 };
+
+// Tables whose schema setup is purely additive: 建立/更新不刪除既有資料，只補欄位。
+export const ADDITIVE_SETUP_TABLES: readonly string[] = [
+  "trialpurchase",
+  "reinstall",
+  "quota",
+  "shoppinglist",
+  "tubechannel",
+  "financeinstrument",
+];
 
 function asText(value: unknown, label = "欄位", maxLength?: number): string {
   if (value == null) return "";
@@ -214,17 +254,17 @@ function asOptionalDate(value: unknown): string {
   return parsed.toISOString();
 }
 
-function asOptionalUrl(value: unknown): string {
-  const normalized = asText(value, "軟體網站", 2000);
+function asOptionalUrl(value: unknown, label = "軟體網站", maxLength = 2000): string {
+  const normalized = asText(value, label, maxLength);
   if (!normalized) return "";
   let parsed: URL;
   try {
     parsed = new URL(normalized);
   } catch {
-    throw new Error("軟體網站必須是完整網址（例如 https://example.com）");
+    throw new Error(`${label}必須是完整網址（例如 https://example.com）`);
   }
   if (!new Set(["http:", "https:"]).has(parsed.protocol)) {
-    throw new Error("軟體網站只接受 http 或 https 網址");
+    throw new Error(`${label}只接受 http 或 https 網址`);
   }
   return parsed.toString();
 }
@@ -557,5 +597,109 @@ export function buildShoppingItemWritePayload(
 
   if (plannedDate) payload.plannedDate = plannedDate;
   else if (mode === "update") payload.plannedDate = null;
+  return payload;
+}
+
+// ── 鋒兄Tube：一筆代表「一個追蹤的 YouTube / Bilibili 頻道」──
+export function toFengbroTubeChannelForm(source: FengbroTubeChannel): FengbroTubeChannelFormData {
+  return {
+    alias: source.alias || "",
+    sourceUrl: source.sourceUrl || "",
+  };
+}
+
+export function buildFengbroTubeChannelWritePayload(
+  body: Record<string, unknown>,
+  mode: "create" | "update",
+): Record<string, unknown> {
+  validateBody(body);
+  const sourceUrlInput = asText(body.sourceUrl, "頻道網址", 2000);
+  const channelInput: unknown =
+    body.alias !== undefined
+      ? { alias: asText(body.alias, "頻道別名", 200), sourceUrl: sourceUrlInput }
+      : sourceUrlInput;
+  const normalized = normalizeFengbroTubeChannels([channelInput])[0];
+  if (!normalized) throw new Error("請輸入正確的 YouTube 頻道網址或 @handle");
+
+  const payload: Record<string, unknown> = {
+    sourceUrl: normalized.sourceUrl,
+    alias: normalized.alias,
+  };
+  if (mode === "update" && payload.sourceUrl === "") {
+    // sourceUrl 不可清空；update 不會走到這，但保留防呆
+    throw new Error("頻道網址不可清空");
+  }
+  return payload;
+}
+
+// ── 鋒兄金融：一筆代表「一個自訂追蹤標的（provider + symbol 唯一）」──
+export function toFinanceInstrumentForm(source: FinanceInstrument): FinanceInstrumentFormData {
+  return {
+    name: source.name || "",
+    symbol: source.symbol || "",
+    provider: source.provider === "yahoo" ? "yahoo" : "cnbc",
+    group: ["korea", "japan", "taiwan", "us", "other"].includes(source.group)
+      ? source.group
+      : "other",
+    imageUrls: Array.isArray(source.imageUrls) ? source.imageUrls : [],
+    youtubeUrl: source.youtubeUrl || "",
+    bilibiliUrl: source.bilibiliUrl || "",
+    relatedLinks: Array.isArray(source.relatedLinks) ? source.relatedLinks : [],
+    featured: Boolean(source.featured),
+  };
+}
+
+function asFinanceGroup(value: unknown): FinanceCustomGroup {
+  const normalized = asText(value) as FinanceCustomGroup;
+  return ["korea", "japan", "taiwan", "us", "other"].includes(normalized)
+    ? normalized
+    : "other";
+}
+
+export function buildFinanceInstrumentWritePayload(
+  body: Record<string, unknown>,
+  mode: "create" | "update",
+): Record<string, unknown> {
+  validateBody(body);
+  const name = asText(body.name, "標的名稱", 200);
+  const symbol = asText(body.symbol, "標的代號", 64).toUpperCase();
+  if (!symbol) throw new Error("請填寫標的代號");
+  if (!name) throw new Error("請填寫標的名稱");
+  const provider = asText(body.provider) === "yahoo" ? ("yahoo" as const) : ("cnbc" as const);
+  const group = asFinanceGroup(body.group);
+
+  const imageUrlsRaw = Array.isArray(body.imageUrls) ? body.imageUrls : [];
+  const imageUrls = imageUrlsRaw
+    .map((value) => asText(value, "圖片網址", 2000))
+    .filter(Boolean)
+    .slice(0, 9);
+  const youtubeUrl = asOptionalUrl(body.youtubeUrl, "YouTube 網址");
+  const bilibiliUrl = asOptionalUrl(body.bilibiliUrl, "Bilibili 網址");
+  const relatedLinks = (Array.isArray(body.relatedLinks) ? body.relatedLinks : [])
+    .map((value) => {
+      if (!value || typeof value !== "object") return null;
+      const rec = value as { label?: unknown; url?: unknown };
+      const url = asOptionalUrl(rec.url, "相關連結網址");
+      if (!url) return null;
+      const label = asText(rec.label, "連結標籤", 40);
+      return { label: label || guessFinanceRelatedLinkLabel(url), url };
+    })
+    .filter((link): link is { label: string; url: string } => link != null)
+    .slice(0, 9);
+  const featured = asBoolean(body.featured, false, "精選焦點");
+
+  const payload: Record<string, unknown> = {
+    name,
+    symbol,
+    provider,
+    group,
+    featured,
+    imageUrls: imageUrls.length ? imageUrls.join("\n") : "",
+    relatedLinks: relatedLinks.length ? JSON.stringify(relatedLinks) : "",
+  };
+  if (youtubeUrl) payload.youtubeUrl = youtubeUrl;
+  else if (mode === "update") payload.youtubeUrl = null;
+  if (bilibiliUrl) payload.bilibiliUrl = bilibiliUrl;
+  else if (mode === "update") payload.bilibiliUrl = null;
   return payload;
 }

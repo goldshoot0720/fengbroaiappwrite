@@ -29,6 +29,11 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
     addCollection("reinstall");
     addCollection("quota");
     addCollection("shoppinglist");
+    addCollection("tubechannel");
+    addCollection("financeinstrument");
+    addDocument("tubechannel", { sourceUrl: "https://www.youtube.com/@henren778/videos", alias: "一个狠人" }, "tube-henren");
+    addDocument("financeinstrument", { name: "川湖", symbol: "2059.TW", provider: "yahoo", group: "taiwan",
+      imageUrls: "", relatedLinks: "", youtubeUrl: null, bilibiliUrl: null, featured: true }, "fin-2059");
     addDocument("shoppinglist", {
       name: "示範購物：米 10kg", plannedDate: "2026-09-30T00:00:00.000Z", price: 499, currency: "TWD",
       quantity: 1, shop: "家樂福（示範）", pickupMethod: "取貨付款", account: "buyer@example.test", note: "隔離測試資料。",

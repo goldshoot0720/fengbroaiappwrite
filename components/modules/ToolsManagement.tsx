@@ -14,6 +14,7 @@ import {
   normalizeFengbroTubeChannels,
   normalizeFengbroTubeSource,
   stripRemovedFengbroTubeChannels,
+  toFengbroTubeChannelConfig,
 } from "@/lib/fengbroTubeChannels";
 import {
   FINANCE_CUSTOM_GROUPS,
@@ -68,7 +69,10 @@ import {
   isAutoSamsungLandtopDefaultQuery,
 } from "@/lib/landtopDefaults";
 import { getExportFilename, getProxiedMediaUrl } from "@/lib/utils";
+import { API_ENDPOINTS } from "@/lib/constants";
 import { useImages } from "@/hooks";
+import { useAppwriteSetup } from "@/hooks/useAppwriteSetup";
+import { useRemoteListSync } from "@/hooks/useRemoteListSync";
 import dynamic from "next/dynamic";
 
 const ToolFallback = () => (
@@ -80,6 +84,33 @@ const ToolFallback = () => (
     工具載入中…
   </div>
 );
+
+function ToolsAppwriteSetupRequired({ onNavigate }: { onNavigate: () => void }) {
+  return (
+    <DataCard className="overflow-hidden border-sky-200 bg-sky-50/70 p-0">
+      <div className="flex flex-col gap-5 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
+            <Wrench size={22} />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700/80">
+              Setup Required
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-foreground">尚未設定 Appwrite</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              此工具的個人化資料（比價紀錄、Tube 頻道、金融自選標的）以 Appwrite 雲端為主，需要先完成
+              endpoint、project、database 與 API key 設定才能使用。
+            </p>
+          </div>
+        </div>
+        <Button onClick={onNavigate} className="shrink-0 gap-2 bg-sky-600 hover:bg-sky-700">
+          前往鋒兄設定
+        </Button>
+      </div>
+    </DataCard>
+  );
+}
 
 // Tool tabs are independent browser workloads. Keep each one in its own
 // chunk so opening one utility does not download the other converters and
@@ -397,6 +428,19 @@ const LANDTOP_QUERY_KEY = "fengbro.tools.landtop.query";
 const LANDTOP_APPLE_QUERY_KEY = "fengbro.tools.landtop.appleQuery";
 const LANDTOP_SAMSUNG_QUERY_KEY = "fengbro.tools.landtop.samsungQuery";
 const TUBE_CHANNELS_KEY = "fengbro.tools.tube.channels";
+
+/** /api/tubechannel 文件 → 頻道設定。 */
+function tubeChannelFromRow(row: unknown): FengbroTubeChannelConfig | null {
+  if (!row || typeof row !== "object") return null;
+  const rec = row as { alias?: unknown; sourceUrl?: unknown };
+  return toFengbroTubeChannelConfig(
+    typeof rec.sourceUrl === "string" ? { alias: rec.alias, sourceUrl: rec.sourceUrl } : ""
+  );
+}
+
+function tubeChannelSignature(channel: FengbroTubeChannelConfig): string {
+  return JSON.stringify({ alias: channel.alias || "", sourceUrl: channel.sourceUrl });
+}
 const FINANCE_CUSTOM_INSTRUMENTS_KEY = "fengbro.tools.finance.customInstruments";
 const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrumentIds";
 /** User-selected 精選焦點 quote ids (default ids and custom-*). */
@@ -3848,6 +3892,10 @@ export default function ToolsManagement({
 }) {
   const [activeTab, setActiveTab] = useState<ToolsTab>(initialTab);
 
+  // 鋒兄比價／Tube／金融的個人化清單已改存 Appwrite；未設定時引導前往設定。
+  const appwriteSetup = useAppwriteSetup();
+  const cloudRequired = ["price-compare", "fengbro-tube", "fengbro-finance"].includes(activeTab);
+
   const selectTab = (tab: ToolsTab) => {
     setActiveTab(tab);
     onNavigate?.(tab);
@@ -3873,7 +3921,18 @@ export default function ToolsManagement({
   const [tubeResult, setTubeResult] = useState<FengbroTubeResult | null>(null);
   const [tubeLoadedOnce, setTubeLoadedOnce] = useState(false);
   const [tubeChannelManagerOpen, setTubeChannelManagerOpen] = useState(false);
-  const [tubeChannelConfigs, setTubeChannelConfigs] = useState<FengbroTubeChannelConfig[]>(getSavedTubeChannels);
+  const tubeSync = useRemoteListSync<FengbroTubeChannelConfig>({
+    endpoint: API_ENDPOINTS.TUBE_CHANNEL,
+    enabled: appwriteSetup.hasDatabaseConfig && activeTab === "fengbro-tube",
+    loadLocal: getSavedTubeChannels,
+    toLocal: tubeChannelFromRow,
+    remoteDocId: (row) =>
+      row && typeof row === "object" ? ((row as { $id?: unknown }).$id as string | undefined) : undefined,
+    toBody: (channel) => ({ alias: channel.alias || "", sourceUrl: channel.sourceUrl }),
+    localId: (channel) => channel.sourceUrl,
+    signature: tubeChannelSignature,
+  });
+  const { items: tubeChannelConfigs, setItems: setTubeChannelConfigs, syncState: tubeSyncState } = tubeSync;
   const [tubeChannelAliasDraft, setTubeChannelAliasDraft] = useState("");
   const [tubeChannelUrlDraft, setTubeChannelUrlDraft] = useState("");
   const [editingTubeChannelUrl, setEditingTubeChannelUrl] = useState<string | null>(null);
@@ -4772,7 +4831,29 @@ export default function ToolsManagement({
         ) : null}
       </DataCard>
 
-      {activeTab === "price-compare" ? (
+      {cloudRequired && !appwriteSetup.hasDatabaseConfig ? (
+        <ToolsAppwriteSetupRequired onNavigate={() => onNavigate?.("settings")} />
+      ) : activeTab === "fengbro-tube" && tubeSyncState !== "idle" ? (
+        <div className="flex items-center justify-end">
+          <span
+            className={
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium " +
+              (tubeSyncState === "syncing"
+                ? "bg-red-50 text-red-700"
+                : "bg-rose-100 text-rose-700")
+            }
+          >
+            <span
+              className={
+                "h-1.5 w-1.5 rounded-full " +
+                (tubeSyncState === "syncing" ? "animate-pulse bg-red-500" : "bg-rose-500")
+              }
+            />
+            {tubeSyncState === "syncing" ? "頻道同步中…" : "頻道同步失敗（保留本機變更）"}
+          </span>
+        </div>
+      ) : null}
+      {cloudRequired && !appwriteSetup.hasDatabaseConfig ? null : activeTab === "price-compare" ? (
         <>
           <DataCard className="space-y-4 p-6">
             <div className="flex items-center gap-3">

@@ -201,6 +201,56 @@ export interface QuotaFormData {
   note?: string;
 }
 
+// 鋒兄Tube：一筆代表「一個追蹤的 YouTube / Bilibili 頻道」
+export interface FengbroTubeChannel {
+  $id: string;
+  alias: string;
+  sourceUrl: string;
+  $createdAt?: string;
+  $updatedAt?: string;
+}
+
+export interface FengbroTubeChannelFormData {
+  alias: string;
+  sourceUrl: string;
+}
+
+// 鋒兄金融：一筆代表「一個自訂追蹤標的（provider + symbol 唯一）」
+export type FinanceCustomProvider = "cnbc" | "yahoo";
+export type FinanceCustomGroup = "korea" | "japan" | "taiwan" | "us" | "other";
+
+export interface FinanceRelatedLink {
+  label: string;
+  url: string;
+}
+
+export interface FinanceInstrument {
+  $id: string;
+  name: string;
+  symbol: string;
+  provider: FinanceCustomProvider;
+  group: FinanceCustomGroup;
+  imageUrls?: string[];
+  youtubeUrl?: string;
+  bilibiliUrl?: string;
+  relatedLinks?: FinanceRelatedLink[];
+  featured?: boolean;
+  $createdAt?: string;
+  $updatedAt?: string;
+}
+
+export interface FinanceInstrumentFormData {
+  name: string;
+  symbol: string;
+  provider: FinanceCustomProvider;
+  group: FinanceCustomGroup;
+  imageUrls?: string[];
+  youtubeUrl?: string;
+  bilibiliUrl?: string;
+  relatedLinks?: FinanceRelatedLink[];
+  featured?: boolean;
+}
+
 // 圖片相關類型
 export interface ImageFile {
   name: string;
