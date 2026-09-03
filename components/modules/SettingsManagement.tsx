@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic, Activity, AlertTriangle, Info, Lock, Unlock, Download, Upload } from "lucide-react";
+import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react";
+import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic, Activity, AlertTriangle, Info, Download, Upload } from "lucide-react";
 import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
@@ -23,7 +23,6 @@ import {
   buildResendSettingsCsv,
   parseResendSettingsCsv,
   mergeResendSlots,
-  type ResendSettingsCsvHeader,
 } from "@/lib/notifications/resendSettingsCsv";
 import {
   runNotificationSelfCheck,
@@ -99,15 +98,8 @@ export default function SettingsManagement() {
   const [resendConfig, setResendConfig] = useState<Record<string, string>>(createEmptyResendConfig);
   const [resendVisibleSlotCount, setResendVisibleSlotCount] = useState(RESEND_DEFAULT_VISIBLE_SLOT_COUNT);
   const [resendTestLoading, setResendTestLoading] = useState(false);
-  // 通知設定雲端化（Appwrite notificationsettings 單一文件）
-  const [resendCloudLoading, setResendCloudLoading] = useState(false);
-  const [resendCloudReady, setResendCloudReady] = useState(false);
-  const [resendHasPassword, setResendHasPassword] = useState(false);
-  const [resendUnlocked, setResendUnlocked] = useState(false);
-  const [resendPassword, setResendPassword] = useState("");
-  const [resendNewPassword, setResendNewPassword] = useState("");
-  const [resendSaving, setResendSaving] = useState(false);
-  const [resendCloudError, setResendCloudError] = useState<string | null>(null);
+  const resendCsvInputRef = useRef<HTMLInputElement>(null);
+  const [resendImportPreview, setResendImportPreview] = useState<NotificationSettingSlot[] | null>(null);
   const [selfCheckLoading, setSelfCheckLoading] = useState(false);
   const [selfCheckReport, setSelfCheckReport] = useState<SelfCheckReport | null>(null);
   const [bulkMode, setBulkMode] = useState(false);
@@ -457,6 +449,86 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
     }).catch(() => {
       alert('複製失敗，請手動複製以下內容：\n\n' + envTemplate);
     });
+  };
+
+  // 將目前表單的 21 組 RESEND_API_KEY / 通知收件 Email 匯出成 CSV
+  const resendSlotsFromForm = (): NotificationSettingSlot[] => {
+    const slots: NotificationSettingSlot[] = [];
+    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
+      const fields = getResendSlotFields(slot);
+      const apiKey = (resendConfig[fields.apiKey] || '').trim();
+      const toEmail = (resendConfig[fields.toEmail] || '').trim();
+      if (apiKey && toEmail) slots.push({ apiKey, toEmail });
+    }
+    return slots;
+  };
+
+  const handleExportResendCsv = () => {
+    if (typeof window === 'undefined') return;
+    const slots = resendSlotsFromForm();
+    if (slots.length === 0) {
+      alert('目前沒有已設定的 RESEND_API_KEY / 通知收件 Email 可匯出。');
+      return;
+    }
+    try {
+      const csv = buildResendSettingsCsv(slots);
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("resend-settings");
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      alert(`❌ 匯出 CSV 失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+  };
+
+  const handleResendCsvFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      alert("請選擇 CSV 檔案");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      const parsed = parseResendSettingsCsv(text);
+      if (parsed.errors.length > 0) {
+        alert(`⚠️ CSV 格式錯誤，無法匯入：\n\n${parsed.errors.join('\n')}`);
+        return;
+      }
+      if (parsed.slots.length === 0) {
+        alert('⚠️ CSV 中沒有可匯入的資料列。');
+        return;
+      }
+      setResendImportPreview(parsed.slots);
+    };
+    reader.onerror = () => alert("讀取 CSV 檔案失敗");
+    reader.readAsText(file, "UTF-8");
+  };
+
+  const handleConfirmResendImport = () => {
+    if (!resendImportPreview || resendImportPreview.length === 0) return;
+    const current = resendSlotsFromForm();
+    const merged = mergeResendSlots(resendImportPreview, current);
+    const nextConfig = { ...resendConfig };
+    // 清掉表單裡舊的 slot 值，再由合併結果回填
+    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
+      const fields = getResendSlotFields(slot);
+      nextConfig[fields.apiKey] = '';
+      nextConfig[fields.toEmail] = '';
+    }
+    merged.slots.forEach((slotItem, index) => {
+      if (index >= RESEND_SLOT_COUNT) return;
+      const fields = getResendSlotFields(index + 1);
+      nextConfig[fields.apiKey] = slotItem.apiKey;
+      nextConfig[fields.toEmail] = slotItem.toEmail;
+    });
+    setResendConfig(nextConfig);
+    setResendImportPreview(null);
+    alert(`✅ 已匯入 ${merged.slots.length} 組（新增 ${merged.added}、更新 ${merged.updated}、略過 ${merged.skipped}）。請按「儲存 Resend 設定」寫入。`);
   };
 
   const fetchStats = () => {
@@ -1498,6 +1570,26 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                 )}
               </Button>
             </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                ref={resendCsvInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleResendCsvFileSelect}
+              />
+              <Button onClick={handleExportResendCsv} variant="outline" className="flex-1">
+                <Download size={16} /> 匯出 CSV
+              </Button>
+              <Button
+                onClick={() => resendCsvInputRef.current?.click()}
+                variant="outline"
+                className="flex-1"
+                title="從 CSV 匯入 RESEND_API_KEY / 通知收件 Email（相同 Email 更新，其餘新增）"
+              >
+                <Upload size={16} /> 匯入 CSV
+              </Button>
+            </div>
             <div className="p-3 bg-rose-50 dark:bg-rose-950 rounded-lg border border-rose-200 dark:border-rose-800">
               <p className="text-xs text-rose-700 dark:text-rose-300">
                 {`Vercel Cron 每天 05:16（台灣時間）檢查一次；部署環境至少需設定一組 RESEND_API_KEY / RESEND_TO_EMAIL，最多共 ${RESEND_SLOT_COUNT} 組，可設定到 RESEND_API_KEY${RESEND_SLOT_COUNT} / RESEND_TO_EMAIL${RESEND_SLOT_COUNT}。`}
@@ -1775,6 +1867,56 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                   {progress.isError ? '關閉' : '完成'}
                 </Button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resend CSV 匯入預覽 */}
+      {resendImportPreview && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4" onClick={() => setResendImportPreview(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="resend-csv-import-title"
+            className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 id="resend-csv-import-title" className="font-bold text-lg flex items-center gap-2">
+                <Upload size={18} className="text-rose-500" />
+                CSV 匯入預覽
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => setResendImportPreview(null)}>
+                <X size={18} />
+              </Button>
+            </div>
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                將以「收件 Email」配對：相同 Email 更新 API Key，新 Email 依序填入後方空格。合併結果如下（共 {resendImportPreview.length} 組）：
+              </p>
+              <div className="space-y-2">
+                {resendImportPreview.map((slot, index) => (
+                  <div key={`${slot.toEmail}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-xs text-gray-500 dark:text-gray-400">{slot.apiKey}</p>
+                      <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-100">{slot.toEmail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 border-t border-gray-200 dark:border-gray-700 p-4 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setResendImportPreview(null)}>
+                取消
+              </Button>
+              <Button
+                onClick={handleConfirmResendImport}
+                disabled={resendImportPreview.length === 0}
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                確認匯入（{resendImportPreview.length} 組）
+              </Button>
             </div>
           </div>
         </div>
