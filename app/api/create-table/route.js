@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearCollectionCache } from "../_lib/appwriteClient";
-import { initializeManagementTable } from "../_lib/managementTables";
+import { deleteManagementTable, initializeManagementTable } from "../_lib/managementTables";
 import { MANAGEMENT_TABLE_SCHEMAS } from "../../../lib/managementRecords";
 
 const sdk = require('node-appwrite');
@@ -254,19 +254,9 @@ export async function GET(request) {
           const rebuild = searchParams.get("rebuild") === "1";
           const deleteOnly = searchParams.get("deleteonly") === "1";
           if (rebuild || deleteOnly) {
-            const rebuildClient = new sdk.Client()
-              .setEndpoint(endpoint)
-              .setProject(projectId)
-              .setKey(apiKey);
-            const rebuildDatabases = new sdk.Databases(rebuildClient);
-            const allCollections = await rebuildDatabases.listCollections(databaseId);
-            const existing = allCollections.collections.filter((col) => col.name === tableName);
-            for (const col of existing) {
-              await rebuildDatabases.deleteCollection(databaseId, col.$id);
-              clearCollectionCache(databaseId);
-              send({ type: "progress", step: "cleanup", message: `已刪除舊 Table ${col.$id}` });
-            }
-            if (existing.length > 0) {
+            const removed = await deleteManagementTable({ endpoint, projectId, databaseId, apiKey }, tableName);
+            if (removed > 0) {
+              send({ type: "progress", step: "cleanup", message: `已刪除舊 Table ${tableName}` });
               await new Promise((resolve) => setTimeout(resolve, 500));
             }
           }
@@ -441,18 +431,8 @@ export async function POST(request) {
 
     if (Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, tableName)) {
       if (rebuild === true || rebuild === "1" || deleteOnly === true || deleteOnly === "1") {
-        const rebuildClient = new sdk.Client()
-          .setEndpoint(endpoint)
-          .setProject(projectId)
-          .setKey(apiKey);
-        const rebuildDatabases = new sdk.Databases(rebuildClient);
-        const allCollections = await rebuildDatabases.listCollections(databaseId);
-        const existing = allCollections.collections.filter((col) => col.name === tableName);
-        for (const col of existing) {
-          await rebuildDatabases.deleteCollection(databaseId, col.$id);
-          clearCollectionCache(databaseId);
-        }
-        if (existing.length > 0) {
+        const removed = await deleteManagementTable({ endpoint, projectId, databaseId, apiKey }, tableName);
+        if (removed > 0) {
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }

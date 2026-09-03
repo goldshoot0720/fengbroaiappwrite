@@ -94,6 +94,19 @@ export function managementRoutes(tableName, buildPayload) {
   };
 }
 
+// Delete every collection with the exact management table name. Returns the
+// number deleted. Reuses the same client construction as initializeManagementTable
+// so config resolution behaves identically.
+export async function deleteManagementTable(config, tableName) {
+  const databases = new Databases(new Client().setEndpoint(config.endpoint).setProject(config.projectId).setKey(config.apiKey));
+  const databaseId = config.databaseId;
+  const collection = await findManagementTable(databases, databaseId, tableName);
+  if (!collection) return 0;
+  await databases.deleteCollection({ databaseId, collectionId: collection.$id });
+  clearCollectionCache(databaseId);
+  return 1;
+}
+
 // Additive setup for the new tables. Retrying a partial setup never deletes records.
 export async function initializeManagementTable(config, tableName, send = () => {}) {
   const schema = MANAGEMENT_TABLE_SCHEMAS[tableName];
