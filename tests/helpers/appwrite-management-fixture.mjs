@@ -28,6 +28,11 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
     addCollection("trialpurchase");
     addCollection("reinstall");
     addCollection("quota");
+    addCollection("shoppinglist");
+    addDocument("shoppinglist", {
+      name: "示範購物：米 10kg", plannedDate: "2026-09-30T00:00:00.000Z", price: 499, currency: "TWD",
+      quantity: 1, shop: "家樂福（示範）", pickupMethod: "取貨付款", account: "buyer@example.test", note: "隔離測試資料。",
+    }, "shopping-rice");
     for (let index = 1; index <= accountCount; index += 1) {
       const number = String(index).padStart(2, "0");
       addDocument("trialpurchase", {

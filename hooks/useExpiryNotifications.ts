@@ -4,7 +4,10 @@ import { useEffect, useRef } from "react";
 import {
   dashboardOsFoodExpiredMessage,
   dashboardOsFoodExpiringMessage,
+  dashboardOsQuotaMessage,
+  dashboardOsShoppingMessage,
   dashboardOsSubscriptionMessage,
+  dashboardOsTrialPurchaseMessage,
   financeBreakthroughMessage,
 } from "@/lib/notifications/messages";
 import { NOTIFICATION_POLICY } from "@/lib/notifications/policy";
@@ -19,10 +22,33 @@ export type FinanceAlertForNotification = {
   currency?: string;
 };
 
+/** 額度到期通知列（含 kind/label 供訊息選用） */
+type QuotaExpiryNotifItem = {
+  id: string;
+  name: string;
+  daysRemaining: number;
+  kind: string;
+  label: string;
+};
+
+/** 購物清單到期通知列 */
+type ShoppingNotifItem = {
+  id: string;
+  name: string;
+  daysRemaining: number;
+  plannedDate: string;
+};
+
 type ExpiryNotificationStats = {
   subscriptionsExpiring3DaysList: SubscriptionDetail[];
   foodsExpiring7DaysList: FoodDetail[];
   expiredFoodsList: FoodDetail[];
+  /** 試用／首購：3 天內 */
+  trialPurchasesExpiring3DaysList: Array<{ id: string; name: string; daysRemaining: number }>;
+  /** 額度非 AI：quotaExpiry 3 天內；AI：一週／一月前一天＋當天（已在 stats 過濾好） */
+  quotaExpiringSoonList: QuotaExpiryNotifItem[];
+  /** 購物清單：3 天內 */
+  shoppingItemsExpiring3DaysList: ShoppingNotifItem[];
 };
 
 type UseExpiryNotificationsOptions = {
@@ -106,6 +132,51 @@ export async function sendExpiryOsNotifications(params: {
         body: msg.body,
         icon: NOTIFICATION_POLICY.icon,
         tag: `expired-${item.id}`,
+      });
+      updated[key] = "shown";
+      hasNew = true;
+    }
+  }
+
+  // 試用／首購：3 天內（含當天）每天一次
+  for (const item of params.stats.trialPurchasesExpiring3DaysList || []) {
+    const key = `trial-${item.id}-${today}`;
+    if (notified[key] !== "shown") {
+      const msg = dashboardOsTrialPurchaseMessage(item);
+      await showAppNotification(msg.title, {
+        body: msg.body,
+        icon: NOTIFICATION_POLICY.icon,
+        tag: `trial-${item.id}`,
+      });
+      updated[key] = "shown";
+      hasNew = true;
+    }
+  }
+
+  // 額度：非 AI 3 天內；AI 前一天＋當天（list 已依規則過濾），每天一次
+  for (const item of params.stats.quotaExpiringSoonList || []) {
+    const key = `quota-${item.id}-${item.kind}-${today}`;
+    if (notified[key] !== "shown") {
+      const msg = dashboardOsQuotaMessage(item);
+      await showAppNotification(msg.title, {
+        body: msg.body,
+        icon: NOTIFICATION_POLICY.icon,
+        tag: `quota-${item.id}-${item.kind}`,
+      });
+      updated[key] = "shown";
+      hasNew = true;
+    }
+  }
+
+  // 購物清單：3 天內（含當天）每天一次
+  for (const item of params.stats.shoppingItemsExpiring3DaysList || []) {
+    const key = `shopping-${item.id}-${item.plannedDate}-${today}`;
+    if (notified[key] !== "shown") {
+      const msg = dashboardOsShoppingMessage(item);
+      await showAppNotification(msg.title, {
+        body: msg.body,
+        icon: NOTIFICATION_POLICY.icon,
+        tag: `shopping-${item.id}`,
       });
       updated[key] = "shown";
       hasNew = true;

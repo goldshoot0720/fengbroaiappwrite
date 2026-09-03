@@ -10,6 +10,8 @@ import type {
   ReinstallSubscriptionCurrency,
   ReinstallSubscriptionPeriodUnit,
   ReinstallSystem,
+  ShoppingItem,
+  ShoppingItemFormData,
   TrialPurchase,
   TrialPurchaseFormData,
   TrialStatus,
@@ -71,8 +73,25 @@ export const QUOTA_SERVICE_TYPE_OPTIONS: ReadonlyArray<{ value: QuotaServiceType
   { value: "ai", label: "AI 服務" },
 ];
 
+export const SHOPPING_PICKUP_METHOD_PRESETS: ReadonlyArray<string> = [
+  "取貨付款",
+  "宅配",
+  "超商取貨",
+  "面交",
+  "門市自取",
+  "郵寄",
+];
+
+export const SHOPPING_CURRENCY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "TWD", label: "台幣" },
+  { value: "USD", label: "美元" },
+  { value: "JPY", label: "日圓" },
+  { value: "CNY", label: "人民幣" },
+];
+
 const trialStatuses = new Set(TRIAL_STATUS_OPTIONS.map((option) => option.value));
 const purchaseStatuses = new Set(PURCHASE_STATUS_OPTIONS.map((option) => option.value));
+const shoppingCurrencies = new Set(SHOPPING_CURRENCY_OPTIONS.map((option) => option.value));
 const reinstallSystems = new Set(REINSTALL_SYSTEM_OPTIONS.map((option) => option.value));
 const reinstallSoftwareTypes = new Set(REINSTALL_SOFTWARE_TYPE_OPTIONS.map((option) => option.value));
 const reinstallLicenseTypes = new Set(REINSTALL_LICENSE_TYPE_OPTIONS.map((option) => option.value));
@@ -126,6 +145,20 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "expiryWeek", type: "string", size: 10, required: false },
       { key: "ratioMonth", type: "integer", required: false },
       { key: "expiryMonth", type: "string", size: 10, required: false },
+      { key: "note", type: "string", size: 3337, required: false },
+    ],
+  },
+  shoppinglist: {
+    name: "shoppinglist",
+    attributes: [
+      { key: "name", type: "string", size: 100, required: true },
+      { key: "plannedDate", type: "datetime", required: false },
+      { key: "price", type: "integer", required: false },
+      { key: "currency", type: "string", size: 10, required: false },
+      { key: "quantity", type: "integer", required: false },
+      { key: "shop", type: "string", size: 100, required: false },
+      { key: "pickupMethod", type: "string", size: 30, required: false },
+      { key: "account", type: "string", size: 200, required: false },
       { key: "note", type: "string", size: 3337, required: false },
     ],
   },
@@ -467,5 +500,62 @@ export function buildQuotaWritePayload(
     payload.ratioMonth = 0;
     payload.expiryMonth = "";
   }
+  return payload;
+}
+
+// 鋒兄購物清單：一筆代表「一個要買的商品 × 一次預定購買」
+export function emptyShoppingItemForm(name = ""): ShoppingItemFormData {
+  return {
+    name,
+    plannedDate: "",
+    price: 0,
+    currency: "TWD",
+    quantity: 1,
+    shop: "",
+    pickupMethod: "",
+    account: "",
+    note: "",
+  };
+}
+
+export function toShoppingItemForm(source: ShoppingItem): ShoppingItemFormData {
+  return {
+    name: source.name || "",
+    plannedDate: source.plannedDate ? source.plannedDate.slice(0, 10) : "",
+    price: source.price == null ? 0 : Number(source.price),
+    currency: asChoice(source.currency, shoppingCurrencies, "TWD"),
+    quantity: source.quantity == null ? 1 : Number(source.quantity),
+    shop: source.shop || "",
+    pickupMethod: source.pickupMethod || "",
+    account: source.account || "",
+    note: source.note || "",
+  };
+}
+
+export function buildShoppingItemWritePayload(
+  body: Record<string, unknown>,
+  mode: "create" | "update",
+): Record<string, unknown> {
+  validateBody(body);
+  const name = asText(body.name, "購物名稱", 100);
+  if (!name) throw new Error("請填寫購物名稱");
+
+  const plannedDate = asOptionalDate(body.plannedDate);
+  const quantity = asNonNegativeInteger(body.quantity, "預定數量");
+  if (quantity < 1) throw new Error("預定數量必須是 1 以上的整數");
+
+  const payload: Record<string, unknown> = {
+    name,
+    price: asNonNegativeInteger(body.price, "預定價格"),
+    currency: asChoice(body.currency, shoppingCurrencies, "TWD", "幣別"),
+    quantity,
+    shop: asText(body.shop, "預定商店", 100),
+    pickupMethod: asText(body.pickupMethod, "預定取貨方式", 100),
+    account: asText(body.account, "帳號", 200),
+    note: asText(body.note, "備註", 3337),
+  };
+
+  if (plannedDate) payload.plannedDate = plannedDate;
+  else if (mode === "update") payload.plannedDate = null;
   return payload;
 }

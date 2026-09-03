@@ -24,6 +24,35 @@ interface Subscription {
   currency?: string;
 }
 
+/** 試用／首購表（Appwrite trialpurchase） */
+interface TrialPurchaseDoc {
+  $id: string;
+  name: string;
+  eventDate?: string;
+  trialStatus?: string;
+  purchaseStatus?: string;
+}
+
+/** 額度表（Appwrite quota） */
+interface QuotaDoc {
+  $id: string;
+  name: string;
+  account?: string;
+  serviceType?: "general" | "ai";
+  quotaExpiry?: string;
+  expiryWeek?: string;
+  expiryMonth?: string;
+}
+
+/** 購物清單表（Appwrite shoppinglist） */
+interface ShoppingDoc {
+  $id: string;
+  name: string;
+  plannedDate?: string;
+  price?: number;
+  currency?: string;
+}
+
 interface FoodDetail {
   id: string;
   name: string;
@@ -40,9 +69,45 @@ interface SubscriptionDetail {
   price: number;
 }
 
+/** 試用／首購到期細節（以 eventDate 為準） */
+interface TrialPurchaseDetail {
+  id: string;
+  name: string;
+  daysRemaining: number;
+  eventDate: string;
+  trialStatus: string;
+  purchaseStatus: string;
+}
+
+/** 額度到期細節：general 看 quotaExpiry；ai 額外列出一週／一月到期 */
+interface QuotaExpiryDetail {
+  id: string;
+  name: string;
+  account: string;
+  serviceType: "general" | "ai";
+  daysRemaining: number | null;
+  expiryDate: string;
+  kind: "quotaExpiry" | "expiryWeek" | "expiryMonth";
+  /** 供通知訊息選用（ex: 「一週到期」） */
+  label: string;
+}
+
+/** 購物清單到期細節（以 plannedDate 為準） */
+interface ShoppingItemDetail {
+  id: string;
+  name: string;
+  daysRemaining: number;
+  plannedDate: string;
+  price?: number;
+  currency?: string;
+}
+
 interface DashboardStats {
   totalFoods: number;
   totalSubscriptions: number;
+  totalTrialPurchases: number;
+  totalQuotaAccounts: number;
+  totalShoppingItems: number;
   totalArticles: number;
   totalCommonAccounts: number;
   totalBanks: number;
@@ -52,6 +117,10 @@ interface DashboardStats {
   foodsExpiring30Days: number;
   subscriptionsExpiring3Days: number;
   subscriptionsExpiring7Days: number;
+  trialPurchasesExpiring3Days: number;
+  quotaAccountsExpiring3Days: number;
+  quotaAiExpiringTodayOrTomorrow: number;
+  shoppingItemsExpiring3Days: number;
   totalMonthlyFee: number;
   totalAnnualFee: number;
   expiredFoods: number;
@@ -62,6 +131,10 @@ interface DashboardStats {
   subscriptionsExpiring3DaysList: SubscriptionDetail[];
   subscriptionsExpiring7DaysList: SubscriptionDetail[];
   overdueSubscriptionsList: SubscriptionDetail[];
+  trialPurchasesExpiring3DaysList: TrialPurchaseDetail[];
+  quotaAccountsExpiring3DaysList: QuotaExpiryDetail[];
+  quotaAiExpiringSoonList: QuotaExpiryDetail[];
+  shoppingItemsExpiring3DaysList: ShoppingItemDetail[];
 }
 
 const DASHBOARD_STATS_TTL_MS = 60_000;
@@ -69,6 +142,9 @@ const DASHBOARD_STATS_TTL_MS = 60_000;
 const EMPTY_STATS: DashboardStats = {
   totalFoods: 0,
   totalSubscriptions: 0,
+  totalTrialPurchases: 0,
+  totalQuotaAccounts: 0,
+  totalShoppingItems: 0,
   totalArticles: 0,
   totalCommonAccounts: 0,
   totalBanks: 0,
@@ -78,6 +154,10 @@ const EMPTY_STATS: DashboardStats = {
   foodsExpiring30Days: 0,
   subscriptionsExpiring3Days: 0,
   subscriptionsExpiring7Days: 0,
+  trialPurchasesExpiring3Days: 0,
+  quotaAccountsExpiring3Days: 0,
+  quotaAiExpiringTodayOrTomorrow: 0,
+  shoppingItemsExpiring3Days: 0,
   totalMonthlyFee: 0,
   totalAnnualFee: 0,
   expiredFoods: 0,
@@ -88,6 +168,10 @@ const EMPTY_STATS: DashboardStats = {
   subscriptionsExpiring3DaysList: [],
   subscriptionsExpiring7DaysList: [],
   overdueSubscriptionsList: [],
+  trialPurchasesExpiring3DaysList: [],
+  quotaAccountsExpiring3DaysList: [],
+  quotaAiExpiringSoonList: [],
+  shoppingItemsExpiring3DaysList: [],
 };
 
 type TableLoadResult<T> = {
@@ -189,7 +273,9 @@ export function useDashboardStats(includeExtended = true) {
     }
 
     try {
-      // Single parallel fetch — no double round-trip "check then load".
+      // 三個管理模組表（試用/首購、額度、購物清單）以「可選」方式載入：
+      // 尚未在鋒兄設定建立 Table 時不阻斷首頁，相關計數維持 0。
+      // 精簡／完整模式都會載入，讓首頁待辦與到期提醒同步。精簡模式才略過文章／常用／銀行／例行等裝飾統計。
       const [
         foodsResult,
         subsResult,
@@ -197,6 +283,9 @@ export function useDashboardStats(includeExtended = true) {
         accountsResult,
         banksResult,
         routinesResult,
+        trialPurchasesResult,
+        quotaResult,
+        shoppingResult,
       ] = await Promise.all([
         loadTable<Food>("/api/food", controller.signal),
         loadTable<Subscription>("/api/subscription", controller.signal),
@@ -212,6 +301,9 @@ export function useDashboardStats(includeExtended = true) {
         includeExtended
           ? loadTable<unknown>("/api/routine", controller.signal)
           : Promise.resolve(emptyTableResult<unknown>()),
+        loadTable<TrialPurchaseDoc>("/api/trial-purchase", controller.signal),
+        loadTable<QuotaDoc>("/api/quota", controller.signal),
+        loadTable<ShoppingDoc>("/api/shopping-list", controller.signal),
       ]);
 
       if (controller.signal.aborted || requestId !== requestSequence.current) return;
@@ -237,6 +329,9 @@ export function useDashboardStats(includeExtended = true) {
       const commonAccounts = accountsResult.data;
       const banks = banksResult.data;
       const routines = routinesResult.data;
+      const trialPurchases = trialPurchasesResult.missingError ? [] : trialPurchasesResult.data;
+      const quotas = quotaResult.missingError ? [] : quotaResult.data;
+      const shoppingItems = shoppingResult.missingError ? [] : shoppingResult.data;
 
       const today = new Date();
       const dayMs = 24 * 60 * 60 * 1000;
@@ -301,6 +396,89 @@ export function useDashboardStats(includeExtended = true) {
         .map((sub) => toSubDetail(sub, today, true))
         .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
+      // 試用／首購：到期前 3 天內（含當天）進入提醒窗口
+      const trialPurchasesExpiring3DaysList = trialPurchases
+        .filter((doc) => {
+          if (!doc.eventDate) return false;
+          const eventDate = new Date(doc.eventDate);
+          if (Number.isNaN(eventDate.getTime())) return false;
+          return eventDate <= threeDaysFromNow && eventDate >= today;
+        })
+        .map((doc) => {
+          const eventDate = new Date(doc.eventDate!);
+          const daysRemaining = Math.ceil((eventDate.getTime() - today.getTime()) / dayMs);
+          return {
+            id: doc.$id,
+            name: doc.name,
+            daysRemaining,
+            eventDate: doc.eventDate!,
+            trialStatus: doc.trialStatus || "untried",
+            purchaseStatus: doc.purchaseStatus || "not_purchased",
+          } satisfies TrialPurchaseDetail;
+        })
+        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+      // 額度到期：非 AI 用 quotaExpiry（0~3 天）；AI 的一週／一月到期只列前一天與當天（0~1 天）
+      const quotaExpiryDetails: QuotaExpiryDetail[] = [];
+      for (const doc of quotas) {
+        const isAi = doc.serviceType === "ai";
+        const pushDate = (kind: "quotaExpiry" | "expiryWeek" | "expiryMonth", raw?: string, label?: string) => {
+          if (!raw) return;
+          const date = new Date(raw);
+          if (Number.isNaN(date.getTime())) return;
+          const daysRemaining = Math.ceil((date.getTime() - today.getTime()) / dayMs);
+          // 規則：非 AI quotaExpiry 0~3 天；AI 一週／一月只提醒前一天＋當天（0~1 天）
+          const inWindow = kind === "quotaExpiry"
+            ? !isAi && daysRemaining >= 0 && daysRemaining <= 3
+            : isAi && daysRemaining >= 0 && daysRemaining <= 1;
+          if (!inWindow) return;
+          quotaExpiryDetails.push({
+            id: doc.$id,
+            name: doc.name,
+            account: doc.account || "",
+            serviceType: isAi ? "ai" : "general",
+            daysRemaining,
+            expiryDate: raw,
+            kind,
+            label: label || (kind === "expiryWeek" ? "一週到期" : kind === "expiryMonth" ? "一月到期" : "額度到期"),
+          });
+        };
+        if (!isAi) pushDate("quotaExpiry", doc.quotaExpiry, "額度到期");
+        else {
+          pushDate("expiryWeek", doc.expiryWeek, "一週到期");
+          pushDate("expiryMonth", doc.expiryMonth, "一月到期");
+        }
+      }
+      quotaExpiryDetails.sort((a, b) => (a.daysRemaining ?? 0) - (b.daysRemaining ?? 0));
+      const quotaAccountsExpiring3DaysList = quotaExpiryDetails.filter(
+        (detail) => detail.kind === "quotaExpiry" && (detail.daysRemaining ?? 0) >= 0 && (detail.daysRemaining ?? 0) <= 3,
+      );
+      const quotaAiExpiringSoonList = quotaExpiryDetails.filter(
+        (detail) => detail.kind !== "quotaExpiry" && (detail.daysRemaining ?? 0) >= 0 && (detail.daysRemaining ?? 0) <= 1,
+      );
+
+      // 購物清單：預定購買日前 3 天內（含當天）進入提醒窗口
+      const shoppingItemsExpiring3DaysList = shoppingItems
+        .filter((doc) => {
+          if (!doc.plannedDate) return false;
+          const planned = new Date(doc.plannedDate);
+          if (Number.isNaN(planned.getTime())) return false;
+          return planned <= threeDaysFromNow && planned >= today;
+        })
+        .map((doc) => {
+          const planned = new Date(doc.plannedDate!);
+          const daysRemaining = Math.ceil((planned.getTime() - today.getTime()) / dayMs);
+          return {
+            id: doc.$id,
+            name: doc.name,
+            daysRemaining,
+            plannedDate: doc.plannedDate!,
+            price: doc.price,
+            currency: doc.currency,
+          } satisfies ShoppingItemDetail;
+        })
+        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+
       const totalMonthlyFee = subscriptions.reduce(
         (total, sub) => total + convertToTWD(sub.price, sub.currency),
         0
@@ -311,6 +489,9 @@ export function useDashboardStats(includeExtended = true) {
       const nextStats: DashboardStats = {
         totalFoods: foods.length,
         totalSubscriptions: subscriptions.length,
+        totalTrialPurchases: trialPurchases.length,
+        totalQuotaAccounts: quotas.length,
+        totalShoppingItems: shoppingItems.length,
         totalArticles: articles.length,
         totalCommonAccounts: commonAccounts.length,
         totalBanks: banks.length,
@@ -320,6 +501,10 @@ export function useDashboardStats(includeExtended = true) {
         foodsExpiring30Days: foodsExpiring30DaysList.length,
         subscriptionsExpiring3Days: subscriptionsExpiring3DaysList.length,
         subscriptionsExpiring7Days: subscriptionsExpiring7DaysList.length,
+        trialPurchasesExpiring3Days: trialPurchasesExpiring3DaysList.length,
+        quotaAccountsExpiring3Days: quotaAccountsExpiring3DaysList.length,
+        quotaAiExpiringTodayOrTomorrow: quotaAiExpiringSoonList.length,
+        shoppingItemsExpiring3Days: shoppingItemsExpiring3DaysList.length,
         totalMonthlyFee,
         totalAnnualFee,
         expiredFoods: expiredFoodsList.length,
@@ -330,6 +515,10 @@ export function useDashboardStats(includeExtended = true) {
         subscriptionsExpiring3DaysList,
         subscriptionsExpiring7DaysList,
         overdueSubscriptionsList,
+        trialPurchasesExpiring3DaysList,
+        quotaAccountsExpiring3DaysList,
+        quotaAiExpiringSoonList,
+        shoppingItemsExpiring3DaysList,
       };
       setStats(nextStats);
       writeSessionCache(dashboardStatsCacheName(includeExtended), nextStats);
@@ -358,6 +547,9 @@ export function useDashboardStats(includeExtended = true) {
   const refreshEnabled = appwriteSetupChecked && hasDatabaseConfig;
   useRefreshKeyListener("food_refresh_key", loadStats, refreshEnabled);
   useRefreshKeyListener("subscription_refresh_key", loadStats, refreshEnabled);
+  useRefreshKeyListener("trialpurchase_refresh_key", loadStats, refreshEnabled);
+  useRefreshKeyListener("quota_refresh_key", loadStats, refreshEnabled);
+  useRefreshKeyListener("shoppinglist_refresh_key", loadStats, refreshEnabled);
   useRefreshKeyListener("articles_refresh_key", loadStats, refreshEnabled && includeExtended);
   useRefreshKeyListener("commonaccount_refresh_key", loadStats, refreshEnabled && includeExtended);
   useRefreshKeyListener("bank_refresh_key", loadStats, refreshEnabled && includeExtended);

@@ -7,7 +7,7 @@ import { useMediaTraffic } from "@/lib/mediaTraffic";
 import { claimMediaTrafficHomepageAlert, formatMediaTrafficGiB, type MediaTrafficAlertPolicy } from "@/lib/mediaTrafficAlert";
 import { useNotificationPermission } from "@/hooks/useNotificationPermission";
 import { useExpiryNotifications, sendExpiryOsNotifications } from "@/hooks/useExpiryNotifications";
-import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Server, FileVideo, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X, BadgePercent, Laptop, Gauge } from "lucide-react";
+import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Server, FileVideo, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X, BadgePercent, Laptop, Gauge, ShoppingCart } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
@@ -67,6 +67,30 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
   const [trafficAlert, setTrafficAlert] = useState<MediaTrafficAlertPolicy | null>(null);
   const lastTrafficAlertTotal = useRef<number | null>(null);
 
+  const notifStats = {
+    subscriptionsExpiring3DaysList: stats.subscriptionsExpiring3DaysList,
+    foodsExpiring7DaysList: stats.foodsExpiring7DaysList,
+    expiredFoodsList: stats.expiredFoodsList,
+    trialPurchasesExpiring3DaysList: stats.trialPurchasesExpiring3DaysList,
+    quotaExpiringSoonList: [
+      ...stats.quotaAccountsExpiring3DaysList.map((detail) => ({
+        id: detail.id,
+        name: detail.name,
+        daysRemaining: detail.daysRemaining ?? 0,
+        kind: "quotaExpiry" as const,
+        label: detail.label,
+      })),
+      ...stats.quotaAiExpiringSoonList.map((detail) => ({
+        id: detail.id,
+        name: detail.name,
+        daysRemaining: detail.daysRemaining ?? 0,
+        kind: detail.kind,
+        label: detail.label,
+      })),
+    ],
+    shoppingItemsExpiring3DaysList: stats.shoppingItemsExpiring3DaysList,
+  };
+
   useEffect(() => {
     if (activeView !== "summary") {
       setTrafficAlert(null);
@@ -78,10 +102,10 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
   }, [activeView, traffic.total]);
 
   useExpiryNotifications({
-    stats,
+    stats: notifStats,
     financeAlerts,
     enabled: showFullPane && !loading && !dashboardError,
-    depsKey: `${stats.subscriptionsExpiring3DaysList.length}-${stats.foodsExpiring7DaysList.length}-${stats.expiredFoodsList.length}-${financeAlerts.length}`,
+    depsKey: `${stats.subscriptionsExpiring3DaysList.length}-${stats.foodsExpiring7DaysList.length}-${stats.expiredFoodsList.length}-${stats.trialPurchasesExpiring3DaysList.length}-${stats.quotaAccountsExpiring3DaysList.length}-${stats.quotaAiExpiringSoonList.length}-${stats.shoppingItemsExpiring3DaysList.length}-${financeAlerts.length}`,
   });
 
   useEffect(() => {
@@ -156,7 +180,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
   const handleRequestPermission = async () => {
     const permission = await requestPermission();
     if (permission === "granted") {
-      await sendExpiryOsNotifications({ stats, financeAlerts });
+      await sendExpiryOsNotifications({ stats: notifStats, financeAlerts });
     }
   };
 
@@ -308,7 +332,15 @@ function DashboardFullView(props: {
 
   if (loading || mediaLoading) return <FullPageLoading text="載入統計數據中..." />;
 
-  const needsAttention = stats.foodsExpiring7Days > 0 || stats.subscriptionsExpiring3Days > 0 || stats.expiredFoods > 0 || stats.overdueSubscriptions > 0;
+  const needsAttention =
+    stats.foodsExpiring7Days > 0 ||
+    stats.subscriptionsExpiring3Days > 0 ||
+    stats.expiredFoods > 0 ||
+    stats.overdueSubscriptions > 0 ||
+    stats.trialPurchasesExpiring3Days > 0 ||
+    stats.quotaAccountsExpiring3Days > 0 ||
+    stats.quotaAiExpiringTodayOrTomorrow > 0 ||
+    stats.shoppingItemsExpiring3Days > 0;
 
   return (
     <div className="space-y-4 lg:space-y-6">
@@ -373,6 +405,9 @@ function DashboardFullView(props: {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         <FoodStatsCard stats={stats} onNavigate={onNavigate} />
         <SubscriptionStatsCard stats={stats} onNavigate={onNavigate} />
+        <TrialPurchaseStatsCard stats={stats} onNavigate={onNavigate} />
+        <QuotaStatsCard stats={stats} onNavigate={onNavigate} />
+        <ShoppingListStatsCard stats={stats} onNavigate={onNavigate} />
       </div>
 
       {/* 多媒體儲存統計 */}
@@ -429,7 +464,7 @@ function DashboardFullView(props: {
         <StatCard title="訂閱服務" value={stats.totalSubscriptions} icon={CreditCard} />
         <StatCard title="年費總計" value={formatCurrency(stats.totalAnnualFee)} icon={DollarSign} />
         <StatCard title="食品項目" value={stats.totalFoods} icon={Package} />
-        <StatCard title="需要關注" value={stats.foodsExpiring7Days + stats.subscriptionsExpiring3Days} icon={AlertTriangle} gradient="from-[var(--warning)] to-[var(--chart-5)]" />
+        <StatCard title="需要關注" value={stats.foodsExpiring7Days + stats.subscriptionsExpiring3Days + stats.trialPurchasesExpiring3Days + stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow + stats.shoppingItemsExpiring3Days} icon={AlertTriangle} gradient="from-[var(--warning)] to-[var(--chart-5)]" />
       </div>
 
       {/* 其他統計 */}
@@ -472,6 +507,9 @@ function HomeTaskBoard({
     { label: "7 天內食品", value: stats.foodsExpiring7Days, moduleId: "food" },
     { label: "逾期訂閱", value: stats.overdueSubscriptions, moduleId: "subscription" },
     { label: "3 天內扣款", value: stats.subscriptionsExpiring3Days, moduleId: "subscription" },
+    { label: "試用/首購 3 天內", value: stats.trialPurchasesExpiring3Days, moduleId: "trial-purchase" },
+    { label: "額度接近到期", value: stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow, moduleId: "quota" },
+    { label: "3 天內要買", value: stats.shoppingItemsExpiring3Days, moduleId: "shopping-list" },
   ];
   const totalAttention = attentionItems.reduce((total, item) => total + item.value, 0);
   const quickActions = [
@@ -480,6 +518,7 @@ function HomeTaskBoard({
     { label: "鋒兄重灌", description: "Win／Mac 軟體、序號、訂閱與 CSV", moduleId: "reinstall", icon: <Laptop size={18} /> },
     { label: "鋒兄額度", description: "剩餘額度、比例與到期日", moduleId: "quota", icon: <Gauge size={18} /> },
     { label: "鋒兄食品", description: "查看庫存與保存期限", moduleId: "food", icon: <Package size={18} /> },
+    { label: "鋒兄購物清單", description: "想買清單與預定購買日", moduleId: "shopping-list", icon: <ShoppingCart size={18} /> },
     { label: "鋒兄例行", description: "記錄最近執行日期", moduleId: "routine", icon: <CalendarClock size={18} /> },
     { label: "鋒兄銀行", description: "查看餘額與帳戶總覽", moduleId: "bank-stats", icon: <Building2 size={18} /> },
   ];
@@ -737,6 +776,103 @@ function StatRow({ label, value, status }: { label: string; value: number; statu
   );
 }
 
+// 試用／首購統計卡片
+function TrialPurchaseStatsCard({ stats, onNavigate }: { stats: ReturnType<typeof useDashboardStats>["stats"]; onNavigate: (id: string) => void }) {
+  const hasAttention = stats.trialPurchasesExpiring3Days > 0;
+  const [isExpanded, setIsExpanded] = useState(hasAttention);
+  return (
+    <DataCard className="p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 shrink-0 bg-amber-100 dark:bg-amber-900/30 rounded-xl flex items-center justify-center">
+            <BadgePercent className="text-amber-600 dark:text-amber-400" size={20} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">試用／首購統計</h2>
+            {!isExpanded && hasAttention && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5 truncate">
+                {stats.trialPurchasesExpiring3Days} 項 3 天內到期
+              </p>
+            )}
+          </div>
+        </div>
+        {isExpanded ? <ChevronUp className="text-gray-500 dark:text-gray-400 shrink-0" size={20} /> : <ChevronDown className="text-gray-500 dark:text-gray-400 shrink-0" size={20} />}
+      </div>
+      {isExpanded && (
+        <div className="space-y-3">
+          <StatRow label="總帳號紀錄" value={stats.totalTrialPurchases} status="success" />
+          <MiniDetailList label="3天內到期" value={stats.trialPurchasesExpiring3Days} items={stats.trialPurchasesExpiring3DaysList} bgColor="bg-yellow-50 dark:bg-yellow-900/20" onNavigate={() => onNavigate("trial-purchase")} />
+        </div>
+      )}
+    </DataCard>
+  );
+}
+
+// 額度統計卡片（非 AI 3 天；AI 一週／一月前一天＋當天）
+function QuotaStatsCard({ stats, onNavigate }: { stats: ReturnType<typeof useDashboardStats>["stats"]; onNavigate: (id: string) => void }) {
+  const hasAttention = stats.quotaAccountsExpiring3Days > 0 || stats.quotaAiExpiringTodayOrTomorrow > 0;
+  const [isExpanded, setIsExpanded] = useState(hasAttention);
+  return (
+    <DataCard className="p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 shrink-0 bg-violet-100 dark:bg-violet-900/30 rounded-xl flex items-center justify-center">
+            <Gauge className="text-violet-600 dark:text-violet-400" size={20} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">額度統計</h2>
+            {!isExpanded && hasAttention && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5 truncate">
+                {stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow} 項接近到期
+              </p>
+            )}
+          </div>
+        </div>
+        {isExpanded ? <ChevronUp className="text-gray-500 dark:text-gray-400 shrink-0" size={20} /> : <ChevronDown className="text-gray-500 dark:text-gray-400 shrink-0" size={20} />}
+      </div>
+      {isExpanded && (
+        <div className="space-y-3">
+          <StatRow label="總帳號紀錄" value={stats.totalQuotaAccounts} status="success" />
+          <MiniQuotaList label="非 AI 3 天內到期" value={stats.quotaAccountsExpiring3Days} items={stats.quotaAccountsExpiring3DaysList} bgColor="bg-yellow-50 dark:bg-yellow-900/20" onNavigate={() => onNavigate("quota")} />
+          <MiniQuotaList label="AI 前一天／當天" value={stats.quotaAiExpiringTodayOrTomorrow} items={stats.quotaAiExpiringSoonList} bgColor="bg-orange-50 dark:bg-orange-900/20" onNavigate={() => onNavigate("quota")} />
+        </div>
+      )}
+    </DataCard>
+  );
+}
+
+// 購物清單統計卡片
+function ShoppingListStatsCard({ stats, onNavigate }: { stats: ReturnType<typeof useDashboardStats>["stats"]; onNavigate: (id: string) => void }) {
+  const hasAttention = stats.shoppingItemsExpiring3Days > 0;
+  const [isExpanded, setIsExpanded] = useState(hasAttention);
+  return (
+    <DataCard className="p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 shrink-0 bg-teal-100 dark:bg-teal-900/30 rounded-xl flex items-center justify-center">
+            <ShoppingCart className="text-teal-600 dark:text-teal-400" size={20} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">購物清單統計</h2>
+            {!isExpanded && hasAttention && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5 truncate">
+                {stats.shoppingItemsExpiring3Days} 項 3 天內預定購買
+              </p>
+            )}
+          </div>
+        </div>
+        {isExpanded ? <ChevronUp className="text-gray-500 dark:text-gray-400 shrink-0" size={20} /> : <ChevronDown className="text-gray-500 dark:text-gray-400 shrink-0" size={20} />}
+      </div>
+      {isExpanded && (
+        <div className="space-y-3">
+          <StatRow label="總項目" value={stats.totalShoppingItems} status="success" />
+          <MiniDetailList label="3天內要買" value={stats.shoppingItemsExpiring3Days} items={stats.shoppingItemsExpiring3DaysList} bgColor="bg-yellow-50 dark:bg-yellow-900/20" onNavigate={() => onNavigate("shopping-list")} />
+        </div>
+      )}
+    </DataCard>
+  );
+}
+
 const DETAIL_LIST_PREVIEW = 8;
 
 // 詳細統計行 (食品)
@@ -858,6 +994,112 @@ function DetailStatRowSub({
   );
 }
 
+/** 通用迷你到期清單（試用／首購、購物清單等）。 */
+function MiniDetailList({
+  label,
+  value,
+  items,
+  bgColor,
+  onNavigate,
+}: {
+  label: string;
+  value: number;
+  items: Array<{ id: string; name: string; daysRemaining: number }>;
+  bgColor: string;
+  onNavigate?: () => void;
+}) {
+  const sorted = [...items].sort((a, b) => a.daysRemaining - b.daysRemaining);
+  return (
+    <div className={`p-3 ${bgColor} rounded-xl`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <StatusDot status="warning" />
+          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+        </div>
+        <span className="font-semibold text-yellow-700 dark:text-yellow-400">{value}</span>
+      </div>
+      {sorted.length > 0 && (
+        <div className="space-y-1.5 mt-2 max-h-48 overflow-y-auto">
+          {sorted.slice(0, DETAIL_LIST_PREVIEW).map((item) => (
+            <div key={item.id} className="flex justify-between items-center gap-2 text-xs">
+              <span className="text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">{item.name}</span>
+              <span className="font-medium shrink-0 text-yellow-700 dark:text-yellow-400">
+                {formatDaysRemaining(item.daysRemaining)}
+              </span>
+            </div>
+          ))}
+          {sorted.length > DETAIL_LIST_PREVIEW && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate?.();
+              }}
+              className="w-full text-xs text-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 py-1"
+            >
+              還有 {sorted.length - DETAIL_LIST_PREVIEW} 項…{onNavigate ? " 查看全部" : ""}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 額度到期清單：顯示 service name + label（一週到期／一月到期…） */
+function MiniQuotaList({
+  label,
+  value,
+  items,
+  bgColor,
+  onNavigate,
+}: {
+  label: string;
+  value: number;
+  items: Array<{ id: string; name: string; daysRemaining: number | null; label: string }>;
+  bgColor: string;
+  onNavigate?: () => void;
+}) {
+  const sorted = [...items].sort((a, b) => (a.daysRemaining ?? 0) - (b.daysRemaining ?? 0));
+  return (
+    <div className={`p-3 ${bgColor} rounded-xl`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <StatusDot status="warning" />
+          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+        </div>
+        <span className="font-semibold text-orange-700 dark:text-orange-400">{value}</span>
+      </div>
+      {sorted.length > 0 && (
+        <div className="space-y-1.5 mt-2 max-h-48 overflow-y-auto">
+          {sorted.slice(0, DETAIL_LIST_PREVIEW).map((item) => (
+            <div key={`${item.id}-${item.label}`} className="flex justify-between items-center gap-2 text-xs">
+              <span className="text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">
+                {item.name}{item.label ? `（${item.label}）` : ""}
+              </span>
+              <span className="font-medium shrink-0 text-orange-700 dark:text-orange-400">
+                {item.daysRemaining == null ? "—" : formatDaysRemaining(item.daysRemaining)}
+              </span>
+            </div>
+          ))}
+          {sorted.length > DETAIL_LIST_PREVIEW && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate?.();
+              }}
+              className="w-full text-xs text-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 py-1"
+            >
+              還有 {sorted.length - DETAIL_LIST_PREVIEW} 項…{onNavigate ? " 查看全部" : ""}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AlertItemList({
   items,
   isExpired = false,
@@ -935,6 +1177,44 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
               🔔 有 {stats.subscriptionsExpiring3Days} 項訂閱將在 3 天內到期
             </p>
             <AlertItemList items={stats.subscriptionsExpiring3DaysList} tone="orange" />
+          </div>
+        )}
+        {stats.trialPurchasesExpiring3Days > 0 && (
+          <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
+            <p className="font-medium text-amber-700 dark:text-amber-300">
+              🧪 有 {stats.trialPurchasesExpiring3Days} 項試用／首購將在 3 天內到期
+            </p>
+            <AlertItemList items={stats.trialPurchasesExpiring3DaysList} tone="orange" />
+          </div>
+        )}
+        {(stats.quotaAccountsExpiring3Days > 0 || stats.quotaAiExpiringTodayOrTomorrow > 0) && (
+          <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
+            <p className="font-medium text-amber-700 dark:text-amber-300">
+              🎯 有 {stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow} 項額度接近到期
+            </p>
+            <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto border-t border-black/5 dark:border-white/10 pt-2">
+              {[...stats.quotaAccountsExpiring3DaysList, ...stats.quotaAiExpiringSoonList]
+                .sort((a, b) => (a.daysRemaining ?? 0) - (b.daysRemaining ?? 0))
+                .slice(0, DETAIL_LIST_PREVIEW)
+                .map((item) => (
+                  <li key={`${item.id}-${item.kind}`} className="flex justify-between gap-2 text-xs">
+                    <span className="truncate min-w-0 text-amber-800 dark:text-amber-200">
+                      {item.name}{item.label ? `（${item.label}）` : ""}
+                    </span>
+                    <span className="shrink-0 font-medium text-amber-600 dark:text-amber-300">
+                      {formatDaysRemaining(item.daysRemaining ?? 0)}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
+        {stats.shoppingItemsExpiring3Days > 0 && (
+          <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
+            <p className="font-medium text-teal-700 dark:text-teal-300">
+              🛒 有 {stats.shoppingItemsExpiring3Days} 項購物將在 3 天內到預定購買日
+            </p>
+            <AlertItemList items={stats.shoppingItemsExpiring3DaysList} tone="orange" />
           </div>
         )}
       </div>

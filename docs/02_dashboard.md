@@ -57,30 +57,38 @@
 
 ## 到期提醒機制
 
-| 門檻常數 | 值 | 說明 |
-|----------|---|------|
-| FOOD_EXPIRING_SOON | 7 天 | 食品即將到期警示（UI） |
-| FOOD_EXPIRING_WARNING | 30 天 | 食品到期預警（UI） |
-| SUBSCRIPTION_URGENT | 3 天 | 訂閱緊急提醒（UI / Dashboard OS） |
-| SUBSCRIPTION_WARNING | 7 天 | 訂閱到期預警（UI / Push / SW） |
+「未來日期項目」依各自的到期前窗口進入提醒，進入窗口後每天通知一次（依台北日曆日去重），**到期當天（剩 0 天）也算在窗口內**。以 `lib/constants.ts` 的 `NOTIFY_WINDOW_DAYS` 為統一來源。
 
-### 四通道提醒政策（`lib/notifications/policy.ts`）
+| 模組 | 到期欄位 | 窗口（含當天） |
+|------|---------|---------------|
+| 訂閱 | `nextdate` | 剩 0–3 天 |
+| 食品 | `todate` | 剩 0–7 天 |
+| 試用／首購 | `eventDate` | 剩 0–3 天 |
+| 額度（非 AI） | `quotaExpiry` | 剩 0–3 天 |
+| 額度（AI） | `expiryWeek`／`expiryMonth` | 只提醒前一天＋當天（剩 0–1 天） |
+| 購物清單 | `plannedDate` | 剩 0–3 天 |
 
-| 通道 | 訂閱 | 食品 | 其他 | 觸發 |
-|------|------|------|------|------|
-| Dashboard 本機 OS 通知 | 0–3 天 | 0–3 天 | 已過期食品最多 3 筆；財經突破 | 開啟儀表板 / 回前景 / 本地 05:21 |
-| SW Periodic Sync | 0–7 天 | 0–7 天 | — | Android Chrome 背景同步 → `/api/check-expiry` |
-| Web Push（Vercel Cron） | 0–7 天 | 0–7 天 | — | 每日 05:06（台灣）`/api/push-send` |
-| Resend Email | **剛好前 1 天** | **剛好前 7 天** | — | 每日 05:16（台灣）`/api/resend-expiry-notify` |
+既有 UI 門檻常數仍保留：`FOOD_EXPIRING_SOON`（7 天）、`FOOD_EXPIRING_WARNING`（30 天）、`SUBSCRIPTION_URGENT`（3 天）、`SUBSCRIPTION_WARNING`（7 天），用於模組內狀態色與篩選。
+
+### 通知通道（`lib/notifications/policy.ts`）
+
+| 通道 | 涵蓋模組 | 觸發 |
+|------|---------|------|
+| Dashboard 本機 OS 通知 | 訂閱、食品、試用/首購、額度、購物清單（依上表窗口）＋過期食品 | 開啟完整儀表 / 回前景 / 本地 05:21 |
+| SW Periodic Sync | 同左（`/api/check-expiry` 依窗口回傳各模組） | Android Chrome 背景同步 |
+| Web Push（Vercel Cron） | 同左（彙整單則推送，每日 05:06 台灣） | `/api/push-send` |
+| Resend Email | 訂閱 **剛好前 1 天**、食品 **剛好前 7 天**（維持精確日） | 每日 05:16（台灣）`/api/resend-expiry-notify` |
 
 - 伺服器天數計算統一使用 **Asia/Taipei** 日曆日（`lib/notifications/daysUntil.ts`）
 - Dashboard OS 通知以 session 去重，同日同項目不重複打擾
+- 額度 AI 的 5 小時到期不做提醒（僅一週／一月依規則通知）
 - 權限橫幅、推播訂閱、SW 註冊分別見 `NotificationPermissionBanner`、`useWebPush`、`ServiceWorkerBootstrap`
 
 ## 技術規格
 
 - **元件路徑**：`components/modules/EnhancedDashboard.tsx`
-- **統計類型定義**：`types/index.ts` → `DashboardStats`
+- **統計彙整**：`hooks/useDashboardStats.ts`（含試用/首購、額度、購物清單到期清單）
+- **通知窗口**：`lib/constants.ts` → `NOTIFY_WINDOW_DAYS`
 - **門檻常數**：`lib/constants.ts` → `DATE_THRESHOLDS`
 - **通知政策與工具**：`lib/notifications/*`
 - **到期收集（API）**：`app/api/_lib/expiryCollector.js`

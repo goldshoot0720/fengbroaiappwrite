@@ -30,8 +30,10 @@
 | 14 | [鋒兄關於](./15_about.md) | 更新內容、架構與文件中心 | [15_about.md](./15_about.md) |
 | 15 | [鋒兄試用/首購](./16_trial_purchase.md) | 服務下多帳號、試用／首購狀態與試用／首購／到期日（扣款日） | [16_trial_purchase.md](./16_trial_purchase.md) |
 | 16 | [鋒兄重灌](./17_reinstall.md) | Windows／Mac 軟體、隱藏序號、查看密碼、訂閱週期與費用 | [17_reinstall.md](./17_reinstall.md) |
+| 17 | 鋒兄額度 | 依服務追蹤剩餘額度、比例與到期日（AI／非 AI） | 見 `QuotaManagement.tsx` |
+| 18 | [鋒兄購物清單](./18_shopping_list.md) | 商品、預定購買日、價格（多幣別）、商店與取貨方式 | [18_shopping_list.md](./18_shopping_list.md) |
 
-桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁（同一頁可切精簡待辦與完整儀表）；鋒兄管理包含訂閱、試用/首購、重灌、食品、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、YouTube/Bilibili。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
+桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁（同一頁可切精簡待辦與完整儀表）；鋒兄管理包含訂閱、試用/首購、重灌、額度、食品、購物清單、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、YouTube/Bilibili。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
 
 ---
 
@@ -73,7 +75,7 @@
 
 ## 資料庫 Table 結構總覽
 
-設定頁可建立 **17** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall` 使用非破壞性初始化，重試會保留已有資料。
+設定頁可建立 **19** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall`／`quota`／`shoppinglist` 使用非破壞性初始化，重試會保留已有資料。
 
 | # | Collection 名稱 | 欄位數 | 對應模組 | 說明文件 |
 |---|----------------|--------|---------|---------|
@@ -94,6 +96,8 @@
 | 15 | menuusage | 3 | 選單使用統計 | `/api/menu-usage` |
 | 16 | trialpurchase | 8 | 鋒兄試用/首購 | [16_trial_purchase.md](./16_trial_purchase.md) |
 | 17 | reinstall | 12 | 鋒兄重灌 | [17_reinstall.md](./17_reinstall.md) |
+| 18 | quota | 13 | 鋒兄額度 | 見 `QuotaManagement.tsx` |
+| 19 | shoppinglist | 9 | 鋒兄購物清單 | [18_shopping_list.md](./18_shopping_list.md) |
 
 另有 Web Push 訂閱 collection，由 `/api/push-subscribe` 動態建立，不在一鍵建表清單裡。
 
@@ -121,6 +125,7 @@ docs/
 ├── 01_home.md … 15_about.md
 ├── 16_trial_purchase.md  # 服務／帳號試用與首購
 ├── 17_reinstall.md       # Win／Mac 重灌軟體與序號
+├── 18_shopping_list.md   # 購物清單與預定購買日
 ├── agents/               # 代理協作規則
 ├── design/               # UI/UX 設計稿
 └── research/             # 外部服務考證

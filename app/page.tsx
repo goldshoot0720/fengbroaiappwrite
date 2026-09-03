@@ -24,6 +24,7 @@ import {
   Images,
   Newspaper,
   Settings,
+  ShoppingCart,
   Smartphone,
   Star,
   Wrench,
@@ -85,6 +86,10 @@ const CommonDocumentManagement = dynamic(
 const FoodManagement = dynamic(() => import("@/components/modules/FoodManagement"), {
   loading: ModuleFallback,
 });
+const ShoppingListManagement = dynamic(
+  () => import("@/components/modules/ShoppingListManagement"),
+  { loading: ModuleFallback }
+);
 const TrialPurchaseManagement = dynamic(
   () => import("@/components/modules/TrialPurchaseManagement"),
   { loading: ModuleFallback }
@@ -145,6 +150,7 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "reinstall", label: "重灌", icon: <Laptop size={18} /> },
       { id: "quota", label: "額度", icon: <Gauge size={18} /> },
       { id: "food", label: "食品", icon: <Package size={18} /> },
+      { id: "shopping-list", label: "購物清單", icon: <ShoppingCart size={18} /> },
       { id: "common", label: "常用", icon: <Star size={18} /> },
       { id: "bank-stats", label: "銀行", icon: <Building2 size={18} /> },
       { id: "notes", label: "筆記", icon: <FileText size={18} /> },
@@ -191,6 +197,7 @@ const APPWRITE_REQUIRED_MODULES = new Set([
   "reinstall",
   "quota",
   "food",
+  "shopping-list",
   "notes",
   "common",
   "images",
@@ -300,6 +307,8 @@ export default function DashboardPage() {
         return <QuotaManagement onNavigate={handleModuleChange} />;
       case "food":
         return <FoodManagement />;
+      case "shopping-list":
+        return <ShoppingListManagement />;
       case "notes":
         return <NotesManagement />;
       case "common":

@@ -28,19 +28,23 @@ async function handlePushSend(request) {
   try {
     const { databases, databaseId } = createAppwrite();
 
-    const { subscriptions, foods } = await collectExpiryItems(databases, databaseId, {
+    const collected = await collectExpiryItems(databases, databaseId, {
       mode: "range",
       minDays: 0,
       maxDays: NOTIFICATION_POLICY.pushAndSw.warnDays,
       limit: 100,
     });
 
-    const totalItems = subscriptions.length + foods.length;
+    const totalItems = collected.subscriptions.length
+      + collected.foods.length
+      + collected.trialPurchases.length
+      + collected.quotas.length
+      + collected.shoppingItems.length;
     if (totalItems === 0) {
       return NextResponse.json({ success: true, sent: 0, message: "無到期項目" });
     }
 
-    const summary = aggregatePushSummary({ subscriptions, foods });
+    const summary = aggregatePushSummary(collected);
     const payload = JSON.stringify({
       title: summary.title,
       body: summary.body,

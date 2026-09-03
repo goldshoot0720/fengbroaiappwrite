@@ -9,6 +9,7 @@ export const MENU_ITEMS = [
   { id: "reinstall", label: "鋒兄重灌", icon: "Laptop" },
   { id: "quota", label: "鋒兄額度", icon: "Gauge" },
   { id: "food", label: "鋒兄食品", icon: "Package" },
+  { id: "shopping-list", label: "鋒兄購物清單", icon: "ShoppingCart" },
   { id: "notes", label: "鋒兄筆記", icon: "FileText" },
   { id: "documents", label: "鋒兄文件", icon: "File" },
   { id: "common", label: "鋒兄常用", icon: "Star" },
@@ -47,6 +48,18 @@ export const DATE_THRESHOLDS = {
   FOOD_EXPIRING_WARNING: 30,
   SUBSCRIPTION_URGENT: 3,
   SUBSCRIPTION_WARNING: 7,
+} as const;
+
+// 到期前通知窗口（天）：未來日期項目要在「時間到之前」開始通知。
+// 每個項目進入窗口後每天通知一次（依台北日期去重），到期當天（0 天）也算。
+export const NOTIFY_WINDOW_DAYS = {
+  SUBSCRIPTION: 3, // 鋒兄訂閱：3 天內，每天一次，含當天
+  FOOD: 7, // 鋒兄食品：7 天前開始，每天一次，含當天
+  TRIAL_PURCHASE: 3, // 鋒兄試用／首購：3 天內，每天一次，含當天
+  QUOTA_GENERAL: 3, // 鋒兄額度（非 AI 帳號到期）：3 天內，每天一次，含當天
+  QUOTA_AI_WEEK: 1, // 額度 AI 一週到期：前一天與當天
+  QUOTA_AI_MONTH: 1, // 額度 AI 一月到期：前一天與當天
+  SHOPPING_LIST: 3, // 鋒兄購物清單：3 天內，每天一次，含當天
 } as const;
 
 // 網站起源日：本專案承繼自 nextshadcn20250928，故以該專案名稱日期為起算點。
@@ -93,6 +106,7 @@ export const API_ENDPOINTS = {
   TRIAL_PURCHASE: "/api/trial-purchase",
   REINSTALL: "/api/reinstall",
   QUOTA: "/api/quota",
+  SHOPPING_LIST: "/api/shopping-list",
   BANK: "/api/bank",
   IMAGES: "/api/images",
   IMAGE: "/api/image",

@@ -17,7 +17,7 @@ export async function GET(request) {
       10
     );
 
-    const { subscriptions, foods } = await collectExpiryItems(databases, databaseId, {
+    const collected = await collectExpiryItems(databases, databaseId, {
       mode: "range",
       minDays: 0,
       maxDays: Number.isFinite(warnDays) ? warnDays : NOTIFICATION_POLICY.pushAndSw.warnDays,
@@ -25,8 +25,11 @@ export async function GET(request) {
     });
 
     return NextResponse.json({
-      expiringSubscriptions: subscriptions,
-      expiringFoods: foods,
+      expiringSubscriptions: collected.subscriptions,
+      expiringFoods: collected.foods,
+      expiringTrialPurchases: collected.trialPurchases,
+      expiringQuotas: collected.quotas,
+      expiringShoppingItems: collected.shoppingItems,
       checkedAt: new Date().toISOString(),
     });
   } catch (err) {

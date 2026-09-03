@@ -507,7 +507,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
 
   const handleCreateTable = async (tableName: string, isUpdate = false) => {
     const additiveSetup =
-      tableName === "trialpurchase" || tableName === "reinstall" || tableName === "quota";
+      tableName === "trialpurchase" || tableName === "reinstall" || tableName === "quota" || tableName === "shoppinglist";
     // 如果是更新操作且不在批次模式中，顯示警告
     if (isUpdate && !additiveSetup && !bulkModeRef.current) {
       const confirmed = confirm(
@@ -1012,7 +1012,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                             )}
                           </Button>
                         )}
-                        {(col.name === "trialpurchase" || col.name === "reinstall" || col.name === "quota") && col.schemaMismatch && !col.error && (
+                        {(col.name === "trialpurchase" || col.name === "reinstall" || col.name === "quota" || col.name === "shoppinglist") && col.schemaMismatch && !col.error && (
                           <Button
                             size="sm"
                             variant="outline"

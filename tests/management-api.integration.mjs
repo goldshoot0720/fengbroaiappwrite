@@ -139,6 +139,45 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
     assert.equal(fixture.writes.length, beforeWrites);
   });
 
+  it("creates/edits/deletes shopping items with planned date, currency, quantity and free-text pickup", async () => {
+    const data = { name: "洗碗機（測試）", plannedDate: "2026-10-01", price: 12990, currency: "TWD",
+      quantity: 1, shop: "PChome 測試", pickupMethod: "取貨付款", account: "buyer@example.test",
+      note: "比價後決定" };
+    const created = await api("/api/shopping-list", "POST", data);
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const id = created.body.$id;
+    assert.equal(created.body.plannedDate, "2026-10-01T00:00:00.000Z");
+    assert.equal(created.body.price, 12990);
+    assert.equal(created.body.quantity, 1);
+    assert.equal(created.body.pickupMethod, "取貨付款");
+
+    const updated = await api(`/api/shopping-list/${id}`, "PUT", {
+      ...data, name: "洗碗機（改名）", currency: "JPY", price: 50000, quantity: 2,
+      pickupMethod: "自行輸入：超商取貨", plannedDate: "", account: "other@example.test", note: "更動" });
+    assert.equal(updated.status, 200, JSON.stringify(updated.body));
+    assert.equal(updated.body.plannedDate, null);
+    assert.equal(updated.body.currency, "JPY");
+    assert.equal(updated.body.quantity, 2);
+    assert.equal(updated.body.pickupMethod, "自行輸入：超商取貨");
+
+    const deleted = await api(`/api/shopping-list/${id}`, "DELETE");
+    assert.equal(deleted.status, 200);
+    assert.equal((await api(`/api/shopping-list/${id}`, "DELETE")).status, 404);
+  });
+
+  it("rejects invalid shopping fields before writing", async () => {
+    const beforeWrites = fixture.writes.length;
+    for (const data of [null, [], { name: "" },
+      { name: "test", quantity: 0 },
+      { name: "test", price: -1 },
+      { name: "test", currency: "EUR" },
+      { name: "test", plannedDate: "2026-02-30" },
+      { name: "test", pickupMethod: "x".repeat(101) }]) {
+      assert.equal((await api("/api/shopping-list", "POST", data)).status, 400);
+    }
+    assert.equal(fixture.writes.length, beforeWrites);
+  });
+
   it("does not use a similarly named table or another endpoint's cached collection", async () => {
     const other = await startManagementFixture({ seed: false });
     other.addCollection("trialpurchase_backup");
@@ -172,7 +211,7 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
   it("creates both tables privately and repeated setup preserves every existing document", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {
-      for (const tableName of ["trialpurchase", "reinstall", "quota"]) {
+      for (const tableName of ["trialpurchase", "reinstall", "quota", "shoppinglist"]) {
         const result = await api("/api/create-table", "POST", { tableName }, empty);
         assert.equal(result.status, 200, JSON.stringify(result.body));
         assert.equal(result.body.success, true);

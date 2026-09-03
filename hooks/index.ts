@@ -2,6 +2,7 @@
 
 export { useFoods, getFoodExpiryInfo } from "./useFoods";
 export { useSubscriptions, getSubscriptionExpiryInfo } from "./useSubscriptions";
+export { useShoppingList, getShoppingItemExpiryInfo } from "./useShoppingList";
 export { useImages, type ImageData } from "./useImages";
 export { useVideos, type VideoData } from "./useVideos";
 export { useMusic, type MusicData } from "./useMusic";

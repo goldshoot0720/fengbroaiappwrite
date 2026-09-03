@@ -93,6 +93,35 @@ export interface TrialPurchaseFormData {
   purchaseStatus: PurchaseStatus;
 }
 
+// 購物清單：一筆代表「一個要買的商品 × 預定購買資訊」
+export interface ShoppingItem {
+  $id: string;
+  name: string;
+  plannedDate?: string;
+  price?: number;
+  currency?: string;
+  quantity?: number;
+  shop?: string;
+  // 取貨方式：取貨付款／宅配，或自行輸入其他方式（例如 超商取貨、面交）
+  pickupMethod?: string;
+  account?: string;
+  note?: string;
+  $createdAt?: string;
+  $updatedAt?: string;
+}
+
+export interface ShoppingItemFormData {
+  name: string;
+  plannedDate?: string;
+  price?: number;
+  currency?: string;
+  quantity?: number;
+  shop?: string;
+  pickupMethod?: string;
+  account?: string;
+  note?: string;
+}
+
 // 重灌軟體管理
 export type ReinstallSystem = "win" | "mac";
 export type ReinstallSoftwareType = "trial" | "free" | "paid";

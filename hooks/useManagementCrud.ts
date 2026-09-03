@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchApi } from "@/hooks/useApi";
 import { APPWRITE_CONFIG_CHANGED_EVENT } from "@/hooks/useAppwriteSetup";
+import { notifyDataRefresh } from "@/hooks/useRefreshKey";
+
+/** Map an /api/xxx base URL to the shared refresh-key name used by dashboard & module listeners. */
+function refreshKeyForBaseUrl(baseUrl: string): string | null {
+  const match = baseUrl.match(/\/api\/([a-z-]+)/);
+  if (!match) return null;
+  const segment = match[1].replace(/-/g, "");
+  return `${segment}_refresh_key`;
+}
 
 // Account and license data stays in this mounted module, never the global CRUD cache.
 export function useManagementCrud<T extends { $id: string }>(baseUrl: string) {
@@ -78,6 +87,9 @@ export function useManagementCrud<T extends { $id: string }>(baseUrl: string) {
       : method === "PUT"
         ? current.map((item) => item.$id === id ? result : item)
         : [...current, result]);
+    // 讓首頁統計等跨模組彙整能即時收到變更。
+    const refreshKey = refreshKeyForBaseUrl(baseUrl);
+    if (refreshKey) notifyDataRefresh(refreshKey);
     return result;
   }, [baseUrl]);
 

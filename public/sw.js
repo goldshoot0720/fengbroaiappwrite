@@ -105,9 +105,15 @@ async function checkExpiryBackground() {
     if (!response.ok) return;
 
     const data = await response.json();
-    const { expiringSubscriptions = [], expiringFoods = [] } = data;
+    const {
+      expiringSubscriptions = [],
+      expiringFoods = [],
+      expiringTrialPurchases = [],
+      expiringQuotas = [],
+      expiringShoppingItems = [],
+    } = data;
 
-    // 訂閱即將到期通知（0–7 天，與 push-send / policy 一致）
+    // 訂閱即將到期通知（0–3 天，與 policy 一致）
     for (const item of expiringSubscriptions) {
       const label = item.daysLeft === 0 ? '今天到期！' : `${item.daysLeft} 天後到期`;
       await self.registration.showNotification('📅 訂閱到期提醒', {
@@ -128,6 +134,46 @@ async function checkExpiryBackground() {
         icon: '/favicon.ico',
         badge: '/favicon.ico',
         tag: `food-${item.id}`,
+        renotify: false,
+        data: { url: '/' },
+      });
+    }
+
+    // 試用／首購（0–3 天）
+    for (const item of expiringTrialPurchases) {
+      const label = item.daysLeft === 0 ? '今天到期！' : `${item.daysLeft} 天後到期`;
+      await self.registration.showNotification('🧪 試用／首購到期提醒', {
+        body: `${item.name} ${label}`,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: `trial-${item.id}`,
+        renotify: false,
+        data: { url: '/' },
+      });
+    }
+
+    // 額度（非 AI 0–3 天；AI 一週／一月前一天＋當天）
+    for (const item of expiringQuotas) {
+      const label = item.daysLeft === 0 ? '今天到期！' : `${item.daysLeft} 天後到期`;
+      const kindLabel = item.label ? `（${item.label}）` : '';
+      await self.registration.showNotification('🎯 額度到期提醒', {
+        body: `${item.name}${kindLabel} ${label}`,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: `quota-${item.id}-${item.kind || 'expiry'}`,
+        renotify: false,
+        data: { url: '/' },
+      });
+    }
+
+    // 購物清單（0–3 天）
+    for (const item of expiringShoppingItems) {
+      const label = item.daysLeft === 0 ? '今天預定購買！' : `${item.daysLeft} 天後到預定購買日`;
+      await self.registration.showNotification('🛒 購物清單提醒', {
+        body: `${item.name} ${label}`,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: `shopping-${item.id}`,
         renotify: false,
         data: { url: '/' },
       });
@@ -162,7 +208,8 @@ function formatPushNotificationBody(data) {
     const days = resolveItemDays(item);
     const unit = item.type === 'food' ? '過期' : '到期';
     const label = days === 0 ? `今天${unit}！` : `${days} 天後${unit}`;
-    return `${item.name} ${label}`;
+    const kind = item.type === 'quota' && item.label ? `（${item.label}）` : '';
+    return `${item.name}${kind} ${label}`;
   });
   const remaining = sorted.length - lines.length;
   const more = remaining > 0 ? `…還有 ${remaining} 項` : null;
