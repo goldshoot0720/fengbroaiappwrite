@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type ChangeEvent } from "react";
 import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic, Activity, AlertTriangle, Info, Download, Upload } from "lucide-react";
 import { Button, DataCard, SectionHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,14 @@ import {
 } from "@/lib/notifications/selfCheck";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { ADDITIVE_SETUP_TABLES } from "@/lib/managementRecords";
+import { fetchApi } from "@/hooks/useApi";
 import packageJson from "@/package.json";
+
+interface ResendSettingsResponse {
+  hasPassword: boolean;
+  fromEmail: string;
+  slots: { apiKey: string; toEmail: string }[];
+}
 
 interface CollectionStats {
   name: string;
@@ -100,6 +107,12 @@ export default function SettingsManagement() {
   const [resendTestLoading, setResendTestLoading] = useState(false);
   const resendCsvInputRef = useRef<HTMLInputElement>(null);
   const [resendImportPreview, setResendImportPreview] = useState<NotificationSettingSlot[] | null>(null);
+  const [resendSettingsLoading, setResendSettingsLoading] = useState(false);
+  const [resendPassword, setResendPassword] = useState("");
+  const [resendUnlocked, setResendUnlocked] = useState(false);
+  const [resendHasPassword, setResendHasPassword] = useState(false);
+  const [resendSaving, setResendSaving] = useState(false);
+  const [resendUnlocking, setResendUnlocking] = useState(false);
   const [selfCheckLoading, setSelfCheckLoading] = useState(false);
   const [selfCheckReport, setSelfCheckReport] = useState<SelfCheckReport | null>(null);
   const [bulkMode, setBulkMode] = useState(false);
@@ -146,6 +159,41 @@ export default function SettingsManagement() {
   );
 
 
+  // 將 21 組 RESEND_API_KEY / 通知收件 Email 依槽位寫回表單 state
+  const applyResendSlots = useCallback((slots: NotificationSettingSlot[], fromEmail: string) => {
+    const nextConfig: Record<string, string> = {};
+    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
+      const fields = getResendSlotFields(slot);
+      nextConfig[fields.apiKey] = "";
+      nextConfig[fields.toEmail] = "";
+    }
+    slots.forEach((slotItem, index) => {
+      if (index >= RESEND_SLOT_COUNT) return;
+      const fields = getResendSlotFields(index + 1);
+      nextConfig[fields.apiKey] = slotItem.apiKey || "";
+      nextConfig[fields.toEmail] = slotItem.toEmail || "";
+    });
+    nextConfig.fromEmail = fromEmail || RESEND_DEFAULT_FROM;
+    setResendConfig(nextConfig);
+  }, []);
+
+  // 從 notificationsettings Table（Appwrite API）載入設定（含密碼是否已建立的資訊）
+  const loadResendSettings = useCallback(async () => {
+    setResendSettingsLoading(true);
+    try {
+      const payload = await fetchApi<ResendSettingsResponse>(API_ENDPOINTS.NOTIFICATION_SETTINGS);
+      setResendHasPassword(Boolean(payload.hasPassword));
+      setResendUnlocked(false);
+      setResendPassword("");
+      applyResendSlots(payload.slots, payload.fromEmail || RESEND_DEFAULT_FROM);
+    } catch (error) {
+      console.error("載入 Resend 設定失敗:", error);
+      alert(`❌ 載入 Resend 設定失敗：${error instanceof Error ? error.message : "未知錯誤"}`);
+    } finally {
+      setResendSettingsLoading(false);
+    }
+  }, [applyResendSlots]);
+
   // 載入 Appwrite 設定
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -161,16 +209,8 @@ export default function SettingsManagement() {
     setPushConfig({
       publicKey: localStorage.getItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY') || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
     });
-    const savedResendConfig: Record<string, string> = {
-      fromEmail: localStorage.getItem('RESEND_FROM_EMAIL') || RESEND_DEFAULT_FROM
-    };
-    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
-      const fields = getResendSlotFields(slot);
-      savedResendConfig[fields.apiKey] = localStorage.getItem(fields.envApiKey) || '';
-      savedResendConfig[fields.toEmail] = localStorage.getItem(fields.envToEmail) || '';
-    }
-    setResendConfig(savedResendConfig);
-  }, []);
+    loadResendSettings();
+  }, [loadResendSettings]);
 
   const handleSaveConfig = () => {
     if (typeof window === 'undefined') return;
@@ -271,28 +311,90 @@ export default function SettingsManagement() {
     return "資訊";
   };
 
-  const handleSaveResendConfig = () => {
-    if (typeof window === 'undefined') return;
-    const nextConfig: Record<string, string> = {};
+  // 驗證通知密碼並解鎖，載入明文 API Key
+  const handleUnlockResend = async () => {
+    if (typeof window === "undefined") return;
+    const password = resendPassword.trim();
+    if (!password) {
+      alert("請輸入通知密碼");
+      return;
+    }
+    setResendUnlocking(true);
+    try {
+      const payload = await fetchApi<ResendSettingsResponse>(API_ENDPOINTS.NOTIFICATION_SETTINGS, {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      });
+      setResendHasPassword(Boolean(payload.hasPassword));
+      setResendUnlocked(true);
+      applyResendSlots(payload.slots, payload.fromEmail || RESEND_DEFAULT_FROM);
+    } catch (error) {
+      setResendUnlocked(false);
+      alert(`❌ 驗證失敗：${error instanceof Error ? error.message : "未知錯誤"}`);
+    } finally {
+      setResendUnlocking(false);
+    }
+  };
+
+  // 從表單收集完整的槽位（含隱藏的），存回 notificationsettings
+  const collectResendSlots = (): NotificationSettingSlot[] => {
+    const slots: NotificationSettingSlot[] = [];
     for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
       const fields = getResendSlotFields(slot);
-      const apiKey = (resendConfig[fields.apiKey] || '').trim();
-      const toEmail = (resendConfig[fields.toEmail] || '').trim();
-      nextConfig[fields.apiKey] = apiKey;
-      nextConfig[fields.toEmail] = toEmail;
-      if (apiKey) localStorage.setItem(fields.envApiKey, apiKey);
-      else localStorage.removeItem(fields.envApiKey);
-      if (toEmail) localStorage.setItem(fields.envToEmail, toEmail);
-      else localStorage.removeItem(fields.envToEmail);
+      const apiKey = (resendConfig[fields.apiKey] || "").trim();
+      const toEmail = (resendConfig[fields.toEmail] || "").trim();
+      if (apiKey && toEmail) slots.push({ apiKey, toEmail });
     }
-    const fromEmail = resendConfig.fromEmail.trim() || RESEND_DEFAULT_FROM;
+    return slots;
+  };
 
-    localStorage.setItem('RESEND_FROM_EMAIL', fromEmail);
-    setResendConfig({ ...nextConfig, fromEmail });
-    alert(`✅ Resend Email 通知設定已儲存。部署環境請同步設定 RESEND_API_KEY / RESEND_TO_EMAIL，最多可使用 RESEND_API_KEY${RESEND_SLOT_COUNT} / RESEND_TO_EMAIL${RESEND_SLOT_COUNT}。`);
+  const handleSaveResendConfig = async () => {
+    if (typeof window === "undefined") return;
+    const fromEmail = (resendConfig.fromEmail || "").trim() || RESEND_DEFAULT_FROM;
+
+    // 尚未建立通知密碼時，第一次儲存等於設定密碼並寫入設定
+    const password = resendPassword.trim();
+    if (resendHasPassword && !resendUnlocked) {
+      alert("請先輸入通知密碼並點擊「解鎖並載入金鑰」，再儲存設定。");
+      return;
+    }
+    if (resendHasPassword && !password) {
+      alert("請輸入通知密碼");
+      return;
+    }
+    if (!resendHasPassword && password.length < 4) {
+      alert("首次使用請設定至少 4 碼的通知密碼。");
+      return;
+    }
+
+    setResendSaving(true);
+    try {
+      const payload = await fetchApi<ResendSettingsResponse>(API_ENDPOINTS.NOTIFICATION_SETTINGS, {
+        method: "PUT",
+        body: JSON.stringify({
+          password: resendHasPassword ? password : "",
+          newPassword: resendHasPassword ? "" : password,
+          fromEmail,
+          slots: collectResendSlots(),
+        }),
+      });
+      setResendHasPassword(Boolean(payload.hasPassword));
+      setResendUnlocked(true);
+      applyResendSlots(payload.slots, payload.fromEmail || RESEND_DEFAULT_FROM);
+      alert("✅ Resend Email 通知設定已儲存（同步至 notificationsettings）。");
+    } catch (error) {
+      alert(`❌ 儲存失敗：${error instanceof Error ? error.message : "未知錯誤"}`);
+    } finally {
+      setResendSaving(false);
+    }
   };
 
   const handleTestResendNotification = async () => {
+    // 測試使用明文 API Key，需先解鎖（驗證通知密碼）
+    if (resendHasPassword && !resendUnlocked) {
+      alert('測試到期 Email 會使用明文的 API Key，請先輸入通知密碼並點擊「解鎖並載入金鑰」。');
+      return;
+    }
     const resendPayload: Record<string, string> = {};
     const hasCompleteResendSlot = Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
       const fields = getResendSlotFields(index + 1);
@@ -408,12 +510,6 @@ export default function SettingsManagement() {
     localStorage.removeItem('APPWRITE_BUCKET_ID');
     localStorage.removeItem('APPWRITE_API_KEY');
     localStorage.removeItem('NEXT_PUBLIC_VAPID_PUBLIC_KEY');
-    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
-      const fields = getResendSlotFields(slot);
-      localStorage.removeItem(fields.envApiKey);
-      localStorage.removeItem(fields.envToEmail);
-    }
-    localStorage.removeItem('RESEND_FROM_EMAIL');
     localStorage.removeItem('appwrite_custom_config_saved');
     
     // 清除所有快取
@@ -465,6 +561,11 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
 
   const handleExportResendCsv = () => {
     if (typeof window === 'undefined') return;
+    // 匯出包含明文 API Key，需先解鎖（驗證通知密碼）
+    if (resendHasPassword && !resendUnlocked) {
+      alert('匯出包含明文的 API Key，請先輸入通知密碼並點擊「解鎖並載入金鑰」。');
+      return;
+    }
     const slots = resendSlotsFromForm();
     if (slots.length === 0) {
       alert('目前沒有已設定的 RESEND_API_KEY / 通知收件 Email 可匯出。');
@@ -511,24 +612,16 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
 
   const handleConfirmResendImport = () => {
     if (!resendImportPreview || resendImportPreview.length === 0) return;
+    // 匯入會覆寫現有槽位，需先解鎖（驗證通知密碼）才能以明文資料合併
+    if (resendHasPassword && !resendUnlocked) {
+      alert('匯入前請先輸入通知密碼並點擊「解鎖並載入金鑰」。');
+      return;
+    }
     const current = resendSlotsFromForm();
     const merged = mergeResendSlots(resendImportPreview, current);
-    const nextConfig = { ...resendConfig };
-    // 清掉表單裡舊的 slot 值，再由合併結果回填
-    for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
-      const fields = getResendSlotFields(slot);
-      nextConfig[fields.apiKey] = '';
-      nextConfig[fields.toEmail] = '';
-    }
-    merged.slots.forEach((slotItem, index) => {
-      if (index >= RESEND_SLOT_COUNT) return;
-      const fields = getResendSlotFields(index + 1);
-      nextConfig[fields.apiKey] = slotItem.apiKey;
-      nextConfig[fields.toEmail] = slotItem.toEmail;
-    });
-    setResendConfig(nextConfig);
+    applyResendSlots(merged.slots, resendConfig.fromEmail || RESEND_DEFAULT_FROM);
     setResendImportPreview(null);
-    alert(`✅ 已匯入 ${merged.slots.length} 組（新增 ${merged.added}、更新 ${merged.updated}、略過 ${merged.skipped}）。請按「儲存 Resend 設定」寫入。`);
+    alert(`✅ 已合併 ${merged.slots.length} 組（新增 ${merged.added}、更新 ${merged.updated}、略過 ${merged.skipped}）。請按「儲存 Resend 設定」寫入 notificationsettings。`);
   };
 
   const fetchStats = () => {
@@ -1517,6 +1610,11 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             </div>
           </div>
           <div className="space-y-4">
+            {resendSettingsLoading && (
+              <div className="flex items-center gap-2 text-sm text-rose-600 dark:text-rose-400">
+                <Loader2 size={16} className="animate-spin" /> 載入 Resend 設定中…
+              </div>
+            )}
             {Array.from({ length: resendVisibleSlotCount }, (_, index) => {
               const slot = index + 1;
               const fields = getResendSlotFields(slot);
@@ -1546,6 +1644,44 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               );
             })}
             <div className="space-y-2">
+              <label className="text-sm text-gray-600 dark:text-gray-400 block">通知密碼</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  type="password"
+                  value={resendPassword}
+                  onChange={(e) => setResendPassword(e.target.value)}
+                  placeholder={resendHasPassword ? "輸入密碼以解鎖 API Key" : "設定至少 4 碼的通知密碼"}
+                  className="font-mono text-sm flex-1"
+                  autoComplete="new-password"
+                />
+                {resendHasPassword ? (
+                  <Button
+                    onClick={handleUnlockResend}
+                    disabled={resendUnlocking || !resendPassword.trim()}
+                    variant="outline"
+                    className="sm:w-56 flex items-center justify-center gap-2"
+                  >
+                    {resendUnlocking ? (
+                      <><Loader2 size={16} className="animate-spin" /> 解鎖中...</>
+                    ) : (
+                      <><Key size={16} /> {resendUnlocked ? "重新解鎖並載入金鑰" : "解鎖並載入金鑰"}</>
+                    )}
+                  </Button>
+                ) : (
+                  <span className="flex-1 text-xs text-emerald-600 dark:text-emerald-400 flex items-center">
+                    此欄位即為要設定的通知密碼，直接按「儲存 Resend 設定」即可建立。
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400">
+                {resendHasPassword
+                  ? resendUnlocked
+                    ? "已解鎖：目前表單顯示明文 API Key，匯出／匯入／儲存均可直接操作。"
+                    : "儲存、匯出或匯入明文 API Key 前，請先輸入密碼解鎖。"
+                  : "尚未設定通知密碼。設定後 API Key 與收件 Email 會儲存於 notificationsettings，並以密碼保護。"}
+              </p>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm text-gray-600 dark:text-gray-400 block">寄件人</label>
               <Input
                 value={resendConfig.fromEmail}
@@ -1555,8 +1691,17 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               />
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button onClick={handleSaveResendConfig} variant="outline" className="flex-1">
-                儲存 Resend 設定
+              <Button
+                onClick={handleSaveResendConfig}
+                disabled={resendSaving}
+                variant="outline"
+                className="flex-1"
+              >
+                {resendSaving ? (
+                  <><Loader2 size={16} className="animate-spin" /> 儲存中...</>
+                ) : (
+                  <><CheckCircle2 size={16} /> 儲存 Resend 設定</>
+                )}
               </Button>
               <Button
                 onClick={handleTestResendNotification}
