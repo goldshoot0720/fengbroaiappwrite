@@ -40,13 +40,3 @@ export function FullPageLoading({ text = "載入中..." }: FullPageLoadingProps)
     </div>
   );
 }
-
-// 行內載入狀態
-export function InlineLoading({ text = "載入中..." }: { text?: string }) {
-  return (
-    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-      <LoadingSpinner size="sm" />
-      <span className="text-sm">{text}</span>
-    </div>
-  );
-}

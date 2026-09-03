@@ -11,7 +11,7 @@ export { useVideoCache } from "./useVideoCache";
 export { useMusicCache } from "./useMusicCache";
 export { useDocumentCache } from "./useDocumentCache";
 export { usePodcastCache } from "./usePodcastCache";
-export { useApi, useCrud, fetchApi } from "./useApi";
+export { useCrud, fetchApi } from "./useApi";
 export { useCommonDocument, type CommonDocumentData } from "./useCommonDocument";
 export {
   bumpRefreshKey,

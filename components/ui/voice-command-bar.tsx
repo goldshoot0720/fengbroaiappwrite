@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input";
 import { formatRecordingClock } from "@/hooks/useSpeechRecognition";
 import { cn } from "@/lib/utils";
 
-export type VoiceBarRisk = "safe" | "review" | "danger";
+type VoiceBarRisk = "safe" | "review" | "danger";
 
-export type VoiceBarPending = {
+type VoiceBarPending = {
   summary: string;
   risk: VoiceBarRisk;
 };
