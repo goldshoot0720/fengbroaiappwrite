@@ -13,7 +13,9 @@ interface GithubRepoStats {
 
 interface SiteVisitStats {
   count: number;
+  currentStreak: number;
   lastVisitAt: string | null;
+  lastVisitDate: string | null;
   exists: boolean;
   error?: string;
 }
@@ -31,7 +33,7 @@ interface MenuUsageStats {
 }
 
 /**
- * 鋒兄關於頁用的統計資料：GitHub 營運天數、網站到站次數、選單使用次數與頻率。
+ * 鋒兄關於頁用的統計資料：GitHub 營運天數、進站人次、連續進站天數、選單使用次數與頻率。
  * 純讀取，不會送出到站/選單使用紀錄（那部分由 app/page.tsx 在導覽時另外呼叫）。
  */
 export function useAboutStats() {
@@ -54,7 +56,9 @@ export function useAboutStats() {
         })),
         fetchApi<SiteVisitStats>(API_ENDPOINTS.SITE_VISIT).catch((err) => ({
           count: 0,
+          currentStreak: 0,
           lastVisitAt: null,
+          lastVisitDate: null,
           exists: false,
           error: err instanceof Error ? err.message : "載入失敗",
         })),

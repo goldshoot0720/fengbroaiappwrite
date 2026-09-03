@@ -151,6 +151,8 @@ test("trial-purchase and reinstall pages are reachable from the management menu"
   await page.waitForTimeout(250);
   await topNav.getByRole("button", { name: /鋒兄關於/ }).click();
   await page.waitForTimeout(700);
+  await expect(page.getByText("進站人次")).toBeVisible();
+  await expect(page.getByText("連續進站天數")).toBeVisible();
   await page.getByRole("button", { name: /功能模組/ }).click();
   await expect(page.getByText("鋒兄試用／首購")).toBeVisible();
   await expect(page.getByText("鋒兄重灌")).toBeVisible();

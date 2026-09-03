@@ -245,7 +245,7 @@ export default function DashboardPage() {
       // sessionStorage 不可用時（例如隱私模式），仍然允許這次計數，不並中斷。
     }
     void fetchApi(API_ENDPOINTS.SITE_VISIT, { method: "POST" }).catch(() => {
-      // 到站計數只是裝飾性資訊，失敗不影響使用。
+      // 進站人次／連續天數只是裝飾性資訊，失敗不影響使用。
     });
   }, []);
 

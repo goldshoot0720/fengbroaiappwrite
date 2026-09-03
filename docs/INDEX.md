@@ -90,7 +90,7 @@
 | 11 | commondocument | 8 | 鋒兄文件 | [10_documents.md](./10_documents.md) |
 | 12 | landtophistory | 9 | 手機比價 | `app/api/_lib/landtopHistory.js` |
 | 13 | manualprice | 4 | 鋒兄比價 | `/api/manualprice` |
-| 14 | sitevisit | 2 | 到站統計 | `/api/site-visit` |
+| 14 | sitevisit | 4 | 進站人次與連續進站天數 | `/api/site-visit` |
 | 15 | menuusage | 3 | 選單使用統計 | `/api/menu-usage` |
 | 16 | trialpurchase | 8 | 鋒兄試用/首購 | [16_trial_purchase.md](./16_trial_purchase.md) |
 | 17 | reinstall | 12 | 鋒兄重灌 | [17_reinstall.md](./17_reinstall.md) |

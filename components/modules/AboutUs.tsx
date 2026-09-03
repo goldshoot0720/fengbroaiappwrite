@@ -118,6 +118,8 @@ const RELEASE_ITEMS = [
       "試用／首購依服務名稱歸組，點服務名稱展開帳號；可標示已試用／尚未試用，以及已首購／未首購／無提供首購。可匯出／匯入 CSV，相同服務與帳號會更新。",
       "重灌軟體分 Windows／Mac，付費序號預設隱藏；可另設查看密碼，清單需先輸入才顯示序號。訂閱制可記下年／月週期與台幣／美元／日圓／人民幣費用。可匯出／匯入 CSV，相同服務名稱與系統會更新。刪除前需確認，預設焦點在取消。",
       "設定頁可建立或補齊這兩張表；新表不開放公開讀寫，重試初始化會保留既有紀錄。",
+      "關於頁新增進站人次與連續進站天數（台北日曆日；中斷一日會重新起算）。既有 sitevisit 表請到鋒兄設定補齊欄位，下次進站也會嘗試自動補上。",
+      "重新掃描核心原始碼：288 檔、96,191 行（app / components / hooks / lib / types / scripts / tests）。",
     ],
   },
   {
@@ -385,6 +387,13 @@ function AboutBanner() {
   const visitDetail = siteVisit?.exists
     ? "每個瀏覽器 session 計一次"
     : "尚未在「鋒兄設定」初始化 sitevisit 表";
+  const streakValue = siteVisit?.currentStreak ?? 0;
+  const streakLabel = siteVisit?.exists ? `${streakValue} 天` : "—";
+  const streakDetail = !siteVisit?.exists
+    ? "尚未在「鋒兄設定」初始化 sitevisit 表"
+    : streakValue > 0
+      ? "以台北時間日曆日連續進站"
+      : "中斷一日後會從 1 重新計算";
 
   return (
     <div className="rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-900 p-6 text-white shadow-xl sm:p-8">
@@ -402,7 +411,8 @@ function AboutBanner() {
           <MetricCard label="程式碼行數" value={codebaseStats.totalLines.toLocaleString()} detail={`共 ${codebaseStats.totalFiles} 檔，核心原始碼（app / components / hooks / lib…）`} />
           <MetricCard label="技術骰架" value="AI CRUD" detail="統一摘要卡、搜尋、批次操作與 AI 建議" />
           <MetricCard label="網站營運天數" value={daysLabel} detail={daysDetail} />
-          <MetricCard label="網站到站次數" value={visitLabel} detail={visitDetail} />
+          <MetricCard label="進站人次" value={visitLabel} detail={visitDetail} />
+          <MetricCard label="連續進站天數" value={streakLabel} detail={streakDetail} />
         </div>
       </div>
     </div>
@@ -947,7 +957,7 @@ function SectionHeader({ title, description }: { title: string; description: str
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-      <div className="text-xs text-slate-300">{label}</div>
+      <div className="whitespace-nowrap text-xs text-slate-300">{label}</div>
       <div className="mt-2 text-2xl font-bold text-white">{value}</div>
       <div className="mt-1 text-xs text-slate-400">{detail}</div>
     </div>

@@ -55,7 +55,7 @@
 | 11 | commondocument | 8 | 文件管理 |
 | 12 | landtophistory | 9 | 手機比價歷史快照 |
 | 13 | manualprice | 4 | 鋒兄比價手動紀錄 |
-| 14 | sitevisit | 2 | 到站統計 |
+| 14 | sitevisit | 4 | 進站人次與連續進站天數 |
 | 15 | menuusage | 3 | 選單使用統計 |
 | 16 | trialpurchase | 8 | 試用／首購（服務 × 帳號） |
 | 17 | reinstall | 12 | 重灌軟體（Win／Mac，含查看密碼與訂閱制） |

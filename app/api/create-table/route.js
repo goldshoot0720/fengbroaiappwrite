@@ -193,12 +193,14 @@ const TABLE_SCHEMAS = {
       { key: 'localId', type: 'string', size: 100, required: false }
     ]
   },
-  // 關於頁：網站到站次數，維一筆計數文件
+  // 關於頁：進站人次與連續進站天數，唯一筆計數文件
   sitevisit: {
     name: "sitevisit",
     attributes: [
       { key: 'count', type: 'integer', required: false },
-      { key: 'lastVisitAt', type: 'datetime', required: false }
+      { key: 'lastVisitAt', type: 'datetime', required: false },
+      { key: 'currentStreak', type: 'integer', required: false },
+      { key: 'lastVisitDate', type: 'string', size: 10, required: false }
     ]
   },
   // 關於頁：每個選單（模組）的使用次數與最後使用時間
