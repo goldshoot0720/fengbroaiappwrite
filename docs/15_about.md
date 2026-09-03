@@ -24,6 +24,14 @@
 
 ## 目前重點更新
 
+### 2026-09-04
+
+- 鋒兄比價手動價格、鋒兄Tube 頻道與鋒兄金融自選標的／精選改以 Appwrite Table 為主（`manualprice`／`tubechannel`／`financeinstrument`），開啟雲端同步與多裝置共用
+- 首次啟用自動把既有瀏覽器本機資料遷移上傳（localId 冪等合併）；未設定 Appwrite 或資料表尚未建立時引導前往鋒兄設定
+- 設定頁可建立的 collection 新增 `tubechannel`、`financeinstrument`（仍為純加欄位、不刪既有資料）
+- Resend 通知設定支援 CSV 匯入／匯出，依收件 Email 合併既有組
+- 核心原始碼重新統計為 307 檔、101,901 行，突破十萬行里程碑（以 `config/codebase-stats.json` 為準）
+
 ### 2026-09-03
 
 - 鋒兄管理新增「試用/首購」與「重灌」，使用獨立 `trialpurchase`、`reinstall` 資料表

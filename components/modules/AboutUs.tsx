@@ -103,6 +103,8 @@ const DOC_GROUPS = [
       ["components/ui/friendly-ai-crud-shell.tsx", "共用友善 AI CRUD 工作台殼層"],
       ["components/modules/SubscriptionManagement.tsx", "訂閱頁最新平衡版 UI 與 CSV 功能"],
       ["components/modules/SettingsManagement.tsx", "Table 初始化、collection id 與系統設定"],
+      ["hooks/useRemoteListSync.ts", "個人清單雲端為主、本機快取的共用同步 hook"],
+      ["lib/managementRecords.ts", "管理資料表 schema、寫入驗證與表單轉換"],
       ["app/api/_lib/landtop.js", "地標網通品牌頁、商品頁與容量版本解析"],
       ["app/api/_lib/jyes.js", "傑昇通信價格總覽解析與手機比價來源"],
       ["hooks/useSubscriptions.ts", "訂閱資料存取、統計與到期資訊"],
@@ -111,6 +113,17 @@ const DOC_GROUPS = [
 ];
 
 const RELEASE_ITEMS = [
+  {
+    date: "2026-09-04",
+    title: "比價、Tube 與金融個人清單改存 Appwrite 雲端",
+    bullets: [
+      "鋒兄比價手動價格、鋒兄Tube 頻道與鋒兄金融自選標的／精選改以 Appwrite Table 為主（manualprice／tubechannel／financeinstrument），開啟雲端同步與多裝置共用。",
+      "首次啟用自動把既有瀏覽器本機資料遷移上傳（localId 冪等合併）；未設定 Appwrite 或資料表尚未建立時引導前往鋒兄設定。",
+      "新增 tubechannel、financeinstrument 兩張資料表進設定頁一鍵建表／補齊欄位清單（純加欄位、不刪既有資料），並納入建立 Table 的測試覆蓋。",
+      "Resend 通知設定支援 CSV 匯入／匯出，依收件 Email 合併既有組。",
+      "重新掃描核心原始碼：307 檔、101,901 行，突破十萬行里程碑（app / components / hooks / lib / types / scripts / tests）。",
+    ],
+  },
   {
     date: "2026-09-03",
     title: "新增試用／首購與重灌管理",

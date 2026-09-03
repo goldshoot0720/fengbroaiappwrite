@@ -75,7 +75,7 @@
 
 ## 資料庫 Table 結構總覽
 
-設定頁可建立 **19** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall`／`quota`／`shoppinglist` 使用非破壞性初始化，重試會保留已有資料。
+設定頁可建立 **21** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall`／`quota`／`shoppinglist`／`tubechannel`／`financeinstrument` 使用非破壞性初始化，重試會保留已有資料。
 
 | # | Collection 名稱 | 欄位數 | 對應模組 | 說明文件 |
 |---|----------------|--------|---------|---------|
@@ -98,6 +98,8 @@
 | 17 | reinstall | 12 | 鋒兄重灌 | [17_reinstall.md](./17_reinstall.md) |
 | 18 | quota | 13 | 鋒兄額度 | 見 `QuotaManagement.tsx` |
 | 19 | shoppinglist | 9 | 鋒兄購物清單 | [18_shopping_list.md](./18_shopping_list.md) |
+| 20 | tubechannel | 2 | 鋒兄Tube 頻道清單 | `/api/tubechannel` |
+| 21 | financeinstrument | 9 | 鋒兄金融自選標的 | `/api/financeinstrument` |
 
 另有 Web Push 訂閱 collection，由 `/api/push-subscribe` 動態建立，不在一鍵建表清單裡。
 

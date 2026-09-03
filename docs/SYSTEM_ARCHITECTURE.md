@@ -1,13 +1,13 @@
 # 鋒兄管理資訊系統 - 系統架構文檔
 
-> **現況**：選單、模組數與 17 張資料表以 [INDEX.md](./INDEX.md) 為準。程式碼行數以 `config/codebase-stats.json` 為準（2026-09-03 核心原始碼 96,191 行／288 檔）。下文部分規模數字仍是舊快照。
+> **現況**：選單、模組數與 17 張資料表以 [INDEX.md](./INDEX.md) 為準。程式碼行數以 `config/codebase-stats.json` 為準（2026-09-04 核心原始碼 101,901 行／307 檔）。下文部分規模數字仍是舊快照。
 
 ## 🏗️ 系統概況
 
 ### 專案規模統計
-- **總程式碼行數**: 96,191 行核心原始碼（`app` / `components` / `hooks` / `lib` / `types` / `scripts` / `tests`）
+- **總程式碼行數**: 101,901 行核心原始碼（`app` / `components` / `hooks` / `lib` / `types` / `scripts` / `tests`）
 - **主要語言**: TypeScript / TSX 為主，搭配部分 JavaScript
-- **檔案總數**: 288 個核心原始碼檔案
+- **檔案總數**: 307 個核心原始碼檔案
 - **開發框架**: Next.js 16.0.10 + React 19
 
 ### 技術堆疊架構
