@@ -6,6 +6,8 @@ interface DataCardProps {
   children: React.ReactNode;
   className?: string;
   highlight?: "expired" | "warning" | "normal";
+  id?: string;
+  "data-subscription-id"?: string;
 }
 
 const highlightStyles = {
@@ -20,9 +22,13 @@ export function DataCard({
   children,
   className,
   highlight = "normal",
+  id,
+  "data-subscription-id": dataSubscriptionId,
 }: DataCardProps) {
   return (
     <div
+      id={id}
+      data-subscription-id={dataSubscriptionId}
       className={cn(
         "overflow-hidden rounded-[28px] border shadow-[var(--shadow-soft)]",
         highlightStyles[highlight],
