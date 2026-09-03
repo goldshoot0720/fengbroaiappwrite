@@ -1,6 +1,6 @@
 {
-  "name": "nextshadcn20250928",
-  "version": "0.1.0",
+  "name": "fengbroaiappwrite",
+  "version": "2026.09.03",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
