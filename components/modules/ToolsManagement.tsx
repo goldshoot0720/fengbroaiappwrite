@@ -29,6 +29,7 @@ import {
   guessFinanceGroup,
   isFinanceQuoteUrl,
   isTaiwanYahooStockSource,
+  migrateFinanceGroup,
   normalizeCustomFinanceInstrument,
   parseFinanceQuoteInput,
   type CustomFinanceDraft,
@@ -440,6 +441,102 @@ function tubeChannelFromRow(row: unknown): FengbroTubeChannelConfig | null {
 
 function tubeChannelSignature(channel: FengbroTubeChannelConfig): string {
   return JSON.stringify({ alias: channel.alias || "", sourceUrl: channel.sourceUrl });
+}
+
+/** /api/financeinstrument 文件 → 客戶端自選標的。 */
+function financeInstrumentFromRow(row: unknown): CustomFinanceInstrument | null {
+  if (!row || typeof row !== "object") return null;
+  const rec = row as {
+    name?: unknown;
+    symbol?: unknown;
+    provider?: unknown;
+    group?: unknown;
+    imageUrls?: unknown;
+    youtubeUrl?: unknown;
+    bilibiliUrl?: unknown;
+    relatedLinks?: unknown;
+    featured?: unknown;
+  };
+  const normalized = normalizeCustomFinanceInstrument({
+    name: typeof rec.name === "string" ? rec.name : "",
+    symbol: typeof rec.symbol === "string" ? rec.symbol : "",
+    provider: rec.provider === "yahoo" ? "yahoo" : "cnbc",
+    group: migrateFinanceGroup(typeof rec.group === "string" ? rec.group : "other"),
+    imageUrls: splitMultiFinanceCell(rec.imageUrls),
+    youtubeUrl: typeof rec.youtubeUrl === "string" ? rec.youtubeUrl : "",
+    bilibiliUrl: typeof rec.bilibiliUrl === "string" ? rec.bilibiliUrl : "",
+    relatedLinks: parseFinanceRelatedLinksCell(rec.relatedLinks),
+    featured: rec.featured === true || rec.featured === "true",
+  });
+  return normalized;
+}
+
+/** Table 用換行分隔存的圖片網址欄位 → 陣列。 */
+function splitMultiFinanceCell(value: unknown): string[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+  return value
+    .split(/\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/** Table 用 JSON 字串存的相關連結欄位 → 陣列。 */
+function parseFinanceRelatedLinksCell(value: unknown): Array<{ label: string; url: string }> | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+    const links = parsed
+      .filter(
+        (link): link is { label: string; url: string } =>
+          Boolean(link) &&
+          typeof link === "object" &&
+          typeof (link as { label?: unknown }).label === "string" &&
+          typeof (link as { url?: unknown }).url === "string"
+      )
+      .slice(0, 9);
+    return links.length > 0 ? links : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function financeInstrumentSignature(instrument: CustomFinanceInstrument): string {
+  return JSON.stringify({
+    name: instrument.name,
+    symbol: instrument.symbol,
+    provider: instrument.provider,
+    group: instrument.group,
+    imageUrls: Array.isArray(instrument.imageUrls) ? instrument.imageUrls : instrument.imageUrl ? [instrument.imageUrl] : [],
+    youtubeUrl: instrument.youtubeUrl || "",
+    bilibiliUrl: instrument.bilibiliUrl || "",
+    relatedLinks: instrument.relatedLinks || [],
+    featured: Boolean(instrument.featured),
+  });
+}
+
+/** 客戶端自選標的 → /api/financeinstrument 寫入 body（imageUrls/relatedLinks 以陣列傳，由 server 正規化）。 */
+function financeInstrumentToBody(instrument: CustomFinanceInstrument): Record<string, unknown> {
+  return {
+    name: instrument.name,
+    symbol: instrument.symbol,
+    provider: instrument.provider,
+    group: instrument.group,
+    imageUrls: Array.isArray(instrument.imageUrls)
+      ? instrument.imageUrls
+      : instrument.imageUrl
+        ? [instrument.imageUrl]
+        : [],
+    youtubeUrl: instrument.youtubeUrl || "",
+    bilibiliUrl: instrument.bilibiliUrl || "",
+    relatedLinks: instrument.relatedLinks || [],
+    featured: Boolean(instrument.featured),
+  };
+}
+
+/** provider|symbol 自然鍵（與 getCustomFinanceInstrumentKey 一致）。 */
+function financeInstrumentLocalId(instrument: CustomFinanceInstrument): string {
+  return `${instrument.provider}|${instrument.symbol.trim().toUpperCase()}`;
 }
 const FINANCE_CUSTOM_INSTRUMENTS_KEY = "fengbro.tools.finance.customInstruments";
 const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrumentIds";
@@ -3923,7 +4020,7 @@ export default function ToolsManagement({
   const [tubeChannelManagerOpen, setTubeChannelManagerOpen] = useState(false);
   const tubeSync = useRemoteListSync<FengbroTubeChannelConfig>({
     endpoint: API_ENDPOINTS.TUBE_CHANNEL,
-    enabled: appwriteSetup.hasDatabaseConfig && activeTab === "fengbro-tube",
+    enabled: appwriteSetup.hasDatabaseConfig,
     loadLocal: getSavedTubeChannels,
     toLocal: tubeChannelFromRow,
     remoteDocId: (row) =>
@@ -3932,7 +4029,7 @@ export default function ToolsManagement({
     localId: (channel) => channel.sourceUrl,
     signature: tubeChannelSignature,
   });
-  const { items: tubeChannelConfigs, setItems: setTubeChannelConfigs, syncState: tubeSyncState } = tubeSync;
+  const { items: tubeChannelConfigs, setItems: setTubeChannelConfigs, syncState: tubeSyncState, loadVersion: tubeLoadVersion } = tubeSync;
   const [tubeChannelAliasDraft, setTubeChannelAliasDraft] = useState("");
   const [tubeChannelUrlDraft, setTubeChannelUrlDraft] = useState("");
   const [editingTubeChannelUrl, setEditingTubeChannelUrl] = useState<string | null>(null);
@@ -3944,12 +4041,53 @@ export default function ToolsManagement({
   const [selectedDefaultFinanceInstrumentIds, setSelectedDefaultFinanceInstrumentIds] = useState<string[]>(
     getSavedDefaultFinanceInstrumentIds
   );
-  const [customFinanceInstruments, setCustomFinanceInstruments] = useState<CustomFinanceInstrument[]>(getSavedCustomFinanceInstruments);
   const [featuredFinanceQuoteIds, setFeaturedFinanceQuoteIds] = useState<string[]>(() =>
     getSavedFeaturedFinanceQuoteIds(getSavedCustomFinanceInstruments())
   );
   const [customFinanceDraft, setCustomFinanceDraft] = useState<CustomFinanceDraft>(createEmptyCustomFinanceDraft);
   const [editingCustomFinanceKey, setEditingCustomFinanceKey] = useState<string | null>(null);
+
+  // 金融自選標的：以 Appwrite 為主，本機僅為離線快取與遷移來源。
+  const financeSync = useRemoteListSync<CustomFinanceInstrument>({
+    endpoint: API_ENDPOINTS.FINANCE_INSTRUMENT,
+    enabled: appwriteSetup.hasDatabaseConfig,
+    loadLocal: getSavedCustomFinanceInstruments,
+    toLocal: financeInstrumentFromRow,
+    remoteDocId: (row) =>
+      row && typeof row === "object" ? ((row as { $id?: unknown }).$id as string | undefined) : undefined,
+    toBody: financeInstrumentToBody,
+    localId: financeInstrumentLocalId,
+    signature: financeInstrumentSignature,
+  });
+  const {
+    items: customFinanceInstruments,
+    setItems: setCustomFinanceInstruments,
+    syncState: financeSyncState,
+    loadVersion: financeLoadVersion,
+  } = financeSync;
+
+  // 雲端載入／遷移後，精選焦點以「自選標的的 featured 旗標」重算（保留非 custom 的預設 pin）。
+  useEffect(() => {
+    if (financeLoadVersion === 0) return;
+    const pinned = customFinanceInstruments
+      .filter((instrument) => Boolean(instrument.featured))
+      .map((instrument) =>
+        buildCustomFinanceQuoteId(instrument.provider, instrument.symbol)
+      );
+    setFeaturedFinanceQuoteIds((currentIds) => {
+      const nonCustom = currentIds.filter((id) => !id.startsWith("custom-"));
+      const merged = [...nonCustom];
+      const seen = new Set(nonCustom);
+      for (const id of pinned) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        merged.push(id);
+        if (merged.length >= MAX_FEATURED_FINANCE_INSTRUMENTS) break;
+      }
+      return merged.slice(0, MAX_FEATURED_FINANCE_INSTRUMENTS);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [financeLoadVersion]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -4236,6 +4374,14 @@ export default function ToolsManagement({
       void loadLandtop(false);
     }
   }, [activeTab, landtopLoadedOnce, landtopLoading, loadLandtop]);
+
+  // 雲端頻道清單載入完成後，用最新清單重新抓取影片。
+  useEffect(() => {
+    if (tubeLoadVersion > 0 && activeTab === "fengbro-tube") {
+      setTubeLoadedOnce(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tubeLoadVersion]);
 
   const loadTube = useCallback(async () => {
     setTubeLoadedOnce(true);
@@ -4724,6 +4870,14 @@ export default function ToolsManagement({
     [clearCustomFinanceForm, editingCustomFinanceKey]
   );
 
+  // 雲端自選標的載入完成後，用最新清單重新抓取報價。
+  useEffect(() => {
+    if (financeLoadVersion > 0 && activeTab === "fengbro-finance") {
+      setFinanceLoadedOnce(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [financeLoadVersion]);
+
   useEffect(() => {
     if (activeTab === "fengbro-finance" && !financeLoadedOnce && !financeLoading) {
       void loadFinance();
@@ -4833,27 +4987,53 @@ export default function ToolsManagement({
 
       {cloudRequired && !appwriteSetup.hasDatabaseConfig ? (
         <ToolsAppwriteSetupRequired onNavigate={() => onNavigate?.("settings")} />
-      ) : activeTab === "fengbro-tube" && tubeSyncState !== "idle" ? (
-        <div className="flex items-center justify-end">
-          <span
-            className={
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium " +
-              (tubeSyncState === "syncing"
-                ? "bg-red-50 text-red-700"
-                : "bg-rose-100 text-rose-700")
-            }
-          >
-            <span
-              className={
-                "h-1.5 w-1.5 rounded-full " +
-                (tubeSyncState === "syncing" ? "animate-pulse bg-red-500" : "bg-rose-500")
-              }
-            />
-            {tubeSyncState === "syncing" ? "頻道同步中…" : "頻道同步失敗（保留本機變更）"}
-          </span>
-        </div>
-      ) : null}
-      {cloudRequired && !appwriteSetup.hasDatabaseConfig ? null : activeTab === "price-compare" ? (
+      ) : (
+        <>
+          {activeTab === "fengbro-tube" && tubeSyncState !== "idle" && (
+            <div className="flex items-center justify-end">
+              <span
+                className={
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium " +
+                  (tubeSyncState === "syncing"
+                    ? "bg-red-50 text-red-700"
+                    : "bg-rose-100 text-rose-700")
+                }
+              >
+                <span
+                  className={
+                    "h-1.5 w-1.5 rounded-full " +
+                    (tubeSyncState === "syncing" ? "animate-pulse bg-red-500" : "bg-rose-500")
+                  }
+                />
+                {tubeSyncState === "syncing" ? "頻道同步中…" : "頻道同步失敗（保留本機變更）"}
+              </span>
+            </div>
+          )}
+          {activeTab === "fengbro-finance" && financeSyncState !== "idle" && (
+            <div className="flex items-center justify-end">
+              <span
+                className={
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium " +
+                  (financeSyncState === "syncing"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-rose-100 text-rose-700")
+                }
+              >
+                <span
+                  className={
+                    "h-1.5 w-1.5 rounded-full " +
+                    (financeSyncState === "syncing"
+                      ? "animate-pulse bg-emerald-500"
+                      : "bg-rose-500")
+                  }
+                />
+                {financeSyncState === "syncing"
+                  ? "自選標的同步中…"
+                  : "自選標的同步失敗（保留本機變更）"}
+              </span>
+            </div>
+          )}
+      {activeTab === "price-compare" ? (
         <>
           <DataCard className="space-y-4 p-6">
             <div className="flex items-center gap-3">
@@ -5326,6 +5506,8 @@ export default function ToolsManagement({
           onImportCustomCsv={handleImportFinanceCustomCsv}
           onRefresh={() => void loadFinance()}
         />
+      )}
+        </>
       )}
     </section>
   );

@@ -207,6 +207,10 @@ const APPWRITE_REQUIRED_MODULES = new Set([
   "podcast",
   "bank-stats",
   "routine",
+  // 個人化清單以 Appwrite 為主：比價紀錄 / Tube 頻道 / 金融自選標的
+  "price-compare",
+  "fengbro-tube",
+  "fengbro-finance",
 ]);
 
 export default function DashboardPage() {
