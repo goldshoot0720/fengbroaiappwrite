@@ -536,12 +536,6 @@ function financeInstrumentToBody(instrument: CustomFinanceInstrument): Record<st
 function financeInstrumentLocalId(instrument: CustomFinanceInstrument): string {
   return `${instrument.provider}|${instrument.symbol.trim().toUpperCase()}`;
 }
-const FINANCE_CUSTOM_INSTRUMENTS_KEY = "fengbro.tools.finance.customInstruments";
-const FINANCE_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.defaultInstrumentIds";
-/** User-selected 精選焦點 quote ids (default ids and custom-*). */
-const FINANCE_FEATURED_QUOTE_IDS_KEY = "fengbro.tools.finance.featuredQuoteIds";
-/** Tracks which default instrument ids the client has already seen, so newly shipped defaults auto-appear. */
-const FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY = "fengbro.tools.finance.knownDefaultInstrumentIds";
 const DEFAULT_FINANCE_INSTRUMENTS: DefaultFinanceInstrumentSummary[] = [
   // 目前無內建預設標的；請用「新增指數或股票」自行追蹤
 ];
@@ -555,116 +549,18 @@ function getInitialTubeChannels(): FengbroTubeChannelConfig[] {
   return [];
 }
 
-function getSavedCustomFinanceInstruments() {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const savedInstruments = window.localStorage.getItem(FINANCE_CUSTOM_INSTRUMENTS_KEY);
-    if (!savedInstruments) return [];
-    const parsedInstruments = JSON.parse(savedInstruments) as unknown;
-    if (!Array.isArray(parsedInstruments)) return [];
-    return parsedInstruments
-      .map((instrument) => normalizeCustomFinanceInstrument(instrument as Partial<CustomFinanceInstrument>))
-      .filter((instrument): instrument is CustomFinanceInstrument => instrument != null)
-      .slice(0, 30);
-  } catch {
-    return [];
-  }
-}
-
-function getSavedFeaturedFinanceQuoteIds(customInstruments: CustomFinanceInstrument[] = []) {
-  const fromCustom = customInstruments
-    .filter((instrument) => instrument.featured)
-    .map((instrument) => buildCustomFinanceQuoteId(instrument.provider, instrument.symbol));
-
-  if (typeof window === "undefined") {
-    return fromCustom.slice(0, MAX_FEATURED_FINANCE_INSTRUMENTS);
-  }
-
-  try {
-    const raw = window.localStorage.getItem(FINANCE_FEATURED_QUOTE_IDS_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    const fromStorage = Array.isArray(parsed)
-      ? parsed.filter((id): id is string => typeof id === "string" && id.trim().length > 0).map((id) => id.trim())
-      : [];
-
-    const merged: string[] = [];
-    const seen = new Set<string>();
-    for (const id of [...fromStorage, ...fromCustom]) {
-      if (seen.has(id)) continue;
-      seen.add(id);
-      merged.push(id);
-      if (merged.length >= MAX_FEATURED_FINANCE_INSTRUMENTS) break;
-    }
-    return merged;
-  } catch {
-    return fromCustom.slice(0, MAX_FEATURED_FINANCE_INSTRUMENTS);
-  }
+/**
+ * 鋒兄金融自選標的完全以 Appwrite `financeinstrument` 資料表為唯一來源，
+ * 不讀取也不寫入 localStorage；雲端載入前的初始值即為空清單。
+ */
+function getInitialFinanceInstruments(): CustomFinanceInstrument[] {
+  return [];
 }
 
 function toggleIdInList(ids: string[], id: string, max = MAX_FEATURED_FINANCE_INSTRUMENTS) {
   if (ids.includes(id)) return ids.filter((item) => item !== id);
   if (ids.length >= max) return ids;
   return [...ids, id];
-}
-
-function getSavedDefaultFinanceInstrumentIds() {
-  if (typeof window === "undefined") return DEFAULT_FINANCE_INSTRUMENT_IDS;
-
-  try {
-    const savedIds = window.localStorage.getItem(FINANCE_DEFAULT_INSTRUMENT_IDS_KEY);
-    if (!savedIds) {
-      window.localStorage.setItem(
-        FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY,
-        JSON.stringify(DEFAULT_FINANCE_INSTRUMENT_IDS)
-      );
-      return DEFAULT_FINANCE_INSTRUMENT_IDS;
-    }
-
-    const parsedIds = JSON.parse(savedIds) as unknown;
-    if (!Array.isArray(parsedIds)) return DEFAULT_FINANCE_INSTRUMENT_IDS;
-
-    const selectedIds = [
-      ...new Set(
-        parsedIds.filter(
-          (id): id is string => typeof id === "string" && DEFAULT_FINANCE_INSTRUMENT_IDS.includes(id)
-        )
-      ),
-    ];
-
-    // Auto-append newly shipped defaults without re-adding ones the user previously removed.
-    let knownIds: string[] = [];
-    try {
-      const knownRaw = window.localStorage.getItem(FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY);
-      if (knownRaw) {
-        const parsedKnown = JSON.parse(knownRaw) as unknown;
-        if (Array.isArray(parsedKnown)) {
-          knownIds = parsedKnown.filter((id): id is string => typeof id === "string");
-        }
-      }
-    } catch {
-      knownIds = [];
-    }
-
-    // First migration after introducing known-ids tracking: treat current catalog as already known.
-    if (knownIds.length === 0) {
-      knownIds = [...DEFAULT_FINANCE_INSTRUMENT_IDS];
-    }
-
-    const knownSet = new Set(knownIds);
-    const newlyShippedIds = DEFAULT_FINANCE_INSTRUMENT_IDS.filter((id) => !knownSet.has(id));
-    const selectedSet = new Set(selectedIds);
-    for (const id of newlyShippedIds) selectedSet.add(id);
-
-    window.localStorage.setItem(
-      FINANCE_KNOWN_DEFAULT_INSTRUMENT_IDS_KEY,
-      JSON.stringify(DEFAULT_FINANCE_INSTRUMENT_IDS)
-    );
-
-    return DEFAULT_FINANCE_INSTRUMENT_IDS.filter((id) => selectedSet.has(id));
-  } catch {
-    return DEFAULT_FINANCE_INSTRUMENT_IDS;
-  }
 }
 
 function hasCustomTubeAlias(alias: string) {
@@ -4024,20 +3920,19 @@ export default function ToolsManagement({
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
   const financeResultRef = useRef<FengbroFinanceResult | null>(null);
   const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
+  // 鋒兄金融目前無內建預設標的；全以 financeinstrument 自訂標的為主。
   const [selectedDefaultFinanceInstrumentIds, setSelectedDefaultFinanceInstrumentIds] = useState<string[]>(
-    getSavedDefaultFinanceInstrumentIds
+    DEFAULT_FINANCE_INSTRUMENT_IDS
   );
-  const [featuredFinanceQuoteIds, setFeaturedFinanceQuoteIds] = useState<string[]>(() =>
-    getSavedFeaturedFinanceQuoteIds(getSavedCustomFinanceInstruments())
-  );
+  const [featuredFinanceQuoteIds, setFeaturedFinanceQuoteIds] = useState<string[]>([]);
   const [customFinanceDraft, setCustomFinanceDraft] = useState<CustomFinanceDraft>(createEmptyCustomFinanceDraft);
   const [editingCustomFinanceKey, setEditingCustomFinanceKey] = useState<string | null>(null);
 
-  // 金融自選標的：以 Appwrite 為主，本機僅為離線快取與遷移來源。
+  // 金融自選標的：完全以 Appwrite financeinstrument 資料表為唯一資料源（不使用 localStorage）。
   const financeSync = useRemoteListSync<CustomFinanceInstrument>({
     endpoint: API_ENDPOINTS.FINANCE_INSTRUMENT,
     enabled: appwriteSetup.hasDatabaseConfig,
-    loadLocal: getSavedCustomFinanceInstruments,
+    loadLocal: getInitialFinanceInstruments,
     toLocal: financeInstrumentFromRow,
     remoteDocId: (row) =>
       row && typeof row === "object" ? ((row as { $id?: unknown }).$id as string | undefined) : undefined,
@@ -4104,27 +3999,6 @@ export default function ToolsManagement({
 
     } catch {}
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(FINANCE_CUSTOM_INSTRUMENTS_KEY, JSON.stringify(customFinanceInstruments));
-    } catch {}
-  }, [customFinanceInstruments]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(FINANCE_FEATURED_QUOTE_IDS_KEY, JSON.stringify(featuredFinanceQuoteIds));
-    } catch {}
-  }, [featuredFinanceQuoteIds]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(FINANCE_DEFAULT_INSTRUMENT_IDS_KEY, JSON.stringify(selectedDefaultFinanceInstrumentIds));
-    } catch {}
-  }, [selectedDefaultFinanceInstrumentIds]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -5010,7 +4884,7 @@ export default function ToolsManagement({
                 />
                 {financeSyncState === "syncing"
                   ? "自選標的同步中…"
-                  : "自選標的同步失敗（保留本機變更）"}
+                  : "自選標的同步失敗（變更保留於畫面，稍後自動重試）"}
               </span>
             </div>
           )}
