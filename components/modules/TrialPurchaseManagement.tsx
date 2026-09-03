@@ -1,17 +1,19 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   CalendarDays,
   ChevronDown,
   ChevronUp,
   CircleDollarSign,
+  Download,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   Trash2,
+  Upload,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ManagementDeleteDialog } from "@/components/ui/management-delete-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchApi } from "@/hooks/useApi";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
 import { API_ENDPOINTS } from "@/lib/constants";
 import {
@@ -29,6 +32,12 @@ import {
   toTrialPurchaseForm,
   TRIAL_STATUS_OPTIONS,
 } from "@/lib/managementRecords";
+import {
+  buildTrialPurchaseCsv,
+  parseTrialPurchaseCsv,
+  trialPurchaseImportKey,
+} from "@/lib/trialPurchaseCsv";
+import { getExportFilename } from "@/lib/utils";
 import type {
   PurchaseStatus,
   TrialPurchase,
@@ -123,6 +132,12 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TrialPurchase | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const importCloseTimer = useRef<number | null>(null);
+  const [importPreview, setImportPreview] = useState<{ data: TrialPurchaseFormData[]; errors: string[] } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importResult, setImportResult] = useState<{ successCount: number; failCount: number } | null>(null);
 
   useEffect(() => {
     setFormOpen(false);
@@ -131,7 +146,18 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
     setActionError(null);
     setExpandedServices(new Set());
     setPendingDelete(null);
+    setImportPreview(null);
+    setImportResult(null);
+    setImporting(false);
+    if (importCloseTimer.current) {
+      window.clearTimeout(importCloseTimer.current);
+      importCloseTimer.current = null;
+    }
   }, [accountVersion]);
+
+  useEffect(() => () => {
+    if (importCloseTimer.current) window.clearTimeout(importCloseTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!formOpen) return;
@@ -182,7 +208,7 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
   const untriedCount = items.filter((item) => item.trialStatus !== "tried").length;
   const notPurchasedCount = items.filter((item) => item.purchaseStatus === "not_purchased").length;
   const pendingCount = items.filter((item) => item.trialStatus !== "tried" || item.purchaseStatus === "not_purchased").length;
-  const busy = saving || deletingId !== null;
+  const busy = saving || deletingId !== null || importing;
 
   const openCreateForm = (name = "") => {
     setEditingId(null);
@@ -238,6 +264,105 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
     }
   };
 
+  const closeImportPreview = () => {
+    if (importing) return;
+    if (importCloseTimer.current) {
+      window.clearTimeout(importCloseTimer.current);
+      importCloseTimer.current = null;
+    }
+    setImportPreview(null);
+    setImportResult(null);
+    setImportProgress({ current: 0, total: 0 });
+  };
+
+  const exportToCsv = () => {
+    if (busy) return;
+    try {
+      const csv = buildTrialPurchaseCsv(items);
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = getExportFilename("trialpurchase");
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setActionError(null);
+    } catch (exportError) {
+      setActionError(exportError instanceof Error ? exportError.message : "匯出 CSV 失敗");
+    }
+  };
+
+  const handleCsvFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setActionError("請選擇 CSV 檔案");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      if (importCloseTimer.current) {
+        window.clearTimeout(importCloseTimer.current);
+        importCloseTimer.current = null;
+      }
+      setImportResult(null);
+      setActionError(null);
+      setImportPreview(parseTrialPurchaseCsv(text));
+    };
+    reader.onerror = () => setActionError("讀取 CSV 檔案失敗");
+    reader.readAsText(file, "UTF-8");
+  };
+
+  const executeImport = async () => {
+    if (!importPreview || importPreview.data.length === 0 || importPreview.errors.length > 0 || importing) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportProgress({ current: 0, total: importPreview.data.length });
+    let successCount = 0;
+    let failCount = 0;
+    const index = new Map(items.map((item) => [trialPurchaseImportKey(item), item.$id]));
+
+    for (let i = 0; i < importPreview.data.length; i++) {
+      const formData = importPreview.data[i];
+      setImportProgress({ current: i + 1, total: importPreview.data.length });
+      try {
+        const key = trialPurchaseImportKey(formData);
+        const existingId = index.get(key);
+        if (existingId) {
+          await fetchApi(`${API_ENDPOINTS.TRIAL_PURCHASE}/${encodeURIComponent(existingId)}`, {
+            method: "PUT",
+            body: JSON.stringify(formData),
+          });
+        } else {
+          const created = await fetchApi<TrialPurchase>(API_ENDPOINTS.TRIAL_PURCHASE, {
+            method: "POST",
+            body: JSON.stringify(formData),
+          });
+          index.set(key, created.$id);
+        }
+        successCount += 1;
+      } catch {
+        failCount += 1;
+      }
+    }
+
+    try {
+      await fetchAll();
+      setImportResult({ successCount, failCount });
+      if (failCount === 0) {
+        importCloseTimer.current = window.setTimeout(() => {
+          setImportPreview(null);
+          setImportResult(null);
+          setImportProgress({ current: 0, total: 0 });
+          importCloseTimer.current = null;
+        }, 1200);
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const toggleService = (key: string) => {
     if (query.trim()) {
       setCollapsedSearchServices((current) => {
@@ -264,13 +389,40 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
             鋒兄試用／首購
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            依服務集中追蹤每個帳號的試用、首購與下次重要日期；點擊服務名稱即可展開帳號清單。
+            依服務集中追蹤每個帳號的試用、首購與試用／首購／到期日（扣款日）；點擊服務名稱即可展開帳號清單。可用 CSV 匯出備份或批次匯入。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleCsvFileSelect}
+          />
           <Button type="button" variant="outline" onClick={() => void fetchAll()} disabled={loading || busy}>
             <RefreshCw className={loading ? "animate-spin" : ""} />
             重新整理
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => csvInputRef.current?.click()}
+            disabled={loading || busy}
+            title="從 CSV 匯入試用／首購紀錄（相同服務與帳號會更新）"
+          >
+            <Upload />
+            匯入 CSV
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={exportToCsv}
+            disabled={busy}
+            title="匯出目前全部試用／首購紀錄為 CSV"
+          >
+            <Download />
+            匯出 CSV
           </Button>
           <Button type="button" onClick={() => openCreateForm()} disabled={loading || busy}>
             <Plus />
@@ -477,14 +629,14 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
 
                 {isOpen ? (
                   <div id={`trial-accounts-${encodeURIComponent(group.key)}`} className="border-t border-[var(--line-soft)]">
-                    <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,.9fr)_minmax(0,.9fr)_minmax(0,1.2fr)_minmax(0,1fr)_88px] gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold text-muted-foreground xl:grid">
-                      <span>帳號</span><span>重要日期</span><span>價格</span><span>狀態</span><span>備註</span><span>操作</span>
+                    <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_88px] gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid">
+                      <span>帳號</span><span>試用／首購／到期日（扣款日）</span><span>價格</span><span>狀態</span><span>備註</span><span>操作</span>
                     </div>
                     <div className="divide-y divide-[var(--line-soft)]">
                       {group.items.map((item) => (
-                        <div key={item.$id} className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,.9fr)_minmax(0,.9fr)_minmax(0,1.2fr)_minmax(0,1fr)_88px] xl:items-center xl:px-5">
+                        <div key={item.$id} className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_88px] xl:items-center xl:px-5">
                           <Cell label="帳號"><span className="break-all font-medium text-foreground">{item.account?.trim() || "未填帳號"}</span></Cell>
-                          <Cell label="重要日期"><span className="inline-flex items-center gap-2 text-sm text-foreground"><CalendarDays className="size-4 text-muted-foreground" />{formatDate(item.eventDate)}</span></Cell>
+                          <Cell label="試用／首購／到期日（扣款日）"><span className="inline-flex items-center gap-2 text-sm text-foreground"><CalendarDays className="size-4 shrink-0 text-muted-foreground" />{formatDate(item.eventDate)}</span></Cell>
                           <Cell label="價格">
                             <div className="space-y-1 text-sm tabular-nums">
                               <p><span className="text-muted-foreground">首購 </span>{moneyFormatter.format(item.firstPurchasePrice || 0)}</p>
@@ -520,6 +672,97 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
         onCancel={() => { setPendingDelete(null); setActionError(null); }}
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
       />
+      {importPreview ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-foreground/35 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeImportPreview();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="trial-purchase-csv-import-title"
+            className="surface-raised flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl"
+          >
+            <div className="border-b border-[var(--line-soft)] p-5 sm:p-6">
+              <h2 id="trial-purchase-csv-import-title" className="font-display text-xl font-semibold text-foreground">
+                匯入 CSV 預覽
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                相同服務名稱與帳號會更新既有紀錄，其餘新增。有格式錯誤時不會寫入。
+              </p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+              {importResult ? (
+                <div className="mb-4 rounded-xl bg-accent/10 px-3 py-2 text-sm text-foreground">
+                  <p className="font-semibold">匯入完成</p>
+                  <p className="mt-1">成功 {importResult.successCount} 筆 · 失敗 {importResult.failCount} 筆</p>
+                </div>
+              ) : null}
+              {importPreview.errors.length > 0 ? (
+                <div role="alert" className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <p className="font-semibold">格式錯誤</p>
+                  <ul className="mt-1 space-y-1">
+                    {importPreview.errors.map((error, index) => (
+                      <li key={`${index}-${error}`}>• {error}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {importPreview.data.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">將匯入 {importPreview.data.length} 筆</p>
+                  {importPreview.data.map((item, index) => {
+                    const existing = items.some((current) => trialPurchaseImportKey(current) === trialPurchaseImportKey(item));
+                    return (
+                      <div key={`${item.name}-${item.account || ""}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-accent/8 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-foreground">{item.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{item.account?.trim() || "未填帳號"}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${existing ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"}`}>
+                          {existing ? "更新" : "新增"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">沒有可匯入的資料列。</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-3 border-t border-[var(--line-soft)] p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:p-6">
+              {importing ? (
+                <div className="flex w-full items-center gap-3">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-accent transition-all"
+                      style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <span className="text-sm tabular-nums text-muted-foreground">
+                    {importProgress.current}/{importProgress.total}
+                  </span>
+                </div>
+              ) : importResult ? (
+                <Button type="button" variant="outline" onClick={closeImportPreview}>完成</Button>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={closeImportPreview}>取消</Button>
+                  <Button
+                    type="button"
+                    onClick={() => void executeImport()}
+                    disabled={importPreview.data.length === 0 || importPreview.errors.length > 0}
+                  >
+                    確認匯入（{importPreview.data.length} 筆）
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

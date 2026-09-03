@@ -110,6 +110,8 @@ test("trial-purchase and reinstall pages are reachable from the management menu"
   await expect(
     page.getByRole("heading", { name: /鋒兄試用／首購|尚未設定 Appwrite/ }).first()
   ).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole("button", { name: "匯出 CSV" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "匯入 CSV" })).toBeVisible();
 
   const addRecord = page.getByRole("button", { name: /新增紀錄/ });
   if (await addRecord.isVisible().catch(() => false)) {
