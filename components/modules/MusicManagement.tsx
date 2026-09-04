@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Music as MusicIcon, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Play, FileText, Download, ListPlus, HardDrive, Check, FolderUp, Copy, AlertTriangle, RefreshCw } from "lucide-react";
+import { Music as MusicIcon, Music2, LayoutList, Plus, Edit, Trash2, X, Upload, Calendar, Search, ChevronDown, Play, FileText, Download, ListPlus, HardDrive, Check, FolderUp, Copy, AlertTriangle, RefreshCw } from "lucide-react";
 import { useMusic, MusicData } from "@/hooks/useMusic";
 import { useMusicQueue, QueueItem } from "@/hooks/useMusicQueue";
+import { SkinSwitcher, type SkinOption } from "@/components/ui/skin-switcher";
+import { SpotifyLibrary } from "@/components/modules/music-skins/SpotifyLibrary";
 import { useMusicCache } from "@/hooks/useMusicCache";
 import { DataCard } from "@/components/ui/data-card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -52,6 +54,18 @@ function getDefaultMusicName(fileName: string): string {
 }
 
 /** 音樂語言預設選項（下拉選單） */
+type MusicSkin = "spotify" | "grouped";
+
+/**
+ * Spotify for listening — playlists, a tinted hero, a numbered track table —
+ * and the original grouped cards for the days you are editing metadata, where
+ * every language variant of a song needs to be visible at once.
+ */
+const MUSIC_SKINS: readonly SkinOption<MusicSkin>[] = [
+  { value: "spotify", label: "Spotify", color: "#1DB954", onColor: "#000000", icon: <Music2 className="h-4 w-4" />, title: "Spotify 版型" },
+  { value: "grouped", label: "分組卡片", color: "#404040", icon: <LayoutList className="h-4 w-4" />, title: "依歌名分組的卡片" },
+];
+
 const MUSIC_LANGUAGE_PRESETS = ['中文', '英語', '日語', '韓語', '粵語'] as const;
 const MUSIC_LANGUAGE_CUSTOM = '__custom__';
 /** 相容舊邏輯／分組：預設語言 + 常見自訂 */
@@ -168,6 +182,7 @@ export default function MusicManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "withLyrics" | "missingCover" | "missingAudio">("all");
   const [expandedMusicId, setExpandedMusicId] = useState<string | null>(null);
+  const [musicSkin, setMusicSkin] = useState<MusicSkin>("spotify");
   const [exportingZip, setExportingZip] = useState(false);
   const [exportZipProgress, setExportZipProgress] = useState({ current: 0, total: 0, status: '' });
   const [exportZipDebugMessages, setExportZipDebugMessages] = useState<string[]>([]);
@@ -1181,6 +1196,12 @@ export default function MusicManagement() {
                 刪除選取 ({selectedIds.size})
               </Button>
             )}
+            <SkinSwitcher
+              value={musicSkin}
+              options={MUSIC_SKINS}
+              onChange={setMusicSkin}
+              label="音樂版型"
+            />
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
               <Plus size={16} />
               新增音樂
@@ -1312,7 +1333,18 @@ export default function MusicManagement() {
               </div>
             </div>
           )}
-          {groupedMusic.map((group) => (
+          {musicSkin === "spotify" ? (
+            <SpotifyLibrary
+              tracks={filteredMusic}
+              allTracks={music}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+            />
+          ) : null}
+          {musicSkin === "grouped" && groupedMusic.map((group) => (
             <GroupedMusicCard
               key={group.name}
               name={group.name}
