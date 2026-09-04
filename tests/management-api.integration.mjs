@@ -199,6 +199,26 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
     assert.equal((await api(`/api/tubechannel/${id}`, "DELETE")).status, 404);
   });
 
+  it("creates/edits/deletes Tube2 channels against its own table", async () => {
+    const result = await api("/api/tubechannel2");
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.length, 0);
+
+    const created = await api("/api/tubechannel2", "POST", { alias: "第二頻道", sourceUrl: "@second-handle" });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    assert.equal(created.body.sourceUrl, "https://www.youtube.com/@second-handle/videos");
+    assert.equal(created.body.alias, "第二頻道");
+    const id = created.body.$id;
+
+    const updated = await api(`/api/tubechannel2/${id}`, "PUT", { alias: "改名的第二頻道", sourceUrl: "@second-handle" });
+    assert.equal(updated.status, 200, JSON.stringify(updated.body));
+    assert.equal(updated.body.alias, "改名的第二頻道");
+
+    assert.equal((await api(`/api/tubechannel2/${id}`, "DELETE")).status, 200);
+    assert.equal((await api("/api/tubechannel2")).body.length, 0);
+    assert.equal((await api(`/api/tubechannel2/${id}`, "DELETE")).status, 404);
+  });
+
   it("rejects invalid Tube channel fields before writing", async () => {
     const beforeWrites = fixture.writes.length;
     for (const data of [null, [], { sourceUrl: "" },

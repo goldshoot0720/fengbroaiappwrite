@@ -180,6 +180,13 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "alias", type: "string", size: 200, required: false },
     ],
   },
+  tubechannel2: {
+    name: "tubechannel2",
+    attributes: [
+      { key: "sourceUrl", type: "string", size: 500, required: true },
+      { key: "alias", type: "string", size: 200, required: false },
+    ],
+  },
   financeinstrument: {
     name: "financeinstrument",
     attributes: [
@@ -216,6 +223,7 @@ export const ADDITIVE_SETUP_TABLES: readonly string[] = [
   "quota",
   "shoppinglist",
   "tubechannel",
+  "tubechannel2",
   "financeinstrument",
   "notificationsettings",
 ];
