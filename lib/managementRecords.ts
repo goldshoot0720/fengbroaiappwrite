@@ -765,13 +765,18 @@ export function buildFinanceInstrumentWritePayload(
     provider,
     group,
     featured,
-    imageUrl1: imageUrls[0] ?? "",
-    imageUrl2: imageUrls[1] ?? "",
-    imageUrl3: imageUrls[2] ?? "",
     linkUrl1: relatedLinks[0] ? `${relatedLinks[0].label}|${relatedLinks[0].url}` : "",
     linkUrl2: relatedLinks[1] ? `${relatedLinks[1].label}|${relatedLinks[1].url}` : "",
     linkUrl3: relatedLinks[2] ? `${relatedLinks[2].label}|${relatedLinks[2].url}` : "",
   };
+  // Appwrite 的 url 型別不接受空字串：只有當有合法 URL 才放入欄位。
+  // 「新增」時空值省略（走 default）；「更新」時空值設 null 以清除既有值。
+  if (imageUrls[0]) payload.imageUrl1 = imageUrls[0];
+  else if (mode === "update") payload.imageUrl1 = null;
+  if (imageUrls[1]) payload.imageUrl2 = imageUrls[1];
+  else if (mode === "update") payload.imageUrl2 = null;
+  if (imageUrls[2]) payload.imageUrl3 = imageUrls[2];
+  else if (mode === "update") payload.imageUrl3 = null;
   if (youtubeUrl) payload.youtubeUrl = youtubeUrl;
   else if (mode === "update") payload.youtubeUrl = null;
   if (bilibiliUrl) payload.bilibiliUrl = bilibiliUrl;

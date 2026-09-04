@@ -306,7 +306,8 @@ describe("finance instrument records", () => {
     assert.equal(payload.provider, "yahoo");
     assert.equal(payload.group, "taiwan");
     assert.equal(payload.imageUrl1, "https://example.com/a.png");
-    assert.equal(payload.imageUrl2, "");
+    // Appwrite url 型別不收空字串：空圖片欄位在 create 時省略不送出
+    assert.equal(payload.imageUrl2, undefined);
     assert.equal(payload.linkUrl1, "PTT 股板|https://ptt.cc/bbs/stock/index.html");
     assert.equal(payload.linkUrl2, "");
     assert.equal(payload.youtubeUrl, "https://www.youtube.com/watch?v=abc");
@@ -348,9 +349,9 @@ describe("finance instrument records", () => {
     );
     assert.equal(cleared.youtubeUrl, null);
     assert.equal(cleared.bilibiliUrl, null);
-    assert.equal(cleared.imageUrl1, "");
-    assert.equal(cleared.imageUrl2, "");
-    assert.equal(cleared.imageUrl3, "");
+    assert.equal(cleared.imageUrl1, null);
+    assert.equal(cleared.imageUrl2, null);
+    assert.equal(cleared.imageUrl3, null);
     assert.equal(cleared.linkUrl1, "");
   });
 
