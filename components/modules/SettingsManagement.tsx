@@ -34,6 +34,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { ADDITIVE_SETUP_TABLES } from "@/lib/managementRecords";
 import { fetchApi } from "@/hooks/useApi";
 import packageJson from "@/package.json";
+import { MenuBackupSettings } from "@/components/modules/MenuBackupSettings";
 
 interface ResendSettingsResponse {
   hasPassword: boolean;
@@ -1092,6 +1093,8 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             </div>
           </div>
         </CollapsibleSettingsCard>
+
+        <MenuBackupSettings />
 
         {/* 資料庫欄位統計 - 第二欄位 */}
         <CollapsibleSettingsCard

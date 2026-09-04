@@ -179,6 +179,35 @@ test("trial-purchase and reinstall pages are reachable from the management menu"
   await expect(page.getByText("鋒兄額度")).toBeVisible();
 });
 
+test("settings page has one-click csv and all-menu backup actions", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForTimeout(800);
+
+  const topNav = await getDesktopTopNav(page);
+  await topNav.getByRole("button", { name: /^設定$/ }).click();
+  await page.waitForTimeout(250);
+  await topNav.getByRole("button", { name: /鋒兄設定/ }).click();
+  await page.waitForTimeout(700);
+
+  await expect(page.getByRole("heading", { name: "鋒兄設定" })).toBeVisible({ timeout: 15000 });
+  const backupToggle = page.getByRole("button", { name: /選單備份／還原/ });
+  await expect(backupToggle).toBeVisible();
+  if ((await backupToggle.getAttribute("aria-expanded")) !== "true") {
+    await backupToggle.click();
+  }
+  await expect(page.getByRole("button", { name: "一鍵匯出 CSV" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "一鍵匯入 CSV" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "一鍵匯出全部" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "一鍵匯入全部" })).toBeVisible();
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "一鍵匯出 CSV" }).click();
+  await expect(page.getByText("上次結果")).toBeVisible({ timeout: 90000 });
+});
+
 test("subscription currency dropdown", async ({ page }) => {
   await page.goto("/");
   await page.waitForLoadState("domcontentloaded");
