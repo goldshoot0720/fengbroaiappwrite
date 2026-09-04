@@ -242,7 +242,6 @@ export const ADDITIVE_SETUP_TABLES: readonly string[] = [
   "shoppinglist",
   "tubechannel",
   "tubechannel2",
-  "financeinstrument",
   "financeinstrument2",
   "notificationsettings",
 ];

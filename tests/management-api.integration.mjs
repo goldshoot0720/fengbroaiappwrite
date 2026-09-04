@@ -325,7 +325,7 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
   it("creates both tables privately and repeated setup preserves every existing document", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {
-      for (const tableName of ["trialpurchase", "reinstall", "quota", "shoppinglist", "tubechannel", "tubechannel2", "financeinstrument", "financeinstrument2"]) {
+      for (const tableName of ["trialpurchase", "reinstall", "quota", "shoppinglist", "tubechannel", "tubechannel2", "financeinstrument2"]) {
         const result = await api("/api/create-table", "POST", { tableName }, empty);
         assert.equal(result.status, 200, JSON.stringify(result.body));
         assert.equal(result.body.success, true);
@@ -343,42 +343,42 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
   it("rebuilds an additive table by deleting the old collection first", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {
-      const first = await api("/api/create-table", "POST", { tableName: "financeinstrument" }, empty);
+      const first = await api("/api/create-table", "POST", { tableName: "financeinstrument2" }, empty);
       assert.equal(first.status, 200);
-      empty.addDocument("financeinstrument", { name: "toBeDeleted" }, "stale-doc");
+      empty.addDocument("financeinstrument2", { name: "toBeDeleted" }, "stale-doc");
       const writesBefore = empty.writes.length;
 
-      const rebuilt = await api("/api/create-table", "POST", { tableName: "financeinstrument", rebuild: true }, empty);
+      const rebuilt = await api("/api/create-table", "POST", { tableName: "financeinstrument2", rebuild: true }, empty);
       assert.equal(rebuilt.status, 200, JSON.stringify(rebuilt.body));
       assert.equal(rebuilt.body.success, true);
       // Rebuild issues a collection DELETE, then a fresh collection with the full latest attributes.
       assert.ok(empty.writes.slice(writesBefore).some((write) => write.method === "DELETE"));
-      const latest = empty.collections.get("financeinstrument");
+      const latest = empty.collections.get("financeinstrument2");
       assert.ok(latest, "fresh collection exists after rebuild");
-      assert.equal(latest.attributes.length, MANAGEMENT_TABLE_SCHEMAS.financeinstrument.attributes.length);
-      assert.equal(empty.documents.get("financeinstrument").length, 0);
+      assert.equal(latest.attributes.length, MANAGEMENT_TABLE_SCHEMAS.financeinstrument2.attributes.length);
+      assert.equal(empty.documents.get("financeinstrument2").length, 0);
     } finally { await empty.close(); }
   });
 
   it("deletes an additive table without recreating it (deleteonly)", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {
-      const created = await api("/api/create-table", "POST", { tableName: "financeinstrument" }, empty);
+      const created = await api("/api/create-table", "POST", { tableName: "financeinstrument2" }, empty);
       assert.equal(created.status, 200);
-      assert.ok(empty.collections.has("financeinstrument"));
+      assert.ok(empty.collections.has("financeinstrument2"));
 
-      const del = await api("/api/create-table", "POST", { tableName: "financeinstrument", deleteOnly: true }, empty);
+      const del = await api("/api/create-table", "POST", { tableName: "financeinstrument2", deleteOnly: true }, empty);
       assert.equal(del.status, 200, JSON.stringify(del.body));
       assert.equal(del.body.success, true);
-      assert.ok(!empty.collections.has("financeinstrument"), "collection removed after deleteonly");
+      assert.ok(!empty.collections.has("financeinstrument2"), "collection removed after deleteonly");
       assert.match(del.body.message, /未重建/);
 
       // GET (SSE) path with deleteonly=1 deletes too and does not recreate.
-      const sseDel = await api("/api/create-table?table=financeinstrument&deleteonly=1", "GET", undefined, empty);
+      const sseDel = await api("/api/create-table?table=financeinstrument2&deleteonly=1", "GET", undefined, empty);
       assert.equal(sseDel.status, 200);
       assert.match(sseDel.body, /"type":"complete"/);
-      assert.doesNotMatch(sseDel.body, /financeinstrument 已就緒/);
-      assert.ok(!empty.collections.has("financeinstrument"));
+      assert.doesNotMatch(sseDel.body, /financeinstrument2 已就緒/);
+      assert.ok(!empty.collections.has("financeinstrument2"));
     } finally { await empty.close(); }
   });
 
@@ -393,24 +393,24 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
       { key: "relatedLinks", type: "string", size: 12000, required: false },
     ];
     try {
-      empty.addCollection("financeinstrument", "financeinstrument", legacyAttributes);
+      empty.addCollection("financeinstrument2", "financeinstrument2", legacyAttributes);
       empty.failQueriedCollectionsWith(404);
 
-      const deleted = await api("/api/create-table", "POST", { tableName: "financeinstrument", deleteOnly: true }, empty);
+      const deleted = await api("/api/create-table", "POST", { tableName: "financeinstrument2", deleteOnly: true }, empty);
       assert.equal(deleted.status, 200, JSON.stringify(deleted.body));
       assert.equal(deleted.body.success, true);
-      assert.ok(!empty.collections.has("financeinstrument"));
+      assert.ok(!empty.collections.has("financeinstrument2"));
 
       empty.failQueriedCollectionsWith(0);
       const writesBeforeCreate = empty.writes.length;
-      const recreated = await api("/api/create-table", "POST", { tableName: "financeinstrument" }, empty);
+      const recreated = await api("/api/create-table", "POST", { tableName: "financeinstrument2" }, empty);
       assert.equal(recreated.status, 200, JSON.stringify(recreated.body));
-      const latest = empty.collections.get("financeinstrument");
+      const latest = empty.collections.get("financeinstrument2");
       assert.deepEqual(
         latest.attributes.map((attribute) => attribute.key),
-        MANAGEMENT_TABLE_SCHEMAS.financeinstrument.attributes.map((attribute) => attribute.key),
+        MANAGEMENT_TABLE_SCHEMAS.financeinstrument2.attributes.map((attribute) => attribute.key),
       );
-      assert.equal(empty.documents.get("financeinstrument").length, 0);
+      assert.equal(empty.documents.get("financeinstrument2").length, 0);
       assert.ok(empty.writes.slice(writesBeforeCreate).every((write) => write.method !== "DELETE"));
     } finally { await empty.close(); }
   });

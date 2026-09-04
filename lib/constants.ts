@@ -119,7 +119,7 @@ export const API_ENDPOINTS = {
   COMMON_ACCOUNT: "/api/commonaccount",
   ROUTINE: "/api/routine",
   TUBE_CHANNEL: "/api/tubechannel",
-  FINANCE_INSTRUMENT: "/api/financeinstrument",
+  FINANCE_INSTRUMENT: "/api/financeinstrument2",
   MANUAL_PRICE: "/api/manualprice",
   PUSH_SUBSCRIBE: "/api/push-subscribe",
   PUSH_SEND: "/api/push-send",
