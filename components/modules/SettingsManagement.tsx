@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, type ChangeEvent } from "react";
 import { Settings, Moon, Sun, Bell, Shield, Database, Palette, Table2, Loader2, Plus, X, CheckCircle2, Key, HardDrive, Trash2, Mail, Send, Mic, Activity, AlertTriangle, Info, Download, Upload } from "lucide-react";
 import { Button, DataCard, SectionHeader } from "@/components/ui";
+import { CollapsibleSettingsCard } from "@/components/ui/collapsible-settings-card";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useVoicePreferences } from "@/hooks/useVoicePreferences";
@@ -138,7 +139,7 @@ export default function SettingsManagement() {
     deleted?: number;
     failed?: number;
   } | null>(null);
-
+  
   const configuredResendSlotCount = useMemo(() => {
     return Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
       const fields = getResendSlotFields(index + 1);
@@ -1019,16 +1020,13 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Appwrite 帳號切換 - 第一欄位 */}
-        <DataCard className="p-6 md:col-span-2">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
-              <Key size={20} className="text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg">Appwrite 帳號切換{appwriteConfig.nickname && <span className="ml-2 text-sm font-normal text-orange-600 dark:text-orange-400">({appwriteConfig.nickname})</span>}</h3>
-              <p className="text-xs text-gray-400">基於使用者輸入資訊，儲存於瀏覽器 localStorage</p>
-            </div>
-          </div>
+        <CollapsibleSettingsCard
+          className="md:col-span-2"
+          accent="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
+          icon={<Key size={20} />}
+          title={<h3 className="font-bold text-lg">Appwrite 帳號切換{appwriteConfig.nickname && <span className="ml-2 text-sm font-normal text-orange-600 dark:text-orange-400">({appwriteConfig.nickname})</span>}</h3>}
+          subtitle="基於使用者輸入資訊，儲存於瀏覽器 localStorage"
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">帳號暱稱（選填）</label>
@@ -1118,19 +1116,15 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               </p>
             </div>
           </div>
-        </DataCard>
+        </CollapsibleSettingsCard>
 
         {/* 資料庫欄位統計 - 第二欄位 */}
-        <DataCard className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-              <Table2 size={20} className="text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg">資料庫欄位統計</h3>
-              <p className="text-xs text-gray-400">單一 Table text 上限 15000</p>
-            </div>
-          </div>
+        <CollapsibleSettingsCard
+          accent="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
+          icon={<Table2 size={20} />}
+          title={<h3 className="font-bold text-lg">資料庫欄位統計</h3>}
+          subtitle="單一 Table text 上限 15000"
+        >
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 size={24} className="animate-spin text-gray-400" />
@@ -1304,19 +1298,15 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
           ) : (
             <div className="text-sm text-gray-400">無法取得資料</div>
           )}
-        </DataCard>
+        </CollapsibleSettingsCard>
 
         {/* 資料庫資訊 */}
-        <DataCard className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <Database size={20} className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="font-bold text-lg">資料庫</h3>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Appwrite 雲端資料庫連線資訊
-          </p>
+        <CollapsibleSettingsCard
+          accent="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+          icon={<Database size={20} />}
+          title={<h3 className="font-bold text-lg">資料庫</h3>}
+          subtitle="Appwrite 雲端資料庫連線資訊"
+        >
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-500">端點</span>
@@ -1331,19 +1321,15 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               <span className="text-green-600 font-medium">已連線</span>
             </div>
           </div>
-        </DataCard>
+        </CollapsibleSettingsCard>
 
         {/* 主題設定 */}
-        <DataCard className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-              <Palette size={20} className="text-purple-600 dark:text-purple-400" />
-            </div>
-            <h3 className="font-bold text-lg">主題設定</h3>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            選擇您喜歡的介面主題
-          </p>
+        <CollapsibleSettingsCard
+          accent="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+          icon={<Palette size={20} />}
+          title={<h3 className="font-bold text-lg">主題設定</h3>}
+          subtitle="選擇您喜歡的介面主題"
+        >
           <div className="flex gap-3">
             <Button
               variant={theme === "light" ? "default" : "outline"}
@@ -1370,22 +1356,15 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               系統
             </Button>
           </div>
-        </DataCard>
+        </CollapsibleSettingsCard>
 
         {/* 語音設定 */}
-        <DataCard className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-              <Mic size={20} className="text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg">語音控制</h3>
-              <p className="text-xs text-gray-400">全域語音 · Ctrl+Shift+V</p>
-            </div>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            調整語音指令的提示音與確認節奏，偏好會存在此瀏覽器。
-          </p>
+        <CollapsibleSettingsCard
+          accent="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+          icon={<Mic size={20} />}
+          title={<h3 className="font-bold text-lg">語音控制</h3>}
+          subtitle="全域語音 · Ctrl+Shift+V"
+        >
           <div className="space-y-3">
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white/70 p-3 dark:border-gray-800 dark:bg-gray-950/40">
               <input
@@ -1424,7 +1403,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               </span>
             </label>
           </div>
-        </DataCard>
+        </CollapsibleSettingsCard>
 
         {/* 安全設定 */}
         <DataCard className="p-6">
@@ -1443,16 +1422,13 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
         </DataCard>
 
         {/* 推播通知設定 */}
-        <DataCard className="p-6 md:col-span-2">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <Bell size={20} className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg">推播通知</h3>
-              <p className="text-xs text-gray-400">APP 關閉時仍可收到到期提醒</p>
-            </div>
-          </div>
+        <CollapsibleSettingsCard
+          className="md:col-span-2"
+          accent="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+          icon={<Bell size={20} />}
+          title={<h3 className="font-bold text-lg">推播通知</h3>}
+          subtitle="APP 關閉時仍可收到到期提醒"
+        >
           <div className="space-y-4">
             {notificationPermission === 'unsupported' ? (
               <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm text-gray-500">
@@ -1625,20 +1601,17 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               </>
             )}
           </div>
-        </DataCard>
+        </CollapsibleSettingsCard>
 
         {/* Resend Email 通知設定 */}
-        <DataCard className="p-6 md:col-span-2">
+        <CollapsibleSettingsCard
+          className="md:col-span-2"
+          accent="bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
+          icon={<Mail size={20} />}
+          title={<h3 className="font-bold text-lg">Resend Email 通知</h3>}
+          subtitle="訂閱到期前一天、食品到期前一周各提醒一次"
+        >
           <div className="flex flex-col gap-4 mb-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-rose-100 dark:bg-rose-900/30">
-                <Mail size={20} className="text-rose-600 dark:text-rose-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg">Resend Email 通知</h3>
-                <p className="text-xs text-gray-400">訂閱到期前一天、食品到期前一周各提醒一次</p>
-              </div>
-            </div>
             <div className="flex items-center gap-2 rounded-2xl border border-rose-100 bg-rose-50/60 px-3 py-2 dark:border-rose-900/50 dark:bg-rose-950/30">
               <label htmlFor="resend-slot-count" className="text-sm text-rose-700 dark:text-rose-300">
                 顯示組數
@@ -1792,19 +1765,16 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               </p>
             </div>
           </div>
-        </DataCard>
+        </CollapsibleSettingsCard>
 
         {/* Appwrite Storage 清理 */}
-        <DataCard className="p-6 md:col-span-2">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-              <HardDrive size={20} className="text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg">Appwrite Storage 管理</h3>
-              <p className="text-xs text-gray-400">統計與清理未引用的儲存檔案</p>
-            </div>
-          </div>
+        <CollapsibleSettingsCard
+          className="md:col-span-2"
+          accent="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+          icon={<HardDrive size={20} />}
+          title={<h3 className="font-bold text-lg">Appwrite Storage 管理</h3>}
+          subtitle="統計與清理未引用的儲存檔案"
+        >
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               系統會掃描 Appwrite Storage 中的所有檔案，找出資料庫中未引用的多餘檔案（圖片、影片、音樂、文件、播客）。分段影片會連同 manifest 與所有 PART 一起納入引用判斷。
@@ -1968,7 +1938,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               </p>
             </div>
           </div>
-        </DataCard>
+        </CollapsibleSettingsCard>
       </div>
 
       {/* 版本資訊 */}
