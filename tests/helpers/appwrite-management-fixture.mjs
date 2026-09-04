@@ -8,6 +8,7 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
   const documents = new Map();
   const writes = [];
   let failureStatus = 0;
+  let queriedCollectionFailure = 0;
   let attributeFailure = false;
 
   function addCollection(name, id = name, attributes = MANAGEMENT_TABLE_SCHEMAS[name]?.attributes || []) {
@@ -102,11 +103,19 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
       if (segments[1] === "storage") return send(200, { total: 0, buckets: [] });
       if (segments[1] !== "databases") return send(404, { message: "Unknown fixture endpoint", code: 404 });
       if (segments.length === 2) return send(200, { total: 1, databases: [{ $id: "fixture", name: "隔離測試資料庫" }] });
+      if (segments[2] !== "fixture") return send(404, { message: "Database not found", code: 404, type: "database_not_found" });
       if (segments.length === 3) return send(200, { $id: "fixture", name: "隔離測試資料庫", enabled: true });
       if (segments[3] !== "collections") return send(404, { message: "Unknown fixture endpoint", code: 404 });
       const collectionId = segments[4];
       if (!collectionId) {
         if (request.method === "GET") {
+          if (queriedCollectionFailure && [...url.searchParams].some(([key]) => key.startsWith("queries"))) {
+            return send(queriedCollectionFailure, {
+              message: "Database with the requested ID could not be found.",
+              code: queriedCollectionFailure,
+              type: "database_not_found",
+            });
+          }
           const { rows, total } = queryRows([...collections.values()], url);
           return send(200, { total, collections: rows });
         }
@@ -118,7 +127,7 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
         }
       }
       const collection = collections.get(collectionId);
-      if (!collection) return send(404, { message: "Collection not found", code: 404 });
+      if (!collection) return send(404, { message: "Collection not found", code: 404, type: "collection_not_found" });
       if (segments.length === 5) {
         if (request.method === "GET") return send(200, collection);
         if (request.method === "DELETE") {
@@ -161,6 +170,7 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
   return {
     endpoint: `http://127.0.0.1:${server.address().port}/v1`, collections, documents, writes, addCollection, addDocument,
     failWith: (status) => { failureStatus = status; },
+    failQueriedCollectionsWith: (status) => { queriedCollectionFailure = status; },
     failAttributes: (value) => { attributeFailure = value; },
     close: () => new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); }),
   };

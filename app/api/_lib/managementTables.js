@@ -18,9 +18,18 @@ function failure(error) {
     code >= 400 && code < 600 ? code : 500);
 }
 
-// Exact lookup, scoped to the supplied client; never pick a similarly named backup
-// or reuse another Appwrite project's database-id-only collection cache.
+function isCollectionNotFound(error) {
+  return Number(error?.status || error?.code) === 404 && error?.type === "collection_not_found";
+}
+
 export async function findManagementTable(databases, databaseId, name) {
+  try {
+    const collection = await databases.getCollection({ databaseId, collectionId: name });
+    if (collection.name === name) return collection;
+  } catch (error) {
+    if (!isCollectionNotFound(error)) throw error;
+  }
+
   const result = await databases.listCollections({
     databaseId,
     queries: [Query.equal("name", [name]), Query.limit(2)],
@@ -94,19 +103,10 @@ export function managementRoutes(tableName, buildPayload) {
   };
 }
 
-// Delete every collection with the exact management table name. Returns the
-// number deleted. Reuses the same client construction as initializeManagementTable
-// so config resolution behaves identically.
 export async function deleteManagementTable(config, tableName) {
   const databases = new Databases(new Client().setEndpoint(config.endpoint).setProject(config.projectId).setKey(config.apiKey));
   const databaseId = config.databaseId;
-  let collection;
-  try {
-    collection = await findManagementTable(databases, databaseId, tableName);
-  } catch (error) {
-    const detail = error?.response ? JSON.stringify(error.response).slice(0, 500) : "";
-    throw new Error(`deleteManagementTable find 失敗 (db=${databaseId}): ${error.message}${detail ? " " + detail : ""}`, { cause: error });
-  }
+  const collection = await findManagementTable(databases, databaseId, tableName);
   if (!collection) return 0;
   await databases.deleteCollection({ databaseId, collectionId: collection.$id });
   clearCollectionCache(databaseId);

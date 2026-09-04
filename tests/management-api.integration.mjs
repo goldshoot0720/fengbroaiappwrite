@@ -336,6 +336,39 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
     } finally { await empty.close(); }
   });
 
+  it("deletes a fixed-ID legacy finance table even when queried collection lookup fails", async () => {
+    const empty = await startManagementFixture({ seed: false });
+    const legacyAttributes = [
+      { key: "name", type: "string", size: 200, required: true },
+      { key: "symbol", type: "string", size: 64, required: true },
+      { key: "provider", type: "string", size: 20, required: true },
+      { key: "imageUrls", type: "string", size: 12000, required: false },
+      { key: "youtubeUrl", type: "url", required: false },
+      { key: "relatedLinks", type: "string", size: 12000, required: false },
+    ];
+    try {
+      empty.addCollection("financeinstrument", "financeinstrument", legacyAttributes);
+      empty.failQueriedCollectionsWith(404);
+
+      const deleted = await api("/api/create-table", "POST", { tableName: "financeinstrument", deleteOnly: true }, empty);
+      assert.equal(deleted.status, 200, JSON.stringify(deleted.body));
+      assert.equal(deleted.body.success, true);
+      assert.ok(!empty.collections.has("financeinstrument"));
+
+      empty.failQueriedCollectionsWith(0);
+      const writesBeforeCreate = empty.writes.length;
+      const recreated = await api("/api/create-table", "POST", { tableName: "financeinstrument" }, empty);
+      assert.equal(recreated.status, 200, JSON.stringify(recreated.body));
+      const latest = empty.collections.get("financeinstrument");
+      assert.deepEqual(
+        latest.attributes.map((attribute) => attribute.key),
+        MANAGEMENT_TABLE_SCHEMAS.financeinstrument.attributes.map((attribute) => attribute.key),
+      );
+      assert.equal(empty.documents.get("financeinstrument").length, 0);
+      assert.ok(empty.writes.slice(writesBeforeCreate).every((write) => write.method !== "DELETE"));
+    } finally { await empty.close(); }
+  });
+
   it("reports SSE setup completion and schema failures honestly", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {

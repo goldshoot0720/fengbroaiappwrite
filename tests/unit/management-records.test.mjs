@@ -5,6 +5,7 @@ import {
   buildFinanceInstrumentWritePayload,
   buildReinstallSoftwareWritePayload,
   buildTrialPurchaseWritePayload,
+  MANAGEMENT_TABLE_SCHEMAS,
   emptyReinstallSoftwareForm,
   emptyTrialPurchaseForm,
   formatReinstallSubscriptionPeriod,
@@ -252,6 +253,39 @@ describe("tube channel records", () => {
 });
 
 describe("finance instrument records", () => {
+  it("keeps the 13-column schema below Appwrite's attribute budget", () => {
+    const attributes = MANAGEMENT_TABLE_SCHEMAS.financeinstrument.attributes;
+    assert.deepEqual(
+      attributes.map(({ key, type, size, required, default: defaultValue }) => ({
+        key,
+        type,
+        ...(size === undefined ? {} : { size }),
+        required,
+        ...(defaultValue === undefined ? {} : { default: defaultValue }),
+      })),
+      [
+        { key: "name", type: "string", size: 200, required: true },
+        { key: "symbol", type: "string", size: 64, required: true },
+        { key: "provider", type: "string", size: 20, required: true },
+        { key: "group", type: "string", size: 20, required: false },
+        { key: "imageUrl1", type: "url", required: false },
+        { key: "imageUrl2", type: "url", required: false },
+        { key: "imageUrl3", type: "url", required: false },
+        { key: "youtubeUrl", type: "url", required: false },
+        { key: "bilibiliUrl", type: "url", required: false },
+        { key: "linkUrl1", type: "string", size: 1000, required: false },
+        { key: "linkUrl2", type: "string", size: 1000, required: false },
+        { key: "linkUrl3", type: "string", size: 1000, required: false },
+        { key: "featured", type: "boolean", required: false, default: false },
+      ],
+    );
+    const attributeBudget = attributes.reduce(
+      (total, attribute) => total + (attribute.type === "url" ? 2000 : attribute.type === "string" ? attribute.size : 0),
+      0,
+    );
+    assert.ok(attributeBudget < 16384, `financeinstrument attribute budget is ${attributeBudget}`);
+  });
+
   it("normalizes a complete create payload", () => {
     const payload = buildFinanceInstrumentWritePayload(
       {
