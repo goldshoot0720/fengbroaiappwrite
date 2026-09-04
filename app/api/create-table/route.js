@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { clearCollectionCache } from "../_lib/appwriteClient";
 import { deleteManagementTable, initializeManagementTable } from "../_lib/managementTables";
-import { MANAGEMENT_TABLE_SCHEMAS } from "../../../lib/managementRecords";
+import { MANAGEMENT_TABLE_SCHEMAS, RETIRED_TABLES } from "../../../lib/managementRecords";
+
+function retiredTableResponse(tableName) {
+  const replacement = RETIRED_TABLES[tableName];
+  if (!replacement) return null;
+  return NextResponse.json(
+    { success: false, error: `${tableName} 已作廢，請改用 ${replacement}。` },
+    { status: 410 },
+  );
+}
 
 const sdk = require('node-appwrite');
 
@@ -221,6 +230,8 @@ export { TABLE_SCHEMAS };
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const tableName = searchParams.get('table');
+  const retired = retiredTableResponse(tableName);
+  if (retired) return retired;
 
   if (!tableName || !TABLE_SCHEMAS[tableName]) {
     return NextResponse.json({ error: 'Invalid table name' }, { status: 400 });
@@ -406,6 +417,8 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const { tableName, rebuild, deleteOnly } = await request.json();
+    const retired = retiredTableResponse(tableName);
+    if (retired) return retired;
 
     const schema = TABLE_SCHEMAS[tableName];
     if (!schema) {

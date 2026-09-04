@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  ADDITIVE_SETUP_TABLES,
   buildFengbroTubeChannelWritePayload,
   buildFinanceInstrumentWritePayload,
   buildReinstallSoftwareWritePayload,
   buildTrialPurchaseWritePayload,
   MANAGEMENT_TABLE_SCHEMAS,
+  RETIRED_TABLES,
   emptyReinstallSoftwareForm,
   emptyTrialPurchaseForm,
   formatReinstallSubscriptionPeriod,
@@ -254,7 +256,7 @@ describe("tube channel records", () => {
 
 describe("finance instrument records", () => {
   it("keeps the 13-column schema below Appwrite's attribute budget", () => {
-    const attributes = MANAGEMENT_TABLE_SCHEMAS.financeinstrument.attributes;
+    const attributes = MANAGEMENT_TABLE_SCHEMAS.financeinstrument2.attributes;
     assert.deepEqual(
       attributes.map(({ key, type, size, required, default: defaultValue }) => ({
         key,
@@ -283,7 +285,20 @@ describe("finance instrument records", () => {
       (total, attribute) => total + (attribute.type === "url" ? 2000 : attribute.type === "string" ? attribute.size : 0),
       0,
     );
-    assert.ok(attributeBudget < 16384, `financeinstrument attribute budget is ${attributeBudget}`);
+    assert.ok(attributeBudget < 16384, `financeinstrument2 attribute budget is ${attributeBudget}`);
+  });
+
+  it("does not keep retired tables in the live schema or additive setup list", () => {
+    assert.equal(RETIRED_TABLES.tubechannel2, "tubechannel");
+    assert.equal(RETIRED_TABLES.financeinstrument, "financeinstrument2");
+    for (const retired of Object.keys(RETIRED_TABLES)) {
+      assert.equal(Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, retired), false);
+      assert.equal(ADDITIVE_SETUP_TABLES.includes(retired), false);
+    }
+    assert.ok(Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, "tubechannel"));
+    assert.ok(Object.hasOwn(MANAGEMENT_TABLE_SCHEMAS, "financeinstrument2"));
+    assert.ok(ADDITIVE_SETUP_TABLES.includes("tubechannel"));
+    assert.ok(ADDITIVE_SETUP_TABLES.includes("financeinstrument2"));
   });
 
   it("normalizes a complete create payload", () => {

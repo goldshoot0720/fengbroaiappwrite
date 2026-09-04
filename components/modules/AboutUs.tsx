@@ -117,9 +117,9 @@ const RELEASE_ITEMS = [
     date: "2026-09-04",
     title: "比價、Tube 與金融個人清單改存 Appwrite 雲端",
     bullets: [
-      "鋒兄比價手動價格、鋒兄Tube 頻道與鋒兄金融自選標的／精選改以 Appwrite Table 為主（manualprice／tubechannel／financeinstrument2），開啟雲端同步與多裝置共用。financeinstrument 已作廢、改用 financeinstrument2。",
+      "鋒兄比價手動價格、鋒兄Tube 頻道與鋒兄金融自選標的／精選改以 Appwrite Table 為主（manualprice／tubechannel／financeinstrument2），開啟雲端同步與多裝置共用。",
       "首次啟用自動把既有瀏覽器本機資料遷移上傳（localId 冪等合併）；未設定 Appwrite 或資料表尚未建立時引導前往鋒兄設定。",
-      "新增 tubechannel、financeinstrument 兩張資料表進設定頁一鍵建表／補齊欄位清單（純加欄位、不刪既有資料）；financeinstrument 現已作廢、改用 financeinstrument2。",
+      "設定頁一鍵建表／補齊欄位清單為 tubechannel、financeinstrument2（純加欄位、不刪既有資料）。tubechannel2 已作廢、改用 tubechannel；financeinstrument 已作廢、改用 financeinstrument2（不再保留舊 route）。",
       "Resend 通知設定支援 CSV 匯入／匯出，依收件 Email 合併既有組。",
       "重新掃描核心原始碼：307 檔、101,901 行，突破十萬行里程碑（app / components / hooks / lib / types / scripts / tests）。",
     ],

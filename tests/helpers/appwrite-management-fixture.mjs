@@ -31,11 +31,9 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
     addCollection("quota");
     addCollection("shoppinglist");
     addCollection("tubechannel");
-    addCollection("tubechannel2");
-    addCollection("financeinstrument");
     addCollection("financeinstrument2");
     addDocument("tubechannel", { sourceUrl: "https://www.youtube.com/@henren778/videos", alias: "一个狠人" }, "tube-henren");
-    addDocument("financeinstrument", { name: "川湖", symbol: "2059.TW", provider: "yahoo", group: "taiwan",
+    addDocument("financeinstrument2", { name: "川湖", symbol: "2059.TW", provider: "yahoo", group: "taiwan",
       imageUrl1: "", imageUrl2: "", imageUrl3: "", youtubeUrl: null, bilibiliUrl: null,
       linkUrl1: "", linkUrl2: "", linkUrl3: "", featured: true }, "fin-2059");
     addDocument("shoppinglist", {

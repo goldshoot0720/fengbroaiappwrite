@@ -442,7 +442,7 @@ function tubeChannelSignature(channel: FengbroTubeChannelConfig): string {
   return JSON.stringify({ alias: channel.alias || "", sourceUrl: channel.sourceUrl });
 }
 
-/** /api/financeinstrument 文件 → 客戶端自選標的。 */
+/** /api/financeinstrument2 文件 → 客戶端自選標的。 */
 function financeInstrumentFromRow(row: unknown): CustomFinanceInstrument | null {
   if (!row || typeof row !== "object") return null;
   const rec = row as {
@@ -494,7 +494,7 @@ function financeInstrumentSignature(instrument: CustomFinanceInstrument): string
   });
 }
 
-/** 客戶端自選標的 → /api/financeinstrument 寫入 body（imageUrls/relatedLinks 以陣列傳，由 server 正規化）。 */
+/** 客戶端自選標的 → /api/financeinstrument2 寫入 body（imageUrls/relatedLinks 以陣列傳，由 server 正規化）。 */
 function financeInstrumentToBody(instrument: CustomFinanceInstrument): Record<string, unknown> {
   return {
     name: instrument.name,
@@ -531,7 +531,7 @@ function getInitialTubeChannels(): FengbroTubeChannelConfig[] {
 }
 
 /**
- * 鋒兄金融自選標的完全以 Appwrite `financeinstrument` 資料表為唯一來源，
+ * 鋒兄金融自選標的完全以 Appwrite `financeinstrument2` 資料表為唯一來源，
  * 不讀取也不寫入 localStorage；雲端載入前的初始值即為空清單。
  */
 function getInitialFinanceInstruments(): CustomFinanceInstrument[] {
@@ -3901,7 +3901,7 @@ export default function ToolsManagement({
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
   const financeResultRef = useRef<FengbroFinanceResult | null>(null);
   const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
-  // 鋒兄金融目前無內建預設標的；全以 financeinstrument 自訂標的為主。
+  // 鋒兄金融目前無內建預設標的；全以 financeinstrument2 自訂標的為主。
   const [selectedDefaultFinanceInstrumentIds, setSelectedDefaultFinanceInstrumentIds] = useState<string[]>(
     DEFAULT_FINANCE_INSTRUMENT_IDS
   );
@@ -3909,7 +3909,7 @@ export default function ToolsManagement({
   const [customFinanceDraft, setCustomFinanceDraft] = useState<CustomFinanceDraft>(createEmptyCustomFinanceDraft);
   const [editingCustomFinanceKey, setEditingCustomFinanceKey] = useState<string | null>(null);
 
-  // 金融自選標的：完全以 Appwrite financeinstrument 資料表為唯一資料源（不使用 localStorage）。
+  // 金融自選標的：完全以 Appwrite financeinstrument2 資料表為唯一資料源（不使用 localStorage）。
   const financeSync = useRemoteListSync<CustomFinanceInstrument>({
     endpoint: API_ENDPOINTS.FINANCE_INSTRUMENT,
     enabled: appwriteSetup.hasDatabaseConfig,

@@ -75,7 +75,7 @@
 
 ## 資料庫 Table 結構總覽
 
-設定頁可建立 **21** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall`／`quota`／`shoppinglist`／`tubechannel`／`tubechannel2`／`financeinstrument2` 使用非破壞性初始化，重試會保留已有資料。`financeinstrument` 已作廢、改用 `financeinstrument2`（保留舊表供既有資料相容）。
+設定頁可建立 **21** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall`／`quota`／`shoppinglist`／`tubechannel`／`financeinstrument2` 使用非破壞性初始化，重試會保留已有資料。`tubechannel2` 已作廢、改用 `tubechannel`；`financeinstrument` 已作廢、改用 `financeinstrument2`（不再保留舊 route）。
 
 | # | Collection 名稱 | 欄位數 | 對應模組 | 說明文件 |
 |---|----------------|--------|---------|---------|

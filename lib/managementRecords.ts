@@ -180,31 +180,6 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "alias", type: "string", size: 200, required: false },
     ],
   },
-  tubechannel2: {
-    name: "tubechannel2",
-    attributes: [
-      { key: "sourceUrl", type: "string", size: 500, required: true },
-      { key: "alias", type: "string", size: 200, required: false },
-    ],
-  },
-  financeinstrument: {
-    name: "financeinstrument",
-    attributes: [
-      { key: "name", type: "string", size: 200, required: true },
-      { key: "symbol", type: "string", size: 64, required: true },
-      { key: "provider", type: "string", size: 20, required: true },
-      { key: "group", type: "string", size: 20, required: false },
-      { key: "imageUrl1", type: "url", required: false },
-      { key: "imageUrl2", type: "url", required: false },
-      { key: "imageUrl3", type: "url", required: false },
-      { key: "youtubeUrl", type: "url", required: false },
-      { key: "bilibiliUrl", type: "url", required: false },
-      { key: "linkUrl1", type: "string", size: 1000, required: false },
-      { key: "linkUrl2", type: "string", size: 1000, required: false },
-      { key: "linkUrl3", type: "string", size: 1000, required: false },
-      { key: "featured", type: "boolean", required: false, default: false },
-    ],
-  },
   financeinstrument2: {
     name: "financeinstrument2",
     attributes: [
@@ -241,10 +216,15 @@ export const ADDITIVE_SETUP_TABLES: readonly string[] = [
   "quota",
   "shoppinglist",
   "tubechannel",
-  "tubechannel2",
   "financeinstrument2",
   "notificationsettings",
 ];
+
+/** 已作廢的 Table → 應改用的現役 Table。設定頁不再建立；既有 Appwrite collection 可在控制台刪除。 */
+export const RETIRED_TABLES: Readonly<Record<string, string>> = {
+  tubechannel2: "tubechannel",
+  financeinstrument: "financeinstrument2",
+};
 
 function asText(value: unknown, label = "欄位", maxLength?: number): string {
   if (value == null) return "";
