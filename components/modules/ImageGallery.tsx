@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Image as ImageIcon, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp, AlertTriangle, LayoutGrid, Rows3, ChevronLeft, ChevronRight } from "lucide-react";
+import { Image as ImageIcon, Instagram, Plus, Edit, Trash2, RefreshCw, X, Calendar, Upload, Search, ChevronDown, Download, FolderUp, AlertTriangle, LayoutGrid, Rows3, ChevronLeft, ChevronRight } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
@@ -20,8 +20,23 @@ import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { recordRemoteMediaTraffic } from "@/lib/mediaTraffic";
 import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { SkinSwitcher, type SkinOption } from "@/components/ui/skin-switcher";
+import { InstagramGallery } from "@/components/modules/image-skins/InstagramGallery";
 
 type ImageSortMode = "created-desc" | "size-desc";
+
+type ImageSkin = "instagram" | "grid" | "list";
+
+/**
+ * Instagram leads because a photo library is the one place where the picture
+ * should be the entire cell; the card grid and the table stay for the days you
+ * need file sizes and inline editing instead.
+ */
+const IMAGE_SKINS: readonly SkinOption<ImageSkin>[] = [
+  { value: "instagram", label: "Instagram", color: "#DC2743", icon: <Instagram className="h-4 w-4" />, title: "Instagram 版型" },
+  { value: "grid", label: "卡片", color: "#404040", icon: <LayoutGrid className="h-4 w-4" />, title: "卡片式" },
+  { value: "list", label: "列表", color: "#404040", icon: <Rows3 className="h-4 w-4" />, title: "列表式" },
+];
 
 // Helper function to add Appwrite config to URL
 function addAppwriteConfigToUrl(url: string): string {
@@ -94,7 +109,8 @@ export default function ImageGallery() {
   const [inlineCreateUseCategorySelect, setInlineCreateUseCategorySelect] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "duplicates" | "uncategorized" | "annotated">("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<ImageSkin>("instagram");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<ImageSortMode>("created-desc");
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '', success: 0, failed: 0 });
@@ -198,8 +214,12 @@ export default function ImageGallery() {
       return true;
     });
 
+    const categorised = categoryFilter
+      ? modeFiltered.filter((image) => image.category === categoryFilter)
+      : modeFiltered;
+
     const searched = searchQuery.trim()
-      ? modeFiltered.filter(image => {
+      ? categorised.filter(image => {
         const query = searchQuery.toLowerCase();
         return (
           image.name?.toLowerCase().includes(query) ||
@@ -207,7 +227,7 @@ export default function ImageGallery() {
           image.category?.toLowerCase().includes(query)
         );
       })
-      : modeFiltered;
+      : categorised;
 
     if (sortMode === "size-desc") {
       return [...searched].sort((a, b) => {
@@ -219,7 +239,7 @@ export default function ImageGallery() {
     }
 
     return searched;
-  }, [images, searchQuery, workbenchMode, imageHashCounts, sortMode]);
+  }, [images, searchQuery, workbenchMode, imageHashCounts, sortMode, categoryFilter]);
 
   const existingCategories = useMemo(
     () => Array.from(new Set(images.map((img) => img.category).filter(Boolean))),
@@ -1389,30 +1409,12 @@ export default function ImageGallery() {
                 <SelectItem value="size-desc">檔案大小：大到小</SelectItem>
               </SelectContent>
             </Select>
-            <div className="hidden xl:flex overflow-hidden rounded-xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors ${viewMode === "grid"
-                  ? "bg-slate-900 text-white dark:bg-sky-400 dark:text-slate-950"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  }`}
-              >
-                <LayoutGrid size={16} />
-                卡片式
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("list")}
-                className={`flex items-center gap-2 border-l border-slate-200 px-3 py-2 text-sm font-medium transition-colors dark:border-slate-700 ${viewMode === "list"
-                  ? "bg-slate-900 text-white dark:bg-sky-400 dark:text-slate-950"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  }`}
-              >
-                <Rows3 size={16} />
-                列表式
-              </button>
-            </div>
+            <SkinSwitcher
+              value={viewMode}
+              options={IMAGE_SKINS}
+              onChange={setViewMode}
+              label="相簿版型"
+            />
             {selectedIds.size > 0 && (
               <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white">
                 <Trash2 size={18} />
@@ -1539,6 +1541,44 @@ export default function ImageGallery() {
 
       {filteredImages.length === 0 && images.length > 0 ? (
         <EmptyState icon={<Search className="text-gray-400" size={32} />} title="無搜尋結果" description={`找不到「${searchQuery}」相關的圖片`} />
+      ) : viewMode === "instagram" ? (
+        <>
+          {isInlineCreating && (
+            <DataCard className="p-3 sm:p-4">
+              <InlineCreateImageCard
+                form={inlineCreateForm}
+                setForm={setInlineCreateForm}
+                previewUrl={inlineCreatePreviewUrl}
+                previewLoading={inlineCreatePreviewLoading}
+                submitting={inlineCreateSubmitting}
+                uploadProgress={inlineCreateUploadProgress}
+                uploadStatus={inlineCreateUploadStatus}
+                duplicateWarning={inlineCreateDuplicateWarning}
+                useCategorySelect={inlineCreateUseCategorySelect}
+                setUseCategorySelect={setInlineCreateUseCategorySelect}
+                existingCategories={existingCategories}
+                fileCount={inlineCreateFiles.length}
+                onFileSelect={handleInlineCreateFileSelect}
+                onSave={handleInlineCreateSave}
+                onCancel={handleInlineCreateCancel}
+              />
+            </DataCard>
+          )}
+          <InstagramGallery
+            images={filteredImages}
+            allImages={images}
+            loading={loading}
+            onSelectImage={(image) => {
+              if (image.file) void recordRemoteMediaTraffic("image", "browse", image.file, image.size);
+              setSelectedImage(image);
+            }}
+            categoryFilter={categoryFilter}
+            onCategoryChange={setCategoryFilter}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+          />
+        </>
       ) : (
         <>
           <div className="xl:hidden">
