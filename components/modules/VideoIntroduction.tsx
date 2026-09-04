@@ -170,9 +170,12 @@ function VideoUploadProgressList({ items }: { items: VideoUploadProgressItem[] }
   );
 }
 
+// 先完整緩存影片（下載為 blob）再交給播放器播放，避免邊下載邊播放時
+// 因串流／代理中斷觸發播放器的錯誤重試機制，導致播放 1~2 秒後又從頭重播。
 function useResolvedVideoSource(video: VideoData) {
   const [resolvedSrc, setResolvedSrc] = useState("");
   const [loadingSource, setLoadingSource] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [sourceError, setSourceError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -182,34 +185,26 @@ function useResolvedVideoSource(video: VideoData) {
       if (!video.file) {
         setResolvedSrc("");
         setLoadingSource(false);
-        setSourceError(null);
-        return;
-      }
-
-      if (!isMultipartVideoFiletype(video.filetype)) {
-        setResolvedSrc(getProxiedMediaUrl(video.file));
-        setLoadingSource(false);
+        setLoadingProgress(0);
         setSourceError(null);
         return;
       }
 
       setLoadingSource(true);
+      setLoadingProgress(0);
       setSourceError(null);
 
       try {
-        if (isMultipartVideoFiletype(video.filetype)) {
-          if (isActive) {
-            setResolvedSrc(getMultipartVideoPlaybackUrl(video.file));
-            setLoadingSource(false);
+        const { blob } = await resolveVideoBlob(
+          {
+            file: video.file,
+            filetype: video.filetype,
+            name: video.name,
+          },
+          (progress) => {
+            if (isActive) setLoadingProgress(progress);
           }
-          return;
-        }
-
-        const { blob } = await resolveVideoBlob({
-          file: video.file,
-          filetype: video.filetype,
-          name: video.name,
-        });
+        );
 
         objectUrl = URL.createObjectURL(blob);
         if (isActive) {
@@ -237,7 +232,7 @@ function useResolvedVideoSource(video: VideoData) {
     };
   }, [video.$id, video.file, video.filetype, video.name]);
 
-  return { resolvedSrc, loadingSource, sourceError };
+  return { resolvedSrc, loadingSource, loadingProgress, sourceError };
 }
 
 async function downloadVideoToBrowser(video: VideoData): Promise<void> {
@@ -2407,7 +2402,7 @@ function useVideoPlayerSession(
   const [showDescription, setShowDescription] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
   const [playedIds, setPlayedIds] = useState<Set<string>>(() => new Set([video.$id]));
-  const { resolvedSrc, loadingSource, sourceError } = useResolvedVideoSource(currentVideo);
+  const { resolvedSrc, loadingSource, loadingProgress, sourceError } = useResolvedVideoSource(currentVideo);
 
   const allVideosWithFile = useMemo(() => videos.filter((v) => v.file), [videos]);
   const hasPlaylist = allVideosWithFile.length > 1;
@@ -2474,6 +2469,7 @@ function useVideoPlayerSession(
     currentVideo,
     resolvedSrc,
     loadingSource,
+    loadingProgress,
     sourceError,
     allVideosWithFile,
     hasPlaylist,
@@ -2505,6 +2501,7 @@ function NetflixPlayerModal({
     currentVideo,
     resolvedSrc,
     loadingSource,
+    loadingProgress,
     sourceError,
     hasPlaylist,
     recommendedVideos,
@@ -2595,7 +2592,9 @@ function NetflixPlayerModal({
             </>
           )}
           {loadingSource ? (
-            <div className="flex h-full w-full items-center justify-center text-sm text-white/70">影片載入中…</div>
+            <div className="flex h-full w-full items-center justify-center text-sm text-white/70">
+              緩存中… {loadingProgress > 0 ? `${loadingProgress}%` : ""}
+            </div>
           ) : sourceError ? (
             <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-red-400">{sourceError}</div>
           ) : (
@@ -2766,7 +2765,7 @@ function VideoPlayerModal({
   const [showDescription, setShowDescription] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
   const [playedIds, setPlayedIds] = useState<Set<string>>(() => new Set([video.$id]));
-  const { resolvedSrc, loadingSource, sourceError } = useResolvedVideoSource(currentVideo);
+  const { resolvedSrc, loadingSource, loadingProgress, sourceError } = useResolvedVideoSource(currentVideo);
 
   const allVideosWithFile = useMemo(() => videos.filter((v) => v.file), [videos]);
   const hasPlaylist = allVideosWithFile.length > 1;
@@ -2914,7 +2913,9 @@ function VideoPlayerModal({
                 </>
               )}
               {loadingSource ? (
-                <div className="flex h-full w-full items-center justify-center text-sm text-white/80">影片載入中…</div>
+                <div className="flex h-full w-full items-center justify-center text-sm text-white/80">
+                  緩存中… {loadingProgress > 0 ? `${loadingProgress}%` : ""}
+                </div>
               ) : sourceError ? (
                 <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-red-400">{sourceError}</div>
               ) : (
@@ -4079,7 +4080,7 @@ function BilibiliPlayerModal({
   const [currentVideo, setCurrentVideo] = useState<VideoData>(video);
   const [playedIds, setPlayedIds] = useState<Set<string>>(() => new Set([video.$id]));
   const [showDescription, setShowDescription] = useState(false);
-  const { resolvedSrc, loadingSource, sourceError } = useResolvedVideoSource(currentVideo);
+  const { resolvedSrc, loadingSource, loadingProgress, sourceError } = useResolvedVideoSource(currentVideo);
 
   const allVideosWithFile = useMemo(() => videos.filter((v) => v.file), [videos]);
   const hasPlaylist = allVideosWithFile.length > 1;
@@ -4218,7 +4219,9 @@ function BilibiliPlayerModal({
                 </>
               )}
               {loadingSource ? (
-                <div className="flex h-full w-full items-center justify-center text-sm text-white/80">影片載入中…</div>
+                <div className="flex h-full w-full items-center justify-center text-sm text-white/80">
+                  緩存中… {loadingProgress > 0 ? `${loadingProgress}%` : ""}
+                </div>
               ) : sourceError ? (
                 <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-red-400">{sourceError}</div>
               ) : (
