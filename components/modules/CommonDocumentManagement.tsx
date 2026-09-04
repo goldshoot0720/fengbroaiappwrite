@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
-import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus, AlertTriangle, RefreshCw } from "lucide-react";
+import { FileText as DocumentIcon, Plus, Edit, Edit2, Trash2, X, Upload, Calendar, Search, Download, Eye, FileArchive, File as FileIcon, Maximize, Minimize, ExternalLink, HardDrive, Check, FolderUp, LayoutGrid, Table as TableIcon, ImagePlus, AlertTriangle, RefreshCw, Cloud, Box, Folder } from "lucide-react";
 import { useCommonDocument, CommonDocumentData } from "@/hooks/useCommonDocument";
 import { useDocumentCache } from "@/hooks/useDocumentCache";
 import { StatCard } from "@/components/ui/stat-card";
@@ -19,6 +19,8 @@ import { uploadToAppwriteStorage } from "@/lib/appwriteStorage";
 import { recordRemoteMediaTraffic } from "@/lib/mediaTraffic";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
+import { SkinSwitcher, type SkinOption } from "@/components/ui/skin-switcher";
+import { GoogleDriveBrowser, MegaBrowser, DropboxBrowser } from "@/components/modules/document-skins/DriveSkins";
 
 const EditorFallback = () => (
   <div className="flex min-h-[200px] items-center justify-center">
@@ -203,6 +205,22 @@ function getCodeLanguage(ext: string): string {
   return langMap[ext] || 'text';
 }
 
+type DocumentSkin = "drive" | "mega" | "dropbox" | "grid" | "table";
+
+/**
+ * Three cloud drives plus the two views this module already had. The drives
+ * differ in more than colour: Drive shows folders as tiles above the file
+ * table, MEGA keeps a permanent folder tree and a storage readout, Dropbox
+ * flattens to one quiet list with folders as filter pills.
+ */
+const DOCUMENT_SKINS: readonly SkinOption<DocumentSkin>[] = [
+  { value: "drive", label: "Drive", color: "#1A73E8", icon: <Cloud className="h-4 w-4" />, title: "Google 雲端硬碟版型" },
+  { value: "mega", label: "MEGA", color: "#D9272E", icon: <Box className="h-4 w-4" />, title: "MEGA 版型" },
+  { value: "dropbox", label: "Dropbox", color: "#0061FF", icon: <Folder className="h-4 w-4" />, title: "Dropbox 版型" },
+  { value: "grid", label: "卡片", color: "#404040", icon: <LayoutGrid className="h-4 w-4" />, title: "卡片" },
+  { value: "table", label: "表格", color: "#404040", icon: <TableIcon className="h-4 w-4" />, title: "表格" },
+];
+
 export default function CommonDocumentManagement() {
   const { commondocument, loading, error, stats, loadCommonDocument } = useCommonDocument();
   const [showFormModal, setShowFormModal] = useState(false);
@@ -228,7 +246,7 @@ export default function CommonDocumentManagement() {
   const [inlineEditForm, setInlineEditForm] = useState({ name: '', file: '', filetype: '', category: '', note: '', ref: '', cover: '', hash: '' });
 
   // View mode state (grid or table)
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [viewMode, setViewMode] = useState<DocumentSkin>('drive');
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "previewable" | "missingCover" | "uncategorized" | "duplicates">("all");
 
   // Cover upload state
@@ -1073,28 +1091,13 @@ export default function CommonDocumentManagement() {
                 刪除選取 ({selectedIds.size})
               </Button>
             )}
-            <div className="hidden xl:flex w-full sm:w-auto bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "grid"
-                  ? "bg-blue-500 text-white"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-              >
-                <LayoutGrid size={16} />
-                卡片
-              </button>
-              <button
-                onClick={() => setViewMode("table")}
-                className={`flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${viewMode === "table"
-                  ? "bg-blue-500 text-white"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }`}
-              >
-                <TableIcon size={16} />
-                表格
-              </button>
-            </div>
+            <SkinSwitcher
+              value={viewMode}
+              options={DOCUMENT_SKINS}
+              onChange={setViewMode}
+              label="雲端硬碟版型"
+              className="w-full justify-center sm:w-auto"
+            />
             <Button onClick={handleAdd} className="w-full sm:w-auto gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl"><Plus size={16} />新增文件</Button>
           </>
         }
@@ -1144,7 +1147,7 @@ export default function CommonDocumentManagement() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:hidden">
+          <div className={viewMode === "drive" || viewMode === "mega" || viewMode === "dropbox" ? "hidden" : "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:hidden"}>
             {filteredDocuments.map((doc) => (
               <DocumentCard
                 key={doc.$id}
@@ -1167,6 +1170,22 @@ export default function CommonDocumentManagement() {
               />
             ))}
           </div>
+          {(viewMode === "drive" || viewMode === "mega" || viewMode === "dropbox") && (() => {
+            const driveProps = {
+              documents: filteredDocuments,
+              allDocuments: commondocument,
+              onPreview: handlePreview,
+              onEdit: handleEdit,
+              onDelete: handleDelete,
+              onEditContent: handleEditContent,
+              selectionMode,
+              selectedIds,
+              onToggleSelect: handleToggleSelect,
+            };
+            if (viewMode === "drive") return <GoogleDriveBrowser {...driveProps} />;
+            if (viewMode === "mega") return <MegaBrowser {...driveProps} />;
+            return <DropboxBrowser {...driveProps} />;
+          })()}
           <div className={viewMode === 'grid' ? "hidden xl:grid xl:grid-cols-2 2xl:grid-cols-3 gap-4" : "hidden"}>
             {filteredDocuments.map((doc) => (
               <DocumentCard
