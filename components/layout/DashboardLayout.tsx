@@ -100,13 +100,13 @@ export default function DashboardLayout({
   }, []);
 
   useEffect(() => {
-    if (!(isSidebarOpen && isMobile)) return;
+    if (!isSidebarOpen) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previous;
     };
-  }, [isSidebarOpen, isMobile]);
+  }, [isSidebarOpen]);
 
   const activeItem = useMemo(
     () => findMenuItem(menuItems, currentModule),
@@ -172,79 +172,98 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <AmbientBackdrop />
 
-      <div className="relative z-10 flex min-h-screen flex-col">
-        {/* Desktop horizontal top nav */}
-        <DesktopTopNav
-          activeLabel={activeLabel}
+      <div className="relative z-10 flex min-h-screen">
+        {/* Tablet left icon rail (768–1023px) */}
+        <TabletRailNav
           currentModule={currentModule}
           menuItems={menuItems}
           onModuleChange={handleMenuClick}
-        />
-
-        {/* Mobile header bar */}
-        <MobileHeader
-          activeLabel={activeLabel}
-          isSidebarOpen={isSidebarOpen}
-          onToggle={toggleSidebar}
-        />
-
-        {/* Mobile full-screen menu sheet */}
-        {isSidebarOpen && (
-          <MobileMenuSheet
-            currentModule={currentModule}
-            leafItems={leafItems}
-            onClose={closeSidebar}
-            onNavigateLeaf={(id) => {
-              onModuleChange(id);
-              closeSidebar();
-            }}
-          />
-        )}
-
-        {/* Main content */}
-        <main className="min-w-0 flex-1 px-3 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-4 md:px-6 md:pb-10 md:pt-6 xl:px-8 xl:pb-12 xl:pt-8">
-          <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
-            {(currentModule === "home" || currentModule === "dashboard") ? <SleepWarningBanner /> : null}
-            {(currentModule === "home" || currentModule === "dashboard") && (
-              <div className="relative overflow-hidden rounded-2xl md:rounded-[20px]">
-                <BirthdayEasterEgg inline />
-              </div>
-            )}
-            <div className="surface-panel pad-panel rounded-2xl md:rounded-[20px] xl:rounded-[22px]">
-              {currentModule !== "subscription" ? (
-                <div className="mb-5 flex flex-col gap-3 border-b border-[var(--line-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[var(--foreground)]">語音 CRUD 管理</p>
-                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">快速導覽與操作目前頁面</p>
-                  </div>
-                  <GlobalVoiceCommandPanel
-                    currentModule={currentModule}
-                    menuItems={menuItems}
-                    onNavigate={onModuleChange}
-                    docked
-                  />
-                </div>
-              ) : null}
-              {children}
-            </div>
-          </div>
-        </main>
-
-        {/* Mobile bottom nav */}
-        <MobileBottomNav
-          currentModule={currentModule}
-          isMenuOpen={isSidebarOpen}
-          isPrimaryTabActive={isPrimaryTabActive}
           onMoreClick={openSidebar}
-          onTabClick={handlePrimaryTabClick}
-          tabs={primaryTabs}
+          isMenuOpen={isSidebarOpen}
         />
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Desktop horizontal top nav */}
+          <DesktopTopNav
+            activeLabel={activeLabel}
+            currentModule={currentModule}
+            menuItems={menuItems}
+            onModuleChange={handleMenuClick}
+          />
+
+          {/* Tablet slim top bar (768–1023px) */}
+          <TabletTopBar
+            activeLabel={activeLabel}
+            currentModule={currentModule}
+            menuItems={menuItems}
+            onModuleChange={handleMenuClick}
+          />
+
+          {/* Mobile header bar */}
+          <MobileHeader
+            activeLabel={activeLabel}
+            isSidebarOpen={isSidebarOpen}
+            onToggle={toggleSidebar}
+          />
+
+          {/* Full-screen menu sheet (phone + tablet) */}
+          {isSidebarOpen && (
+            <MobileMenuSheet
+              currentModule={currentModule}
+              leafItems={leafItems}
+              onClose={closeSidebar}
+              onNavigateLeaf={(id) => {
+                onModuleChange(id);
+                closeSidebar();
+              }}
+            />
+          )}
+
+          {/* Main content */}
+          <main className="min-w-0 flex-1 px-3 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-4 md:px-6 md:pb-10 md:pt-6 xl:px-8 xl:pb-12 xl:pt-8">
+            <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
+              {(currentModule === "home" || currentModule === "dashboard") ? <SleepWarningBanner /> : null}
+              {(currentModule === "home" || currentModule === "dashboard") && (
+                <div className="relative overflow-hidden rounded-2xl md:rounded-[20px]">
+                  <BirthdayEasterEgg inline />
+                </div>
+              )}
+              <div className="surface-panel pad-panel rounded-2xl md:rounded-[20px] xl:rounded-[22px]">
+                {currentModule !== "subscription" ? (
+                  <div className="mb-5 flex flex-col gap-3 border-b border-[var(--line-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[var(--foreground)]">語音 CRUD 管理</p>
+                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">快速導覽與操作目前頁面</p>
+                    </div>
+                    <GlobalVoiceCommandPanel
+                      currentModule={currentModule}
+                      menuItems={menuItems}
+                      onNavigate={onModuleChange}
+                      docked
+                    />
+                  </div>
+                ) : null}
+                {children}
+              </div>
+            </div>
+          </main>
+
+          {/* Mobile bottom nav (phone only) */}
+          <MobileBottomNav
+            currentModule={currentModule}
+            isMenuOpen={isSidebarOpen}
+            isPrimaryTabActive={isPrimaryTabActive}
+            onMoreClick={openSidebar}
+            onTabClick={handlePrimaryTabClick}
+            tabs={primaryTabs}
+          />
+        </div>
       </div>
 
       <div
-        className={cn(isSidebarOpen && isMobile && "pointer-events-none hidden")}
-        {...(isSidebarOpen && isMobile ? { inert: true as unknown as boolean } : {})}
-        aria-hidden={isSidebarOpen && isMobile ? true : undefined}
+        className={cn(isSidebarOpen && "pointer-events-none hidden")}
+        {...(isSidebarOpen ? { inert: true as unknown as boolean } : {})}
+        aria-hidden={isSidebarOpen ? true : undefined}
       >
         <DeferredMediaQueues />
         <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4 md:bottom-6">
@@ -292,17 +311,12 @@ function DeferredMediaQueues() {
   );
 }
 
-function DesktopTopNav({
-  activeLabel,
-  currentModule,
-  menuItems,
-  onModuleChange,
-}: {
-  activeLabel: string;
-  currentModule: string;
-  menuItems: MenuItem[];
-  onModuleChange: (id: string) => void;
-}) {
+/** Shared active-group / sub-nav / top-level click logic for desktop + tablet chrome */
+function useTopNavState(
+  menuItems: MenuItem[],
+  currentModule: string,
+  onModuleChange: (id: string) => void
+) {
   const activeParent = useMemo(
     () => findActiveParent(menuItems, currentModule),
     [menuItems, currentModule]
@@ -334,10 +348,30 @@ function DesktopTopNav({
     [currentModule, onModuleChange]
   );
 
+  return { activeTopId, subItems, handleTopClick };
+}
+
+function DesktopTopNav({
+  activeLabel,
+  currentModule,
+  menuItems,
+  onModuleChange,
+}: {
+  activeLabel: string;
+  currentModule: string;
+  menuItems: MenuItem[];
+  onModuleChange: (id: string) => void;
+}) {
+  const { activeTopId, subItems, handleTopClick } = useTopNavState(
+    menuItems,
+    currentModule,
+    onModuleChange
+  );
+
   return (
     <header
       id="desktop-top-nav"
-      className="sticky top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/95 backdrop-blur-xl md:block"
+      className="sticky top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/95 backdrop-blur-xl lg:block"
     >
       <div className="mx-auto flex h-14 max-w-[1680px] items-center gap-1.5 px-2 sm:gap-2 sm:px-3 xl:gap-3 xl:px-5">
         <BrandBlock compact title={activeLabel} />
@@ -365,6 +399,139 @@ function DesktopTopNav({
           <nav
             aria-label="子導覽"
             className="mx-auto flex max-w-[1680px] items-center gap-0.5 overflow-x-auto overscroll-x-contain px-3 py-1 xl:px-5 [scrollbar-width:thin]"
+          >
+            {subItems.map((child) => {
+              const isActive = currentModule === child.id;
+              return (
+                <TopNavTab
+                  key={child.id}
+                  compact
+                  item={child}
+                  isActive={isActive}
+                  onClick={() => onModuleChange(child.id)}
+                />
+              );
+            })}
+          </nav>
+        </div>
+      ) : null}
+    </header>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Tablet chrome (768–1023px): left icon rail + slim top bar
+// ─────────────────────────────────────────────
+
+function TabletRailNav({
+  currentModule,
+  isMenuOpen,
+  menuItems,
+  onModuleChange,
+  onMoreClick,
+}: {
+  currentModule: string;
+  isMenuOpen: boolean;
+  menuItems: MenuItem[];
+  onModuleChange: (id: string) => void;
+  onMoreClick: () => void;
+}) {
+  const { activeTopId, handleTopClick } = useTopNavState(menuItems, currentModule, onModuleChange);
+
+  return (
+    <aside
+      aria-label="模組導覽"
+      className="sticky top-0 z-[var(--z-sidebar)] hidden h-screen w-[4.75rem] shrink-0 flex-col border-r border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] backdrop-blur-xl md:flex lg:hidden"
+    >
+      <div className="flex h-14 shrink-0 items-center justify-center border-b border-[var(--line-soft)]">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_4px_12px_rgba(199,149,65,0.18)]">
+          <Command size={14} />
+        </div>
+      </div>
+
+      <nav
+        aria-label="主要導覽"
+        className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto overscroll-contain px-2 py-3 [scrollbar-width:thin]"
+      >
+        {menuItems.map((item) => {
+          const isActive = activeTopId === item.id;
+          const { primary } = splitMenuLabel(item);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              title={formatActiveModuleLabel(item, primary)}
+              onClick={() => handleTopClick(item)}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-center transition-impeccable active:scale-[0.97]",
+                isActive
+                  ? "bg-[var(--accent)]/18 text-[var(--accent-strong)]"
+                  : "text-[var(--muted-foreground)] hover:bg-[color:var(--panel-soft)] hover:text-[var(--foreground)]"
+              )}
+            >
+              <span className="flex size-6 items-center justify-center [&_svg]:size-[18px]">
+                {item.icon}
+              </span>
+              <span className="line-clamp-2 w-full text-[10px] font-medium leading-tight">
+                {shortModuleLabel(primary)}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="shrink-0 border-t border-[var(--line-soft)] p-2">
+        <button
+          type="button"
+          onClick={onMoreClick}
+          aria-expanded={isMenuOpen}
+          aria-controls="mobile-sidebar"
+          aria-label="全部模組"
+          className={cn(
+            "flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-center transition-impeccable active:scale-[0.97]",
+            isMenuOpen
+              ? "bg-[var(--accent)]/18 text-[var(--accent-strong)]"
+              : "text-[var(--muted-foreground)] hover:bg-[color:var(--panel-soft)] hover:text-[var(--foreground)]"
+          )}
+        >
+          <span className="flex size-6 items-center justify-center">
+            <LayoutGrid size={18} />
+          </span>
+          <span className="text-[10px] font-medium leading-tight">全部</span>
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function TabletTopBar({
+  activeLabel,
+  currentModule,
+  menuItems,
+  onModuleChange,
+}: {
+  activeLabel: string;
+  currentModule: string;
+  menuItems: MenuItem[];
+  onModuleChange: (id: string) => void;
+}) {
+  const { subItems } = useTopNavState(menuItems, currentModule, onModuleChange);
+
+  return (
+    <header className="sticky top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/95 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:block lg:hidden">
+      <div className="flex h-14 items-center justify-between gap-3 px-4">
+        <h1 className="truncate text-base font-semibold leading-6 tracking-tight text-[var(--foreground)]">
+          {activeLabel}
+        </h1>
+        <DesignModeCluster />
+      </div>
+
+      {subItems.length > 0 ? (
+        <div className="border-t border-[var(--line-soft)] bg-[color:var(--panel-soft)]/55">
+          <nav
+            aria-label="子導覽"
+            className="flex items-center gap-0.5 overflow-x-auto overscroll-x-contain px-3 py-1 [scrollbar-width:thin]"
           >
             {subItems.map((child) => {
               const isActive = currentModule === child.id;
@@ -682,7 +849,7 @@ function MobileMenuSheet({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[var(--z-drawer-open)] md:hidden">
+    <div className="fixed inset-0 z-[var(--z-drawer-open)] lg:hidden">
       <button
         type="button"
         aria-label="關閉選單背景"
@@ -724,7 +891,7 @@ function MobileMenuSheet({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <section aria-label="快捷網格" className="pb-2">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
               {leafItems.map((item) => {
                 const isActive = currentModule === item.id;
                 return (
