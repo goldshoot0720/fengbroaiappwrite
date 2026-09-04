@@ -17,6 +17,8 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
+import { BulkSelectionControls, SelectionCheckbox } from "@/components/ui/bulk-selection-controls";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -24,7 +26,9 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ManagementDeleteDialog } from "@/components/ui/management-delete-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchApi } from "@/hooks/useApi";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
+import { deleteByIds } from "@/lib/bulkSelection";
 import { API_ENDPOINTS } from "@/lib/constants";
 import {
   emptyQuotaForm,
@@ -36,7 +40,7 @@ import {
   parseQuotaCsv,
   quotaImportKey,
 } from "@/lib/quotaCsv";
-import { getExportFilename } from "@/lib/utils";
+import { cn, getExportFilename } from "@/lib/utils";
 import type { Quota, QuotaFormData, QuotaServiceType } from "@/types";
 
 interface QuotaManagementProps {
@@ -127,6 +131,12 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResult, setImportResult] = useState<{ successCount: number; failCount: number } | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormOpen(false);
@@ -135,6 +145,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     setActionError(null);
     setExpandedServices(new Set());
     setPendingDelete(null);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+    setBulkError(null);
     setImportPreview(null);
     setImportResult(null);
     setImporting(false);
@@ -188,12 +201,26 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
       .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
   }, [items, query, typeFilter]);
 
+  const visibleIds = useMemo(
+    () => groups.flatMap((group) => group.items.map((item) => item.$id).filter(Boolean)),
+    [groups],
+  );
+  const bulk = useBulkSelection(visibleIds);
+  const quotaRowCols = bulk.selectionMode
+    ? "xl:grid-cols-[28px_minmax(0,1.1fr)_minmax(8rem,1fr)_minmax(8rem,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)_136px]"
+    : "xl:grid-cols-[minmax(0,1.1fr)_minmax(8rem,1fr)_minmax(8rem,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)_136px]";
+
+  const clearBulkSelection = bulk.clear;
+  useEffect(() => {
+    clearBulkSelection();
+  }, [accountVersion, clearBulkSelection]);
+
   const serviceCount = useMemo(
     () => new Set(items.map((item) => serviceKey(item.name))).size,
     [items],
   );
   const aiCount = items.filter((item) => item.serviceType === "ai").length;
-  const busy = saving || deletingId !== null || importing;
+  const busy = saving || deletingId !== null || importing || bulkDeleting;
 
   const openCreateForm = (name = "") => {
     setEditingId(null);
@@ -237,6 +264,37 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSelectAllVisible = () => {
+    if (!bulk.selectionMode) {
+      setExpandedServices(new Set(groups.map((group) => group.key)));
+      setCollapsedSearchServices(new Set());
+    }
+    bulk.selectAll();
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(bulk.selectedIds).filter(Boolean);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    setBulkError(null);
+    setBulkTotal(ids.length);
+    setBulkProgress(0);
+    const { failCount } = await deleteByIds(
+      ids,
+      (id) => fetchApi(`${API_ENDPOINTS.QUOTA}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+      (done) => setBulkProgress(done),
+    );
+    await fetchAll();
+    setBulkDeleting(false);
+    if (failCount > 0) {
+      setBulkError(`有 ${failCount} 筆刪除失敗，請確認連線後再試。`);
+      return;
+    }
+    bulk.clear();
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
   };
 
   const handleDelete = async (item: Quota) => {
@@ -418,6 +476,16 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
             <Download />
             匯出 CSV
           </Button>
+          <BulkSelectionControls
+            selectionMode={bulk.selectionMode}
+            isAllSelected={bulk.isAllSelected}
+            selectedCount={bulk.selectedCount}
+            visibleCount={visibleIds.length}
+            disabled={loading || busy}
+            onSelectAll={handleSelectAllVisible}
+            onClear={bulk.clear}
+            onDeleteSelected={() => { setBulkError(null); setBulkDeleteInput(""); setBulkDeleteOpen(true); }}
+          />
           <Button type="button" onClick={() => openCreateForm()} disabled={loading || busy}>
             <Plus />
             新增紀錄
@@ -648,6 +716,18 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
             return (
               <section key={group.key} className="surface-inset overflow-hidden rounded-2xl">
                 <div className="flex items-center gap-2 p-3 sm:p-4">
+                  {bulk.selectionMode ? (
+                    <SelectionCheckbox
+                      checked={group.items.length > 0 && group.items.every((item) => bulk.isSelected(item.$id))}
+                      onChange={() => {
+                        const ids = group.items.map((item) => item.$id).filter(Boolean);
+                        const allSelected = ids.length > 0 && ids.every((id) => bulk.isSelected(id));
+                        bulk.toggleMany(ids, !allSelected);
+                      }}
+                      label={`選取 ${group.name} 全部帳號`}
+                      disabled={busy || loading}
+                    />
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => toggleService(group.key)}
@@ -675,7 +755,8 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
 
                 {isOpen ? (
                   <div id={`quota-accounts-${encodeURIComponent(group.key)}`} className="border-t border-[var(--line-soft)]">
-                    <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(8rem,1fr)_minmax(8rem,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)_136px] gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid">
+                    <div className={cn("hidden gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid", quotaRowCols)}>
+                      {bulk.selectionMode ? <span className="sr-only">選取</span> : null}
                       <span>帳號</span><span>剩餘額度</span><span>到期</span><span>類型</span><span>備註</span><span>操作</span>
                     </div>
                     <div className="divide-y divide-[var(--line-soft)]">
@@ -689,7 +770,17 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                             ]
                           : [];
                         return (
-                          <div key={item.$id} className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(8rem,1fr)_minmax(8rem,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)_136px] xl:items-start xl:px-5">
+                          <div key={item.$id} className={cn("grid gap-4 px-4 py-4 sm:grid-cols-2 xl:items-start xl:px-5", quotaRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
+                            {bulk.selectionMode ? (
+                              <div className="flex items-start pt-1">
+                                <SelectionCheckbox
+                                  checked={bulk.isSelected(item.$id)}
+                                  onChange={() => bulk.toggle(item.$id)}
+                                  label={`選取 ${group.name} ${item.account || "帳號"}`}
+                                  disabled={busy || loading}
+                                />
+                              </div>
+                            ) : null}
                             <Cell label="帳號"><span className="break-all font-medium text-foreground">{item.account?.trim() || "未填帳號"}</span></Cell>
                             <Cell label="剩餘額度">
                               <div className="space-y-1 text-sm tabular-nums text-foreground">
@@ -741,6 +832,20 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
         error={actionError}
         onCancel={() => { setPendingDelete(null); setActionError(null); }}
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
+      />
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        count={bulk.selectedCount}
+        noun="額度紀錄"
+        confirmPhrase="DELETE quota"
+        busy={bulkDeleting}
+        progress={bulkProgress}
+        total={bulkTotal}
+        error={bulkError}
+        confirmInput={bulkDeleteInput}
+        onConfirmInputChange={setBulkDeleteInput}
+        onCancel={() => { if (!bulkDeleting) { setBulkDeleteOpen(false); setBulkDeleteInput(""); setBulkError(null); } }}
+        onConfirm={() => { void handleBulkDelete(); }}
       />
       {importPreview ? (
         <div

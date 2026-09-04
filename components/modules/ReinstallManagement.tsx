@@ -18,6 +18,8 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
+import { BulkSelectionControls, SelectionCheckbox } from "@/components/ui/bulk-selection-controls";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -26,10 +28,12 @@ import { ManagementDeleteDialog } from "@/components/ui/management-delete-dialog
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchApi } from "@/hooks/useApi";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
+import { deleteByIds } from "@/lib/bulkSelection";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { buildReinstallCsv, parseReinstallCsv, reinstallImportKey } from "@/lib/reinstallCsv";
-import { getExportFilename } from "@/lib/utils";
+import { cn, getExportFilename } from "@/lib/utils";
 import { formatCurrencyWithExchange } from "@/lib/formatters";
 import {
   emptyReinstallSoftwareForm,
@@ -126,6 +130,12 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResult, setImportResult] = useState<{ successCount: number; failCount: number } | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormOpen(false);
@@ -136,6 +146,9 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     setRevealedIds(new Set());
     setActionError(null);
     setPendingDelete(null);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+    setBulkError(null);
     setPendingReveal(null);
     setRevealPassword("");
     setRevealError(null);
@@ -176,10 +189,24 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
       .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
   }, [items, query, softwareFilter, subscriptionFilter, systemFilter]);
 
+  const visibleIds = useMemo(
+    () => filteredItems.map((item) => item.$id).filter(Boolean),
+    [filteredItems],
+  );
+  const bulk = useBulkSelection(visibleIds);
+  const reinstallRowCols = bulk.selectionMode
+    ? "xl:grid-cols-[28px_minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px]"
+    : "xl:grid-cols-[minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px]";
+
+  const clearBulkSelection = bulk.clear;
+  useEffect(() => {
+    clearBulkSelection();
+  }, [accountVersion, clearBulkSelection]);
+
   const windowsCount = items.filter((item) => item.system === "win").length;
   const macCount = items.filter((item) => item.system === "mac").length;
   const serialCount = items.filter((item) => item.licenseType === "paid_serial").length;
-  const busy = saving || deletingId !== null || importing;
+  const busy = saving || deletingId !== null || importing || bulkDeleting;
 
   const refresh = () => {
     setRevealedIds(new Set());
@@ -241,6 +268,29 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(bulk.selectedIds).filter(Boolean);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    setBulkError(null);
+    setBulkTotal(ids.length);
+    setBulkProgress(0);
+    const { failCount } = await deleteByIds(
+      ids,
+      (id) => fetchApi(`${API_ENDPOINTS.REINSTALL}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+      (done) => setBulkProgress(done),
+    );
+    await fetchAll();
+    setBulkDeleting(false);
+    if (failCount > 0) {
+      setBulkError(`有 ${failCount} 筆刪除失敗，請確認連線後再試。`);
+      return;
+    }
+    bulk.clear();
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
   };
 
   const handleDelete = async (item: ReinstallSoftware) => {
@@ -447,6 +497,16 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
             <Download />
             匯出 CSV
           </Button>
+          <BulkSelectionControls
+            selectionMode={bulk.selectionMode}
+            isAllSelected={bulk.isAllSelected}
+            selectedCount={bulk.selectedCount}
+            visibleCount={visibleIds.length}
+            disabled={loading || busy}
+            onSelectAll={bulk.selectAll}
+            onClear={bulk.clear}
+            onDeleteSelected={() => { setBulkError(null); setBulkDeleteInput(""); setBulkDeleteOpen(true); }}
+          />
           <Button type="button" onClick={openCreateForm} disabled={loading || busy}>
             <Plus />
             新增軟體
@@ -681,7 +741,8 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
         />
       ) : (
         <div className="surface-inset overflow-hidden rounded-2xl">
-          <div className="hidden grid-cols-[minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px] gap-4 border-b border-[var(--line-soft)] px-5 py-3 text-xs font-semibold text-muted-foreground xl:grid">
+          <div className={cn("hidden gap-4 border-b border-[var(--line-soft)] px-5 py-3 text-xs font-semibold text-muted-foreground xl:grid", reinstallRowCols)}>
+            {bulk.selectionMode ? <span className="sr-only">選取</span> : null}
             <span>服務名稱</span><span>系統</span><span>軟體類型</span><span>序號</span><span>網站／備註</span><span>操作</span>
           </div>
           <div className="divide-y divide-[var(--line-soft)]">
@@ -690,7 +751,17 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
               const hasSerial = item.licenseType === "paid_serial";
               const website = safeSoftwareUrl(item.site);
               return (
-                <article key={item.$id} className="grid gap-4 px-4 py-5 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px] xl:items-center xl:px-5">
+                <article key={item.$id} className={cn("grid gap-4 px-4 py-5 sm:grid-cols-2 xl:items-center xl:px-5", reinstallRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
+                  {bulk.selectionMode ? (
+                    <div className="flex items-center">
+                      <SelectionCheckbox
+                        checked={bulk.isSelected(item.$id)}
+                        onChange={() => bulk.toggle(item.$id)}
+                        label={`選取 ${item.name}`}
+                        disabled={busy || loading}
+                      />
+                    </div>
+                  ) : null}
                   <Cell label="服務名稱"><h2 className="break-words font-semibold text-foreground">{item.name}</h2></Cell>
                   <Cell label="系統"><StatusBadge status="info">{optionLabel(REINSTALL_SYSTEM_OPTIONS, item.system)}</StatusBadge></Cell>
                   <Cell label="軟體類型">
@@ -813,6 +884,20 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
         error={actionError}
         onCancel={() => { setPendingDelete(null); setActionError(null); }}
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
+      />
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        count={bulk.selectedCount}
+        noun="重灌軟體"
+        confirmPhrase="DELETE reinstall"
+        busy={bulkDeleting}
+        progress={bulkProgress}
+        total={bulkTotal}
+        error={bulkError}
+        confirmInput={bulkDeleteInput}
+        onConfirmInputChange={setBulkDeleteInput}
+        onCancel={() => { if (!bulkDeleting) { setBulkDeleteOpen(false); setBulkDeleteInput(""); setBulkError(null); } }}
+        onConfirm={() => { void handleBulkDelete(); }}
       />
       {importPreview ? (
         <div

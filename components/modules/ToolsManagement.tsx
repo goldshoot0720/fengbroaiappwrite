@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Pencil, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
+import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
+import { BulkSelectionControls, SelectionCheckbox } from "@/components/ui/bulk-selection-controls";
 import { Button } from "@/components/ui/button";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import {
   DEFAULT_FENGBRO_TUBE_CHANNELS,
@@ -1680,6 +1683,84 @@ function LandtopHistoryChart({
   );
 }
 
+function RecentLinksCard({
+  items,
+  onOpen,
+  onDeleteUrls,
+}: {
+  items: RecentLink[];
+  onOpen: (url: string) => void;
+  onDeleteUrls: (urls: string[]) => void;
+}) {
+  const ids = useMemo(() => items.map((item) => item.url), [items]);
+  const bulk = useBulkSelection(ids);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  if (items.length === 0) return null;
+
+  return (
+    <DataCard className="p-6">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-semibold">最近連結</h4>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{items.length} 筆</span>
+          <BulkSelectionControls
+            selectionMode={bulk.selectionMode}
+            isAllSelected={bulk.isAllSelected}
+            selectedCount={bulk.selectedCount}
+            visibleCount={ids.length}
+            onSelectAll={bulk.selectAll}
+            onClear={bulk.clear}
+            onDeleteSelected={() => { setBulkDeleteInput(""); setBulkDeleteOpen(true); }}
+          />
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {items.map((item) => (
+          <div
+            key={item.url}
+            className={`flex items-start gap-2 rounded-xl border border-border bg-white px-3 py-2 text-xs shadow-sm ${
+              bulk.selectionMode && bulk.isSelected(item.url) ? "ring-2 ring-red-300" : ""
+            }`}
+          >
+            {bulk.selectionMode ? (
+              <SelectionCheckbox
+                checked={bulk.isSelected(item.url)}
+                onChange={() => bulk.toggle(item.url)}
+                label={`選取 ${item.title || item.url}`}
+              />
+            ) : null}
+            <button
+              type="button"
+              onClick={() => onOpen(item.url)}
+              className="min-w-0 flex-1 text-left transition hover:text-amber-800"
+            >
+              <span className="line-clamp-1 font-medium text-foreground">{item.title || "未命名商品"}</span>
+              <span className="line-clamp-1 text-muted-foreground">{item.url}</span>
+            </button>
+          </div>
+        ))}
+      </div>
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        count={bulk.selectedCount}
+        noun="最近連結"
+        confirmPhrase="DELETE price-compare"
+        busy={false}
+        confirmInput={bulkDeleteInput}
+        onConfirmInputChange={setBulkDeleteInput}
+        onCancel={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }}
+        onConfirm={() => {
+          onDeleteUrls(Array.from(bulk.selectedIds));
+          bulk.clear();
+          setBulkDeleteOpen(false);
+          setBulkDeleteInput("");
+        }}
+      />
+    </DataCard>
+  );
+}
+
 function FengbroTubeSection({
   result,
   loading,
@@ -1695,6 +1776,7 @@ function FengbroTubeSection({
   onSaveChannel,
   onEditChannel,
   onDeleteChannel,
+  onDeleteChannels,
   onCancelEditChannel,
   onResetChannels,
   onExportChannelsCsv,
@@ -1715,6 +1797,7 @@ function FengbroTubeSection({
   onSaveChannel: () => void;
   onEditChannel: (channel: FengbroTubeChannelConfig) => void;
   onDeleteChannel: (sourceUrl: string) => void;
+  onDeleteChannels: (sourceUrls: string[]) => void;
   onCancelEditChannel: () => void;
   onResetChannels: () => void;
   onExportChannelsCsv: () => void;
@@ -1737,6 +1820,27 @@ function FengbroTubeSection({
     hasCustomTubeAlias(channel.alias)
       ? channel.alias
       : getFengbroTubeFallbackTitle(channel.sourceUrl, resolvedChannelTitleBySource.get(channel.sourceUrl) || "");
+  const channelIds = useMemo(
+    () => channelConfigs.map((channel) => channel.sourceUrl).filter(Boolean),
+    [channelConfigs],
+  );
+  const bulk = useBulkSelection(channelIds);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+
+  const handleSelectAllChannels = () => {
+    if (!channelManagerOpen) onToggleChannelManager();
+    bulk.selectAll();
+  };
+
+  const handleBulkDeleteChannels = () => {
+    const urls = Array.from(bulk.selectedIds).filter(Boolean);
+    if (urls.length === 0) return;
+    onDeleteChannels(urls);
+    bulk.clear();
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+  };
 
   return (
     <div id={FENGBRO_TUBE_TOP_ID} className="space-y-5 scroll-mt-6">
@@ -1794,6 +1898,15 @@ function FengbroTubeSection({
               <Upload size={16} />
               輸入 CSV
             </Button>
+            <BulkSelectionControls
+              selectionMode={bulk.selectionMode}
+              isAllSelected={bulk.isAllSelected}
+              selectedCount={bulk.selectedCount}
+              visibleCount={channelIds.length}
+              onSelectAll={handleSelectAllChannels}
+              onClear={bulk.clear}
+              onDeleteSelected={() => { setBulkDeleteInput(""); setBulkDeleteOpen(true); }}
+            />
             <Button type="button" variant="outline" onClick={onToggleChannelManager} className="gap-2 rounded-xl">
               <Wrench size={16} />
               頻道管理
@@ -1853,7 +1966,14 @@ function FengbroTubeSection({
             )}
             <div className="mt-4 grid gap-2 xl:grid-cols-2">
               {channelConfigs.map((channel) => (
-                <div key={channel.sourceUrl} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50/70 px-3 py-2">
+                <div key={channel.sourceUrl} className={`flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50/70 px-3 py-2 ${bulk.selectionMode && bulk.isSelected(channel.sourceUrl) ? "ring-2 ring-red-300" : ""}`}>
+                  {bulk.selectionMode ? (
+                    <SelectionCheckbox
+                      checked={bulk.isSelected(channel.sourceUrl)}
+                      onChange={() => bulk.toggle(channel.sourceUrl)}
+                      label={`選取 ${getChannelConfigLabel(channel)}`}
+                    />
+                  ) : null}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">{getChannelConfigLabel(channel)}</p>
                     <a href={channel.sourceUrl} target="_blank" rel="noreferrer" className="block truncate text-xs text-red-700 hover:underline">
@@ -1879,6 +1999,18 @@ function FengbroTubeSection({
           </div>
         </div>
         )}
+
+        <BulkDeleteDialog
+          open={bulkDeleteOpen}
+          count={bulk.selectedCount}
+          noun="頻道"
+          confirmPhrase="DELETE tube"
+          busy={false}
+          confirmInput={bulkDeleteInput}
+          onConfirmInputChange={setBulkDeleteInput}
+          onCancel={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }}
+          onConfirm={handleBulkDeleteChannels}
+        />
 
         {error && <div className="m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
 
@@ -2244,6 +2376,7 @@ function FengbroFinanceSection({
   onEditCustomInstrument,
   onCancelEditCustomInstrument,
   onDeleteCustomInstrument,
+  onDeleteCustomInstruments,
   featuredQuoteIds,
   onToggleFeaturedQuoteId,
   onExportCustomCsv,
@@ -2266,6 +2399,7 @@ function FengbroFinanceSection({
   onEditCustomInstrument: (instrument: CustomFinanceInstrument) => void;
   onCancelEditCustomInstrument: () => void;
   onDeleteCustomInstrument: (instrument: CustomFinanceInstrument) => void;
+  onDeleteCustomInstruments: (instruments: CustomFinanceInstrument[]) => void;
   featuredQuoteIds: string[];
   onToggleFeaturedQuoteId: (quoteId: string) => void;
   onExportCustomCsv: () => void;
@@ -2278,6 +2412,13 @@ function FengbroFinanceSection({
   const [customFormOpen, setCustomFormOpen] = useState(false);
   /** 已新增標的 chips：預設折疊；進入編輯時自動展開 */
   const [customListOpen, setCustomListOpen] = useState(false);
+  const customInstrumentIds = useMemo(
+    () => customInstruments.map((instrument) => getCustomFinanceInstrumentKey(instrument)),
+    [customInstruments],
+  );
+  const bulk = useBulkSelection(customInstrumentIds);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   /** 從鋒兄圖片（Appwrite Storage）挑選標的配圖 */
   const [storagePickerOpen, setStoragePickerOpen] = useState(false);
@@ -2967,7 +3108,19 @@ function FengbroFinanceSection({
 
         {/* 展開：已新增標的 chips */}
         {customListOpen && customInstruments.length > 0 && (
-          <div className="flex flex-wrap gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3.5">
+          <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <BulkSelectionControls
+                selectionMode={bulk.selectionMode}
+                isAllSelected={bulk.isAllSelected}
+                selectedCount={bulk.selectedCount}
+                visibleCount={customInstrumentIds.length}
+                onSelectAll={bulk.selectAll}
+                onClear={bulk.clear}
+                onDeleteSelected={() => { setBulkDeleteInput(""); setBulkDeleteOpen(true); }}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
             {customInstruments.map((instrument) => {
               const key = getCustomFinanceInstrumentKey(instrument);
               const quoteId = buildCustomFinanceQuoteId(instrument.provider, instrument.symbol);
@@ -2984,8 +3137,15 @@ function FengbroFinanceSection({
                       : isActiveEdit
                         ? "border-amber-300 bg-amber-50 text-amber-900"
                         : "border-emerald-100 bg-white text-emerald-800"
-                  }`}
+                  } ${bulk.selectionMode && bulk.isSelected(key) ? "ring-2 ring-red-300" : ""}`}
                 >
+                  {bulk.selectionMode ? (
+                    <SelectionCheckbox
+                      checked={bulk.isSelected(key)}
+                      onChange={() => bulk.toggle(key)}
+                      label={`選取 ${instrument.name}`}
+                    />
+                  ) : null}
                   <span className="font-semibold">{instrument.name}</span>
                   <span>
                     {instrument.provider.toUpperCase()}: {instrument.symbol}
@@ -3059,6 +3219,7 @@ function FengbroFinanceSection({
                 </span>
               );
             })}
+            </div>
           </div>
         )}
 
@@ -3203,6 +3364,22 @@ function FengbroFinanceSection({
               <Upload size={16} />
               輸入 CSV
             </Button>
+            <BulkSelectionControls
+              selectionMode={bulk.selectionMode}
+              isAllSelected={bulk.isAllSelected}
+              selectedCount={bulk.selectedCount}
+              visibleCount={customInstrumentIds.length}
+              onSelectAll={() => {
+                if (!customListOpen && customInstruments.length > 0) setCustomListOpen(true);
+                bulk.selectAll();
+              }}
+              onClear={bulk.clear}
+              onDeleteSelected={() => {
+                if (!customListOpen && customInstruments.length > 0) setCustomListOpen(true);
+                setBulkDeleteInput("");
+                setBulkDeleteOpen(true);
+              }}
+            />
             <Button onClick={onRefresh} disabled={loading} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               {loading ? "更新中" : "重新整理"}
@@ -3713,6 +3890,24 @@ function FengbroFinanceSection({
         )}
         </div>
       </DataCard>
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        count={bulk.selectedCount}
+        noun="自選標的"
+        confirmPhrase="DELETE finance"
+        busy={false}
+        confirmInput={bulkDeleteInput}
+        onConfirmInputChange={setBulkDeleteInput}
+        onCancel={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }}
+        onConfirm={() => {
+          const keys = bulk.selectedIds;
+          const targets = customInstruments.filter((instrument) => keys.has(getCustomFinanceInstrumentKey(instrument)));
+          onDeleteCustomInstruments(targets);
+          bulk.clear();
+          setBulkDeleteOpen(false);
+          setBulkDeleteInput("");
+        }}
+      />
     </div>
   );
 }
@@ -4312,6 +4507,13 @@ export default function ToolsManagement({
     setTubeLoadedOnce(false);
   }, [clearTubeChannelForm, editingTubeChannelUrl, setTubeChannelConfigs, tubeChannelConfigs]);
 
+  const handleDeleteTubeChannels = useCallback((sourceUrls: string[]) => {
+    const urlSet = new Set(sourceUrls);
+    setTubeChannelConfigs((currentChannels) => currentChannels.filter((channel) => !urlSet.has(channel.sourceUrl)));
+    if (editingTubeChannelUrl && urlSet.has(editingTubeChannelUrl)) clearTubeChannelForm();
+    setTubeLoadedOnce(false);
+  }, [clearTubeChannelForm, editingTubeChannelUrl, setTubeChannelConfigs]);
+
   const handleResetTubeChannels = useCallback(() => {
     if (typeof window !== "undefined" && !window.confirm(`確定還原預設 ${DEFAULT_FENGBRO_TUBE_CHANNELS.length} 個頻道？`)) return;
     setTubeChannelConfigs(DEFAULT_FENGBRO_TUBE_CHANNELS);
@@ -4706,6 +4908,24 @@ export default function ToolsManagement({
     [clearCustomFinanceForm, editingCustomFinanceKey, setCustomFinanceInstruments]
   );
 
+  const handleDeleteCustomFinanceInstruments = useCallback(
+    (targets: CustomFinanceInstrument[]) => {
+      const keys = new Set(targets.map((instrument) => getCustomFinanceInstrumentKey(instrument)));
+      const quoteIds = new Set(
+        targets.map((instrument) => buildCustomFinanceQuoteId(instrument.provider, instrument.symbol)),
+      );
+      setCustomFinanceInstruments((currentInstruments) =>
+        currentInstruments.filter((instrument) => !keys.has(getCustomFinanceInstrumentKey(instrument)))
+      );
+      setFeaturedFinanceQuoteIds((currentIds) => currentIds.filter((id) => !quoteIds.has(id)));
+      if (editingCustomFinanceKey && keys.has(editingCustomFinanceKey)) {
+        clearCustomFinanceForm();
+      }
+      setFinanceLoadedOnce(false);
+    },
+    [clearCustomFinanceForm, editingCustomFinanceKey, setCustomFinanceInstruments]
+  );
+
   // 雲端自選標的載入完成後，用最新清單重新抓取報價。
   useEffect(() => {
     if (financeLoadVersion > 0 && activeTab === "fengbro-finance") {
@@ -4917,30 +5137,17 @@ export default function ToolsManagement({
             </div>
           </DataCard>
 
-          {sortedRecent.length > 0 && (
-            <DataCard className="p-6">
-              <div className="mb-3 flex items-center justify-between">
-                <h4 className="text-sm font-semibold">最近連結</h4>
-                <span className="text-xs text-muted-foreground">{sortedRecent.length} 筆</span>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {sortedRecent.map((item) => (
-                  <button
-                    key={item.url}
-                    type="button"
-                    onClick={() => {
-                      setTargetUrl(item.url);
-                      void handleResolve(item.url);
-                    }}
-                    className="flex flex-col rounded-xl border border-border bg-white px-3 py-2 text-left text-xs shadow-sm transition hover:border-amber-300"
-                  >
-                    <span className="line-clamp-1 font-medium text-foreground">{item.title || "未命名商品"}</span>
-                    <span className="line-clamp-1 text-muted-foreground">{item.url}</span>
-                  </button>
-                ))}
-              </div>
-            </DataCard>
-          )}
+          <RecentLinksCard
+            items={sortedRecent}
+            onOpen={(url) => {
+              setTargetUrl(url);
+              void handleResolve(url);
+            }}
+            onDeleteUrls={(urls) => {
+              const urlSet = new Set(urls);
+              persistRecentLinks(recentLinks.filter((item) => !urlSet.has(item.url)));
+            }}
+          />
 
           <DataCard className="space-y-4 p-6">
             <div className="flex items-center justify-between">
@@ -5302,6 +5509,7 @@ export default function ToolsManagement({
           onSaveChannel={handleSaveTubeChannel}
           onEditChannel={handleEditTubeChannel}
           onDeleteChannel={handleDeleteTubeChannel}
+          onDeleteChannels={handleDeleteTubeChannels}
           onCancelEditChannel={clearTubeChannelForm}
           onResetChannels={handleResetTubeChannels}
           onExportChannelsCsv={handleExportTubeChannelsCsv}
@@ -5336,6 +5544,7 @@ export default function ToolsManagement({
           onEditCustomInstrument={handleEditCustomFinanceInstrument}
           onCancelEditCustomInstrument={handleCancelEditCustomFinanceInstrument}
           onDeleteCustomInstrument={handleDeleteCustomFinanceInstrument}
+          onDeleteCustomInstruments={handleDeleteCustomFinanceInstruments}
           featuredQuoteIds={featuredFinanceQuoteIds}
           onToggleFeaturedQuoteId={handleToggleFeaturedFinanceQuoteId}
           onExportCustomCsv={handleExportFinanceCustomCsv}

@@ -17,6 +17,8 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
+import { BulkSelectionControls, SelectionCheckbox } from "@/components/ui/bulk-selection-controls";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -25,7 +27,9 @@ import { ManagementDeleteDialog } from "@/components/ui/management-delete-dialog
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchApi } from "@/hooks/useApi";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
+import { deleteByIds } from "@/lib/bulkSelection";
 import { API_ENDPOINTS } from "@/lib/constants";
 import {
   emptyTrialPurchaseForm,
@@ -38,7 +42,7 @@ import {
   parseTrialPurchaseCsv,
   trialPurchaseImportKey,
 } from "@/lib/trialPurchaseCsv";
-import { getExportFilename } from "@/lib/utils";
+import { cn, getExportFilename } from "@/lib/utils";
 import type {
   PurchaseStatus,
   TrialPurchase,
@@ -139,6 +143,12 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResult, setImportResult] = useState<{ successCount: number; failCount: number } | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormOpen(false);
@@ -147,6 +157,9 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
     setActionError(null);
     setExpandedServices(new Set());
     setPendingDelete(null);
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
+    setBulkError(null);
     setImportPreview(null);
     setImportResult(null);
     setImporting(false);
@@ -202,6 +215,20 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
       .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
   }, [attentionFilter, items, query]);
 
+  const visibleIds = useMemo(
+    () => groups.flatMap((group) => group.items.map((item) => item.$id).filter(Boolean)),
+    [groups],
+  );
+  const bulk = useBulkSelection(visibleIds);
+  const trialRowCols = bulk.selectionMode
+    ? "xl:grid-cols-[28px_minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_136px]"
+    : "xl:grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_136px]";
+
+  const clearBulkSelection = bulk.clear;
+  useEffect(() => {
+    clearBulkSelection();
+  }, [accountVersion, clearBulkSelection]);
+
   const serviceCount = useMemo(
     () => new Set(items.map((item) => serviceKey(item.name))).size,
     [items],
@@ -209,7 +236,7 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
   const untriedCount = items.filter((item) => item.trialStatus !== "tried").length;
   const notPurchasedCount = items.filter((item) => item.purchaseStatus === "not_purchased").length;
   const pendingCount = items.filter((item) => item.trialStatus !== "tried" || item.purchaseStatus === "not_purchased").length;
-  const busy = saving || deletingId !== null || importing;
+  const busy = saving || deletingId !== null || importing || bulkDeleting;
 
   const openCreateForm = (name = "") => {
     setEditingId(null);
@@ -255,6 +282,37 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSelectAllVisible = () => {
+    if (!bulk.selectionMode) {
+      setExpandedServices(new Set(groups.map((group) => group.key)));
+      setCollapsedSearchServices(new Set());
+    }
+    bulk.selectAll();
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(bulk.selectedIds).filter(Boolean);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    setBulkError(null);
+    setBulkTotal(ids.length);
+    setBulkProgress(0);
+    const { failCount } = await deleteByIds(
+      ids,
+      (id) => fetchApi(`${API_ENDPOINTS.TRIAL_PURCHASE}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+      (done) => setBulkProgress(done),
+    );
+    await fetchAll();
+    setBulkDeleting(false);
+    if (failCount > 0) {
+      setBulkError(`有 ${failCount} 筆刪除失敗，請確認連線後再試。`);
+      return;
+    }
+    bulk.clear();
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
   };
 
   const handleDelete = async (item: TrialPurchase) => {
@@ -432,6 +490,16 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
             <Download />
             匯出 CSV
           </Button>
+          <BulkSelectionControls
+            selectionMode={bulk.selectionMode}
+            isAllSelected={bulk.isAllSelected}
+            selectedCount={bulk.selectedCount}
+            visibleCount={visibleIds.length}
+            disabled={loading || busy}
+            onSelectAll={handleSelectAllVisible}
+            onClear={bulk.clear}
+            onDeleteSelected={() => { setBulkError(null); setBulkDeleteInput(""); setBulkDeleteOpen(true); }}
+          />
           <Button type="button" onClick={() => openCreateForm()} disabled={loading || busy}>
             <Plus />
             新增紀錄
@@ -609,6 +677,18 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
             return (
               <section key={group.key} className="surface-inset overflow-hidden rounded-2xl">
                 <div className="flex items-center gap-2 p-3 sm:p-4">
+                  {bulk.selectionMode ? (
+                    <SelectionCheckbox
+                      checked={group.items.length > 0 && group.items.every((item) => bulk.isSelected(item.$id))}
+                      onChange={() => {
+                        const ids = group.items.map((item) => item.$id).filter(Boolean);
+                        const allSelected = ids.length > 0 && ids.every((id) => bulk.isSelected(id));
+                        bulk.toggleMany(ids, !allSelected);
+                      }}
+                      label={`選取 ${group.name} 全部帳號`}
+                      disabled={busy || loading}
+                    />
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => toggleService(group.key)}
@@ -637,12 +717,23 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
 
                 {isOpen ? (
                   <div id={`trial-accounts-${encodeURIComponent(group.key)}`} className="border-t border-[var(--line-soft)]">
-                    <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_136px] gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid">
+                    <div className={cn("hidden gap-4 border-b border-[var(--line-soft)] px-5 py-2 text-xs font-semibold leading-5 text-muted-foreground xl:grid", trialRowCols)}>
+                      {bulk.selectionMode ? <span className="sr-only">選取</span> : null}
                       <span>帳號</span><span>試用／首購／到期日（扣款日）</span><span>價格</span><span>狀態</span><span>備註</span><span>操作</span>
                     </div>
                     <div className="divide-y divide-[var(--line-soft)]">
                       {group.items.map((item) => (
-                        <div key={item.$id} className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(9rem,1.6fr)_minmax(0,.8fr)_minmax(0,1.1fr)_minmax(0,.9fr)_136px] xl:items-center xl:px-5">
+                        <div key={item.$id} className={cn("grid gap-4 px-4 py-4 sm:grid-cols-2 xl:items-center xl:px-5", trialRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
+                          {bulk.selectionMode ? (
+                            <div className="flex items-center">
+                              <SelectionCheckbox
+                                checked={bulk.isSelected(item.$id)}
+                                onChange={() => bulk.toggle(item.$id)}
+                                label={`選取 ${group.name} ${item.account || "帳號"}`}
+                                disabled={busy || loading}
+                              />
+                            </div>
+                          ) : null}
                           <Cell label="帳號"><span className="break-all font-medium text-foreground">{item.account?.trim() || "未填帳號"}</span></Cell>
                           <Cell label="試用／首購／到期日（扣款日）"><span className="inline-flex items-center gap-2 text-sm text-foreground"><CalendarDays className="size-4 shrink-0 text-muted-foreground" />{formatDate(item.eventDate)}</span></Cell>
                           <Cell label="價格">
@@ -680,6 +771,20 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
         error={actionError}
         onCancel={() => { setPendingDelete(null); setActionError(null); }}
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
+      />
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        count={bulk.selectedCount}
+        noun="試用／首購紀錄"
+        confirmPhrase="DELETE trial-purchase"
+        busy={bulkDeleting}
+        progress={bulkProgress}
+        total={bulkTotal}
+        error={bulkError}
+        confirmInput={bulkDeleteInput}
+        onConfirmInputChange={setBulkDeleteInput}
+        onCancel={() => { if (!bulkDeleting) { setBulkDeleteOpen(false); setBulkDeleteInput(""); setBulkError(null); } }}
+        onConfirm={() => { void handleBulkDelete(); }}
       />
       {importPreview ? (
         <div

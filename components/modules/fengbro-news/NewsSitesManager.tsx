@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Focus,
   Lock,
@@ -8,7 +9,10 @@ import {
   Trash2,
   Unlock,
 } from "lucide-react";
+import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
+import { BulkSelectionControls, SelectionCheckbox } from "@/components/ui/bulk-selection-controls";
 import { Button } from "@/components/ui/button";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 import {
   DEFAULT_FENGBRO_NEWS_SITES_COUNT,
   type FengbroNewsAdapter,
@@ -53,6 +57,7 @@ type NewsSitesManagerProps = {
   onToggleLock: (id: string) => void;
   onEditSite: (site: FengbroNewsSiteConfig) => void;
   onDeleteSite: (id: string) => void;
+  onDeleteSites: (ids: string[]) => void;
 };
 
 export function NewsSitesManager({
@@ -77,7 +82,13 @@ export function NewsSitesManager({
   onToggleLock,
   onEditSite,
   onDeleteSite,
+  onDeleteSites,
 }: NewsSitesManagerProps) {
+  const siteIds = displaySites.map((site) => site.id);
+  const bulk = useBulkSelection(siteIds);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+
   return (
     <div className="border-b border-sky-50 p-4 sm:p-6">
       <div className="rounded-[28px] border border-sky-100 bg-white p-4">
@@ -96,10 +107,21 @@ export function NewsSitesManager({
               個。
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={onResetSites} className="gap-2 rounded-xl">
-            <RotateCcw size={16} />
-            還原預設（{DEFAULT_FENGBRO_NEWS_SITES_COUNT}）
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <BulkSelectionControls
+              selectionMode={bulk.selectionMode}
+              isAllSelected={bulk.isAllSelected}
+              selectedCount={bulk.selectedCount}
+              visibleCount={siteIds.length}
+              onSelectAll={bulk.selectAll}
+              onClear={bulk.clear}
+              onDeleteSelected={() => { setBulkDeleteInput(""); setBulkDeleteOpen(true); }}
+            />
+            <Button type="button" variant="outline" onClick={onResetSites} className="gap-2 rounded-xl">
+              <RotateCcw size={16} />
+              還原預設（{DEFAULT_FENGBRO_NEWS_SITES_COUNT}）
+            </Button>
+          </div>
         </div>
 
         <div className="mt-4 rounded-2xl border border-dashed border-sky-200 bg-sky-50/40 p-4">
@@ -191,8 +213,15 @@ export function NewsSitesManager({
                 site.locked
                   ? "border-sky-200 bg-sky-50/80"
                   : "border-slate-200 bg-slate-50/80 opacity-80"
-              }`}
+              } ${bulk.selectionMode && bulk.isSelected(site.id) ? "ring-2 ring-sky-400" : ""}`}
             >
+              {bulk.selectionMode ? (
+                <SelectionCheckbox
+                  checked={bulk.isSelected(site.id)}
+                  onChange={() => bulk.toggle(site.id)}
+                  label={`選取 ${site.name}`}
+                />
+              ) : null}
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-foreground">
                   {site.locked ? "🔒 " : "🔓 "}
@@ -237,6 +266,22 @@ export function NewsSitesManager({
             </div>
           ))}
         </div>
+        <BulkDeleteDialog
+          open={bulkDeleteOpen}
+          count={bulk.selectedCount}
+          noun="新聞來源"
+          confirmPhrase="DELETE news"
+          busy={false}
+          confirmInput={bulkDeleteInput}
+          onConfirmInputChange={setBulkDeleteInput}
+          onCancel={() => { setBulkDeleteOpen(false); setBulkDeleteInput(""); }}
+          onConfirm={() => {
+            onDeleteSites(Array.from(bulk.selectedIds));
+            bulk.clear();
+            setBulkDeleteOpen(false);
+            setBulkDeleteInput("");
+          }}
+        />
       </div>
     </div>
   );

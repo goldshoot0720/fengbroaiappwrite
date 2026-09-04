@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Download, Pencil, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
+import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
+import { BulkSelectionControls, SelectionCheckbox } from "@/components/ui/bulk-selection-controls";
 import { DataCard } from "@/components/ui/data-card";
 import { Button } from "@/components/ui/button";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 import {
   buildManualPriceCsv,
   mergeManualPriceProducts,
@@ -382,6 +385,10 @@ export default function ManualPriceTracker() {
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [productBulkOpen, setProductBulkOpen] = useState(false);
+  const [productBulkInput, setProductBulkInput] = useState("");
+  const [recordBulkOpen, setRecordBulkOpen] = useState(false);
+  const [recordBulkInput, setRecordBulkInput] = useState("");
 
   // 雲端同步層：/api/manualprice（Appwrite）為唯一資料源，不使用 localStorage。
   const {
@@ -455,6 +462,16 @@ export default function ManualPriceTracker() {
       count: sorted.length,
     };
   }, [selectedProduct]);
+
+  const sortedRecordsDesc = useMemo(() => {
+    if (!selectedProduct) return [];
+    return [...sortRecords(selectedProduct.records)].reverse();
+  }, [selectedProduct]);
+
+  const productIds = useMemo(() => products.map((product) => product.id), [products]);
+  const recordIds = useMemo(() => sortedRecordsDesc.map((record) => record.id), [sortedRecordsDesc]);
+  const productBulk = useBulkSelection(productIds);
+  const recordBulk = useBulkSelection(recordIds);
 
   const resetProductForm = () => {
     setProductName("");
@@ -632,10 +649,45 @@ export default function ManualPriceTracker() {
     }
   };
 
-  const sortedRecordsDesc = useMemo(() => {
-    if (!selectedProduct) return [];
-    return [...sortRecords(selectedProduct.records)].reverse();
-  }, [selectedProduct]);
+  const handleBulkDeleteProducts = () => {
+    const ids = productBulk.selectedIds;
+    const next = products.filter((product) => !ids.has(product.id));
+    persistProducts(next);
+    if (selectedProductId && ids.has(selectedProductId)) {
+      setSelectedProductId(next[0]?.id ?? null);
+    }
+    if (editingProductId && ids.has(editingProductId)) {
+      resetProductForm();
+    }
+    if (editingRecordId) {
+      resetRecordForm();
+    }
+    productBulk.clear();
+    setProductBulkOpen(false);
+    setProductBulkInput("");
+  };
+
+  const handleBulkDeleteRecords = () => {
+    if (!selectedProduct) return;
+    const ids = recordBulk.selectedIds;
+    const now = Date.now();
+    persistProducts(
+      products.map((product) => {
+        if (product.id !== selectedProduct.id) return product;
+        return {
+          ...product,
+          records: product.records.filter((record) => !ids.has(record.id)),
+          updatedAt: now,
+        };
+      }),
+    );
+    if (editingRecordId && ids.has(editingRecordId)) {
+      resetRecordForm();
+    }
+    recordBulk.clear();
+    setRecordBulkOpen(false);
+    setRecordBulkInput("");
+  };
 
   const handleExportCsv = useCallback(() => {
     try {
@@ -887,9 +939,20 @@ export default function ManualPriceTracker() {
         </div>
 
         <div>
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-semibold">我的商品</h4>
-            <span className="text-xs text-muted-foreground">{products.length} 項</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">{products.length} 項</span>
+              <BulkSelectionControls
+                selectionMode={productBulk.selectionMode}
+                isAllSelected={productBulk.isAllSelected}
+                selectedCount={productBulk.selectedCount}
+                visibleCount={productIds.length}
+                onSelectAll={productBulk.selectAll}
+                onClear={productBulk.clear}
+                onDeleteSelected={() => { setProductBulkInput(""); setProductBulkOpen(true); }}
+              />
+            </div>
           </div>
           {products.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
@@ -907,8 +970,17 @@ export default function ManualPriceTracker() {
                       isSelected
                         ? "border-violet-400 bg-white ring-2 ring-violet-200"
                         : "border-border bg-white/80 hover:border-violet-300"
-                    }`}
+                    } ${productBulk.selectionMode && productBulk.isSelected(product.id) ? "ring-2 ring-rose-300" : ""}`}
                   >
+                    {productBulk.selectionMode ? (
+                      <div className="mb-2">
+                        <SelectionCheckbox
+                          checked={productBulk.isSelected(product.id)}
+                          onChange={() => productBulk.toggle(product.id)}
+                          label={`選取 ${product.name}`}
+                        />
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => {
@@ -1036,9 +1108,20 @@ export default function ManualPriceTracker() {
           </DataCard>
 
           <DataCard className="p-6">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold">價格紀錄明細</h4>
-              <span className="text-xs text-muted-foreground">{sortedRecordsDesc.length} 筆</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">{sortedRecordsDesc.length} 筆</span>
+                <BulkSelectionControls
+                  selectionMode={recordBulk.selectionMode}
+                  isAllSelected={recordBulk.isAllSelected}
+                  selectedCount={recordBulk.selectedCount}
+                  visibleCount={recordIds.length}
+                  onSelectAll={recordBulk.selectAll}
+                  onClear={recordBulk.clear}
+                  onDeleteSelected={() => { setRecordBulkInput(""); setRecordBulkOpen(true); }}
+                />
+              </div>
             </div>
             {sortedRecordsDesc.length === 0 ? (
               <p className="text-sm text-muted-foreground">此商品尚無價格紀錄，請在上方新增一筆價錢。</p>
@@ -1047,6 +1130,7 @@ export default function ManualPriceTracker() {
                 <table className="w-full min-w-[480px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-border text-xs text-muted-foreground">
+                      {recordBulk.selectionMode ? <th className="px-2 py-2 font-medium"><span className="sr-only">選取</span></th> : null}
                       <th className="px-2 py-2 font-medium">日期</th>
                       <th className="px-2 py-2 font-medium">價錢</th>
                       <th className="px-2 py-2 font-medium">備註</th>
@@ -1055,7 +1139,16 @@ export default function ManualPriceTracker() {
                   </thead>
                   <tbody>
                     {sortedRecordsDesc.map((record) => (
-                      <tr key={record.id} className="border-b border-border/70 last:border-0">
+                      <tr key={record.id} className={`border-b border-border/70 last:border-0 ${recordBulk.selectionMode && recordBulk.isSelected(record.id) ? "bg-rose-50/70" : ""}`}>
+                        {recordBulk.selectionMode ? (
+                          <td className="px-2 py-2.5">
+                            <SelectionCheckbox
+                              checked={recordBulk.isSelected(record.id)}
+                              onChange={() => recordBulk.toggle(record.id)}
+                              label={`選取 ${formatDisplayDate(record.date)} 價格紀錄`}
+                            />
+                          </td>
+                        ) : null}
                         <td className="px-2 py-2.5 whitespace-nowrap">{formatDisplayDate(record.date)}</td>
                         <td className="px-2 py-2.5 font-semibold text-violet-700">
                           {formatPrice(record.price, selectedProduct.currency)}
@@ -1092,6 +1185,28 @@ export default function ManualPriceTracker() {
           </DataCard>
         </>
       )}
+      <BulkDeleteDialog
+        open={productBulkOpen}
+        count={productBulk.selectedCount}
+        noun="手動商品"
+        confirmPhrase="DELETE manualprice"
+        busy={false}
+        confirmInput={productBulkInput}
+        onConfirmInputChange={setProductBulkInput}
+        onCancel={() => { setProductBulkOpen(false); setProductBulkInput(""); }}
+        onConfirm={handleBulkDeleteProducts}
+      />
+      <BulkDeleteDialog
+        open={recordBulkOpen}
+        count={recordBulk.selectedCount}
+        noun="價格紀錄"
+        confirmPhrase="DELETE manualprice-record"
+        busy={false}
+        confirmInput={recordBulkInput}
+        onConfirmInputChange={setRecordBulkInput}
+        onCancel={() => { setRecordBulkOpen(false); setRecordBulkInput(""); }}
+        onConfirm={handleBulkDeleteRecords}
+      />
     </div>
   );
 }

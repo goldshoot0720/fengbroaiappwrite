@@ -197,6 +197,12 @@ export default function FengbroNewsTool() {
     if (editingId === id) clearDraft();
   };
 
+  const handleDeleteSites = (ids: string[]) => {
+    const idSet = new Set(ids);
+    setSites((prev) => prev.filter((s) => !idSet.has(s.id)));
+    if (editingId && idSet.has(editingId)) clearDraft();
+  };
+
   const handleToggleLock = (id: string) => {
     setSites((prev) => prev.map((s) => (s.id === id ? { ...s, locked: !s.locked } : s)));
   };
@@ -475,6 +481,7 @@ export default function FengbroNewsTool() {
             onToggleLock={handleToggleLock}
             onEditSite={handleEditSite}
             onDeleteSite={handleDeleteSite}
+            onDeleteSites={handleDeleteSites}
           />
         )}
 

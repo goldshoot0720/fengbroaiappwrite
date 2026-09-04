@@ -18,6 +18,8 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
+import { BulkSelectionControls, SelectionCheckbox } from "@/components/ui/bulk-selection-controls";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -34,6 +36,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchApi } from "@/hooks/useApi";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 import {
   getShoppingItemExpiryInfo,
   SHOPPING_LIST_REFRESH_KEY,
@@ -52,6 +55,7 @@ import {
   shoppingImportKey,
 } from "@/lib/shoppingCsv";
 import { formatCurrencyWithExchange } from "@/lib/formatters";
+import { deleteByIds } from "@/lib/bulkSelection";
 import { getExportFilename, getAppwriteHeaders } from "@/lib/utils";
 import type { ShoppingItem, ShoppingItemFormData } from "@/types";
 
@@ -106,6 +110,12 @@ export default function ShoppingListManagement() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResult, setImportResult] = useState<{ successCount: number; failCount: number } | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteInput, setBulkDeleteInput] = useState("");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkError, setBulkError] = useState<string | null>(null);
   const revision = useRef(0);
   const mounted = useRef(false);
 
@@ -137,7 +147,7 @@ export default function ShoppingListManagement() {
     };
   }, []);
 
-  const busy = saving || deletingId !== null || importing || imageUploading;
+  const busy = saving || deletingId !== null || importing || imageUploading || bulkDeleting;
 
   const itemNames = useMemo(
     () => [...new Set(items.map((item) => item.name.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-Hant")),
@@ -181,6 +191,12 @@ export default function ShoppingListManagement() {
       }
     });
   }, [items, query, statusFilter]);
+
+  const visibleIds = useMemo(
+    () => filtered.map((item) => item.$id).filter(Boolean),
+    [filtered],
+  );
+  const bulk = useBulkSelection(visibleIds);
 
   const openCreateForm = (name = "") => {
     setEditingId(null);
@@ -262,6 +278,30 @@ export default function ShoppingListManagement() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(bulk.selectedIds).filter(Boolean);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    setBulkError(null);
+    setBulkTotal(ids.length);
+    setBulkProgress(0);
+    const { failCount } = await deleteByIds(
+      ids,
+      (id) => fetchApi(`${API_ENDPOINTS.SHOPPING_LIST}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+      (done) => setBulkProgress(done),
+    );
+    await loadItems(true);
+    bumpRefreshKey(SHOPPING_LIST_REFRESH_KEY);
+    setBulkDeleting(false);
+    if (failCount > 0) {
+      setBulkError(`有 ${failCount} 筆刪除失敗，請確認連線後再試。`);
+      return;
+    }
+    bulk.clear();
+    setBulkDeleteOpen(false);
+    setBulkDeleteInput("");
   };
 
   const handleDelete = async (item: ShoppingItem) => {
@@ -479,6 +519,16 @@ export default function ShoppingListManagement() {
             <Download />
             匯出 CSV
           </Button>
+          <BulkSelectionControls
+            selectionMode={bulk.selectionMode}
+            isAllSelected={bulk.isAllSelected}
+            selectedCount={bulk.selectedCount}
+            visibleCount={visibleIds.length}
+            disabled={loading || busy}
+            onSelectAll={bulk.selectAll}
+            onClear={bulk.clear}
+            onDeleteSelected={() => { setBulkError(null); setBulkDeleteInput(""); setBulkDeleteOpen(true); }}
+          />
           <Button type="button" onClick={() => openCreateForm()} disabled={loading || busy}>
             <Plus />
             新增商品
@@ -752,6 +802,7 @@ export default function ShoppingListManagement() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
+                  {bulk.selectionMode ? <TableHead className="w-[40px]"><span className="sr-only">選取</span></TableHead> : null}
                   <TableHead className="w-[20%]">購物名稱</TableHead>
                   <TableHead className="w-[14%]">預定購買日</TableHead>
                   <TableHead className="w-[15%]">預定價格</TableHead>
@@ -765,7 +816,17 @@ export default function ShoppingListManagement() {
                 {filtered.map((item) => {
                   const info = getShoppingItemExpiryInfo(item);
                   return (
-                    <TableRow key={item.$id}>
+                    <TableRow key={item.$id} className={bulk.selectionMode && bulk.isSelected(item.$id) ? "bg-destructive/5" : undefined}>
+                      {bulk.selectionMode ? (
+                        <TableCell>
+                          <SelectionCheckbox
+                            checked={bulk.isSelected(item.$id)}
+                            onChange={() => bulk.toggle(item.$id)}
+                            label={`選取 ${item.name}`}
+                            disabled={busy || loading}
+                          />
+                        </TableCell>
+                      ) : null}
                       <TableCell>
                         <div className="flex min-w-0 items-center gap-2.5">
                           {item.imageUrl ? (
@@ -849,8 +910,16 @@ export default function ShoppingListManagement() {
             {filtered.map((item) => {
               const info = getShoppingItemExpiryInfo(item);
               return (
-                <div key={item.$id} className="surface-inset rounded-2xl p-4">
+                <div key={item.$id} className={`surface-inset rounded-2xl p-4 ${bulk.selectionMode && bulk.isSelected(item.$id) ? "ring-2 ring-destructive/30" : ""}`}>
                   <div className="flex items-start justify-between gap-3">
+                    {bulk.selectionMode ? (
+                      <SelectionCheckbox
+                        checked={bulk.isSelected(item.$id)}
+                        onChange={() => bulk.toggle(item.$id)}
+                        label={`選取 ${item.name}`}
+                        disabled={busy || loading}
+                      />
+                    ) : null}
                     <div className="flex min-w-0 items-center gap-2.5">
                       {item.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -908,6 +977,20 @@ export default function ShoppingListManagement() {
         error={actionError}
         onCancel={() => { setPendingDelete(null); setActionError(null); }}
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
+      />
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        count={bulk.selectedCount}
+        noun="購物項目"
+        confirmPhrase="DELETE shopping-list"
+        busy={bulkDeleting}
+        progress={bulkProgress}
+        total={bulkTotal}
+        error={bulkError}
+        confirmInput={bulkDeleteInput}
+        onConfirmInputChange={setBulkDeleteInput}
+        onCancel={() => { if (!bulkDeleting) { setBulkDeleteOpen(false); setBulkDeleteInput(""); setBulkError(null); } }}
+        onConfirm={() => { void handleBulkDelete(); }}
       />
       {importPreview ? (
         <div
