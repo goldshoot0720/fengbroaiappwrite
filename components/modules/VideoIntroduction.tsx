@@ -23,6 +23,7 @@ import { MAX_VIDEO_PART_SIZE, getOriginalVideoFiletype, getVideoDownloadFilename
 import { useVideoQueue, VideoQueueItem } from "@/hooks/useVideoQueue";
 import { loadJSZip } from "@/lib/loadJSZip";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
+import { SkinChips, SkinSwitcher, type SkinOption } from "@/components/ui/skin-switcher";
 
 const PlyrPlayer = dynamic(
   () => import("@/components/ui/plyr-player").then((m) => m.PlyrPlayer),
@@ -262,6 +263,20 @@ async function downloadVideoToBrowser(video: VideoData): Promise<void> {
 
 
 
+type VideoSkin = "youtube" | "bilibili" | "netflix";
+
+/**
+ * Three borrowed shells over one library. Netflix leads with a hero and
+ * horizontal rows, YouTube with a wide thumbnail grid, Bilibili with a denser
+ * grid under its signature blue. Each keeps the same records and the same
+ * handlers underneath.
+ */
+const VIDEO_SKINS: readonly SkinOption<VideoSkin>[] = [
+  { value: "netflix", label: "Netflix", color: "#E50914", icon: <Monitor className="h-4 w-4" />, title: "Netflix 列表" },
+  { value: "youtube", label: "YouTube", color: "#FF0000", icon: <Tv className="h-4 w-4" />, title: "YouTube 列表" },
+  { value: "bilibili", label: "Bilibili", color: "#00A1D6", icon: <Play className="h-4 w-4 fill-current" />, title: "Bilibili 列表" },
+];
+
 export default function VideoIntroduction() {
   const { videos, loading, error, stats, loadVideos } = useVideos();
   const [showFormModal, setShowFormModal] = useState(false);
@@ -272,7 +287,8 @@ export default function VideoIntroduction() {
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "withFile" | "missingCover" | "multipart" | "duplicates">("all");
   const [sortMode, setSortMode] = useState<"createdDesc" | "fileSizeDesc">("createdDesc");
-  const [viewMode, setViewMode] = useState<'youtube' | 'bilibili' | 'netflix'>('netflix');
+  const [viewMode, setViewMode] = useState<VideoSkin>('netflix');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [viewModeHydrated, setViewModeHydrated] = useState(false);
   const [importPreview, setImportPreview] = useState<{ data: VideoFormData[]; errors: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
@@ -1163,13 +1179,17 @@ export default function VideoIntroduction() {
       return true;
     });
 
+    const categorised = categoryFilter
+      ? modeFiltered.filter((video) => (video.category || "未分類") === categoryFilter)
+      : modeFiltered;
+
     const query = searchQuery.trim().toLowerCase();
     const searched = query
-      ? modeFiltered.filter(video =>
+      ? categorised.filter(video =>
         video.name?.toLowerCase().includes(query) ||
         video.note?.toLowerCase().includes(query)
       )
-      : modeFiltered;
+      : categorised;
 
     return [...searched].sort((a, b) => {
       if (sortMode === "fileSizeDesc") {
@@ -1178,7 +1198,14 @@ export default function VideoIntroduction() {
 
       return new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime();
     });
-  }, [videos, searchQuery, workbenchMode, duplicateVideoIds, sortMode]);
+  }, [videos, searchQuery, workbenchMode, duplicateVideoIds, sortMode, categoryFilter]);
+
+  // Category rail options come from the whole library, not the filtered view —
+  // otherwise picking one category would erase every other chip.
+  const videoCategories = useMemo(
+    () => Array.from(new Set(videos.map((video) => video.category || "未分類"))).sort((a, b) => a.localeCompare(b, "zh-Hant")),
+    [videos]
+  );
 
   // Bulk delete state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -1684,54 +1711,13 @@ export default function VideoIntroduction() {
                 <SelectItem value="fileSizeDesc">檔案大小 大到小</SelectItem>
               </SelectContent>
             </Select>
-            <div
-              className="flex w-full items-center gap-0.5 rounded-full bg-neutral-100 p-1 sm:w-auto dark:bg-neutral-800/80"
-              role="group"
-              aria-label="列表版型"
-            >
-              <button
-                type="button"
-                onClick={() => setViewMode("netflix")}
-                className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 ${
-                  viewMode === "netflix"
-                    ? "bg-[#E50914] text-white shadow-sm"
-                    : "text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-300 dark:hover:bg-neutral-700"
-                }`}
-                title="Netflix 列表"
-                aria-pressed={viewMode === "netflix"}
-              >
-                <Monitor className="h-4 w-4" />
-                <span className="hidden sm:inline">Netflix</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("youtube")}
-                className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${
-                  viewMode === "youtube"
-                    ? "bg-[#ff0000] text-white shadow-sm"
-                    : "text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-300 dark:hover:bg-neutral-700"
-                }`}
-                title="YouTube 列表"
-                aria-pressed={viewMode === "youtube"}
-              >
-                <Tv className="h-4 w-4" />
-                <span className="hidden sm:inline">YouTube</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("bilibili")}
-                className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a1d6] ${
-                  viewMode === "bilibili"
-                    ? "bg-[#00a1d6] text-white shadow-sm"
-                    : "text-neutral-600 hover:bg-neutral-200/80 dark:text-neutral-300 dark:hover:bg-neutral-700"
-                }`}
-                title="Bilibili 列表"
-                aria-pressed={viewMode === "bilibili"}
-              >
-                <Play className="h-4 w-4 fill-current" />
-                <span className="hidden sm:inline">Bilibili</span>
-              </button>
-            </div>
+            <SkinSwitcher
+              value={viewMode}
+              options={VIDEO_SKINS}
+              onChange={setViewMode}
+              label="列表版型"
+              className="w-full justify-center sm:w-auto sm:justify-start"
+            />
             <Button onClick={handleAdd} className="gap-2 rounded-xl bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100">
               <Plus size={16} />
               新增影片
@@ -1787,7 +1773,36 @@ export default function VideoIntroduction() {
           description={`找不到「${searchQuery}」相關的影片`}
         />
       ) : viewMode === 'netflix' ? (
-        <div className="mt-4 min-h-[50vh] space-y-8 overflow-hidden rounded-xl bg-[#141414] px-4 pb-10 pt-6 text-white sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="mt-4 min-h-[50vh] space-y-8 overflow-hidden rounded-xl bg-[#141414] px-4 pb-10 pt-4 text-white sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="-mx-4 mb-2 flex items-center gap-5 border-b border-white/10 px-4 pb-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <span className="text-lg font-black tracking-[0.14em] text-[#E50914]">FENGBRO</span>
+            <nav className="no-scrollbar flex items-center gap-4 overflow-x-auto text-[13px] text-white/70">
+              <span className="font-semibold text-white">首頁</span>
+              {videoCategories.slice(0, 4).map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setCategoryFilter(categoryFilter === category ? null : category)}
+                  className={
+                    categoryFilter === category
+                      ? "whitespace-nowrap font-semibold text-white"
+                      : "whitespace-nowrap transition-colors hover:text-white"
+                  }
+                >
+                  {category}
+                </button>
+              ))}
+            </nav>
+            {categoryFilter && (
+              <button
+                type="button"
+                onClick={() => setCategoryFilter(null)}
+                className="ml-auto shrink-0 rounded border border-white/30 px-2 py-0.5 text-[11px] text-white/80 transition-colors hover:bg-white/10"
+              >
+                清除篩選
+              </button>
+            )}
+          </div>
           {filteredVideos[0] && (
             <div
               className="group relative mb-6 aspect-[21/9] min-h-[200px] cursor-pointer overflow-hidden rounded-xl bg-black shadow-lg ring-1 ring-white/10"
@@ -1858,11 +1873,19 @@ export default function VideoIntroduction() {
                 )}
                 {filteredVideos
                   .filter((v) => (v.category || "未分類") === category)
-                  .map((video) => (
+                  .map((video, rowIndex) => (
                     <div
                       key={video.$id}
                       className="group relative aspect-video w-[240px] flex-none snap-start overflow-hidden rounded-md border border-white/10 bg-neutral-800 shadow-md transition-transform duration-200 motion-safe:hover:z-20 motion-safe:hover:scale-[1.04] sm:w-[280px]"
                     >
+                      {rowIndex < 10 && (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute bottom-1 left-1.5 z-10 font-black leading-none text-white/85 [-webkit-text-stroke:1.5px_rgba(0,0,0,0.55)] text-[42px] transition-opacity duration-200 group-hover:opacity-0"
+                        >
+                          {rowIndex + 1}
+                        </span>
+                      )}
                       <button
                         type="button"
                         className="absolute inset-0 z-0"
@@ -1937,16 +1960,38 @@ export default function VideoIntroduction() {
               : "mt-4 rounded-xl border border-neutral-200/60 bg-[#f8f8f8] p-3 dark:border-white/10 dark:bg-[#0f0f0f] sm:p-4"
           }
         >
-          <div className="mb-3 flex items-center justify-between gap-2 px-0.5">
-            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-              {viewMode === "bilibili" ? "Bilibili 瀏覽" : "YouTube 瀏覽"}
-              <span className="mx-1.5 text-neutral-300 dark:text-neutral-600">·</span>
-              {filteredVideos.length} 部
-            </p>
-            <p className="hidden text-[11px] text-neutral-400 sm:block">
-              懸停或聚焦卡片顯示佇列 / 快取 / 編輯
-            </p>
-          </div>
+          {viewMode === "bilibili" && (
+            <div className="-mx-3 mb-3 flex items-center gap-3 border-b border-[#e3e5e7] px-3 pb-2.5 dark:border-white/10 sm:-mx-4 sm:px-4">
+              <span className="flex h-6 items-center rounded bg-[#00a1d6] px-2 text-[11px] font-bold tracking-wide text-white">
+                bilibili
+              </span>
+              <span className="text-[13px] font-medium text-[#00a1d6]">首頁</span>
+              <span className="hidden text-[13px] text-neutral-500 sm:inline dark:text-neutral-400">番劇</span>
+              <span className="hidden text-[13px] text-neutral-500 sm:inline dark:text-neutral-400">影視</span>
+              <span className="ml-auto text-[11px] text-neutral-400">{filteredVideos.length} 部稿件</span>
+            </div>
+          )}
+          {viewMode === "youtube" && (
+            <div className="mb-3 flex items-center justify-between gap-2 px-0.5">
+              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-neutral-800 dark:text-neutral-100">
+                <span className="flex h-5 w-7 items-center justify-center rounded bg-[#ff0000] text-white">
+                  <Play className="h-2.5 w-2.5 fill-current" />
+                </span>
+                影片庫
+              </span>
+              <span className="text-[11px] text-neutral-400">{filteredVideos.length} 部影片</span>
+            </div>
+          )}
+          {videoCategories.length > 1 && (
+            <SkinChips
+              values={videoCategories}
+              active={categoryFilter}
+              onChange={setCategoryFilter}
+              label="分類篩選"
+              variant={viewMode === "bilibili" ? "bilibili" : "youtube"}
+              className="mb-3"
+            />
+          )}
           <div
             className={
               viewMode === "bilibili"

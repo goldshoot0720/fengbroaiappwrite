@@ -27,3 +27,7 @@ export { ThemeToggleCompact } from "./theme-toggle";
 // 語音
 export { VoiceCommandBar } from "./voice-command-bar";
 export { GlobalVoiceCommandPanel } from "./global-voice-command-panel";
+
+// 借用介面皮膚
+export { SkinSwitcher, SkinChips } from "./skin-switcher";
+export type { SkinOption } from "./skin-switcher";

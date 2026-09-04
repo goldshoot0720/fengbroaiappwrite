@@ -769,6 +769,18 @@ html[data-density="compact"] {
 }
 
 @layer utilities {
+  /* Horizontal rails (Netflix rows, chip rails) scroll but must not show a
+     bar - the row edge is the affordance. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
   .safe-area-inset {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
