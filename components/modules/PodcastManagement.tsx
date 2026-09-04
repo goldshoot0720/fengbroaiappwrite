@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Podcast as PodcastIcon, Plus, Edit, Trash2, X, Upload, Calendar, Play, Pause, Search, ChevronDown, Repeat, HardDrive, Check, FolderUp, AlertTriangle, RefreshCw } from "lucide-react";
+import { Podcast as PodcastIcon, Mic, LayoutList, Plus, Edit, Trash2, X, Upload, Calendar, Play, Pause, Search, ChevronDown, Repeat, HardDrive, Check, FolderUp, AlertTriangle, RefreshCw } from "lucide-react";
 import { usePodcast, PodcastData } from "@/hooks/usePodcast";
 import { usePodcastCache } from "@/hooks/usePodcastCache";
 import { usePodcastQueue } from "@/hooks/usePodcastQueue";
+import { SkinSwitcher, type SkinOption } from "@/components/ui/skin-switcher";
+import { SpotifyPodcastShow } from "@/components/modules/podcast-skins/SpotifyPodcastShow";
 import { DataCard } from "@/components/ui/data-card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +66,18 @@ function getPodcastFileName(file: File): string {
   return file.name.replace(/\.[^/.]+$/, '') || file.name;
 }
 
+type PodcastSkin = "spotify" | "card";
+
+/**
+ * Spotify's podcast layout, not its album layout: a wide episode row with its
+ * own artwork, two lines of description and a round play button. The original
+ * card stack stays for editing, where the inline cover picker lives.
+ */
+const PODCAST_SKINS: readonly SkinOption<PodcastSkin>[] = [
+  { value: "spotify", label: "Spotify", color: "#1DB954", onColor: "#000000", icon: <Mic className="h-4 w-4" />, title: "Spotify 版型" },
+  { value: "card", label: "卡片", color: "#404040", icon: <LayoutList className="h-4 w-4" />, title: "卡片式" },
+];
+
 export default function PodcastManagement() {
   const { podcast, loading, error, stats, loadPodcast } = usePodcast();
   const [showFormModal, setShowFormModal] = useState(false);
@@ -96,6 +110,7 @@ export default function PodcastManagement() {
 
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
+  const [podcastSkin, setPodcastSkin] = useState<PodcastSkin>("spotify");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteInput, setBulkDeleteInput] = useState("");
@@ -729,6 +744,12 @@ export default function PodcastManagement() {
                 刪除選取 ({selectedIds.size})
               </Button>
             )}
+            <SkinSwitcher
+              value={podcastSkin}
+              options={PODCAST_SKINS}
+              onChange={setPodcastSkin}
+              label="播客版型"
+            />
             <Button onClick={handleAdd} className="gap-2 bg-blue-500 hover:bg-blue-600 rounded-xl">
               <Plus size={16} />
               新增播客
@@ -867,12 +888,25 @@ export default function PodcastManagement() {
         />
       ) : (
         <div className="space-y-3">
+          {podcastSkin === "spotify" ? (
+            <SpotifyPodcastShow
+              episodes={filteredPodcast}
+              allEpisodes={podcast}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+            />
+          ) : null}
           {/* 操作提示 */}
-          <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 px-1">
-            <PodcastIcon className="w-3.5 h-3.5" />
-            <span>點擊封面圖或卡片顯示詳情</span>
-          </div>
-          {filteredPodcast.map((podcastItem) => (
+          {podcastSkin === "card" && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 px-1">
+              <PodcastIcon className="w-3.5 h-3.5" />
+              <span>點擊封面圖或卡片顯示詳情</span>
+            </div>
+          )}
+          {podcastSkin === "card" && filteredPodcast.map((podcastItem) => (
             <PodcastCard
               key={podcastItem.$id}
               podcast={podcastItem}
