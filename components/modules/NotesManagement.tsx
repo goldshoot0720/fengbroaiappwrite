@@ -30,6 +30,8 @@ import {
 } from "@/lib/fileMultipart";
 import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, ArchiveRestore, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List } from "lucide-react";
 import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
+import { SkinSwitcher, type SkinOption } from "@/components/ui/skin-switcher";
+import { NotionWorkspace } from "@/components/modules/note-skins/NotionWorkspace";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
@@ -82,7 +84,13 @@ const NOTE_TEMPLATES: Record<string, { title: string; category: string; content:
 };
 
 type NoteFilterMode = "all" | "recent" | "pinned" | "withFiles";
-type NoteViewMode = "card" | "list";
+type NoteViewMode = "notion" | "card" | "list";
+const NOTE_SKINS: readonly SkinOption<NoteViewMode>[] = [
+  { value: "notion", label: "Notion", color: "#37352F", icon: <FileText className="h-4 w-4" />, title: "Notion 頁面版型" },
+  { value: "card", label: "卡片", color: "#404040", icon: <LayoutGrid className="h-4 w-4" />, title: "卡片式" },
+  { value: "list", label: "列表", color: "#404040", icon: <List className="h-4 w-4" />, title: "列表式" },
+];
+
 
 const NOTES_TRASH_KEY = "fengbro.notes.trash";
 
@@ -272,7 +280,7 @@ export default function NotesManagement() {
   const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [noteFilterMode, setNoteFilterMode] = useState<NoteFilterMode>("all");
-  const [noteViewMode, setNoteViewMode] = useState<NoteViewMode>("card");
+  const [noteViewMode, setNoteViewMode] = useState<NoteViewMode>("notion");
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [currentTime] = useState(() => Date.now());
 
@@ -2039,34 +2047,13 @@ export default function NotesManagement() {
                 )}
               </SelectContent>
             </Select>
-            <div className="surface-inset flex h-12 w-full items-center rounded-xl p-1 shadow-sm lg:w-auto">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setNoteViewMode("card")}
-                className={cn(
-                  "h-10 rounded-lg px-3",
-                  noteViewMode === "card" && "bg-[var(--accent)]/15 text-[var(--accent-strong)]"
-                )}
-                title="卡片式"
-              >
-                <LayoutGrid size={16} />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setNoteViewMode("list")}
-                className={cn(
-                  "h-10 rounded-lg px-3",
-                  noteViewMode === "list" && "bg-[var(--accent)]/15 text-[var(--accent-strong)]"
-                )}
-                title="列表式"
-              >
-                <List size={16} />
-              </Button>
-            </div>
+            <SkinSwitcher
+              value={noteViewMode}
+              options={NOTE_SKINS}
+              onChange={setNoteViewMode}
+              label="筆記版型"
+              className="w-full justify-center lg:w-auto"
+            />
           </div>
           {filteredArticles.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap">
@@ -2150,7 +2137,25 @@ export default function NotesManagement() {
         </div>
       )}
 
-      <DataCard>
+      {noteViewMode === "notion" && articles.length > 0 && filteredArticles.length > 0 && (
+        <NotionWorkspace
+          articles={filteredArticles}
+          pinnedIds={pinnedIds}
+          onTogglePin={togglePinned}
+          onEdit={(article) => {
+            // The page view reads; the file pickers live in the card editor, so
+            // editing hands the note over to that view rather than half-doing it.
+            handleEdit(article);
+            setNoteViewMode("card");
+          }}
+          onDelete={handleDelete}
+          selectedIds={selectedIds}
+          onToggleSelect={handleToggleSelect}
+          formatDisplayDate={formatDate}
+        />
+      )}
+
+      <DataCard className={noteViewMode === "notion" && articles.length > 0 && filteredArticles.length > 0 ? "hidden" : undefined}>
         {articles.length === 0 ? (
           <EmptyState emoji="📝" title="暫無筆記資料" description="點擊上方「新增筆記」按鈕新增第一篇筆記" />
         ) : filteredArticles.length === 0 ? (
