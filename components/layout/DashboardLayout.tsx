@@ -206,11 +206,11 @@ export default function DashboardLayout({
           <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 md:gap-5 xl:gap-6">
             {(currentModule === "home" || currentModule === "dashboard") ? <SleepWarningBanner /> : null}
             {(currentModule === "home" || currentModule === "dashboard") && (
-              <div className="relative overflow-hidden rounded-2xl md:rounded-[28px]">
+              <div className="relative overflow-hidden rounded-2xl md:rounded-[20px]">
                 <BirthdayEasterEgg inline />
               </div>
             )}
-            <div className="surface-panel pad-panel rounded-2xl md:rounded-[28px] xl:rounded-[32px]">
+            <div className="surface-panel pad-panel rounded-2xl md:rounded-[20px] xl:rounded-[22px]">
               {currentModule !== "subscription" ? (
                 <div className="mb-5 flex flex-col gap-3 border-b border-[var(--line-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
@@ -515,8 +515,8 @@ function BrandBlock({
 function AmbientBackdrop() {
   return (
     <>
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,149,65,0.18),transparent_32%),radial-gradient(circle_at_85%_12%,rgba(91,114,95,0.18),transparent_28%),linear-gradient(180deg,rgba(248,245,239,0.94),rgba(238,233,224,0.92))] dark:bg-[radial-gradient(circle_at_top_left,rgba(199,149,65,0.14),transparent_28%),radial-gradient(circle_at_85%_10%,rgba(100,139,111,0.16),transparent_24%),linear-gradient(180deg,rgba(21,26,23,0.96),rgba(12,16,14,0.98))]" />
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-48 bg-[linear-gradient(180deg,rgba(255,255,255,0.54),transparent)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(217,119,87,0.10),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(217,119,87,0.06),transparent_26%),linear-gradient(180deg,rgba(250,249,245,0.96),rgba(243,241,235,0.96))] dark:bg-[radial-gradient(circle_at_top_left,rgba(217,119,87,0.10),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(217,119,87,0.05),transparent_24%),linear-gradient(180deg,rgba(38,38,36,0.97),rgba(30,30,29,0.98))]" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-48 bg-[linear-gradient(180deg,rgba(255,255,255,0.42),transparent)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]" />
     </>
   );
 }
@@ -865,7 +865,7 @@ function SleepWarningBanner() {
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 md:rounded-[24px] ${warning.className}`}
+      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 md:rounded-[18px] ${warning.className}`}
     >
       <span
         className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${warning.iconClassName}`}

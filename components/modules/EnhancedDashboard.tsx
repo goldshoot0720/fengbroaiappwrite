@@ -583,21 +583,21 @@ function HomeTaskBoard({
 
 export function AppwriteSetupEmptyState({ onNavigate }: { onNavigate: () => void }) {
   return (
-    <DataCard className="overflow-hidden border-sky-200 bg-sky-50/70 p-0">
+    <DataCard className="overflow-hidden border-[var(--line-strong)] bg-[color-mix(in_oklab,var(--accent)_8%,var(--card))] p-0">
       <div className="flex flex-col gap-5 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[color-mix(in_oklab,var(--accent)_20%,var(--card))] text-[var(--accent-strong)]">
             <Server size={22} />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700/80">Setup Required</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent-strong)]">Setup Required</p>
             <h2 className="mt-2 text-2xl font-semibold text-foreground">尚未設定 Appwrite</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               首頁已暫停自動載入音樂、影片、圖片、播客、Storage 統計與到期檢查，避免未設定時連續產生 500。完成 endpoint、project、database、API key 與 bucket 設定後，儀表板會恢復同步。
             </p>
           </div>
         </div>
-        <Button onClick={onNavigate} className="shrink-0 gap-2 bg-sky-600 hover:bg-sky-700">
+        <Button onClick={onNavigate} className="shrink-0 gap-2">
           前往鋒兄設定
         </Button>
       </div>

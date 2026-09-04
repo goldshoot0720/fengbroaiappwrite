@@ -70,7 +70,7 @@ export function BirthdayEasterEgg({ inline = false }: { inline?: boolean }) {
       <div
         className={
           inline
-            ? "pointer-events-none absolute inset-x-0 top-0 z-[1] overflow-hidden rounded-[28px]"
+            ? "pointer-events-none absolute inset-x-0 top-0 z-[1] overflow-hidden rounded-[20px]"
             : "pointer-events-none fixed inset-x-0 top-0 z-[var(--z-easter)] overflow-hidden"
         }
       >
@@ -94,7 +94,7 @@ export function BirthdayEasterEgg({ inline = false }: { inline?: boolean }) {
             : "pointer-events-none fixed inset-x-3 top-3 z-[var(--z-easter)] flex justify-center sm:inset-x-6 sm:top-4"
         }
       >
-        <div className={`pointer-events-auto w-full ${inline ? "" : "max-w-3xl"} rounded-[28px] border border-amber-200/80 bg-[linear-gradient(135deg,rgba(255,247,214,0.96),rgba(255,232,178,0.94))] p-4 text-slate-900 shadow-[0_24px_60px_rgba(176,120,14,0.22)] backdrop-blur-xl dark:border-amber-300/20 dark:bg-[linear-gradient(135deg,rgba(86,55,6,0.92),rgba(38,24,3,0.92))] dark:text-amber-50`}>
+        <div className={`pointer-events-auto w-full ${inline ? "" : "max-w-3xl"} rounded-[20px] border border-amber-200/80 bg-[linear-gradient(135deg,rgba(255,247,214,0.96),rgba(255,232,178,0.94))] p-4 text-slate-900 shadow-[0_24px_60px_rgba(176,120,14,0.22)] backdrop-blur-xl dark:border-amber-300/20 dark:bg-[linear-gradient(135deg,rgba(86,55,6,0.92),rgba(38,24,3,0.92))] dark:text-amber-50`}>
           <div className="flex items-start gap-3 sm:gap-4">
             <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-amber-600 shadow-inner dark:bg-white/10 dark:text-amber-300">
               <Gift size={24} />

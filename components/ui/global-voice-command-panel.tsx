@@ -1064,7 +1064,7 @@ export function GlobalVoiceCommandPanel({
       {open && (
         <div
           id="global-voice-command-panel"
-          className="w-full rounded-[24px] border border-[var(--line-strong)] bg-white/92 p-4 shadow-[0_24px_80px_rgba(17,24,39,0.18)] backdrop-blur-xl dark:bg-gray-950/92"
+          className="w-full rounded-[18px] border border-[var(--line-strong)] bg-white/92 p-4 shadow-[0_24px_80px_rgba(17,24,39,0.18)] backdrop-blur-xl dark:bg-gray-950/92"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1245,10 +1245,10 @@ export function GlobalVoiceCommandPanel({
           setFeedback(HELP_HINT);
           if (getVoicePreferences().autoStartGlobal) start();
         }}
-        className={`rounded-full px-4 py-6 text-white shadow-[0_18px_48px_rgba(5,150,105,0.28)] ${
+        className={`rounded-full px-4 py-6 text-white shadow-[var(--shadow-dock)] ${
           isListening
             ? "bg-red-600 hover:bg-red-700"
-            : "bg-emerald-600 hover:bg-emerald-700"
+            : "bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--accent-strong)]"
         }`}
       >
         <Mic className={`mr-2 h-5 w-5 ${isListening ? "animate-pulse" : ""}`} />

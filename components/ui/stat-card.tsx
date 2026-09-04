@@ -18,7 +18,7 @@ export function StatCard({
   value,
   icon: Icon,
   iconElement,
-  gradient = "from-[#6f8f76] via-[#8fa67f] to-[#c79541]",
+  gradient = "from-[#d97757] via-[#c46a4c] to-[#a9553a]",
   className,
   onClick,
 }: StatCardProps) {
@@ -30,7 +30,7 @@ export function StatCard({
       className={cn(
         "group relative overflow-hidden rounded-2xl border border-[var(--line-soft)] bg-[var(--panel-soft)] p-4 text-left shadow-[var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 sm:p-5 lg:p-6",
         onClick &&
-          "cursor-pointer hover:-translate-y-1 hover:shadow-[var(--shadow-strong)]",
+          "cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-strong)]",
         className
       )}
     >
@@ -42,7 +42,7 @@ export function StatCard({
       />
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+          <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
             {title}
           </p>
           <p className="tabular-nums mt-3 break-words font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">

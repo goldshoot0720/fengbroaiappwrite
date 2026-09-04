@@ -91,7 +91,7 @@ export function NewsSitesManager({
 
   return (
     <div className="border-b border-sky-50 p-4 sm:p-6">
-      <div className="rounded-[28px] border border-sky-100 bg-white p-4">
+      <div className="rounded-[20px] border border-sky-100 bg-white p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h4 className="flex items-center gap-2 font-semibold text-foreground">

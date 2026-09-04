@@ -30,7 +30,7 @@ export function DataCard({
       id={id}
       data-subscription-id={dataSubscriptionId}
       className={cn(
-        "overflow-hidden rounded-[28px] border shadow-[var(--shadow-soft)]",
+        "overflow-hidden rounded-[20px] border shadow-[var(--shadow-soft)]",
         highlightStyles[highlight],
         className
       )}

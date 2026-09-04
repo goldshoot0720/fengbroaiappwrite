@@ -2176,7 +2176,7 @@ export default function NotesManagement() {
               return (
                 <div key={article.$id} className={cn(
                   "bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all",
-                  noteViewMode === "list" && !isEditing && "rounded-[24px] px-5 py-4",
+                  noteViewMode === "list" && !isEditing && "rounded-[18px] px-5 py-4",
                   isPinned && "border-amber-300 bg-amber-50/40 dark:bg-amber-900/10",
                   isEditing && "ring-2 ring-purple-500"
                 )}>

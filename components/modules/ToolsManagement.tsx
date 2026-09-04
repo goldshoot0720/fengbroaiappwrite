@@ -1326,7 +1326,7 @@ function PriceTrendChart({
 
   if (!chart) {
     return (
-      <div className="rounded-[28px] border border-dashed border-amber-200/80 bg-amber-50/40 px-5 py-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-[20px] border border-dashed border-amber-200/80 bg-amber-50/40 px-5 py-10 text-center text-sm text-muted-foreground">
         目前還沒有可繪製的歷史價格資料。
       </div>
     );
@@ -1355,7 +1355,7 @@ function PriceTrendChart({
   };
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
+    <div className="overflow-hidden rounded-[20px] border border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
       <div className="flex flex-col gap-4 border-b border-amber-100 px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700/80">Price Trend</p>
@@ -1386,7 +1386,7 @@ function PriceTrendChart({
       </div>
 
       <div className="px-3 pb-4 pt-3 sm:px-5">
-        <div className="relative overflow-hidden rounded-[24px] border border-amber-100/80 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.14),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,251,235,0.92))] p-3 sm:p-4">
+        <div className="relative overflow-hidden rounded-[18px] border border-amber-100/80 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.14),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,251,235,0.92))] p-3 sm:p-4">
           <svg 
             viewBox={`0 0 ${chart.width} ${chart.height}`} 
             className="h-[260px] w-full cursor-crosshair"
@@ -1601,7 +1601,7 @@ function LandtopHistoryChart({
 
   if (!chart) {
     return (
-      <div className="rounded-[28px] border border-dashed border-sky-200 bg-sky-50/50 px-5 py-8 text-center">
+      <div className="rounded-[20px] border border-dashed border-sky-200 bg-sky-50/50 px-5 py-8 text-center">
         <p className="text-sm text-muted-foreground">
           {historyAvailable
             ? "目前還沒有每 7 天價格歷史，重新抓取或等待排程累積資料。"
@@ -1613,7 +1613,7 @@ function LandtopHistoryChart({
   }
 
   return (
-    <div className="rounded-[28px] border border-sky-200 bg-[linear-gradient(180deg,rgba(239,246,255,0.96),rgba(255,255,255,0.98))] p-5 shadow-[0_24px_80px_rgba(14,116,144,0.08)]">
+    <div className="rounded-[20px] border border-sky-200 bg-[linear-gradient(180deg,rgba(239,246,255,0.96),rgba(255,255,255,0.98))] p-5 shadow-[0_24px_80px_rgba(14,116,144,0.08)]">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Weekly History</p>
@@ -1652,7 +1652,7 @@ function LandtopHistoryChart({
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-[24px] border border-sky-100/80 bg-white/80 p-3 sm:p-4">
+      <div className="overflow-hidden rounded-[18px] border border-sky-100/80 bg-white/80 p-3 sm:p-4">
         <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-[280px] w-full">
           {chart.series.map((item) => (
             <g key={item.id}>
@@ -1920,7 +1920,7 @@ function FengbroTubeSection({
 
         {channelManagerOpen && (
         <div className="border-b border-red-50 p-4 sm:p-6">
-          <div className="rounded-[28px] border border-red-100 bg-white p-4">
+          <div className="rounded-[20px] border border-red-100 bg-white p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h4 className="font-semibold text-foreground">頻道管理</h4>
@@ -2020,7 +2020,7 @@ function FengbroTubeSection({
 
         {!error && result && (
           <div className="space-y-6 p-4 sm:p-6">
-            <div className="sticky top-3 z-20 rounded-[24px] border border-red-100 bg-white/95 shadow-sm backdrop-blur">
+            <div className="sticky top-3 z-20 rounded-[18px] border border-red-100 bg-white/95 shadow-sm backdrop-blur">
               <button
                 type="button"
                 onClick={() => setChannelNavOpen((prev) => !prev)}
@@ -2064,7 +2064,7 @@ function FengbroTubeSection({
             </div>
 
             {result.recentVideos.length > 0 && (
-              <div className="rounded-[28px] border border-amber-200 bg-amber-50/70 p-4">
+              <div className="rounded-[20px] border border-amber-200 bg-amber-50/70 p-4">
                 <div className="mb-3 flex items-center gap-2 text-amber-800">
                   <Clock size={18} />
                   <h4 className="font-semibold">3 天內新影片：{result.recentVideos.length} 部</h4>
@@ -2096,7 +2096,7 @@ function FengbroTubeSection({
                   : 0;
 
                 return (
-                <div id={getTubeChannelAnchor(index)} key={channel.sourceUrl} className="min-w-0 max-w-full scroll-mt-28 overflow-hidden rounded-[28px] border border-border bg-white p-4 shadow-sm">
+                <div id={getTubeChannelAnchor(index)} key={channel.sourceUrl} className="min-w-0 max-w-full scroll-mt-28 overflow-hidden rounded-[20px] border border-border bg-white p-4 shadow-sm">
                   <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -3401,7 +3401,7 @@ function FengbroFinanceSection({
         {!error && result && (
           <div className="order-2 space-y-6 p-4 sm:p-6">
             {groupedQuotes.length > 0 && (
-              <div className="rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-3 shadow-sm">
+              <div className="rounded-[16px] border border-emerald-100 bg-emerald-50/70 p-3 shadow-sm">
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   <a
                     href="#fengbro-finance-featured"
@@ -3449,7 +3449,7 @@ function FengbroFinanceSection({
                       return (
                         <div
                           key={quote.id}
-                          className={`relative overflow-hidden rounded-[28px] border ${cfg.borderClass} ${cfg.bgClass} p-5 shadow-sm transition hover:shadow-md`}
+                          className={`relative overflow-hidden rounded-[20px] border ${cfg.borderClass} ${cfg.bgClass} p-5 shadow-sm transition hover:shadow-md`}
                         >
                           {/* 編輯 + 區塊序號 */}
                           <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5">
@@ -3658,7 +3658,7 @@ function FengbroFinanceSection({
               storageKey="finance-management"
             />
             {groupedQuotes.length === 0 && searchQuery && (
-              <div className="rounded-[24px] border border-emerald-100 bg-white/60 p-8 text-center shadow-sm">
+              <div className="rounded-[18px] border border-emerald-100 bg-white/60 p-8 text-center shadow-sm">
                 <p className="text-sm font-medium text-emerald-800">找不到符合「{searchQuery}」的標的</p>
                 <Button variant="link" onClick={() => setSearchQuery("")} className="mt-2 text-emerald-600">
                   清除搜尋
@@ -3686,7 +3686,7 @@ function FengbroFinanceSection({
                     const isBearMarket = isFinanceBearMarketFrom52WHigh(quote);
                     const canEditQuote = Boolean(findCustomInstrumentByQuoteId(quote.id));
                     return (
-                      <div key={quote.id} className="relative rounded-[24px] border border-border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
+                      <div key={quote.id} className="relative rounded-[18px] border border-border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
                         {canEditQuote ? (
                           <div className="absolute right-3 top-3 z-10">
                             {renderQuoteEditButton(quote.id, "card")}

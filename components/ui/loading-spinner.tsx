@@ -19,11 +19,11 @@ export function LoadingSpinner({ size = "md", text, className }: LoadingSpinnerP
     <div className={cn("flex flex-col items-center justify-center gap-3", className)}>
       <div
         className={cn(
-          "border-blue-500 border-t-transparent rounded-full animate-spin",
+          "border-[var(--accent)] border-t-transparent rounded-full animate-spin",
           sizeStyles[size]
         )}
       />
-      {text && <p className="text-gray-500 dark:text-gray-400 text-sm">{text}</p>}
+      {text && <p className="text-[var(--muted-foreground)] text-sm">{text}</p>}
     </div>
   );
 }

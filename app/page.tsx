@@ -401,7 +401,7 @@ function NotFoundModule() {
           找不到對應模組
         </h1>
       </div>
-      <div className="surface-panel rounded-[28px] p-8">
+      <div className="surface-panel rounded-[20px] p-8">
         <p className="max-w-2xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
           這個模組尚未建立，或是目前的選單設定沒有對應到正確內容。你可以回到其他模組，或稍後再檢查這個入口。
         </p>

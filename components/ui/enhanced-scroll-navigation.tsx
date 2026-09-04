@@ -99,7 +99,7 @@ export default function EnhancedScrollNavigation({
               <button
                 key={item.id}
                 onClick={() => scrollToElement(item.elementId)}
-                className="w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-150 touch-manipulation"
+                className="w-full text-left px-3 py-2.5 text-sm text-[var(--foreground)] hover:bg-[color:var(--panel-soft)] hover:text-[var(--accent-strong)] rounded-lg transition-colors duration-150 touch-manipulation"
               >
                 {item.label}
               </button>

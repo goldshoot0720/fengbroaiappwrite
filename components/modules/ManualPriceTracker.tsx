@@ -239,7 +239,7 @@ function ManualPriceTrendChart({
 
   if (!chart) {
     return (
-      <div className="rounded-[28px] border border-dashed border-violet-200/80 bg-violet-50/40 px-5 py-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-[20px] border border-dashed border-violet-200/80 bg-violet-50/40 px-5 py-10 text-center text-sm text-muted-foreground">
         新增至少一筆價格後，這裡會顯示走勢圖。
       </div>
     );
@@ -268,7 +268,7 @@ function ManualPriceTrendChart({
   };
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.98),rgba(255,255,255,0.98))] shadow-[0_24px_80px_rgba(91,33,182,0.08)]">
+    <div className="overflow-hidden rounded-[20px] border border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.98),rgba(255,255,255,0.98))] shadow-[0_24px_80px_rgba(91,33,182,0.08)]">
       <div className="flex flex-col gap-4 border-b border-violet-100 px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-violet-700/80">Manual Trend</p>
@@ -299,7 +299,7 @@ function ManualPriceTrendChart({
       </div>
 
       <div className="px-3 pb-4 pt-3 sm:px-5">
-        <div className="relative overflow-hidden rounded-[24px] border border-violet-100/80 bg-[radial-gradient(circle_at_top,rgba(167,139,250,0.16),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,243,255,0.92))] p-3 sm:p-4">
+        <div className="relative overflow-hidden rounded-[18px] border border-violet-100/80 bg-[radial-gradient(circle_at_top,rgba(167,139,250,0.16),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,243,255,0.92))] p-3 sm:p-4">
           <svg
             viewBox={`0 0 ${chart.width} ${chart.height}`}
             className="h-[260px] w-full cursor-crosshair"
