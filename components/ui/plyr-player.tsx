@@ -90,6 +90,11 @@ export function PlyrPlayer({
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const plyrRef = useRef<any>(null);
   const retryCountRef = useRef(0);
+  const onPersistPlaybackRef = useRef(onPersistPlayback);
+
+  useEffect(() => {
+    onPersistPlaybackRef.current = onPersistPlayback;
+  }, [onPersistPlayback]);
 
   const getPersistentMedia = useCallback((mediaType: "audio" | "video") => {
     if (typeof window === "undefined") return null;
@@ -169,7 +174,7 @@ export function PlyrPlayer({
         !media.paused &&
         media.currentSrc
       ) {
-        onPersistPlayback?.({
+        onPersistPlaybackRef.current?.({
           src: media.currentSrc,
           currentTime: media.currentTime,
           volume: media.volume,
@@ -196,7 +201,7 @@ export function PlyrPlayer({
       }
       plyrRef.current = null;
     };
-  }, [getPersistentMedia, isMounted, onPersistPlayback, persistOnUnmount, src, type]);
+  }, [getPersistentMedia, isMounted, persistOnUnmount, src, type]);
 
   // 更新 loop 設定
   useEffect(() => {
