@@ -205,6 +205,24 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "featured", type: "boolean", required: false, default: false },
     ],
   },
+  financeinstrument2: {
+    name: "financeinstrument2",
+    attributes: [
+      { key: "name", type: "string", size: 200, required: true },
+      { key: "symbol", type: "string", size: 64, required: true },
+      { key: "provider", type: "string", size: 20, required: true },
+      { key: "group", type: "string", size: 20, required: false },
+      { key: "imageUrl1", type: "url", required: false },
+      { key: "imageUrl2", type: "url", required: false },
+      { key: "imageUrl3", type: "url", required: false },
+      { key: "youtubeUrl", type: "url", required: false },
+      { key: "bilibiliUrl", type: "url", required: false },
+      { key: "linkUrl1", type: "string", size: 1000, required: false },
+      { key: "linkUrl2", type: "string", size: 1000, required: false },
+      { key: "linkUrl3", type: "string", size: 1000, required: false },
+      { key: "featured", type: "boolean", required: false, default: false },
+    ],
+  },
   // 通知設定（Resend API Key／收件 Email／通知密碼）：單一文件 documentId = "main"
   notificationsettings: {
     name: "notificationsettings",
@@ -225,6 +243,7 @@ export const ADDITIVE_SETUP_TABLES: readonly string[] = [
   "tubechannel",
   "tubechannel2",
   "financeinstrument",
+  "financeinstrument2",
   "notificationsettings",
 ];
 

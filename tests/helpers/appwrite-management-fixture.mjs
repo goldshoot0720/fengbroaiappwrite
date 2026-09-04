@@ -33,6 +33,7 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
     addCollection("tubechannel");
     addCollection("tubechannel2");
     addCollection("financeinstrument");
+    addCollection("financeinstrument2");
     addDocument("tubechannel", { sourceUrl: "https://www.youtube.com/@henren778/videos", alias: "一个狠人" }, "tube-henren");
     addDocument("financeinstrument", { name: "川湖", symbol: "2059.TW", provider: "yahoo", group: "taiwan",
       imageUrl1: "", imageUrl2: "", imageUrl3: "", youtubeUrl: null, bilibiliUrl: null,
