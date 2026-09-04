@@ -39,10 +39,20 @@ export function RecentSearchInput({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const submit = useCallback(() => {
-    const query = value.trim();
+    const query = (inputRef.current?.value ?? value).trim();
+    if (query !== value) onChange(query);
     if (query) addSearch(query);
     setIsOpen(false);
-  }, [addSearch, value]);
+  }, [addSearch, onChange, value]);
+
+  const handleSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      submit();
+    },
+    [submit],
+  );
 
   const clear = useCallback(() => {
     if (onClearSearch) onClearSearch();
@@ -65,7 +75,11 @@ export function RecentSearchInput({
 
   return (
     <div ref={wrapperRef} className={`relative ${className ?? ""}`} onBlur={handleBlur}>
-      <div className="relative flex items-center gap-2">
+      <form
+        role="search"
+        onSubmit={handleSubmit}
+        className="relative flex items-center gap-2"
+      >
         <div className="relative min-w-0 flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
           <Input
@@ -75,13 +89,11 @@ export function RecentSearchInput({
             onChange={(event) => onChange(event.target.value)}
             onFocus={() => setIsOpen(true)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                submit();
-              }
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
               if (event.key === "Escape") setIsOpen(false);
             }}
             placeholder={placeholder}
+            enterKeyHint="search"
             className="h-11 rounded-xl border-input bg-[var(--card)] pl-10 pr-10 text-foreground"
           />
           {value ? (
@@ -97,15 +109,14 @@ export function RecentSearchInput({
           ) : null}
         </div>
         <button
-          type="button"
-          onClick={submit}
+          type="submit"
           aria-label="提交搜尋"
           className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-transparent bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           <Search className="h-4 w-4" />
           <span className="hidden sm:inline">提交</span>
         </button>
-      </div>
+      </form>
 
       {isOpen && items.length > 0 ? (
         <div className="surface-floating absolute left-0 right-0 top-[calc(100%+6px)] z-[var(--z-popover)] max-h-[420px] overflow-y-auto rounded-2xl">

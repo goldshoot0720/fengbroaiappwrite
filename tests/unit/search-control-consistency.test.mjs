@@ -28,6 +28,17 @@ describe("shared search control consistency", () => {
     assert.match(source, /event\.key === "Escape"/);
   });
 
+  it("submits the search form from Enter and the 提交 button on the same path", async () => {
+    const source = await readSource("components", "ui", "recent-search-input.tsx");
+
+    assert.match(source, /role="search"/);
+    assert.match(source, /onSubmit=\{handleSubmit\}/);
+    assert.match(source, /type="submit"/);
+    assert.match(source, /enterKeyHint="search"/);
+    assert.doesNotMatch(source, /event\.key === "Enter"/);
+    assert.doesNotMatch(source, /type="button"\s+onClick=\{submit\}/);
+  });
+
   it("does not let account and notes pages render a second recent-search owner", async () => {
     const [accountsSource, notesSource] = await Promise.all([
       readSource("components", "modules", "CommonAccountManagement.tsx"),
