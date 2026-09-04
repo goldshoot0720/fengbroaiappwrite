@@ -741,7 +741,7 @@ export function buildFinanceInstrumentWritePayload(
   if (hasRelatedLinks && !Array.isArray(body.relatedLinks)) throw new Error("相關連結必須是陣列");
   const imageUrlsRaw = Array.isArray(body.imageUrls) ? body.imageUrls : [];
   const imageUrls = imageUrlsRaw
-    .map((value) => asText(value, "圖片網址", 2000))
+    .map((value) => asOptionalUrl(value, "圖片網址", 2000))
     .filter(Boolean)
     .slice(0, 3);
   const youtubeUrl = asOptionalUrl(body.youtubeUrl, "YouTube 網址");

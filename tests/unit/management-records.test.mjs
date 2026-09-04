@@ -363,6 +363,14 @@ describe("finance instrument records", () => {
       /圖片網址必須是陣列/,
     );
     assert.throws(
+      () =>
+        buildFinanceInstrumentWritePayload(
+          { name: "標的", symbol: "X", imageUrls: ["不是網址"] },
+          "create"
+        ),
+      /圖片網址必須是完整網址/,
+    );
+    assert.throws(
       () => buildFinanceInstrumentWritePayload({ name: "標的", symbol: "X", youtubeUrl: "javascript:alert(1)" }, "create"),
       /http 或 https/,
     );
