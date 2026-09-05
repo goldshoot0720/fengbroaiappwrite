@@ -6,7 +6,12 @@ import { listAllDocuments } from "../_lib/listAllDocuments";
 import { loadCodexSnapshot } from "../_lib/codexClient";
 import { loadLitmediaReport } from "../_lib/litmediaClient";
 import { loadMindvideoReport } from "../_lib/mindvideoClient";
-import { isMindvideoImageService, mindvideoPointsForAccount } from "../../../lib/mindvideoPoints";
+import {
+  findMindvideoAccount,
+  isMindvideoImageService,
+  MINDVIDEO_FRESH_WINDOW_MS,
+  toMindvideoPointsFields,
+} from "../../../lib/mindvideoPoints";
 import { sanitizeQuotaRow } from "../_lib/quotaSanitize";
 import { readStoredCredential } from "../../../lib/chatgptSession";
 import {
@@ -91,6 +96,36 @@ async function refreshLitmediaRow(databases, databaseId, collectionId, row, snap
   );
 }
 
+/**
+ * MindVideo/GPT Image 2 跟 LitMedia 一樣，點數來自每日簽到 workflow 的結果（見 lib/mindvideoPoints.ts），
+ * 所以流程照抄 refreshLitmediaRow：對不上帳號、沒讀到點數、或報告比已存資料舊，都不覆蓋原數字。
+ */
+async function refreshMindvideoRow(databases, databaseId, collectionId, row, snapshot, updatedRows) {
+  const key = String(row.account || "").trim();
+  const entry = findMindvideoAccount(snapshot.report, key);
+  if (!entry) {
+    return outcomeFor(row, "skipped", { reason: "mindvideo-account-not-found", account: key });
+  }
+
+  const fields = toMindvideoPointsFields(entry, snapshot.report);
+  if (!fields) return outcomeFor(row, "skipped", { reason: "no-points", label: entry.label });
+
+  // 33 個帳號共用同一份報告；報告比已存資料舊就別動，免得用舊數字蓋掉新數字
+  if (row.pointsSyncedAt && Date.parse(fields.pointsSyncedAt) < Date.parse(row.pointsSyncedAt)) {
+    return outcomeFor(row, "skipped", { reason: "older-report" });
+  }
+
+  return writeRow(
+    databases,
+    databaseId,
+    collectionId,
+    row,
+    { quotaPoints: fields.quotaPoints, pointsSyncedAt: fields.pointsSyncedAt },
+    updatedRows,
+    { pointsSource: snapshot.source }
+  );
+}
+
 async function refreshCodexRow(databases, databaseId, collectionId, row, updatedRows) {
   const credential = readStoredCredential(row.accessToken);
   if (!credential) {
@@ -158,6 +193,10 @@ async function runRefresh(searchParams, options = {}) {
   const litmediaMaxAgeMs = Number.isFinite(options.maxAgeMs)
     ? Math.max(0, options.maxAgeMs)
     : LITMEDIA_FRESH_WINDOW_MS;
+  // MindVideo/GPT Image 2 跟 LitMedia 同一套來源、同一個保鮮期理由
+  const mindvideoMaxAgeMs = Number.isFinite(options.maxAgeMs)
+    ? Math.max(0, options.maxAgeMs)
+    : MINDVIDEO_FRESH_WINDOW_MS;
 
   const targets = [];
   const results = [];
@@ -174,7 +213,7 @@ async function runRefresh(searchParams, options = {}) {
       continue;
     }
 
-    const freshWindow = isCodex ? maxAgeMs : litmediaMaxAgeMs;
+    const freshWindow = isCodex ? maxAgeMs : isMindvideo ? mindvideoMaxAgeMs : litmediaMaxAgeMs;
     if (!options.force && !isUsageStale(row.$updatedAt, now, freshWindow)) {
       results.push({ quotaId: row.$id, account: row.account || "", status: "fresh", updatedAt: row.$updatedAt || null });
       continue;
@@ -211,14 +250,11 @@ async function runRefresh(searchParams, options = {}) {
       cursor += 1;
 
       if (kind === "mindvideo") {
-        const fields = mindvideo && mindvideoPointsForAccount(mindvideo.report, row.account || "");
-        results.push(!mindvideo
-          ? outcomeFor(row, "error", { error: mindvideoError })
-          : !fields
-            ? outcomeFor(row, "error", { error: "報告沒有此帳號的 GPT Image 2 專屬點數，保留原額度。" })
-            : row.pointsSyncedAt && Date.parse(fields.pointsSyncedAt) < Date.parse(row.pointsSyncedAt)
-              ? outcomeFor(row, "skipped", { reason: "older-report" })
-              : await writeRow(databases, databaseId, collection.$id, row, fields, updatedRows, { pointsSource: mindvideo.source }));
+        results.push(
+          mindvideo
+            ? await refreshMindvideoRow(databases, databaseId, collection.$id, row, mindvideo, updatedRows)
+            : { quotaId: row.$id, account: row.account || "", status: "error", error: mindvideoError }
+        );
         continue;
       }
 

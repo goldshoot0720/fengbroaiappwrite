@@ -43,7 +43,7 @@ import {
   quotaImportKey,
 } from "@/lib/quotaCsv";
 import { parseChatGptSession } from "@/lib/chatgptSession";
-import { isMindvideoImageService } from "@/lib/mindvideoPoints";
+import { isMindvideoImageService, MINDVIDEO_FRESH_WINDOW_MS } from "@/lib/mindvideoPoints";
 import {
   formatCountdown,
   hasDateWindowReset,
@@ -323,7 +323,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     () => items
       .filter((item) => {
         if (isMindvideoImageService(item.name)) {
-          return isUsageStale(item.$updatedAt, now, LITMEDIA_FRESH_WINDOW_MS);
+          return isUsageStale(item.$updatedAt, now, MINDVIDEO_FRESH_WINDOW_MS);
         }
         if (item.serviceType === "ai" && item.hasAccessToken) {
           return isUsageStale(item.$updatedAt, now);
