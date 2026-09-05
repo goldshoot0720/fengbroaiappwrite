@@ -51,19 +51,24 @@
 | 用已存的 token 帶入用量 | 需輸入四位數密碼 |
 | 剛貼上新 token 就帶入 | 不需密碼（本來就是自己剛輸入的） |
 
-比照 **Resend 通知密碼**的做法：**沒有預設值，第一次使用時由你自己設定。**
+四位數密碼是**全站共用**的一組，比照 Resend 通知密碼：**沒有預設值，第一次使用時自己建立。**
 
 | 項目 | 說明 |
 |------|------|
-| 設定位置 | **鋒兄額度頁上方工具列 →「設定四位數密碼」**（不在鋒兄設定） |
-| 儲存位置 | Appwrite `notificationsettings` 表（documentId `quota`），以 scrypt hash 存放 |
-| 未設定時 | 「顯示」與「從 ChatGPT 帶入用量」回 `428`，訊息要求先設定密碼 |
+| 設定位置 | **鋒兄設定 →「四位數密碼」** |
+| 適用範圍 | 全站共用；目前用於顯示 accessToken 明文與帶入 ChatGPT 用量 |
+| 儲存位置 | Appwrite `notificationsettings` 表（documentId `pin`），以 scrypt hash 存放 |
+| 未設定時 | 「顯示」與「從 ChatGPT 帶入用量」回 `428`；額度頁會出現前往鋒兄設定的按鈕 |
 | 格式 | 必須是四位數字 |
 | 驗證位置 | API route，密碼不會進前端 bundle，也不會回傳給瀏覽器 |
 
 不寫死在程式碼、也不放環境變數 —— 跟 Resend API Key 一樣，密碼是資料而不是設定檔。
+忘記只能重設，無法查回。
 
-變更密碼：`PUT /api/quota/pin`，帶 `{ pin: 舊碼, newPin: 新碼 }`。
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/access-pin` | 回報有沒有設定過（`{ hasPin }`） |
+| PUT | `/api/access-pin` | 首次建立（`newPin`）或變更（`pin` + `newPin`） |
 
 `GET /api/quota` **永遠不回傳** `accessToken` 明文，只給 `hasAccessToken` 與 `accessTokenHint`。
 
@@ -102,9 +107,9 @@
 | PUT | `/api/quota/[id]` | 更新（accessToken 留空＝不變更） |
 | DELETE | `/api/quota/[id]` | 刪除 |
 | POST | `/api/quota/[id]/access-token` | 通過四位數密碼後回傳明文 token |
-| GET | `/api/quota/pin` | 回報密碼有沒有設定過（`{ hasPin }`），不回傳密碼內容 |
-| PUT | `/api/quota/pin` | 首次設定（`newPin`）或變更（`pin` + `newPin`） |
 | POST | `/api/chatgpt-usage` | 查 Codex 用量（`quotaId` + `pin`，或直接給 `accessToken`） |
+
+共用密碼的 `/api/access-pin` 見上方「四位數密碼」。
 
 ## 上游端點
 
@@ -124,7 +129,7 @@ ChatGPT 用量 API 未公開，欄位名稱會隨版本變動，因此依序嘗�
 - **共用元件**：`components/ui/access-token-reveal.tsx`
 - **憑證解析**：`lib/chatgptSession.ts`
 - **用量正規化／欄位轉換**：`lib/codexUsage.ts`
-- **密碼驗證**：`lib/tokenPin.ts`
+- **共用密碼**：`app/api/_lib/accessPin.js` · `components/modules/SettingsManagement.tsx`（AccessPinSettings）
 - **表單與 Schema**：`lib/managementRecords.ts`
 - **單元測試**：`tests/unit/codex-usage.test.mjs`
 

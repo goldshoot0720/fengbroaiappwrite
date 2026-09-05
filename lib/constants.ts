@@ -107,6 +107,8 @@ export const API_ENDPOINTS = {
   REINSTALL: "/api/reinstall",
   QUOTA: "/api/quota",
   CHATGPT_USAGE: "/api/chatgpt-usage",
+  /** 全站共用的四位數密碼（在鋒兄設定建立） */
+  ACCESS_PIN: "/api/access-pin",
   SHOPPING_LIST: "/api/shopping-list",
   BANK: "/api/bank",
   IMAGES: "/api/images",

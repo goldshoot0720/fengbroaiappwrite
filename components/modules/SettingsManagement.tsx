@@ -1557,6 +1557,17 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
           </div>
         </CollapsibleSettingsCard>
 
+        {/* 全站共用的四位數密碼 */}
+        <CollapsibleSettingsCard
+          className="md:col-span-2"
+          accent="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+          icon={<Key size={20} />}
+          title={<h3 className="font-bold text-lg">四位數密碼</h3>}
+          subtitle="全站共用；目前用於顯示鋒兄額度的 accessToken 與帶入 ChatGPT 用量"
+        >
+          <AccessPinSettings />
+        </CollapsibleSettingsCard>
+
         {/* Resend Email 通知設定 */}
         <CollapsibleSettingsCard
           className="md:col-span-2"
@@ -2041,6 +2052,161 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * 全站共用的四位數密碼。
+ *
+ * 比照 Resend 通知密碼：沒有預設值，第一次使用時在這裡建立，
+ * 以 scrypt hash 存在 notificationsettings 表（documentId "pin"），
+ * 程式碼與環境變數都不會有這組密碼；忘記只能重設、無法查回。
+ */
+function AccessPinSettings() {
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [status, setStatus] = useState("");
+  const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchApi<{ hasPin: boolean }>(API_ENDPOINTS.ACCESS_PIN)
+      .then((data) => {
+        if (!cancelled) setHasPin(Boolean(data.hasPin));
+      })
+      .catch(() => {
+        if (!cancelled) setHasPin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onlyDigits = (value: string) => value.replace(/\D/g, "").slice(0, 4);
+
+  const handleSave = async () => {
+    if (!/^\d{4}$/.test(newPin)) {
+      setFailed(true);
+      setStatus("密碼必須是四位數字");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setFailed(true);
+      setStatus("兩次輸入的密碼不一致");
+      return;
+    }
+    if (hasPin && !/^\d{4}$/.test(currentPin)) {
+      setFailed(true);
+      setStatus("請輸入目前的四位數密碼");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await fetchApi(API_ENDPOINTS.ACCESS_PIN, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(hasPin ? { pin: currentPin, newPin } : { newPin }),
+      });
+      setFailed(false);
+      setStatus(hasPin ? "✅ 密碼已變更。" : "✅ 密碼已建立，現在可以在鋒兄額度顯示 accessToken 與帶入用量了。");
+      setHasPin(true);
+      setCurrentPin("");
+      setNewPin("");
+      setConfirmPin("");
+    } catch (error) {
+      setFailed(true);
+      setStatus(error instanceof Error ? error.message : "設定密碼失敗");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (hasPin === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <Loader2 size={16} className="animate-spin" /> 讀取密碼狀態中…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        {hasPin
+          ? "已設定。顯示 accessToken 明文或用已存的 token 帶入用量時需要這組密碼。"
+          : "尚未設定。設定後才能在鋒兄額度顯示 accessToken 明文或帶入 ChatGPT 用量。"}
+      </p>
+
+      <div className="flex flex-wrap items-end gap-3">
+        {hasPin ? (
+          <label className="text-sm">
+            <span className="mb-1.5 block text-gray-600 dark:text-gray-400">目前密碼</span>
+            <Input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={4}
+              placeholder="••••"
+              value={currentPin}
+              onChange={(event) => setCurrentPin(onlyDigits(event.target.value))}
+              className="h-10 w-28 text-center tracking-[0.4em]"
+            />
+          </label>
+        ) : null}
+        <label className="text-sm">
+          <span className="mb-1.5 block text-gray-600 dark:text-gray-400">
+            {hasPin ? "新密碼" : "四位數密碼"}
+          </span>
+          <Input
+            type="password"
+            inputMode="numeric"
+            autoComplete="new-password"
+            maxLength={4}
+            placeholder="••••"
+            value={newPin}
+            onChange={(event) => setNewPin(onlyDigits(event.target.value))}
+            className="h-10 w-28 text-center tracking-[0.4em]"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1.5 block text-gray-600 dark:text-gray-400">再輸入一次</span>
+          <Input
+            type="password"
+            inputMode="numeric"
+            autoComplete="new-password"
+            maxLength={4}
+            placeholder="••••"
+            value={confirmPin}
+            onChange={(event) => setConfirmPin(onlyDigits(event.target.value))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void handleSave();
+            }}
+            className="h-10 w-28 text-center tracking-[0.4em]"
+          />
+        </label>
+        <Button onClick={handleSave} disabled={saving} variant="outline" className="h-10">
+          {saving ? (
+            <><Loader2 size={16} className="animate-spin" /> 儲存中…</>
+          ) : (
+            <><Key size={16} /> {hasPin ? "變更密碼" : "建立密碼"}</>
+          )}
+        </Button>
+      </div>
+
+      {status ? (
+        <p className={`text-sm ${failed ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+          {status}
+        </p>
+      ) : null}
+
+      <p className="text-xs text-gray-400">
+        密碼以 scrypt 雜湊存於 notificationsettings，不會回傳給瀏覽器，忘記只能重設。
+      </p>
     </div>
   );
 }
