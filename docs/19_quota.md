@@ -54,7 +54,7 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 |------|------|
 | 找資料 | GitHub API 取最近 5 次成功 run，挑第一個還留著 `litmedia-streaks-*` artifact 的 |
 | 取資料 | 下載 artifact zip，用 jszip 解出 `streaks.json` |
-| 對帳號 | 用額度列的 `litmediaAccount`（槽位編號如 `19`，或槽位名如 `goldshoot0720-checkin`）比對 |
+| 對帳號 | **服務名稱含 LitMedia 的列，直接用「帳號」對槽位名**（`abuhg17` ↔ `abuhg17-checkin (20)`）；對不上時才需要 `litmediaAccount` 明確指定槽位 |
 | 寫回 | `quotaPoints` 寫點數，`pointsSyncedAt` 寫 `finishedAt` |
 
 ### 為什麼要另存 pointsSyncedAt
@@ -77,7 +77,9 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 
 - `LITMEDIA_GITHUB_TOKEN`：有 `actions:read` 權限的 GitHub PAT（public repo 下載 artifact 一樣要認證）。沒設定就不帶入，其他功能不受影響。
 - `LITMEDIA_SIGN_REPO`：選填，預設 `huang1988pioneer/AutoSignLitVideo`。
-- 額度列填入 **LitMedia 簽到帳號**，空的就完全不碰這一列。
+- 額度列的**服務名稱要含「LitMedia」**，帳號填簽到用的名稱（`goldshoot0720`）就會自動對上；
+  名稱對不起來時，才在「LitMedia 簽到帳號」填槽位編號（`19`）覆蓋。
+  兩者都沒有的列完全不碰。
 
 ## 四位數密碼
 

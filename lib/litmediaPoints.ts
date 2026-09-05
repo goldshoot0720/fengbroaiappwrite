@@ -110,6 +110,26 @@ export function findLitmediaAccount(
   );
 }
 
+/**
+ * 這一列是不是 LitMedia 的額度？看服務名稱就好。
+ * 有了這個，服務名稱含 LitMedia 的列只要「帳號」跟簽到槽位名對得上就會自動帶入，
+ * 不必再手動填一次槽位編號；對不上的才需要 litmediaAccount 明確指定。
+ */
+export function isLitmediaServiceName(name: string | null | undefined): boolean {
+  return /litmedia/i.test(String(name || ""));
+}
+
+/** 額度列要拿哪個值去對槽位：明確指定優先，否則用帳號。 */
+export function resolveLitmediaKey(row: {
+  name?: string | null;
+  account?: string | null;
+  litmediaAccount?: string | null;
+}): string {
+  const explicit = String(row.litmediaAccount || "").trim();
+  if (explicit) return explicit;
+  return isLitmediaServiceName(row.name) ? String(row.account || "").trim() : "";
+}
+
 export interface LitmediaPointsFields {
   quotaPoints: number;
   /** 讀到這個點數的時刻，寫進 Appwrite 的 pointsSyncedAt */

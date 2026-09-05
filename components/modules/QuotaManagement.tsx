@@ -55,7 +55,7 @@ import {
   toQuotaFields,
   type CodexUsageSnapshot,
 } from "@/lib/codexUsage";
-import { LITMEDIA_FRESH_WINDOW_MS } from "@/lib/litmediaPoints";
+import { LITMEDIA_FRESH_WINDOW_MS, resolveLitmediaKey } from "@/lib/litmediaPoints";
 import { AccessTokenReveal } from "@/components/ui/access-token-reveal";
 import { cn, getExportFilename } from "@/lib/utils";
 import type { Quota, QuotaFormData, QuotaServiceType } from "@/types";
@@ -320,7 +320,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
         if (item.serviceType === "ai" && item.hasAccessToken) {
           return isUsageStale(item.$updatedAt, now);
         }
-        if (String(item.litmediaAccount || "").trim()) {
+        if (resolveLitmediaKey(item)) {
           return isUsageStale(item.$updatedAt, now, LITMEDIA_FRESH_WINDOW_MS);
         }
         return false;
@@ -1024,8 +1024,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                         const pointsSyncedLabel = formatPointsSynced(item.pointsSyncedAt, now);
                         // 點數只對「點數制」的列有意義：填過點數，或設定了 LitMedia 簽到帳號
                         // （等著同步的列要看得到 0 點，才知道它有在等）。其餘的列不該掛一個沒意義的 0。
-                        const showPoints =
-                          Boolean(item.quotaPoints) || Boolean(String(item.litmediaAccount || "").trim());
+                        const showPoints = Boolean(item.quotaPoints) || Boolean(resolveLitmediaKey(item));
                         // 使用者最在意「下次什麼時候重設」，所以過去的重設點要推到下一次而不是照抄
                         const fiveHour = projectNextFiveHourReset(item.expiry5h, syncedAt, now);
                         const aiPlans = item.serviceType === "ai"
@@ -1162,7 +1161,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                   <p className="text-xs text-muted-foreground">
                                     {item.hasAccessToken
                                       ? `用量更新於 ${syncedLabel}${refreshingUsage ? "・更新中…" : ""}`
-                                      : `手動填寫於 ${syncedLabel}`}
+                                      : `${item.pointsSyncedAt ? "比例手動填寫於" : "手動填寫於"} ${syncedLabel}`}
                                   </p>
                                 ) : null}
                               </div>

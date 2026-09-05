@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   findLitmediaAccount,
+  isLitmediaServiceName,
   LITMEDIA_FRESH_WINDOW_MS,
   normalizeLitmediaKey,
   parseStreaksReport,
+  resolveLitmediaKey,
   toLitmediaPointsFields,
 } from "../../lib/litmediaPoints.ts";
 
@@ -92,6 +94,30 @@ describe("LitMedia points", () => {
     assert.equal(partial.accounts[0].finishedAt, null);
     // 沒有任何時間可標就不寫，寧可留白也不要標錯時間
     assert.equal(toLitmediaPointsFields(partial.accounts[0], partial), null);
+  });
+
+  it("matches a LitMedia row by its account, with no slot filled in", () => {
+    const report = parseStreaksReport(artifact);
+    // 額度列的帳號就叫 goldshoot0720，簽到槽位叫 goldshoot0720-checkin (19)
+    const row = { name: "LitMedia", account: "goldshoot0720", litmediaAccount: "" };
+    assert.equal(resolveLitmediaKey(row), "goldshoot0720");
+    assert.equal(findLitmediaAccount(report, resolveLitmediaKey(row))?.account, 19);
+  });
+
+  it("lets an explicit slot win over the account", () => {
+    assert.equal(
+      resolveLitmediaKey({ name: "LitMedia", account: "goldshoot0720", litmediaAccount: "1" }),
+      "1",
+    );
+  });
+
+  it("leaves rows of other services alone", () => {
+    // 不是 LitMedia 的服務就算帳號剛好同名也不碰，免得把點數寫到別人的列上
+    assert.equal(resolveLitmediaKey({ name: "ChatGPT Plus", account: "goldshoot0720" }), "");
+    assert.equal(resolveLitmediaKey({ name: "", account: "goldshoot0720" }), "");
+    assert.equal(isLitmediaServiceName("LitVideo (LitMedia)"), true);
+    assert.equal(isLitmediaServiceName("litmedia"), true);
+    assert.equal(isLitmediaServiceName("ChatGPT"), false);
   });
 
   it("gives points a 33 minute freshness window", () => {

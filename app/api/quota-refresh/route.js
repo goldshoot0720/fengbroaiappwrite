@@ -16,6 +16,7 @@ import {
 import {
   findLitmediaAccount,
   LITMEDIA_FRESH_WINDOW_MS,
+  resolveLitmediaKey,
   toLitmediaPointsFields,
 } from "../../../lib/litmediaPoints";
 
@@ -67,12 +68,10 @@ async function writeRow(databases, databaseId, collectionId, row, data, updatedR
  * 所以連同「那次簽到的時刻」一起寫回；畫面要標的是這個時間，不是寫入時間。
  */
 async function refreshLitmediaRow(databases, databaseId, collectionId, row, snapshot, updatedRows) {
-  const entry = findLitmediaAccount(snapshot.report, row.litmediaAccount);
+  const key = resolveLitmediaKey(row);
+  const entry = findLitmediaAccount(snapshot.report, key);
   if (!entry) {
-    return outcomeFor(row, "skipped", {
-      reason: "litmedia-account-not-found",
-      litmediaAccount: row.litmediaAccount || "",
-    });
+    return outcomeFor(row, "skipped", { reason: "litmedia-account-not-found", litmediaAccount: key });
   }
 
   const fields = toLitmediaPointsFields(entry, snapshot.report);
@@ -164,7 +163,7 @@ async function runRefresh(searchParams, options = {}) {
     if (wanted && !wanted.has(row.$id)) continue;
 
     const isCodex = row.serviceType === "ai" && Boolean(row.accessToken);
-    const isLitmedia = !isCodex && Boolean(String(row.litmediaAccount || "").trim());
+    const isLitmedia = !isCodex && Boolean(resolveLitmediaKey(row));
     if (!isCodex && !isLitmedia) {
       if (row.serviceType === "ai") {
         results.push({ quotaId: row.$id, account: row.account || "", status: "skipped", reason: "no-token" });
