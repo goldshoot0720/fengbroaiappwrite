@@ -1022,6 +1022,10 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                         const syncedAt = item.$updatedAt ? new Date(item.$updatedAt).getTime() : null;
                         const syncedLabel = formatSince(item.$updatedAt, now);
                         const pointsSyncedLabel = formatPointsSynced(item.pointsSyncedAt, now);
+                        // 點數只對「點數制」的列有意義：填過點數，或設定了 LitMedia 簽到帳號
+                        // （等著同步的列要看得到 0 點，才知道它有在等）。其餘的列不該掛一個沒意義的 0。
+                        const showPoints =
+                          Boolean(item.quotaPoints) || Boolean(String(item.litmediaAccount || "").trim());
                         // 使用者最在意「下次什麼時候重設」，所以過去的重設點要推到下一次而不是照抄
                         const fiveHour = projectNextFiveHourReset(item.expiry5h, syncedAt, now);
                         const aiPlans = item.serviceType === "ai"
@@ -1111,8 +1115,8 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                             <Cell label="剩餘額度">
                               <div className="space-y-1 text-sm tabular-nums text-foreground">
                                 <p>{item.quotaRemaining} 次</p>
-                                <p>{item.quotaPoints || 0} 點</p>
-                                {pointsSyncedLabel ? (
+                                {showPoints ? <p>{item.quotaPoints || 0} 點</p> : null}
+                                {showPoints && pointsSyncedLabel ? (
                                   <p className="text-xs font-normal text-muted-foreground">{pointsSyncedLabel}</p>
                                 ) : null}
                                 {basicRatio ? <p><span className="text-muted-foreground">比例 </span>{basicRatio}</p> : null}
