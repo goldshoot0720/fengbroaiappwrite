@@ -29,6 +29,9 @@
 .DS_Store
 *.pem
 .local-git/
+.codex-tools/
+# Historical media dumps belong in external storage, not Git.
+/image+video+music/
 sidebar-edge-*-check.png
 .claude/settings.local.json
 
