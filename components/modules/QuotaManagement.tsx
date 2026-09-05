@@ -55,7 +55,11 @@ import {
   toQuotaFields,
   type CodexUsageSnapshot,
 } from "@/lib/codexUsage";
-import { LITMEDIA_FRESH_WINDOW_MS, resolveLitmediaKey } from "@/lib/litmediaPoints";
+import {
+  isLitmediaServiceName,
+  LITMEDIA_FRESH_WINDOW_MS,
+  resolveLitmediaKey,
+} from "@/lib/litmediaPoints";
 import { AccessTokenReveal } from "@/components/ui/access-token-reveal";
 import { cn, getExportFilename } from "@/lib/utils";
 import type { Quota, QuotaFormData, QuotaServiceType } from "@/types";
@@ -783,15 +787,18 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                 onChange={(event) => setNumberField("quotaPoints")(event.target.value)}
               />
             </FormField>
-            <FormField label="LitMedia 簽到帳號" htmlFor="quota-litmedia-account">
-              <Input
-                id="quota-litmedia-account"
-                maxLength={100}
-                value={form.litmediaAccount || ""}
-                onChange={(event) => setForm((current) => ({ ...current, litmediaAccount: event.target.value }))}
-                placeholder="每日簽到的槽位編號，例如 19（填了才會自動帶入點數）"
-              />
-            </FormField>
+            {/* 只有 LitMedia 的服務才需要對簽到槽位，其他服務不該看到這一格 */}
+            {isLitmediaServiceName(form.name) ? (
+              <FormField label="LitMedia 簽到帳號" htmlFor="quota-litmedia-account">
+                <Input
+                  id="quota-litmedia-account"
+                  maxLength={100}
+                  value={form.litmediaAccount || ""}
+                  onChange={(event) => setForm((current) => ({ ...current, litmediaAccount: event.target.value }))}
+                  placeholder="留空就用上面的帳號對；對不上時才填槽位編號，例如 19"
+                />
+              </FormField>
+            ) : null}
             <FormField label="額度剩餘比例（%）" htmlFor="quota-ratio">
               <Input
                 id="quota-ratio"
