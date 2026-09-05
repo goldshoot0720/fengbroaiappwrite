@@ -63,14 +63,21 @@ async function readPayload(request, buildPayload, mode) {
   }
 }
 
-export function managementRoutes(tableName, buildPayload) {
+/**
+ * @param {string} tableName
+ * @param {(body: Record<string, unknown>, mode: "create" | "update") => Record<string, unknown>} buildPayload
+ * @param {{ sanitize?: (row: any) => any }} [options] sanitize 讓資料表隱藏敏感欄位（例如 quota.accessToken）
+ */
+export function managementRoutes(tableName, buildPayload, options = {}) {
+  const sanitize = options.sanitize || ((row) => row);
+
   return {
     async GET(request) {
       try {
         const { databases, databaseId, collection } = await context(request, tableName);
         const rows = await listAllDocuments(databases, databaseId, collection.$id, { Query });
         rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh-Hant"));
-        return json(rows);
+        return json(rows.map(sanitize));
       } catch (error) { return failure(error); }
     },
     async POST(request) {
@@ -79,7 +86,7 @@ export function managementRoutes(tableName, buildPayload) {
         const { databases, databaseId, collection } = await context(request, tableName);
         assertWritable(collection, tableName);
         const row = await databases.createDocument({ databaseId, collectionId: collection.$id, documentId: ID.unique(), data });
-        return json(row, 201);
+        return json(sanitize(row), 201);
       } catch (error) { return failure(error); }
     },
     async PUT(request, routeContext) {
@@ -89,7 +96,7 @@ export function managementRoutes(tableName, buildPayload) {
         const { databases, databaseId, collection } = await context(request, tableName);
         assertWritable(collection, tableName);
         const row = await databases.updateDocument({ databaseId, collectionId: collection.$id, documentId: id, data });
-        return json(row);
+        return json(sanitize(row));
       } catch (error) { return failure(error); }
     },
     async DELETE(request, routeContext) {

@@ -106,6 +106,7 @@ export const API_ENDPOINTS = {
   TRIAL_PURCHASE: "/api/trial-purchase",
   REINSTALL: "/api/reinstall",
   QUOTA: "/api/quota",
+  CHATGPT_USAGE: "/api/chatgpt-usage",
   SHOPPING_LIST: "/api/shopping-list",
   BANK: "/api/bank",
   IMAGES: "/api/images",

@@ -1,3 +1,4 @@
+import { buildStoredCredential, parseChatGptSession } from "@/lib/chatgptSession";
 import type {
   FinanceCustomGroup,
   FinanceInstrument,
@@ -156,6 +157,8 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "ratioMonth", type: "integer", required: false },
       { key: "expiryMonth", type: "string", size: 10, required: false },
       { key: "note", type: "string", size: 3337, required: false },
+      // ChatGPT / Codex 憑證：純 JWT 約 2000 字，或精簡後的 session JSON
+      { key: "accessToken", type: "string", size: 5000, required: false },
     ],
   },
   shoppinglist: {
@@ -484,6 +487,17 @@ function asOptionalDatePart(value: unknown, pattern: RegExp, label: string, huma
   return normalized;
 }
 
+/**
+ * accessToken 欄位可貼「純 token」或「整份 session.json」；
+ * 後者只留 accessToken 與 accountId，不寫入 sessionToken。
+ */
+export function normalizeAccessTokenInput(value: unknown): string {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return "";
+  const parsed = parseChatGptSession(raw);
+  return parsed ? buildStoredCredential(parsed) : raw;
+}
+
 export function quotaDateKindLabel(kind: "5h" | "week" | "month"): string {
   if (kind === "5h") return "5 小時到期";
   if (kind === "week") return "一週到期";
@@ -505,6 +519,8 @@ export function emptyQuotaForm(name = ""): QuotaFormData {
     ratioMonth: 0,
     expiryMonth: "",
     note: "",
+    accessToken: "",
+    clearAccessToken: false,
   };
 }
 
@@ -523,6 +539,9 @@ export function toQuotaForm(source: Quota): QuotaFormData {
     ratioMonth: source.ratioMonth == null ? 0 : Number(source.ratioMonth),
     expiryMonth: source.expiryMonth || "",
     note: source.note || "",
+    // 明文不回填（API 也不回傳），留空代表沿用既有 token
+    accessToken: "",
+    clearAccessToken: false,
   };
 }
 
@@ -554,6 +573,11 @@ export function buildQuotaWritePayload(
     payload.expiryWeek = asOptionalDatePart(body.expiryWeek, YEAR_MONTH_DAY_PATTERN, "一週到期", "西元年-月-日");
     payload.ratioMonth = asNonNegativeInteger(body.ratioMonth, "一月比例");
     payload.expiryMonth = asOptionalDatePart(body.expiryMonth, YEAR_MONTH_DAY_PATTERN, "一月到期", "西元年-月-日");
+
+    // 空字串代表沿用既有 token；要清除必須明確送 clearAccessToken
+    const accessToken = normalizeAccessTokenInput(body.accessToken);
+    if (body.clearAccessToken === true) payload.accessToken = "";
+    else if (accessToken) payload.accessToken = accessToken;
   } else {
     payload.ratio5h = 0;
     payload.expiry5h = "";
@@ -561,6 +585,8 @@ export function buildQuotaWritePayload(
     payload.expiryWeek = "";
     payload.ratioMonth = 0;
     payload.expiryMonth = "";
+    // 非 AI 服務不需要憑證
+    payload.accessToken = "";
   }
   return payload;
 }

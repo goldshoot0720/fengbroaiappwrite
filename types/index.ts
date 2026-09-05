@@ -184,6 +184,9 @@ export interface Quota {
   ratioMonth?: number;
   expiryMonth?: string;
   note?: string;
+  /** API 不回傳明文 accessToken，只給是否存在與末 4 碼提示 */
+  hasAccessToken?: boolean;
+  accessTokenHint?: string;
   $createdAt?: string;
   $updatedAt?: string;
 }
@@ -202,6 +205,10 @@ export interface QuotaFormData {
   ratioMonth?: number;
   expiryMonth?: string;
   note?: string;
+  /** 新填入的 accessToken 或整份 session.json；留空代表不變更 */
+  accessToken?: string;
+  /** 送出時要清除既有 accessToken */
+  clearAccessToken?: boolean;
 }
 
 // 鋒兄Tube：一筆代表「一個追蹤的 YouTube / Bilibili 頻道」

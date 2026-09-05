@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Copy,
   Download,
+  KeyRound,
   Pencil,
   Plus,
   RefreshCw,
@@ -40,6 +41,9 @@ import {
   parseQuotaCsv,
   quotaImportKey,
 } from "@/lib/quotaCsv";
+import { parseChatGptSession } from "@/lib/chatgptSession";
+import { toQuotaFields, type CodexUsageSnapshot } from "@/lib/codexUsage";
+import { AccessTokenReveal } from "@/components/ui/access-token-reveal";
 import { cn, getExportFilename } from "@/lib/utils";
 import type { Quota, QuotaFormData, QuotaServiceType } from "@/types";
 
@@ -639,6 +643,14 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     onChange={(event) => setForm((current) => ({ ...current, expiryMonth: event.target.value }))}
                   />
                 </FormField>
+                <CodexAccessTokenField
+                  form={form}
+                  setForm={setForm}
+                  quotaId={editingId}
+                  hasExistingToken={Boolean(
+                    editingId && items.some((item) => item.$id === editingId && item.hasAccessToken)
+                  )}
+                />
               </>
             ) : null}
 
@@ -781,7 +793,18 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 />
                               </div>
                             ) : null}
-                            <Cell label="帳號"><span className="break-all font-medium text-foreground">{item.account?.trim() || "未填帳號"}</span></Cell>
+                            <Cell label="帳號">
+                              <span className="break-all font-medium text-foreground">{item.account?.trim() || "未填帳號"}</span>
+                              {item.hasAccessToken ? (
+                                <div className="mt-2">
+                                  <div className="mb-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                                    <KeyRound className="h-3 w-3" />
+                                    accessToken
+                                  </div>
+                                  <AccessTokenReveal quotaId={item.$id} hint={item.accessTokenHint} />
+                                </div>
+                              ) : null}
+                            </Cell>
                             <Cell label="剩餘額度">
                               <div className="space-y-1 text-sm tabular-nums text-foreground">
                                 <p>{item.quotaRemaining} 次</p>
@@ -950,6 +973,167 @@ function SummaryValue({ label, value, icon }: { label: string; value: number; ic
         <p className="text-sm text-muted-foreground">{label}</p>
         <p className="mt-0.5 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
       </div>
+    </div>
+  );
+}
+
+interface UsageResponse extends CodexUsageSnapshot {
+  quotaId: string | null;
+  quotaName: string;
+  tokenExpiry: string | null;
+}
+
+/**
+ * ChatGPT Plus / Codex 憑證欄位：貼上 session.json 或 accessToken 後，
+ * 可直接向 https://chatgpt.com/codex/cloud/settings/analytics#usage 的來源 API 帶入
+ * 5 小時／一週的剩餘比例、重設時間與剩餘積分。
+ *
+ * 明文預設隱藏；讀取已存的 token 需要四位數密碼。
+ */
+function CodexAccessTokenField({
+  form,
+  setForm,
+  quotaId,
+  hasExistingToken,
+}: {
+  form: QuotaFormData;
+  setForm: React.Dispatch<React.SetStateAction<QuotaFormData>>;
+  quotaId: string | null;
+  hasExistingToken: boolean;
+}) {
+  const [pin, setPin] = useState("");
+  const [status, setStatus] = useState("");
+  const [failed, setFailed] = useState(false);
+  const [fetching, setFetching] = useState(false);
+
+  const typedCredential = form.accessToken ? parseChatGptSession(form.accessToken) : null;
+  // 手打的 token 直接用；沿用已存的 token 才需要密碼
+  const needsPin = !typedCredential && hasExistingToken;
+
+  const applyUsage = (usage: UsageResponse) => {
+    const fields = toQuotaFields(usage);
+    setForm((current) => ({ ...current, ...fields }));
+
+    const primary = usage.windows.find((window) => window.key === "primary");
+    const secondary = usage.windows.find((window) => window.key === "secondary");
+    setFailed(false);
+    setStatus(
+      `已帶入：5 小時 ${fields.ratio5h}% 剩餘${
+        primary?.resetsAt ? `（重設 ${fields.expiry5h}）` : ""
+      }、一週 ${fields.ratioWeek}% 剩餘${
+        secondary?.resetsAt ? `（重設 ${fields.expiryWeek}）` : ""
+      }、剩餘積分 ${fields.quotaRemaining}`
+    );
+  };
+
+  const handleFetchUsage = async () => {
+    if (needsPin && !/^\d{4}$/.test(pin)) {
+      setFailed(true);
+      setStatus("請輸入四位數密碼");
+      return;
+    }
+
+    setFetching(true);
+    setStatus("");
+    setFailed(false);
+    try {
+      const body = typedCredential
+        ? { accessToken: form.accessToken }
+        : { quotaId, pin };
+      const usage = await fetchApi<UsageResponse>(API_ENDPOINTS.CHATGPT_USAGE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      applyUsage(usage);
+      setPin("");
+    } catch (err) {
+      setFailed(true);
+      setStatus(err instanceof Error ? err.message : "查詢用量失敗");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  return (
+    <div className="sm:col-span-2 xl:col-span-3">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+        <label htmlFor="quota-access-token" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+          <KeyRound className="h-3.5 w-3.5" />
+          accessToken（ChatGPT Plus 自動帶入用，選填）
+        </label>
+        <a
+          href="https://chatgpt.com/api/auth/session"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-blue-600 underline dark:text-blue-400"
+        >
+          取得 session.json
+        </a>
+      </div>
+      <Textarea
+        id="quota-access-token"
+        rows={2}
+        spellCheck={false}
+        className="font-mono text-xs"
+        placeholder="貼上 session.json 全文或 accessToken（eyJ...）；留空代表不變更"
+        value={form.accessToken || ""}
+        onChange={(event) =>
+          setForm((current) => ({ ...current, accessToken: event.target.value, clearAccessToken: false }))
+        }
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {needsPin ? (
+          <Input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            placeholder="••••"
+            value={pin}
+            onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+            className="h-9 w-24 text-center tracking-[0.4em]"
+            aria-label="四位數密碼"
+          />
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={handleFetchUsage}
+          disabled={fetching || (!typedCredential && !hasExistingToken)}
+          className="rounded-lg"
+        >
+          <RefreshCw className={cn("mr-1 h-3.5 w-3.5", fetching && "animate-spin")} />
+          {fetching ? "查詢中…" : "從 ChatGPT 帶入用量"}
+        </Button>
+        {hasExistingToken ? (
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={form.clearAccessToken === true}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  clearAccessToken: event.target.checked,
+                  accessToken: event.target.checked ? "" : current.accessToken,
+                }))
+              }
+            />
+            清除既有 accessToken
+          </label>
+        ) : null}
+      </div>
+      <p className={cn("mt-1.5 text-xs", failed ? "text-destructive" : "text-muted-foreground")}>
+        {status ||
+          (typedCredential
+            ? `已辨識 token（末 4 碼 ${typedCredential.accessToken.slice(-4)}）${
+                typedCredential.accountId ? "，含帳號 ID" : ""
+              }；只會存 accessToken 與帳號 ID，不存 sessionToken。`
+            : hasExistingToken
+              ? "已存有 token；輸入四位數密碼即可直接帶入最新用量，或貼上新 token 覆蓋。"
+              : "貼上後即可帶入 5 小時／一週剩餘比例、重設時間與剩餘積分。")}
+      </p>
     </div>
   );
 }
