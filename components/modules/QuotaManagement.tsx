@@ -1068,7 +1068,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                             <Cell label="剩餘額度">
                               <div className="space-y-1 text-sm tabular-nums text-foreground">
                                 <p>{item.quotaRemaining} 次</p>
-                                {item.quotaPoints ? <p>{item.quotaPoints} 點</p> : null}
+                                <p>{item.quotaPoints || 0} 點</p>
                                 {basicRatio ? <p><span className="text-muted-foreground">比例 </span>{basicRatio}</p> : null}
                               </div>
                             </Cell>
