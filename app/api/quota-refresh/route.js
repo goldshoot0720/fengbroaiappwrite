@@ -85,7 +85,7 @@ async function refreshLitmediaRow(databases, databaseId, collectionId, row, snap
     row,
     { quotaPoints: fields.quotaPoints, pointsSyncedAt: fields.pointsSyncedAt },
     updatedRows,
-    { runId: snapshot.runId }
+    { pointsSource: snapshot.source }
   );
 }
 

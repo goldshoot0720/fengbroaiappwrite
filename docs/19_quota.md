@@ -47,13 +47,16 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 不論帶不帶 token 都回 `{"code":4011,"msg":"The sign failed"}`，簽章檢查排在認證之前。
 
 所以點數改成取自 [AutoSignLitVideo](https://github.com/huang1988pioneer/AutoSignLitVideo)：
-那支每日簽到 workflow 每次成功都會上傳 `litmedia-streaks-<runId>` artifact，
-裡面 `streaks.json` 逐一列出每個帳號的 `creditBalance`（剩餘點數）與 `finishedAt`（讀到的時刻）。
+那支每日簽到 workflow 跑完會把 `streaks.json` 推到 `results` 分支，
+裡面逐一列出每個帳號的 `creditBalance`（剩餘點數）與 `finishedAt`（讀到的時刻）。
+
+**為什麼是公開分支而不是 artifact**：artifact 的下載一律需要認證，public repo 也一樣
+（實測無 token 回 401，run 與 artifact 的「清單」則是 200）。改推公開分支後就能直接讀，
+不必保管金鑰，也沒有 PAT 過期的問題。
 
 | 步驟 | 做法 |
 |------|------|
-| 找資料 | GitHub API 取最近 5 次成功 run，挑第一個還留著 `litmedia-streaks-*` artifact 的 |
-| 取資料 | 下載 artifact zip，用 jszip 解出 `streaks.json` |
+| 取資料 | 直接讀 `raw.githubusercontent.com/.../AutoSignLitVideo/results/streaks.json`（免認證） |
 | 對帳號 | **服務名稱含 LitMedia 的列，直接用「帳號」對槽位名**（`abuhg17` ↔ `abuhg17-checkin (20)`）；對不上時才需要 `litmediaAccount` 明確指定槽位 |
 | 寫回 | `quotaPoints` 寫點數，`pointsSyncedAt` 寫 `finishedAt` |
 
@@ -70,13 +73,14 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 
 - **保鮮期 33 分鐘**（`LITMEDIA_FRESH_WINDOW_MS`）：33 分鐘內沿用現有數字，不重複跟 GitHub 要 artifact。
   ChatGPT 是即時查詢所以只給 5 分鐘，LitMedia 的數字本來就來自幾小時前的簽到，給短了只是白跑。
-- **手動更新**：按「更新用量」會 `force` 重抓（同一次更新 33 個帳號只跟 GitHub 要一次，有模組內快取）。
+- **手動更新**：按「更新用量」會 `force` 重讀（同一次更新 33 個帳號只讀一次來源，有模組內快取）。
 - 真要拿到新數字，得回 AutoSignLitVideo 觸發一次 workflow，約 8 分鐘後才有結果。
 
 ### 需要的設定
 
-- `LITMEDIA_GITHUB_TOKEN`：有 `actions:read` 權限的 GitHub PAT（public repo 下載 artifact 一樣要認證）。沒設定就不帶入，其他功能不受影響。
-- `LITMEDIA_SIGN_REPO`：選填，預設 `huang1988pioneer/AutoSignLitVideo`。
+- **不需要任何金鑰。** 來源是公開檔案。
+- `LITMEDIA_STREAKS_URL`：選填，只有換 repo 或分支時才要設定。
+- 前提是 AutoSignLitVideo 的 `summarize` job 有「Publish streaks.json to the results branch」這一步。
 - 額度列的**服務名稱要含「LitMedia」**，帳號填簽到用的名稱（`goldshoot0720`）就會自動對上；
   名稱對不起來時，才在「LitMedia 簽到帳號」填槽位編號（`19`）覆蓋。
   兩者都沒有的列完全不碰。
