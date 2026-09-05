@@ -31,6 +31,13 @@
 
 一月比例／到期不在 Codex 回傳範圍，維持手動填寫。
 
+### 清單顯示
+
+- 比例為 `0%` 且有填重設時間 → 該段顯示紅色的 **「已達使用上限」**（只有 0 而沒填重設時間視為「還沒填」，不顯示）。
+- 同一服務底下的帳號依**下次重設時間由近到遠**排序；5 小時只存 `HH:mm`，
+  所以取「從現在算起的下一次」——今天還沒到就是今天，已經過了就是明天。
+  沒有任何重設時間的排最後。
+
 ## 四位數密碼
 
 `accessToken` **預設隱藏**：
@@ -42,12 +49,19 @@
 | 用已存的 token 帶入用量 | 需輸入四位數密碼 |
 | 剛貼上新 token 就帶入 | 不需密碼（本來就是自己剛輸入的） |
 
+比照 **Resend 通知密碼**的做法：**沒有預設值，第一次使用時由你自己設定。**
+
 | 項目 | 說明 |
 |------|------|
-| 預設值 | `0720`（**不需要任何設定**，沒設環境變數就是這組） |
-| 覆寫方式 | 伺服器環境變數 `QUOTA_TOKEN_PIN=1234`（舊名 `SUBSCRIPTION_TOKEN_PIN` 仍可用） |
-| 格式錯誤時 | 不是四位數字就忽略、退回預設，不會把人鎖在門外 |
-| 驗證位置 | API route，PIN 不會進前端 bundle |
+| 設定方式 | 編輯 AI 額度紀錄 → accessToken 區塊 → 「首次使用請先設定四位數密碼」→ 建立密碼 |
+| 儲存位置 | Appwrite `notificationsettings` 表（documentId `quota`），以 scrypt hash 存放 |
+| 未設定時 | 「顯示」與「從 ChatGPT 帶入用量」回 `428`，訊息要求先設定密碼 |
+| 格式 | 必須是四位數字 |
+| 驗證位置 | API route，密碼不會進前端 bundle，也不會回傳給瀏覽器 |
+
+不寫死在程式碼、也不放環境變數 —— 跟 Resend API Key 一樣，密碼是資料而不是設定檔。
+
+變更密碼：`PUT /api/quota/pin`，帶 `{ pin: 舊碼, newPin: 新碼 }`。
 
 `GET /api/quota` **永遠不回傳** `accessToken` 明文，只給 `hasAccessToken` 與 `accessTokenHint`。
 
@@ -86,6 +100,8 @@
 | PUT | `/api/quota/[id]` | 更新（accessToken 留空＝不變更） |
 | DELETE | `/api/quota/[id]` | 刪除 |
 | POST | `/api/quota/[id]/access-token` | 通過四位數密碼後回傳明文 token |
+| GET | `/api/quota/pin` | 回報密碼有沒有設定過（`{ hasPin }`），不回傳密碼內容 |
+| PUT | `/api/quota/pin` | 首次設定（`newPin`）或變更（`pin` + `newPin`） |
 | POST | `/api/chatgpt-usage` | 查 Codex 用量（`quotaId` + `pin`，或直接給 `accessToken`） |
 
 ## 上游端點

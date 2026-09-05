@@ -3,7 +3,7 @@ import { createAppwrite } from "../_lib/appwriteClient";
 import { findManagementTable } from "../_lib/managementTables";
 import { readStoredCredential, readTokenExpiry } from "../../../lib/chatgptSession";
 import { normalizeCodexUsage, normalizeResetCredits } from "../../../lib/codexUsage";
-import { verifyTokenPin } from "../../../lib/tokenPin";
+import { QUOTA_PIN_NOT_SET_MESSAGE, verifyQuotaPin } from "../_lib/quotaPin";
 
 export const dynamic = "force-dynamic";
 
@@ -104,8 +104,13 @@ export async function POST(request) {
     let quotaName = "";
 
     if (quotaId) {
-      if (!verifyTokenPin(pin)) {
-        return NextResponse.json({ error: "四位數密碼錯誤" }, { status: 403 });
+      // 比照 Resend 通知密碼：沒設定過就要求先去設定，不用寫死的預設密碼放行
+      const { databases, databaseId } = createAppwrite(searchParams);
+      const pinCheck = await verifyQuotaPin(databases, databaseId, pin);
+      if (!pinCheck.ok) {
+        return pinCheck.reason === "not_set"
+          ? NextResponse.json({ error: QUOTA_PIN_NOT_SET_MESSAGE, pinNotSet: true }, { status: 428 })
+          : NextResponse.json({ error: "四位數密碼錯誤" }, { status: 403 });
       }
 
       let loaded;

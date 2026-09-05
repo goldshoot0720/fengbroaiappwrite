@@ -6,7 +6,7 @@ import {
   readStoredCredential,
   readTokenExpiry,
 } from "../../../../../lib/chatgptSession";
-import { verifyTokenPin } from "../../../../../lib/tokenPin";
+import { QUOTA_PIN_NOT_SET_MESSAGE, verifyQuotaPin } from "../../../_lib/quotaPin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +20,17 @@ export async function POST(request, routeContext) {
     if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
     const body = await request.json();
-    if (!verifyTokenPin(body?.pin)) {
-      return NextResponse.json({ error: "四位數密碼錯誤" }, { status: 403 });
-    }
-
     const { searchParams } = new URL(request.url);
     const { databases, databaseId } = createAppwrite(searchParams);
+
+    // 比照 Resend 通知密碼：沒設定過就要求先去設定，不用寫死的預設密碼放行
+    const pinCheck = await verifyQuotaPin(databases, databaseId, body?.pin);
+    if (!pinCheck.ok) {
+      return pinCheck.reason === "not_set"
+        ? NextResponse.json({ error: QUOTA_PIN_NOT_SET_MESSAGE, pinNotSet: true }, { status: 428 })
+        : NextResponse.json({ error: "四位數密碼錯誤" }, { status: 403 });
+    }
+
     const collection = await findManagementTable(databases, databaseId, "quota");
     if (!collection) {
       return NextResponse.json({ error: "Table quota 不存在，請至「鋒兄設定」建立。" }, { status: 404 });

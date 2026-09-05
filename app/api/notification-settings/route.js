@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
+import { createAppwrite } from "../_lib/appwriteClient";
 import {
-  clearCollectionCache,
-  createAppwrite,
-  getCollection,
-  sdk,
-} from "../_lib/appwriteClient";
+  ensureNotificationSettingsCollection,
+  readSettingsDocument,
+} from "../_lib/notificationSettingsTable";
 import {
-  NOTIFICATION_SETTINGS_COLLECTION,
   NOTIFICATION_SETTINGS_DOCUMENT_ID,
-  NOTIFICATION_SETTINGS_SCHEMA,
   NOTIFICATION_SETTINGS_MAX_SLOTS,
 } from "../../../lib/notifications/notificationSettings";
 import {
@@ -18,53 +15,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const COLLECTION_NAME = NOTIFICATION_SETTINGS_COLLECTION;
+
 const DOC_ID = NOTIFICATION_SETTINGS_DOCUMENT_ID;
-
-/**
- * 建立 notificationsettings Table（private collection，僅 server API key 可存取），
- * 並等待屬性可用。重試不刪資料。
- */
-async function ensureCollection(databases, databaseId) {
-  const existing = await getCollection(databases, databaseId, COLLECTION_NAME, {
-    required: false,
-  });
-  let collectionId = existing?.$id;
-
-  if (!collectionId) {
-    const created = await databases.createCollection(databaseId, sdk.ID.unique(), COLLECTION_NAME);
-    clearCollectionCache(databaseId);
-    collectionId = created.$id;
-  }
-
-  const attrs = await databases.listAttributes(databaseId, collectionId);
-  const existingKeys = new Set(attrs.attributes.map((attr) => attr.key));
-  for (const attr of NOTIFICATION_SETTINGS_SCHEMA.attributes) {
-    if (existingKeys.has(attr.key)) continue;
-    try {
-      await databases.createStringAttribute(databaseId, collectionId, attr.key, attr.size, attr.required);
-    } catch (err) {
-      if (err?.code !== 409) throw err;
-    }
-  }
-
-  // Appwrite 屬性建立為非同步，等待全部 available
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const latest = await databases.getCollection({ databaseId, collectionId });
-    const pending = NOTIFICATION_SETTINGS_SCHEMA.attributes.filter(
-      (expected) =>
-        !latest.attributes.some(
-          (actual) => actual.key === expected.key && (actual.status === "available" || !actual.status)
-        )
-    );
-    if (pending.length === 0) {
-      clearCollectionCache(databaseId);
-      return collectionId;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error("notificationsettings attributes are not ready yet. Please try again shortly.");
-}
 
 function json(data, status = 200) {
   return NextResponse.json(data, { status });
@@ -76,14 +28,8 @@ function failure(error) {
   return json({ error: message }, 500);
 }
 
-async function readDocument(databases, databaseId, collectionId) {
-  try {
-    const doc = await databases.getDocument({ databaseId, collectionId, documentId: DOC_ID });
-    return doc;
-  } catch {
-    return null;
-  }
-}
+const readDocument = (databases, databaseId, collectionId) =>
+  readSettingsDocument(databases, databaseId, collectionId, DOC_ID);
 
 function parseSlots(raw) {
   if (!raw) return [];
@@ -127,7 +73,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const { databases, databaseId } = createAppwrite(searchParams);
-    const collectionId = await ensureCollection(databases, databaseId);
+    const collectionId = await ensureNotificationSettingsCollection(databases, databaseId);
     const doc = await readDocument(databases, databaseId, collectionId);
     return json(toPublicPayload(doc));
   } catch (error) {
@@ -141,7 +87,7 @@ export async function POST(request) {
     const { searchParams } = new URL(request.url);
     const body = await request.json().catch(() => ({}));
     const { databases, databaseId } = createAppwrite(searchParams, body);
-    const collectionId = await ensureCollection(databases, databaseId);
+    const collectionId = await ensureNotificationSettingsCollection(databases, databaseId);
     const doc = await readDocument(databases, databaseId, collectionId);
 
     const password = String(body.password || "");
@@ -169,7 +115,7 @@ export async function PUT(request) {
     const { searchParams } = new URL(request.url);
     const body = await request.json().catch(() => ({}));
     const { databases, databaseId } = createAppwrite(searchParams, body);
-    const collectionId = await ensureCollection(databases, databaseId);
+    const collectionId = await ensureNotificationSettingsCollection(databases, databaseId);
     const doc = await readDocument(databases, databaseId, collectionId);
 
     const storedHash = doc?.passwordHash || "";

@@ -86,6 +86,7 @@ export function AccessTokenReveal({
       setPin("");
       setMode("revealed");
     } catch (err) {
+      // 密碼還沒建立時，訊息會指向「先到編輯表單設定四位數密碼」
       setError(err instanceof Error ? err.message : "讀取失敗");
       setPin("");
     } finally {

@@ -80,6 +80,32 @@ function ratioLabel(value?: number) {
   return `${value}%`;
 }
 
+/**
+ * 下一次重設的時間戳，用來把帳號由近到遠排序。
+ *
+ * 5 小時視窗只存 `HH:mm`，所以取「從現在算起的下一次」——今天還沒到就是今天，
+ * 已經過了就是明天。沒有任何重設時間的排最後。
+ */
+function nextResetTime(item: Quota, now: number): number {
+  if (item.serviceType === "ai" && item.expiry5h) {
+    const [hours, minutes] = item.expiry5h.split(":").map(Number);
+    if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+      const candidate = new Date(now);
+      candidate.setHours(hours, minutes, 0, 0);
+      if (candidate.getTime() <= now) candidate.setDate(candidate.getDate() + 1);
+      return candidate.getTime();
+    }
+  }
+
+  for (const value of [item.expiryWeek, item.expiryMonth, item.quotaExpiry]) {
+    if (!value) continue;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
 function serviceTypeLabel(type: QuotaServiceType) {
   return QUOTA_SERVICE_TYPE_OPTIONS.find((option) => option.value === type)?.label || "一般";
 }
@@ -195,12 +221,17 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
       grouped.set(key, group);
     });
 
+    // 同一個服務底下的帳號依「下次重設時間」由近到遠；沒有重設時間的排最後、再以帳號排序
+    const now = Date.now();
     return [...grouped.values()]
       .map((group) => ({
         ...group,
-        items: group.items.sort((a, b) =>
-          String(a.account || "").localeCompare(String(b.account || ""), "zh-Hant"),
-        ),
+        items: group.items.sort((a, b) => {
+          const resetA = nextResetTime(a, now);
+          const resetB = nextResetTime(b, now);
+          if (resetA !== resetB) return resetA - resetB;
+          return String(a.account || "").localeCompare(String(b.account || ""), "zh-Hant");
+        }),
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
   }, [items, query, typeFilter]);
@@ -776,10 +807,15 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                         const basicRatio = ratioLabel(item.quotaRatio);
                         const aiPlans = item.serviceType === "ai"
                           ? [
-                              { key: "5h", prefix: "5 小時", ratio: ratioLabel(item.ratio5h), expiry: item.expiry5h },
-                              { key: "week", prefix: "一週", ratio: ratioLabel(item.ratioWeek), expiry: item.expiryWeek },
-                              { key: "month", prefix: "一月", ratio: ratioLabel(item.ratioMonth), expiry: item.expiryMonth },
-                            ]
+                              { key: "5h", prefix: "5 小時", ratio: item.ratio5h, expiry: item.expiry5h },
+                              { key: "week", prefix: "一週", ratio: item.ratioWeek, expiry: item.expiryWeek },
+                              { key: "month", prefix: "一月", ratio: item.ratioMonth, expiry: item.expiryMonth },
+                            ].map((plan) => ({
+                              ...plan,
+                              // 有填重設時間才算「有在追蹤這段」，0% 才是真的用完而不是沒填
+                              reached: Boolean(plan.expiry) && (plan.ratio ?? 0) === 0,
+                              ratioText: ratioLabel(plan.ratio),
+                            }))
                           : [];
                         return (
                           <div key={item.$id} className={cn("grid gap-4 px-4 py-4 sm:grid-cols-2 xl:items-start xl:px-5", quotaRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
@@ -816,9 +852,20 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 <p className="inline-flex items-center gap-2 text-sm text-foreground"><CalendarDays className="size-4 shrink-0 text-muted-foreground" />{formatDate(item.quotaExpiry)}</p>
                                 {aiPlans.length > 0 ? (
                                   <div className="flex flex-wrap gap-1.5">
-                                    {aiPlans.map((plan) => plan.ratio || plan.expiry ? (
-                                      <span key={plan.key} className="rounded-full bg-accent/12 px-2 py-0.5 text-xs text-foreground">
-                                        {plan.prefix} {plan.ratio ?? ""}{plan.ratio && plan.expiry ? " · " : ""}{plan.expiry ?? ""}
+                                    {aiPlans.map((plan) => plan.ratioText || plan.expiry ? (
+                                      <span
+                                        key={plan.key}
+                                        className={cn(
+                                          "rounded-full px-2 py-0.5 text-xs",
+                                          plan.reached
+                                            ? "bg-destructive/12 font-medium text-destructive"
+                                            : "bg-accent/12 text-foreground"
+                                        )}
+                                      >
+                                        {plan.prefix}{" "}
+                                        {plan.reached ? "0% 剩餘 · 已達使用上限" : plan.ratioText ?? ""}
+                                        {(plan.reached || plan.ratioText) && plan.expiry ? " · " : ""}
+                                        {plan.expiry ? `重設 ${plan.expiry}` : ""}
                                       </span>
                                     ) : null)}
                                   </div>
@@ -1002,6 +1049,8 @@ function CodexAccessTokenField({
   hasExistingToken: boolean;
 }) {
   const [pin, setPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
   const [status, setStatus] = useState("");
   const [failed, setFailed] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -1009,6 +1058,46 @@ function CodexAccessTokenField({
   const typedCredential = form.accessToken ? parseChatGptSession(form.accessToken) : null;
   // 手打的 token 直接用；沿用已存的 token 才需要密碼
   const needsPin = !typedCredential && hasExistingToken;
+
+  // 比照 Resend 通知密碼：密碼存在 Appwrite，第一次使用時由使用者自己設定
+  useEffect(() => {
+    let cancelled = false;
+    fetchApi<{ hasPin: boolean }>(`${API_ENDPOINTS.QUOTA}/pin`)
+      .then((data) => {
+        if (!cancelled) setHasPin(Boolean(data.hasPin));
+      })
+      .catch(() => {
+        if (!cancelled) setHasPin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleCreatePin = async () => {
+    if (!/^\d{4}$/.test(newPin)) {
+      setFailed(true);
+      setStatus("密碼必須是四位數字");
+      return;
+    }
+    setFetching(true);
+    try {
+      await fetchApi(`${API_ENDPOINTS.QUOTA}/pin`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPin }),
+      });
+      setHasPin(true);
+      setNewPin("");
+      setFailed(false);
+      setStatus("四位數密碼已建立，之後顯示 accessToken 或帶入用量都會用這組。");
+    } catch (err) {
+      setFailed(true);
+      setStatus(err instanceof Error ? err.message : "設定密碼失敗");
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const applyUsage = (usage: UsageResponse) => {
     const fields = toQuotaFields(usage);
@@ -1082,8 +1171,34 @@ function CodexAccessTokenField({
           setForm((current) => ({ ...current, accessToken: event.target.value, clearAccessToken: false }))
         }
       />
+      {hasPin === false ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-accent/10 px-3 py-2">
+          <span className="text-xs text-foreground">首次使用請先設定四位數密碼：</span>
+          <Input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            placeholder="••••"
+            value={newPin}
+            onChange={(event) => setNewPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+            className="h-9 w-24 text-center tracking-[0.4em]"
+            aria-label="設定四位數密碼"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleCreatePin}
+            disabled={fetching || newPin.length !== 4}
+            className="rounded-lg"
+          >
+            建立密碼
+          </Button>
+        </div>
+      ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        {needsPin ? (
+        {needsPin && hasPin ? (
           <Input
             type="password"
             inputMode="numeric"
@@ -1101,7 +1216,9 @@ function CodexAccessTokenField({
           size="sm"
           variant="outline"
           onClick={handleFetchUsage}
-          disabled={fetching || (!typedCredential && !hasExistingToken)}
+          disabled={
+            fetching || (!typedCredential && (!hasExistingToken || hasPin === false))
+          }
           className="rounded-lg"
         >
           <RefreshCw className={cn("mr-1 h-3.5 w-3.5", fetching && "animate-spin")} />
@@ -1131,7 +1248,9 @@ function CodexAccessTokenField({
                 typedCredential.accountId ? "，含帳號 ID" : ""
               }；只會存 accessToken 與帳號 ID，不存 sessionToken。`
             : hasExistingToken
-              ? "已存有 token；輸入四位數密碼即可直接帶入最新用量，或貼上新 token 覆蓋。"
+              ? hasPin === false
+                ? "已存有 token，但四位數密碼還沒建立；設定後才能顯示明文或帶入用量。"
+                : "已存有 token；輸入四位數密碼即可直接帶入最新用量，或貼上新 token 覆蓋。"
               : "貼上後即可帶入 5 小時／一週剩餘比例、重設時間與剩餘積分。")}
       </p>
     </div>
