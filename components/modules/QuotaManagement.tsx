@@ -1164,11 +1164,16 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                     ) : null)}
                                   </div>
                                 ) : null}
-                                {item.serviceType === "ai" && syncedLabel ? (
+                                {/*
+                                  「手動填寫於」是用 $updatedAt 算的，只有在這一列全靠手填時才成立。
+                                  點數會自動寫回，$updatedAt 就變成「上次自動同步」的時間，
+                                  再標成手動填寫等於謊報——這種列已經有「簽到時的數字」那行負責報時間了。
+                                */}
+                                {item.serviceType === "ai" && syncedLabel && (item.hasAccessToken || !item.pointsSyncedAt) ? (
                                   <p className="text-xs text-muted-foreground">
                                     {item.hasAccessToken
                                       ? `用量更新於 ${syncedLabel}${refreshingUsage ? "・更新中…" : ""}`
-                                      : `${item.pointsSyncedAt ? "比例手動填寫於" : "手動填寫於"} ${syncedLabel}`}
+                                      : `手動填寫於 ${syncedLabel}`}
                                   </p>
                                 ) : null}
                               </div>
