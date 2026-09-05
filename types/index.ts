@@ -177,6 +177,10 @@ export interface Quota {
   quotaRemaining: number;
   /** 額度剩餘點數：與「次數」並列的另一種計量（點數 / 積分制方案） */
   quotaPoints?: number;
+  /** LitMedia 每日簽到的帳號槽位（1–33 或槽位名），空的代表不自動帶入點數 */
+  litmediaAccount?: string;
+  /** 點數量測時刻：上一次簽到成功的時間，與 $updatedAt（寫入時間）不同 */
+  pointsSyncedAt?: string;
   quotaRatio?: number;
   quotaExpiry?: string;
   ratio5h?: number;
@@ -199,6 +203,7 @@ export interface QuotaFormData {
   account?: string;
   quotaRemaining: number;
   quotaPoints?: number;
+  litmediaAccount?: string;
   quotaRatio?: number;
   quotaExpiry?: string;
   ratio5h?: number;

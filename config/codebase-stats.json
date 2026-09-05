@@ -1,7 +1,7 @@
 {
   "snapshotDate": "2026-09-05",
-  "totalFiles": 343,
-  "totalLines": 111535,
+  "totalFiles": 346,
+  "totalLines": 112282,
   "scope": "core-source",
   "sourceDirs": [
     "app",
@@ -16,22 +16,22 @@
     {
       "label": "TSX",
       "files": 83,
-      "lines": 64573
+      "lines": 64641
     },
     {
       "label": "TypeScript",
-      "files": 147,
-      "lines": 32859
+      "files": 148,
+      "lines": 33160
     },
     {
       "label": "JavaScript",
-      "files": 80,
-      "lines": 9627
+      "files": 81,
+      "lines": 9834
     },
     {
       "label": "ES Module",
-      "files": 32,
-      "lines": 3576
+      "files": 33,
+      "lines": 3747
     },
     {
       "label": "CSS",

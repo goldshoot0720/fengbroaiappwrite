@@ -50,10 +50,12 @@ import {
   isUsageStale,
   parseDateField,
   projectNextFiveHourReset,
+  QUOTA_TIME_ZONE,
   toLocalTimeField,
   toQuotaFields,
   type CodexUsageSnapshot,
 } from "@/lib/codexUsage";
+import { LITMEDIA_FRESH_WINDOW_MS } from "@/lib/litmediaPoints";
 import { AccessTokenReveal } from "@/components/ui/access-token-reveal";
 import { cn, getExportFilename } from "@/lib/utils";
 import type { Quota, QuotaFormData, QuotaServiceType } from "@/types";
@@ -103,6 +105,28 @@ function formatSince(updatedAt: string | undefined, now: number): string | null 
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} 小時前`;
   return `${Math.floor(hours / 24)} 天前`;
+}
+
+/**
+ * LitMedia 的點數是「上一次簽到成功當下」讀到的數字，不是此刻的即時值。
+ * 所以要標 pointsSyncedAt（那次簽到的時刻），標 $updatedAt（我們寫進資料庫的時間）
+ * 會讓幾小時前的數字看起來像剛剛才更新的。
+ */
+function formatPointsSynced(pointsSyncedAt: string | undefined, now: number): string | null {
+  if (!pointsSyncedAt) return null;
+  const parsed = new Date(pointsSyncedAt);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const stamp = parsed.toLocaleString("zh-TW", {
+    timeZone: QUOTA_TIME_ZONE,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const since = formatSince(pointsSyncedAt, now);
+  return since ? `${stamp} 簽到時的數字（${since}）` : `${stamp} 簽到時的數字`;
 }
 
 interface QuotaRefreshResult {
@@ -288,10 +312,19 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     };
   }, []);
 
-  // 只有超過保鮮期（USAGE_FRESH_WINDOW_MS）的 AI 帳號要重抓，其餘沿用現有數字
+  // 只有超過保鮮期的帳號要重抓，其餘沿用現有數字。
+  // ChatGPT 是即時查詢所以 5 分鐘就算舊；LitMedia 的數字本來就來自幾小時前的簽到，給 33 分鐘。
   const staleQuotaIds = useMemo(
     () => items
-      .filter((item) => item.serviceType === "ai" && item.hasAccessToken && isUsageStale(item.$updatedAt, now))
+      .filter((item) => {
+        if (item.serviceType === "ai" && item.hasAccessToken) {
+          return isUsageStale(item.$updatedAt, now);
+        }
+        if (String(item.litmediaAccount || "").trim()) {
+          return isUsageStale(item.$updatedAt, now, LITMEDIA_FRESH_WINDOW_MS);
+        }
+        return false;
+      })
       .map((item) => item.$id),
     [items, now],
   );
@@ -750,6 +783,15 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                 onChange={(event) => setNumberField("quotaPoints")(event.target.value)}
               />
             </FormField>
+            <FormField label="LitMedia 簽到帳號" htmlFor="quota-litmedia-account">
+              <Input
+                id="quota-litmedia-account"
+                maxLength={100}
+                value={form.litmediaAccount || ""}
+                onChange={(event) => setForm((current) => ({ ...current, litmediaAccount: event.target.value }))}
+                placeholder="每日簽到的槽位編號，例如 19（填了才會自動帶入點數）"
+              />
+            </FormField>
             <FormField label="額度剩餘比例（%）" htmlFor="quota-ratio">
               <Input
                 id="quota-ratio"
@@ -979,6 +1021,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                         // 這些比例是「上次同步當下」的快照，$updatedAt 就是那個當下
                         const syncedAt = item.$updatedAt ? new Date(item.$updatedAt).getTime() : null;
                         const syncedLabel = formatSince(item.$updatedAt, now);
+                        const pointsSyncedLabel = formatPointsSynced(item.pointsSyncedAt, now);
                         // 使用者最在意「下次什麼時候重設」，所以過去的重設點要推到下一次而不是照抄
                         const fiveHour = projectNextFiveHourReset(item.expiry5h, syncedAt, now);
                         const aiPlans = item.serviceType === "ai"
@@ -1069,6 +1112,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                               <div className="space-y-1 text-sm tabular-nums text-foreground">
                                 <p>{item.quotaRemaining} 次</p>
                                 <p>{item.quotaPoints || 0} 點</p>
+                                {pointsSyncedLabel ? (
+                                  <p className="text-xs font-normal text-muted-foreground">{pointsSyncedLabel}</p>
+                                ) : null}
                                 {basicRatio ? <p><span className="text-muted-foreground">比例 </span>{basicRatio}</p> : null}
                               </div>
                             </Cell>

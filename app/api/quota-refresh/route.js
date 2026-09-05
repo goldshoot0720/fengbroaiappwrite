@@ -4,6 +4,7 @@ import { createAppwrite } from "../_lib/appwriteClient";
 import { findManagementTable } from "../_lib/managementTables";
 import { listAllDocuments } from "../_lib/listAllDocuments";
 import { loadCodexSnapshot } from "../_lib/codexClient";
+import { loadLitmediaReport } from "../_lib/litmediaClient";
 import { sanitizeQuotaRow } from "../_lib/quotaSanitize";
 import { readStoredCredential } from "../../../lib/chatgptSession";
 import {
@@ -12,6 +13,11 @@ import {
   toQuotaFields,
   USAGE_FRESH_WINDOW_MS,
 } from "../../../lib/codexUsage";
+import {
+  findLitmediaAccount,
+  LITMEDIA_FRESH_WINDOW_MS,
+  toLitmediaPointsFields,
+} from "../../../lib/litmediaPoints";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +40,57 @@ function json(data, status = 200) {
   return NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 }
 
-async function refreshOne(databases, databaseId, collectionId, row, updatedRows) {
+function outcomeFor(row, status, extra = {}) {
+  return { quotaId: row.$id, account: row.account || "", status, ...extra };
+}
+
+/** 即使數字沒變也照寫，讓 $updatedAt 成為可信的「最後一次成功同步」時間。 */
+async function writeRow(databases, databaseId, collectionId, row, data, updatedRows, extra = {}) {
+  try {
+    const updated = await databases.updateDocument({
+      databaseId,
+      collectionId,
+      documentId: row.$id,
+      data,
+    });
+    updatedRows.push(updated);
+    return outcomeFor(row, "updated", { ...data, ...extra });
+  } catch (err) {
+    return outcomeFor(row, "error", {
+      error: err instanceof Error ? err.message : "寫回額度失敗",
+    });
+  }
+}
+
+/**
+ * LitMedia 的點數來自每日簽到 workflow 的結果，不是即時查詢，
+ * 所以連同「那次簽到的時刻」一起寫回；畫面要標的是這個時間，不是寫入時間。
+ */
+async function refreshLitmediaRow(databases, databaseId, collectionId, row, snapshot, updatedRows) {
+  const entry = findLitmediaAccount(snapshot.report, row.litmediaAccount);
+  if (!entry) {
+    return outcomeFor(row, "skipped", {
+      reason: "litmedia-account-not-found",
+      litmediaAccount: row.litmediaAccount || "",
+    });
+  }
+
+  const fields = toLitmediaPointsFields(entry, snapshot.report);
+  // 這次沒讀到點數就別動——留著舊數字，好過覆蓋成 0
+  if (!fields) return outcomeFor(row, "skipped", { reason: "no-points", label: entry.label });
+
+  return writeRow(
+    databases,
+    databaseId,
+    collectionId,
+    row,
+    { quotaPoints: fields.quotaPoints, pointsSyncedAt: fields.pointsSyncedAt },
+    updatedRows,
+    { runId: snapshot.runId }
+  );
+}
+
+async function refreshCodexRow(databases, databaseId, collectionId, row, updatedRows) {
   const credential = readStoredCredential(row.accessToken);
   if (!credential) {
     return { quotaId: row.$id, account: row.account || "", status: "skipped", reason: "bad-token" };
@@ -74,24 +130,7 @@ async function refreshOne(databases, databaseId, collectionId, row, updatedRows)
   // 剩餘積分手動也會維護，API 這次沒回報就別把它洗成 0
   if (outcome.snapshot.credits !== null) data.quotaRemaining = fields.quotaRemaining;
 
-  try {
-    // 即使數字沒變也照寫，讓 $updatedAt 成為可信的「最後一次成功同步」時間
-    const updated = await databases.updateDocument({
-      databaseId,
-      collectionId,
-      documentId: row.$id,
-      data,
-    });
-    updatedRows.push(updated);
-    return { quotaId: row.$id, account: row.account || "", status: "updated", ...data };
-  } catch (err) {
-    return {
-      quotaId: row.$id,
-      account: row.account || "",
-      status: "error",
-      error: err instanceof Error ? err.message : "寫回額度失敗",
-    };
-  }
+  return writeRow(databases, databaseId, collectionId, row, data, updatedRows);
 }
 
 /**
@@ -114,29 +153,61 @@ async function runRefresh(searchParams, options = {}) {
     : USAGE_FRESH_WINDOW_MS;
   const now = Date.now();
 
+  // LitMedia 的數字本來就是幾小時前簽到時量到的，保鮮期不必跟 ChatGPT 一樣短
+  const litmediaMaxAgeMs = Number.isFinite(options.maxAgeMs)
+    ? Math.max(0, options.maxAgeMs)
+    : LITMEDIA_FRESH_WINDOW_MS;
+
   const targets = [];
   const results = [];
   for (const row of rows) {
     if (wanted && !wanted.has(row.$id)) continue;
-    if (row.serviceType !== "ai") continue;
-    if (!row.accessToken) {
-      results.push({ quotaId: row.$id, account: row.account || "", status: "skipped", reason: "no-token" });
+
+    const isCodex = row.serviceType === "ai" && Boolean(row.accessToken);
+    const isLitmedia = !isCodex && Boolean(String(row.litmediaAccount || "").trim());
+    if (!isCodex && !isLitmedia) {
+      if (row.serviceType === "ai") {
+        results.push({ quotaId: row.$id, account: row.account || "", status: "skipped", reason: "no-token" });
+      }
       continue;
     }
-    if (!options.force && !isUsageStale(row.$updatedAt, now, maxAgeMs)) {
+
+    const freshWindow = isCodex ? maxAgeMs : litmediaMaxAgeMs;
+    if (!options.force && !isUsageStale(row.$updatedAt, now, freshWindow)) {
       results.push({ quotaId: row.$id, account: row.account || "", status: "fresh", updatedAt: row.$updatedAt || null });
       continue;
     }
-    targets.push(row);
+    targets.push({ row, kind: isCodex ? "codex" : "litmedia" });
+  }
+
+  // 33 個帳號共用同一份簽到結果，所以只跟 GitHub 要一次
+  let litmedia = null;
+  let litmediaError = null;
+  if (targets.some((target) => target.kind === "litmedia")) {
+    try {
+      litmedia = await loadLitmediaReport({ force: options.force === true, now });
+    } catch (err) {
+      litmediaError = err instanceof Error ? err.message : "讀取 LitMedia 簽到結果失敗";
+    }
   }
 
   const updatedRows = [];
   let cursor = 0;
   const worker = async () => {
     while (cursor < targets.length) {
-      const row = targets[cursor];
+      const { row, kind } = targets[cursor];
       cursor += 1;
-      results.push(await refreshOne(databases, databaseId, collection.$id, row, updatedRows));
+
+      if (kind === "litmedia") {
+        results.push(
+          litmedia
+            ? await refreshLitmediaRow(databases, databaseId, collection.$id, row, litmedia, updatedRows)
+            : { quotaId: row.$id, account: row.account || "", status: "error", error: litmediaError }
+        );
+        continue;
+      }
+
+      results.push(await refreshCodexRow(databases, databaseId, collection.$id, row, updatedRows));
     }
   };
   await Promise.all(

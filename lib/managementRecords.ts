@@ -149,6 +149,10 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "account", type: "string", size: 200, required: false },
       { key: "quotaRemaining", type: "integer", required: false },
       { key: "quotaPoints", type: "integer", required: false },
+      // LitMedia 每日簽到的帳號槽位（1–33 或槽位名），用來對上 AutoSignLitVideo 的結果
+      { key: "litmediaAccount", type: "string", size: 100, required: false },
+      // 點數是「上一次簽到成功當下」的數字，這裡存那個時刻，不是寫入時間
+      { key: "pointsSyncedAt", type: "datetime", required: false },
       { key: "quotaRatio", type: "integer", required: false },
       { key: "quotaExpiry", type: "datetime", required: false },
       { key: "ratio5h", type: "integer", required: false },
@@ -512,6 +516,7 @@ export function emptyQuotaForm(name = ""): QuotaFormData {
     account: "",
     quotaRemaining: 0,
     quotaPoints: 0,
+    litmediaAccount: "",
     quotaRatio: 0,
     quotaExpiry: "",
     ratio5h: 0,
@@ -533,6 +538,7 @@ export function toQuotaForm(source: Quota): QuotaFormData {
     account: source.account || "",
     quotaRemaining: Number(source.quotaRemaining || 0),
     quotaPoints: Number(source.quotaPoints || 0),
+    litmediaAccount: source.litmediaAccount || "",
     quotaRatio: source.quotaRatio == null ? 0 : Number(source.quotaRatio),
     quotaExpiry: source.quotaExpiry ? source.quotaExpiry.slice(0, 10) : "",
     ratio5h: source.ratio5h == null ? 0 : Number(source.ratio5h),
@@ -564,6 +570,7 @@ export function buildQuotaWritePayload(
     account: asOptionalText(body.account, "帳號", 200),
     quotaRemaining: asNonNegativeInteger(body.quotaRemaining, "額度剩餘次數"),
     quotaPoints: asNonNegativeInteger(body.quotaPoints, "額度剩餘點數"),
+    litmediaAccount: asOptionalText(body.litmediaAccount, "LitMedia 簽到帳號", 100),
     quotaRatio: asNonNegativeInteger(body.quotaRatio, "額度剩餘比例"),
     note: asOptionalText(body.note, "備註", 3337),
   };
