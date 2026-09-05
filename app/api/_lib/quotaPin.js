@@ -19,7 +19,7 @@ export const QUOTA_PIN_DOCUMENT_ID = "quota";
 export const QUOTA_PIN_LENGTH = 4;
 
 export const QUOTA_PIN_NOT_SET_MESSAGE =
-  "尚未設定四位數密碼，請先在鋒兄額度設定密碼後再試。";
+  "尚未設定四位數密碼。請按鋒兄額度頁上方工具列的「設定四位數密碼」建立後再試。";
 
 export function isQuotaPinFormatValid(pin) {
   return typeof pin === "string" && new RegExp(`^\\d{${QUOTA_PIN_LENGTH}}$`).test(pin);

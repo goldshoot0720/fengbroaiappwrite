@@ -155,6 +155,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Quota | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // accessToken 的四位數密碼（比照 Resend 通知密碼，存在 Appwrite）
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [pinPanelOpen, setPinPanelOpen] = useState(false);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const importCloseTimer = useRef<number | null>(null);
   const [importPreview, setImportPreview] = useState<{ data: QuotaFormData[]; errors: string[] } | null>(null);
@@ -203,6 +206,21 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     () => [...new Set(items.map((item) => item.name.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-Hant")),
     [items],
   );
+
+  // 只讀「有沒有設定過密碼」，不會拿到密碼內容
+  useEffect(() => {
+    let cancelled = false;
+    fetchApi<{ hasPin: boolean }>(`${API_ENDPOINTS.QUOTA}/pin`)
+      .then((data) => {
+        if (!cancelled) setHasPin(Boolean(data.hasPin));
+      })
+      .catch(() => {
+        if (!cancelled) setHasPin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const groups = useMemo<ServiceGroup[]>(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("zh-Hant");
@@ -494,6 +512,16 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
           <Button
             type="button"
             variant="outline"
+            onClick={() => setPinPanelOpen((open) => !open)}
+            title="設定或變更顯示 accessToken 所需的四位數密碼"
+            className={cn(hasPin === false && "border-accent text-accent-strong")}
+          >
+            <KeyRound />
+            {hasPin === false ? "設定四位數密碼" : "變更四位數密碼"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
             onClick={() => csvInputRef.current?.click()}
             disabled={loading || busy}
             title="從 CSV 匯入額度紀錄（相同服務與帳號會更新）"
@@ -681,6 +709,8 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                   hasExistingToken={Boolean(
                     editingId && items.some((item) => item.$id === editingId && item.hasAccessToken)
                   )}
+                  hasPin={hasPin}
+                  onOpenPinPanel={() => setPinPanelOpen(true)}
                 />
               </>
             ) : null}
@@ -705,6 +735,14 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
             </Button>
           </div>
         </form>
+      ) : null}
+
+      {pinPanelOpen ? (
+        <QuotaPinPanel
+          hasPin={Boolean(hasPin)}
+          onSaved={() => setHasPin(true)}
+          onClose={() => setPinPanelOpen(false)}
+        />
       ) : null}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
@@ -810,12 +848,17 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                               { key: "5h", prefix: "5 小時", ratio: item.ratio5h, expiry: item.expiry5h },
                               { key: "week", prefix: "一週", ratio: item.ratioWeek, expiry: item.expiryWeek },
                               { key: "month", prefix: "一月", ratio: item.ratioMonth, expiry: item.expiryMonth },
-                            ].map((plan) => ({
-                              ...plan,
+                            ].map((plan) => {
                               // 有填重設時間才算「有在追蹤這段」，0% 才是真的用完而不是沒填
-                              reached: Boolean(plan.expiry) && (plan.ratio ?? 0) === 0,
-                              ratioText: ratioLabel(plan.ratio),
-                            }))
+                              const depleted = Boolean(plan.expiry) && (plan.ratio ?? 0) === 0;
+                              return {
+                                ...plan,
+                                depleted,
+                                // 手動填的數字不確定是不是最新，只有 accessToken 帶回來的才敢示警
+                                warn: depleted && Boolean(item.hasAccessToken),
+                                ratioText: depleted ? "0% 剩餘" : ratioLabel(plan.ratio),
+                              };
+                            })
                           : [];
                         return (
                           <div key={item.$id} className={cn("grid gap-4 px-4 py-4 sm:grid-cols-2 xl:items-start xl:px-5", quotaRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
@@ -857,14 +900,15 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                         key={plan.key}
                                         className={cn(
                                           "rounded-full px-2 py-0.5 text-xs",
-                                          plan.reached
+                                          plan.warn
                                             ? "bg-destructive/12 font-medium text-destructive"
                                             : "bg-accent/12 text-foreground"
                                         )}
                                       >
                                         {plan.prefix}{" "}
-                                        {plan.reached ? "0% 剩餘 · 已達使用上限" : plan.ratioText ?? ""}
-                                        {(plan.reached || plan.ratioText) && plan.expiry ? " · " : ""}
+                                        {plan.ratioText ?? ""}
+                                        {plan.warn ? " · 已達使用上限" : ""}
+                                        {plan.ratioText && plan.expiry ? " · " : ""}
                                         {plan.expiry ? `重設 ${plan.expiry}` : ""}
                                       </span>
                                     ) : null)}
@@ -1024,6 +1068,148 @@ function SummaryValue({ label, value, icon }: { label: string; value: number; ic
   );
 }
 
+/**
+ * 顯示 accessToken 所需的四位數密碼設定面板。
+ *
+ * 比照 Resend 通知密碼：沒有預設值，第一次使用時自己設定，
+ * 以 scrypt hash 存在 Appwrite，程式碼與環境變數都不會有這組密碼。
+ */
+function QuotaPinPanel({
+  hasPin,
+  onSaved,
+  onClose,
+}: {
+  hasPin: boolean;
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [status, setStatus] = useState("");
+  const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const onlyDigits = (value: string) => value.replace(/\D/g, "").slice(0, 4);
+
+  const handleSave = async () => {
+    if (!/^\d{4}$/.test(newPin)) {
+      setFailed(true);
+      setStatus("密碼必須是四位數字");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setFailed(true);
+      setStatus("兩次輸入的密碼不一致");
+      return;
+    }
+    if (hasPin && !/^\d{4}$/.test(currentPin)) {
+      setFailed(true);
+      setStatus("請輸入目前的四位數密碼");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await fetchApi(`${API_ENDPOINTS.QUOTA}/pin`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(hasPin ? { pin: currentPin, newPin } : { newPin }),
+      });
+      onSaved();
+      setFailed(false);
+      setStatus(hasPin ? "密碼已變更。" : "密碼已建立，現在可以顯示 accessToken 與帶入用量了。");
+      setCurrentPin("");
+      setNewPin("");
+      setConfirmPin("");
+    } catch (err) {
+      setFailed(true);
+      setStatus(err instanceof Error ? err.message : "設定密碼失敗");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-[var(--line-soft)] bg-accent/5 p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <KeyRound className="size-4" />
+            {hasPin ? "變更四位數密碼" : "設定四位數密碼"}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            顯示 accessToken 明文、或用已存的 token 帶入用量時需要這組密碼。
+            密碼以雜湊存放，忘記只能重設、無法查回。
+          </p>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          收合
+        </Button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        {hasPin ? (
+          <label className="text-sm">
+            <span className="mb-1.5 block font-medium text-foreground">目前密碼</span>
+            <Input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={4}
+              placeholder="••••"
+              value={currentPin}
+              onChange={(event) => setCurrentPin(onlyDigits(event.target.value))}
+              className="h-10 w-28 text-center tracking-[0.4em]"
+            />
+          </label>
+        ) : null}
+        <label className="text-sm">
+          <span className="mb-1.5 block font-medium text-foreground">
+            {hasPin ? "新密碼" : "四位數密碼"}
+          </span>
+          <Input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            placeholder="••••"
+            value={newPin}
+            onChange={(event) => setNewPin(onlyDigits(event.target.value))}
+            className="h-10 w-28 text-center tracking-[0.4em]"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1.5 block font-medium text-foreground">再輸入一次</span>
+          <Input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            placeholder="••••"
+            value={confirmPin}
+            onChange={(event) => setConfirmPin(onlyDigits(event.target.value))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void handleSave();
+            }}
+            className="h-10 w-28 text-center tracking-[0.4em]"
+          />
+        </label>
+        <Button type="button" onClick={handleSave} disabled={saving} className="h-10">
+          {saving ? <RefreshCw className="mr-1 size-4 animate-spin" /> : null}
+          {hasPin ? "變更密碼" : "建立密碼"}
+        </Button>
+      </div>
+
+      {status ? (
+        <p className={cn("mt-3 text-sm", failed ? "text-destructive" : "text-muted-foreground")}>
+          {status}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 interface UsageResponse extends CodexUsageSnapshot {
   quotaId: string | null;
   quotaName: string;
@@ -1042,15 +1228,17 @@ function CodexAccessTokenField({
   setForm,
   quotaId,
   hasExistingToken,
+  hasPin,
+  onOpenPinPanel,
 }: {
   form: QuotaFormData;
   setForm: React.Dispatch<React.SetStateAction<QuotaFormData>>;
   quotaId: string | null;
   hasExistingToken: boolean;
+  hasPin: boolean | null;
+  onOpenPinPanel: () => void;
 }) {
   const [pin, setPin] = useState("");
-  const [newPin, setNewPin] = useState("");
-  const [hasPin, setHasPin] = useState<boolean | null>(null);
   const [status, setStatus] = useState("");
   const [failed, setFailed] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -1058,46 +1246,6 @@ function CodexAccessTokenField({
   const typedCredential = form.accessToken ? parseChatGptSession(form.accessToken) : null;
   // 手打的 token 直接用；沿用已存的 token 才需要密碼
   const needsPin = !typedCredential && hasExistingToken;
-
-  // 比照 Resend 通知密碼：密碼存在 Appwrite，第一次使用時由使用者自己設定
-  useEffect(() => {
-    let cancelled = false;
-    fetchApi<{ hasPin: boolean }>(`${API_ENDPOINTS.QUOTA}/pin`)
-      .then((data) => {
-        if (!cancelled) setHasPin(Boolean(data.hasPin));
-      })
-      .catch(() => {
-        if (!cancelled) setHasPin(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleCreatePin = async () => {
-    if (!/^\d{4}$/.test(newPin)) {
-      setFailed(true);
-      setStatus("密碼必須是四位數字");
-      return;
-    }
-    setFetching(true);
-    try {
-      await fetchApi(`${API_ENDPOINTS.QUOTA}/pin`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPin }),
-      });
-      setHasPin(true);
-      setNewPin("");
-      setFailed(false);
-      setStatus("四位數密碼已建立，之後顯示 accessToken 或帶入用量都會用這組。");
-    } catch (err) {
-      setFailed(true);
-      setStatus(err instanceof Error ? err.message : "設定密碼失敗");
-    } finally {
-      setFetching(false);
-    }
-  };
 
   const applyUsage = (usage: UsageResponse) => {
     const fields = toQuotaFields(usage);
@@ -1173,27 +1321,18 @@ function CodexAccessTokenField({
       />
       {hasPin === false ? (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-accent/10 px-3 py-2">
-          <span className="text-xs text-foreground">首次使用請先設定四位數密碼：</span>
-          <Input
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={4}
-            placeholder="••••"
-            value={newPin}
-            onChange={(event) => setNewPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
-            className="h-9 w-24 text-center tracking-[0.4em]"
-            aria-label="設定四位數密碼"
-          />
+          <span className="text-xs text-foreground">
+            還沒設定四位數密碼，顯示 accessToken 與帶入用量都需要它。
+          </span>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={handleCreatePin}
-            disabled={fetching || newPin.length !== 4}
+            onClick={onOpenPinPanel}
             className="rounded-lg"
           >
-            建立密碼
+            <KeyRound className="mr-1 h-3.5 w-3.5" />
+            去設定密碼
           </Button>
         </div>
       ) : null}
