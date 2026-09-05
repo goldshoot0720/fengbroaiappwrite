@@ -16,11 +16,13 @@ import {
   getUsageTone,
   hasDateWindowReset,
   hasFiveHourWindowReset,
+  isFiveHourResetPlausible,
   isUsageStale,
   normalizeCodexUsage,
   normalizeResetCredits,
   parseDateField,
   projectNextFiveHourReset,
+  QUOTA_TIME_ZONE,
   resolveFiveHourReset,
   toQuotaFields,
   USAGE_FRESH_WINDOW_MS,
@@ -242,9 +244,9 @@ describe("重設點數與視窗標題", () => {
 
 describe("帶入鋒兄額度表單欄位", () => {
   it("5 小時給 HH:mm、一週給 YYYY-MM-DD，積分放剩餘次數", () => {
-    // 用本地時間造重設時刻，確保欄位跟著使用者時區走
-    const reset5h = new Date(2026, 8, 5, 17, 28, 0);
-    const resetWeek = new Date(2026, 8, 11, 20, 51, 0);
+    // 用台北時間造重設時刻——欄位一律以台北為準，跟執行環境的時區無關
+    const reset5h = new Date("2026-09-05T17:28:00+08:00");
+    const resetWeek = new Date("2026-09-11T20:51:00+08:00");
 
     const snapshot = normalizeCodexUsage(
       {
@@ -308,9 +310,26 @@ describe("用量快照的新舊判斷", () => {
     assert.equal(resolveFiveHourReset("17:11", syncedAt), at("2026-09-05T17:11:00+08:00"));
   });
 
-  it("同步當下已經過了那個時分，指的是隔天那一次", () => {
+  it("同步當下已經過了那個時分，往後找下一次出現的時分", () => {
     const syncedAt = at("2026-09-05T18:00:00+08:00");
     assert.equal(resolveFiveHourReset("17:11", syncedAt), at("2026-09-06T17:11:00+08:00"));
+  });
+
+  it("5 小時視窗的重設點不可能離同步時刻超過 5 小時", () => {
+    const syncedAt = at("2026-09-05T20:33:00+08:00");
+    // 時區換算錯的舊值：算出來要等 20 小時，明顯不是這個視窗的
+    const wrong = resolveFiveHourReset("17:02", syncedAt);
+    assert.equal(isFiveHourResetPlausible(wrong, syncedAt), false);
+
+    const right = resolveFiveHourReset("01:02", syncedAt);
+    assert.equal(right, at("2026-09-06T01:02:00+08:00"));
+    assert.equal(isFiveHourResetPlausible(right, syncedAt), true);
+  });
+
+  it("對不上 5 小時上界就不給倒數，只標成不可信", () => {
+    const syncedAt = at("2026-09-05T20:33:00+08:00");
+    const projected = projectNextFiveHourReset("17:02", syncedAt, at("2026-09-05T20:35:00+08:00"));
+    assert.equal(projected.reliable, false);
   });
 
   it("不知道同步時間就不猜", () => {
@@ -328,13 +347,13 @@ describe("用量快照的新舊判斷", () => {
     const syncedAt = at("2026-09-05T16:40:00+08:00");
 
     const before = projectNextFiveHourReset("17:11", syncedAt, at("2026-09-05T17:00:00+08:00"));
-    assert.deepEqual(before, { at: at("2026-09-05T17:11:00+08:00"), projected: false });
+    assert.deepEqual(before, { at: at("2026-09-05T17:11:00+08:00"), projected: false, reliable: true });
 
     const after = projectNextFiveHourReset("17:11", syncedAt, at("2026-09-05T19:51:00+08:00"));
-    assert.deepEqual(after, { at: at("2026-09-05T22:11:00+08:00"), projected: true });
+    assert.deepEqual(after, { at: at("2026-09-05T22:11:00+08:00"), projected: true, reliable: true });
 
     const muchLater = projectNextFiveHourReset("17:11", syncedAt, at("2026-09-06T04:00:00+08:00"));
-    assert.deepEqual(muchLater, { at: at("2026-09-06T08:11:00+08:00"), projected: true });
+    assert.deepEqual(muchLater, { at: at("2026-09-06T08:11:00+08:00"), projected: true, reliable: true });
   });
 
   it("一週／一月只到日，要跨過那天結束才敢說重設過", () => {
@@ -351,5 +370,44 @@ describe("用量快照的新舊判斷", () => {
     assert.equal(formatCountdown(now + 140 * 60_000, now), "還有 2 小時 20 分");
     assert.equal(formatCountdown(now + 120 * 60_000, now), "還有 2 小時");
     assert.equal(formatCountdown(now - 60_000, now), "即將重設");
+  });
+});
+
+/**
+ * 這兩個欄位存的是沒帶時區的牆上時鐘字串。瀏覽器算跟 Vercel（UTC）算若各憑本地時區，
+ * 同一份用量會差 8 小時——所以一律釘在台北時間。
+ */
+describe("額度時間一律以台北時間為準", () => {
+  const snapshot = normalizeCodexUsage(
+    {
+      rate_limits: {
+        primary_window: {
+          used_percent: 0,
+          window_minutes: 300,
+          // 台北時間 2026-09-06 01:02
+          resets_at: "2026-09-05T17:02:00Z",
+        },
+        secondary_window: {
+          used_percent: 47,
+          window_minutes: 60 * 24 * 7,
+          // 台北時間 2026-09-11 07:30，UTC 還在 09-10
+          resets_at: "2026-09-10T23:30:00Z",
+        },
+      },
+    },
+    "test",
+  );
+
+  it("不管執行環境在哪個時區都給台北的牆上時間", () => {
+    assert.equal(QUOTA_TIME_ZONE, "Asia/Taipei");
+    const fields = toQuotaFields(snapshot);
+    assert.equal(fields.expiry5h, "01:02");
+    assert.equal(fields.expiryWeek, "2026-09-11");
+  });
+
+  it("明確指定 UTC 就會看到差異，證明時區真的有生效", () => {
+    const fields = toQuotaFields(snapshot, "UTC");
+    assert.equal(fields.expiry5h, "17:02");
+    assert.equal(fields.expiryWeek, "2026-09-10");
   });
 });

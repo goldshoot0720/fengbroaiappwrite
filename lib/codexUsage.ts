@@ -277,20 +277,110 @@ function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }
 
-/** 本地時間的 HH:mm，對應鋒兄額度的「5 小時到期」欄位格式。 */
-export function toLocalTimeField(iso: string | null): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+/**
+ * 額度欄位一律以台北時間為準。
+ *
+ * expiry5h／expiryWeek 存的是「牆上時鐘」字串、沒有帶時區，
+ * 換算時如果各憑執行環境（瀏覽器是使用者時區、Vercel 是 UTC），
+ * 同一份資料就會差好幾個小時。這裡把基準釘死，兩邊算出來才會一樣。
+ */
+export const QUOTA_TIME_ZONE = "Asia/Taipei";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** 指定時區在某個時刻的 UTC 位移（毫秒）。 */
+function zoneOffsetMs(instant: number, timeZone: string): number {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).formatToParts(new Date(instant));
+  } catch {
+    return 0;
+  }
+
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  const asUtc = Date.UTC(
+    read("year"),
+    read("month") - 1,
+    read("day"),
+    read("hour"),
+    read("minute"),
+    read("second")
+  );
+  if (Number.isNaN(asUtc)) return 0;
+  // 對齊到整秒再相減，位移才不會被毫秒污染
+  return asUtc - (instant - ((instant % 1000) + 1000) % 1000);
 }
 
-/** 本地時間的 YYYY-MM-DD，對應「一週到期」欄位格式。 */
-export function toLocalDateField(iso: string | null): string {
-  if (!iso) return "";
+/** 某個時刻在指定時區裡「當天過了多少毫秒」。 */
+function zonedMsOfDay(instant: number, timeZone: string): number {
+  const shifted = instant + zoneOffsetMs(instant, timeZone);
+  return ((shifted % MS_PER_DAY) + MS_PER_DAY) % MS_PER_DAY;
+}
+
+/** 取出指定時區（預設台北）下的年月日時分。 */
+function readZonedParts(
+  iso: string | null,
+  timeZone: string = QUOTA_TIME_ZONE
+): { year: string; month: string; day: string; hour: string; minute: string } | null {
+  if (!iso) return null;
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  if (Number.isNaN(date.getTime())) return null;
+
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).formatToParts(date);
+  } catch {
+    // 時區字串無效時退回執行環境的本地時間，至少不要整個欄位消失
+    return {
+      year: String(date.getFullYear()),
+      month: pad2(date.getMonth() + 1),
+      day: pad2(date.getDate()),
+      hour: pad2(date.getHours()),
+      minute: pad2(date.getMinutes()),
+    };
+  }
+
+  const find = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || "";
+
+  return {
+    year: find("year"),
+    month: find("month"),
+    day: find("day"),
+    hour: find("hour"),
+    minute: find("minute"),
+  };
+}
+
+/** HH:mm（台北時間），對應鋒兄額度的「5 小時到期」欄位格式。 */
+export function toLocalTimeField(iso: string | null, timeZone: string = QUOTA_TIME_ZONE): string {
+  const parts = readZonedParts(iso, timeZone);
+  return parts ? `${parts.hour}:${parts.minute}` : "";
+}
+
+/** YYYY-MM-DD（台北時間），對應「一週到期」欄位格式。 */
+export function toLocalDateField(iso: string | null, timeZone: string = QUOTA_TIME_ZONE): string {
+  const parts = readZonedParts(iso, timeZone);
+  return parts ? `${parts.year}-${parts.month}-${parts.day}` : "";
 }
 
 export interface QuotaFieldsFromUsage {
@@ -305,15 +395,18 @@ export interface QuotaFieldsFromUsage {
  * 把 Codex 用量轉成「鋒兄額度」表單欄位：
  * 剩餘比例取整數，5 小時到期用 HH:mm，一週到期用 YYYY-MM-DD，剩餘積分放 quotaRemaining。
  */
-export function toQuotaFields(snapshot: CodexUsageSnapshot): QuotaFieldsFromUsage {
+export function toQuotaFields(
+  snapshot: CodexUsageSnapshot,
+  timeZone: string = QUOTA_TIME_ZONE
+): QuotaFieldsFromUsage {
   const primary = snapshot.windows.find((window) => window.key === "primary");
   const secondary = snapshot.windows.find((window) => window.key === "secondary");
 
   return {
     ratio5h: Math.round(primary?.remainingPercent ?? 0),
-    expiry5h: toLocalTimeField(primary?.resetsAt ?? null),
+    expiry5h: toLocalTimeField(primary?.resetsAt ?? null, timeZone),
     ratioWeek: Math.round(secondary?.remainingPercent ?? 0),
-    expiryWeek: toLocalDateField(secondary?.resetsAt ?? null),
+    expiryWeek: toLocalDateField(secondary?.resetsAt ?? null, timeZone),
     quotaRemaining: Math.max(0, Math.round(snapshot.credits ?? 0)),
   };
 }
@@ -348,12 +441,13 @@ const YEAR_MONTH_DAY = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
 
 /**
  * `expiry5h` 只存 HH:mm、沒有日期，必須靠「這份快照何時寫入」還原成絕對時刻：
- * 從寫入當下往後找第一個該時分，那一次才是這份快照所指的重設點。
+ * 從寫入當下往後找第一個該時分（以台北時間為準）。
  * 不知道寫入時間就回 null——寧可不判斷，也不要猜錯後亂標。
  */
 export function resolveFiveHourReset(
   expiry5h: string | null | undefined,
-  syncedAt: number | null | undefined
+  syncedAt: number | null | undefined,
+  timeZone: string = QUOTA_TIME_ZONE
 ): number | null {
   if (!expiry5h || syncedAt == null || !Number.isFinite(syncedAt)) return null;
   const match = FIVE_HOUR_TIME.exec(expiry5h.trim());
@@ -363,12 +457,24 @@ export function resolveFiveHourReset(
   const minutes = Number(match[2]);
   if (hours > 23 || minutes > 59) return null;
 
-  const candidate = new Date(syncedAt);
-  if (Number.isNaN(candidate.getTime())) return null;
-  candidate.setHours(hours, minutes, 0, 0);
-  // 寫入當下已經過了這個時分，代表指的是隔天那一次
-  if (candidate.getTime() < syncedAt) candidate.setDate(candidate.getDate() + 1);
-  return candidate.getTime();
+  const target = (hours * 60 + minutes) * 60_000;
+  let diff = target - zonedMsOfDay(syncedAt, timeZone);
+  if (diff < 0) diff += MS_PER_DAY;
+  return syncedAt + diff;
+}
+
+/**
+ * 5 小時視窗的重設點一定落在同步時刻之後的 5 小時內。
+ * 算出來超過這個上界，就代表那個 HH:mm 不是這份快照的（時區換算錯、或是手填的舊值），
+ * 與其顯示「還有 20 小時」這種自相矛盾的倒數，不如承認這筆時間不可信。
+ */
+export function isFiveHourResetPlausible(
+  reset: number,
+  syncedAt: number,
+  toleranceMs: number = 5 * 60 * 1000
+): boolean {
+  const ahead = reset - syncedAt;
+  return ahead >= 0 && ahead <= FIVE_HOUR_MS + toleranceMs;
 }
 
 /** 5 小時視窗是否已經重設過——是的話，畫面上的比例就是舊視窗的，不能當現況看。 */
@@ -381,23 +487,29 @@ export function hasFiveHourWindowReset(
   return reset !== null && now >= reset;
 }
 
+/** 一週／一月的日期字串在台北時間的當日起點。 */
+function startOfZonedDate(
+  year: number,
+  month: number,
+  day: number,
+  timeZone: string
+): number | null {
+  const asUtc = Date.UTC(year, month - 1, day);
+  if (Number.isNaN(asUtc)) return null;
+  return asUtc - zoneOffsetMs(asUtc, timeZone);
+}
+
 /**
  * 一週／一月只存到「日」，不知道當天幾點重設，
  * 所以要跨過那一天的結束才敢說一定重設過。
  */
 export function hasDateWindowReset(
   expiry: string | null | undefined,
-  now: number = Date.now()
+  now: number = Date.now(),
+  timeZone: string = QUOTA_TIME_ZONE
 ): boolean {
-  if (!expiry) return false;
-  const match = YEAR_MONTH_DAY.exec(expiry.trim());
-  if (!match) return false;
-
-  const end = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  if (Number.isNaN(end.getTime())) return false;
-  end.setDate(end.getDate() + 1);
-  end.setHours(0, 0, 0, 0);
-  return now >= end.getTime();
+  const start = parseDateField(expiry, timeZone);
+  return start !== null && now >= start + MS_PER_DAY;
 }
 
 /** 5 小時視窗的長度，用來把已經過去的重設點推到下一次。 */
@@ -414,13 +526,18 @@ export function projectNextFiveHourReset(
   expiry5h: string | null | undefined,
   syncedAt: number | null | undefined,
   now: number = Date.now()
-): { at: number; projected: boolean } | null {
+): { at: number; projected: boolean; reliable: boolean } | null {
   const reset = resolveFiveHourReset(expiry5h, syncedAt);
   if (reset === null) return null;
-  if (now < reset) return { at: reset, projected: false };
+
+  // 對不上 5 小時上界的值不拿來倒數，只把時間原樣交出去讓畫面標成待確認
+  const reliable = isFiveHourResetPlausible(reset, syncedAt as number);
+  if (!reliable) return { at: reset, projected: false, reliable: false };
+
+  if (now < reset) return { at: reset, projected: false, reliable: true };
 
   const steps = Math.floor((now - reset) / FIVE_HOUR_MS) + 1;
-  return { at: reset + steps * FIVE_HOUR_MS, projected: true };
+  return { at: reset + steps * FIVE_HOUR_MS, projected: true, reliable: true };
 }
 
 /** 倒數文字：只講到分，時間感夠用又不會每秒跳動。 */
@@ -437,11 +554,13 @@ export function formatCountdown(target: number, now: number = Date.now()): strin
   return `還有 ${Math.floor(hours / 24)} 天`;
 }
 
-/** 一週／一月只有日期，回傳那天開始的時刻，用來算「還有幾天」。 */
-export function parseDateField(expiry: string | null | undefined): number | null {
+/** 一週／一月只有日期，回傳那天在台北時間的起點，用來算「還有幾天」。 */
+export function parseDateField(
+  expiry: string | null | undefined,
+  timeZone: string = QUOTA_TIME_ZONE
+): number | null {
   if (!expiry) return null;
   const match = YEAR_MONTH_DAY.exec(expiry.trim());
   if (!match) return null;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return Number.isNaN(date.getTime()) ? null : date.getTime();
+  return startOfZonedDate(Number(match[1]), Number(match[2]), Number(match[3]), timeZone);
 }

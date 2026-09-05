@@ -988,12 +988,14 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 prefix: "5 小時",
                                 ratio: item.ratio5h,
                                 expiry: item.expiry5h,
-                                resetAt: fiveHour?.at ?? null,
+                                // 對不上 5 小時上界的值不拿來倒數，避免出現「還有 20 小時」這種矛盾
+                                resetAt: fiveHour?.reliable ? fiveHour.at : null,
                                 resetLabel: fiveHour
                                   ? toLocalTimeField(new Date(fiveHour.at).toISOString())
                                   : item.expiry5h || "",
                                 // 推算出來的時間只是估計，真正的要等下次同步
                                 projected: Boolean(fiveHour?.projected),
+                                unverified: Boolean(fiveHour && !fiveHour.reliable),
                                 // 重設時刻已經過了，這筆比例講的是上一個視窗
                                 expired: hasFiveHourWindowReset(item.expiry5h, syncedAt, now),
                               },
@@ -1005,6 +1007,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 resetAt: parseDateField(item.expiryWeek),
                                 resetLabel: item.expiryWeek || "",
                                 projected: false,
+                                unverified: false,
                                 expired: hasDateWindowReset(item.expiryWeek, now),
                               },
                               {
@@ -1015,6 +1018,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 resetAt: parseDateField(item.expiryMonth),
                                 resetLabel: item.expiryMonth || "",
                                 projected: false,
+                                unverified: false,
                                 expired: hasDateWindowReset(item.expiryMonth, now),
                               },
                             ].map((plan) => {
@@ -1090,6 +1094,12 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                             <span className="font-semibold tabular-nums">{plan.resetLabel}</span>
                                             {plan.projected ? "（估計）" : ""}
                                             {plan.countdown ? `・${plan.countdown}` : ""}
+                                          </>
+                                        ) : plan.unverified ? (
+                                          <>
+                                            {" · 重設 "}
+                                            <span className="font-semibold tabular-nums">{plan.resetLabel}</span>
+                                            {"（時間待確認）"}
                                           </>
                                         ) : null}
                                         {plan.ratioText ? ` · ${plan.ratioText}` : ""}

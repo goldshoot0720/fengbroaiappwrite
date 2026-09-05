@@ -6,7 +6,12 @@ import { listAllDocuments } from "../_lib/listAllDocuments";
 import { loadCodexSnapshot } from "../_lib/codexClient";
 import { sanitizeQuotaRow } from "../_lib/quotaSanitize";
 import { readStoredCredential } from "../../../lib/chatgptSession";
-import { isUsageStale, toQuotaFields, USAGE_FRESH_WINDOW_MS } from "../../../lib/codexUsage";
+import {
+  isUsageStale,
+  QUOTA_TIME_ZONE,
+  toQuotaFields,
+  USAGE_FRESH_WINDOW_MS,
+} from "../../../lib/codexUsage";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +28,7 @@ export const dynamic = "force-dynamic";
 
 /** 同時最多打幾個帳號；對非公開 API 保守一點，避免突發流量。 */
 const CONCURRENCY = 3;
+
 
 function json(data, status = 200) {
   return NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -56,7 +62,9 @@ async function refreshOne(databases, databaseId, collectionId, row, updatedRows)
     };
   }
 
-  const fields = toQuotaFields(outcome.snapshot);
+  // expiry5h／expiryWeek 是沒帶時區的牆上時鐘字串；這支端點跑在 UTC 的伺服器上，
+  // 一律用台北時間換算，才不會寫成 UTC 的 17:02（＝台北的 01:02）。
+  const fields = toQuotaFields(outcome.snapshot, QUOTA_TIME_ZONE);
   const data = {
     ratio5h: fields.ratio5h,
     expiry5h: fields.expiry5h,
@@ -137,6 +145,7 @@ async function runRefresh(searchParams, options = {}) {
 
   return {
     refreshedAt: new Date().toISOString(),
+    timeZone: QUOTA_TIME_ZONE,
     maxAgeMs,
     checked: targets.length,
     updated: updatedRows.length,
