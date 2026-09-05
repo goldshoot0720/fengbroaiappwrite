@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   Bot,
@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Copy,
   Download,
+  Gauge,
   KeyRound,
   Pencil,
   Plus,
@@ -42,7 +43,17 @@ import {
   quotaImportKey,
 } from "@/lib/quotaCsv";
 import { parseChatGptSession } from "@/lib/chatgptSession";
-import { toQuotaFields, type CodexUsageSnapshot } from "@/lib/codexUsage";
+import {
+  formatCountdown,
+  hasDateWindowReset,
+  hasFiveHourWindowReset,
+  isUsageStale,
+  parseDateField,
+  projectNextFiveHourReset,
+  toLocalTimeField,
+  toQuotaFields,
+  type CodexUsageSnapshot,
+} from "@/lib/codexUsage";
 import { AccessTokenReveal } from "@/components/ui/access-token-reveal";
 import { cn, getExportFilename } from "@/lib/utils";
 import type { Quota, QuotaFormData, QuotaServiceType } from "@/types";
@@ -80,6 +91,35 @@ function ratioLabel(value?: number) {
   return `${value}%`;
 }
 
+/** 相對時間：讓「這份數字有多舊」一眼看得出來。 */
+function formatSince(updatedAt: string | undefined, now: number): string | null {
+  if (!updatedAt) return null;
+  const parsed = new Date(updatedAt).getTime();
+  if (Number.isNaN(parsed)) return null;
+
+  const minutes = Math.floor(Math.max(0, now - parsed) / 60_000);
+  if (minutes < 1) return "剛剛";
+  if (minutes < 60) return `${minutes} 分鐘前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小時前`;
+  return `${Math.floor(hours / 24)} 天前`;
+}
+
+interface QuotaRefreshResult {
+  quotaId: string;
+  account?: string;
+  status: "updated" | "fresh" | "skipped" | "error";
+  error?: string;
+}
+
+interface QuotaRefreshResponse {
+  refreshedAt: string;
+  checked: number;
+  updated: number;
+  failed: number;
+  results: QuotaRefreshResult[];
+}
+
 /**
  * 下一次重設的時間戳，用來把帳號由近到遠排序。
  *
@@ -88,6 +128,11 @@ function ratioLabel(value?: number) {
  */
 function nextResetTime(item: Quota, now: number): number {
   if (item.serviceType === "ai" && item.expiry5h) {
+    const syncedAt = item.$updatedAt ? new Date(item.$updatedAt).getTime() : null;
+    const projected = projectNextFiveHourReset(item.expiry5h, syncedAt, now);
+    if (projected) return projected.at;
+
+    // 沒有同步時間可還原時，退回「從現在算起的下一個 HH:mm」
     const [hours, minutes] = item.expiry5h.split(":").map(Number);
     if (Number.isFinite(hours) && Number.isFinite(minutes)) {
       const candidate = new Date(now);
@@ -169,6 +214,12 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkTotal, setBulkTotal] = useState(0);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  // 用量是快照，畫面得自己往前走：每 30 秒重算一次新舊，回到分頁時立刻重算
+  const [now, setNow] = useState(() => Date.now());
+  const [refreshingUsage, setRefreshingUsage] = useState(false);
+  const [usageNote, setUsageNote] = useState<string | null>(null);
+  const usageInFlight = useRef(false);
+  const lastUsageAttempt = useRef(0);
 
   useEffect(() => {
     setFormOpen(false);
@@ -183,6 +234,8 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     setImportPreview(null);
     setImportResult(null);
     setImporting(false);
+    setUsageNote(null);
+    lastUsageAttempt.current = 0;
     if (importCloseTimer.current) {
       window.clearTimeout(importCloseTimer.current);
       importCloseTimer.current = null;
@@ -221,6 +274,66 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    const timer = window.setInterval(tick, 30_000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
+  }, []);
+
+  // 只有超過保鮮期（USAGE_FRESH_WINDOW_MS）的 AI 帳號要重抓，其餘沿用現有數字
+  const staleQuotaIds = useMemo(
+    () => items
+      .filter((item) => item.serviceType === "ai" && item.hasAccessToken && isUsageStale(item.$updatedAt, now))
+      .map((item) => item.$id),
+    [items, now],
+  );
+
+  const refreshUsage = useCallback(async (options: { force?: boolean; quotaIds?: string[] } = {}) => {
+    if (usageInFlight.current) return;
+    usageInFlight.current = true;
+    lastUsageAttempt.current = Date.now();
+    setRefreshingUsage(true);
+    try {
+      const result = await fetchApi<QuotaRefreshResponse>(API_ENDPOINTS.QUOTA_REFRESH, {
+        method: "POST",
+        cache: "no-store",
+        body: JSON.stringify({
+          force: options.force === true,
+          ...(options.quotaIds?.length ? { quotaIds: options.quotaIds } : {}),
+        }),
+      });
+      const firstError = result.results.find((entry) => entry.status === "error");
+      setUsageNote(
+        firstError
+          ? `${result.failed} 個帳號的用量更新失敗（${firstError.account || "帳號"}）：${firstError.error || "原因不明"}`
+          : null,
+      );
+      if (result.updated > 0) await fetchAll();
+      setNow(Date.now());
+    } catch (err) {
+      setUsageNote(err instanceof Error ? err.message : "用量自動更新失敗");
+    } finally {
+      usageInFlight.current = false;
+      setRefreshingUsage(false);
+    }
+  }, [fetchAll]);
+
+  // 過期就自動補上；失敗後隔一分鐘才再試，不要每次 tick 都重打
+  useEffect(() => {
+    if (loading || staleQuotaIds.length === 0) return;
+    if (usageInFlight.current) return;
+    if (now - lastUsageAttempt.current < 60_000) return;
+    void refreshUsage({ quotaIds: staleQuotaIds });
+  }, [loading, now, staleQuotaIds, refreshUsage]);
+
   const groups = useMemo<ServiceGroup[]>(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("zh-Hant");
     const filtered = items.filter((item) => {
@@ -239,7 +352,6 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     });
 
     // 同一個服務底下的帳號依「下次重設時間」由近到遠；沒有重設時間的排最後、再以帳號排序
-    const now = Date.now();
     return [...grouped.values()]
       .map((group) => ({
         ...group,
@@ -251,7 +363,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
         }),
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
-  }, [items, query, typeFilter]);
+  }, [items, now, query, typeFilter]);
 
   const visibleIds = useMemo(
     () => groups.flatMap((group) => group.items.map((item) => item.$id).filter(Boolean)),
@@ -507,6 +619,16 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
           <Button type="button" variant="outline" onClick={() => void fetchAll()} disabled={loading || busy}>
             <RefreshCw className={loading ? "animate-spin" : ""} />
             重新整理
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void refreshUsage({ force: true })}
+            disabled={loading || busy || refreshingUsage}
+            title="用已存的 accessToken 立刻重抓 AI 服務的 5 小時／一週用量並寫回"
+          >
+            <Gauge className={refreshingUsage ? "animate-pulse" : ""} />
+            {refreshingUsage ? "更新用量中…" : "更新用量"}
           </Button>
           {hasPin === false ? (
             <Button
@@ -772,6 +894,13 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
         </div>
       ) : null}
       {!formOpen && actionError ? <ErrorMessage>{actionError}</ErrorMessage> : null}
+      {usageNote ? (
+        <div role="status" className="rounded-2xl border border-[var(--line-soft)] bg-accent/8 p-4 text-sm leading-6 text-muted-foreground">
+          <p className="font-semibold text-foreground">用量沒有更新成功</p>
+          <p className="mt-1">{usageNote}</p>
+          <p className="mt-1">畫面上的比例是上次成功同步的結果，可能已經不是現況。</p>
+        </div>
+      ) : null}
 
       {loading && items.length === 0 ? (
         <LoadingSpinner text="載入額度資料…" className="min-h-48" />
@@ -836,20 +965,64 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     <div className="divide-y divide-[var(--line-soft)]">
                       {group.items.map((item) => {
                         const basicRatio = ratioLabel(item.quotaRatio);
+                        // 這些比例是「上次同步當下」的快照，$updatedAt 就是那個當下
+                        const syncedAt = item.$updatedAt ? new Date(item.$updatedAt).getTime() : null;
+                        const syncedLabel = formatSince(item.$updatedAt, now);
+                        // 使用者最在意「下次什麼時候重設」，所以過去的重設點要推到下一次而不是照抄
+                        const fiveHour = projectNextFiveHourReset(item.expiry5h, syncedAt, now);
                         const aiPlans = item.serviceType === "ai"
                           ? [
-                              { key: "5h", prefix: "5 小時", ratio: item.ratio5h, expiry: item.expiry5h },
-                              { key: "week", prefix: "一週", ratio: item.ratioWeek, expiry: item.expiryWeek },
-                              { key: "month", prefix: "一月", ratio: item.ratioMonth, expiry: item.expiryMonth },
+                              {
+                                key: "5h",
+                                prefix: "5 小時",
+                                ratio: item.ratio5h,
+                                expiry: item.expiry5h,
+                                resetAt: fiveHour?.at ?? null,
+                                resetLabel: fiveHour
+                                  ? toLocalTimeField(new Date(fiveHour.at).toISOString())
+                                  : item.expiry5h || "",
+                                // 推算出來的時間只是估計，真正的要等下次同步
+                                projected: Boolean(fiveHour?.projected),
+                                // 重設時刻已經過了，這筆比例講的是上一個視窗
+                                expired: hasFiveHourWindowReset(item.expiry5h, syncedAt, now),
+                              },
+                              {
+                                key: "week",
+                                prefix: "一週",
+                                ratio: item.ratioWeek,
+                                expiry: item.expiryWeek,
+                                resetAt: parseDateField(item.expiryWeek),
+                                resetLabel: item.expiryWeek || "",
+                                projected: false,
+                                expired: hasDateWindowReset(item.expiryWeek, now),
+                              },
+                              {
+                                key: "month",
+                                prefix: "一月",
+                                ratio: item.ratioMonth,
+                                expiry: item.expiryMonth,
+                                resetAt: parseDateField(item.expiryMonth),
+                                resetLabel: item.expiryMonth || "",
+                                projected: false,
+                                expired: hasDateWindowReset(item.expiryMonth, now),
+                              },
                             ].map((plan) => {
                               // 有填重設時間才算「有在追蹤這段」，0% 才是真的用完而不是沒填
                               const depleted = Boolean(plan.expiry) && (plan.ratio ?? 0) === 0;
+                              const upcoming = plan.resetAt !== null && plan.resetAt > now;
                               return {
                                 ...plan,
                                 depleted,
-                                // 手動填的數字不確定是不是最新，只有 accessToken 帶回來的才敢示警
-                                warn: depleted && Boolean(item.hasAccessToken),
-                                ratioText: depleted ? "0% 剩餘" : ratioLabel(plan.ratio),
+                                upcoming,
+                                countdown: upcoming ? formatCountdown(plan.resetAt as number, now) : null,
+                                // 手動填的數字不確定是不是最新，只有 accessToken 帶回來的才敢示警；
+                                // 已經過了重設時刻就更不能標紅，那是舊視窗的數字
+                                warn: depleted && !plan.expired && Boolean(item.hasAccessToken),
+                                ratioText: plan.expired
+                                  ? "已重設・待更新"
+                                  : depleted
+                                    ? "0% 剩餘"
+                                    : ratioLabel(plan.ratio),
                               };
                             })
                           : [];
@@ -898,14 +1071,27 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                             : "bg-accent/12 text-foreground"
                                         )}
                                       >
-                                        {plan.prefix}{" "}
-                                        {plan.ratioText ?? ""}
+                                        {plan.prefix}
+                                        {plan.upcoming ? (
+                                          <>
+                                            {" · 下次重設 "}
+                                            <span className="font-semibold tabular-nums">{plan.resetLabel}</span>
+                                            {plan.projected ? "（估計）" : ""}
+                                            {plan.countdown ? `・${plan.countdown}` : ""}
+                                          </>
+                                        ) : null}
+                                        {plan.ratioText ? ` · ${plan.ratioText}` : ""}
                                         {plan.warn ? " · 已達使用上限" : ""}
-                                        {plan.ratioText && plan.expiry ? " · " : ""}
-                                        {plan.expiry ? `重設 ${plan.expiry}` : ""}
                                       </span>
                                     ) : null)}
                                   </div>
+                                ) : null}
+                                {item.serviceType === "ai" && syncedLabel ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.hasAccessToken
+                                      ? `用量更新於 ${syncedLabel}${refreshingUsage ? "・更新中…" : ""}`
+                                      : `手動填寫於 ${syncedLabel}`}
+                                  </p>
                                 ) : null}
                               </div>
                             </Cell>

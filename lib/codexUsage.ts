@@ -324,3 +324,124 @@ export function getUsageTone(remainingPercent: number): "danger" | "warning" | "
   if (remainingPercent <= 20) return "warning";
   return "ok";
 }
+
+/**
+ * 用量快照的保鮮期。超過這段時間就該重新抓一次，
+ * 否則畫面會停在早就重設過的舊視窗，使用者看到的是假的「已達使用上限」。
+ */
+export const USAGE_FRESH_WINDOW_MS = 33 * 60 * 1000;
+
+/** 距離上次寫入超過保鮮期就算過期；沒有時間戳一律當過期。 */
+export function isUsageStale(
+  updatedAt: string | null | undefined,
+  now: number = Date.now(),
+  maxAgeMs: number = USAGE_FRESH_WINDOW_MS
+): boolean {
+  if (!updatedAt) return true;
+  const parsed = new Date(updatedAt).getTime();
+  if (Number.isNaN(parsed)) return true;
+  return now - parsed >= maxAgeMs;
+}
+
+const FIVE_HOUR_TIME = /^(\d{1,2}):(\d{2})$/;
+const YEAR_MONTH_DAY = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
+
+/**
+ * `expiry5h` 只存 HH:mm、沒有日期，必須靠「這份快照何時寫入」還原成絕對時刻：
+ * 從寫入當下往後找第一個該時分，那一次才是這份快照所指的重設點。
+ * 不知道寫入時間就回 null——寧可不判斷，也不要猜錯後亂標。
+ */
+export function resolveFiveHourReset(
+  expiry5h: string | null | undefined,
+  syncedAt: number | null | undefined
+): number | null {
+  if (!expiry5h || syncedAt == null || !Number.isFinite(syncedAt)) return null;
+  const match = FIVE_HOUR_TIME.exec(expiry5h.trim());
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+
+  const candidate = new Date(syncedAt);
+  if (Number.isNaN(candidate.getTime())) return null;
+  candidate.setHours(hours, minutes, 0, 0);
+  // 寫入當下已經過了這個時分，代表指的是隔天那一次
+  if (candidate.getTime() < syncedAt) candidate.setDate(candidate.getDate() + 1);
+  return candidate.getTime();
+}
+
+/** 5 小時視窗是否已經重設過——是的話，畫面上的比例就是舊視窗的，不能當現況看。 */
+export function hasFiveHourWindowReset(
+  expiry5h: string | null | undefined,
+  syncedAt: number | null | undefined,
+  now: number = Date.now()
+): boolean {
+  const reset = resolveFiveHourReset(expiry5h, syncedAt);
+  return reset !== null && now >= reset;
+}
+
+/**
+ * 一週／一月只存到「日」，不知道當天幾點重設，
+ * 所以要跨過那一天的結束才敢說一定重設過。
+ */
+export function hasDateWindowReset(
+  expiry: string | null | undefined,
+  now: number = Date.now()
+): boolean {
+  if (!expiry) return false;
+  const match = YEAR_MONTH_DAY.exec(expiry.trim());
+  if (!match) return false;
+
+  const end = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(end.getTime())) return false;
+  end.setDate(end.getDate() + 1);
+  end.setHours(0, 0, 0, 0);
+  return now >= end.getTime();
+}
+
+/** 5 小時視窗的長度，用來把已經過去的重設點推到下一次。 */
+const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
+
+/**
+ * 下一次 5 小時重設的時刻。
+ *
+ * 快照裡的重設點過了就往後推整數個 5 小時，
+ * 讓畫面永遠回答「下次什麼時候」而不是停在一個已經過去的時間。
+ * 推算出來的時間是估計值，真正的時間要等下一次同步才算數。
+ */
+export function projectNextFiveHourReset(
+  expiry5h: string | null | undefined,
+  syncedAt: number | null | undefined,
+  now: number = Date.now()
+): { at: number; projected: boolean } | null {
+  const reset = resolveFiveHourReset(expiry5h, syncedAt);
+  if (reset === null) return null;
+  if (now < reset) return { at: reset, projected: false };
+
+  const steps = Math.floor((now - reset) / FIVE_HOUR_MS) + 1;
+  return { at: reset + steps * FIVE_HOUR_MS, projected: true };
+}
+
+/** 倒數文字：只講到分，時間感夠用又不會每秒跳動。 */
+export function formatCountdown(target: number, now: number = Date.now()): string {
+  const minutes = Math.round((target - now) / 60_000);
+  if (minutes <= 0) return "即將重設";
+  if (minutes < 60) return `還有 ${minutes} 分`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const rest = minutes % 60;
+    return rest ? `還有 ${hours} 小時 ${rest} 分` : `還有 ${hours} 小時`;
+  }
+  return `還有 ${Math.floor(hours / 24)} 天`;
+}
+
+/** 一週／一月只有日期，回傳那天開始的時刻，用來算「還有幾天」。 */
+export function parseDateField(expiry: string | null | undefined): number | null {
+  if (!expiry) return null;
+  const match = YEAR_MONTH_DAY.exec(expiry.trim());
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}

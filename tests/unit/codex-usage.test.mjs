@@ -12,10 +12,18 @@ import {
 } from "../../lib/chatgptSession.ts";
 import {
   describeWindow,
+  formatCountdown,
   getUsageTone,
+  hasDateWindowReset,
+  hasFiveHourWindowReset,
+  isUsageStale,
   normalizeCodexUsage,
   normalizeResetCredits,
+  parseDateField,
+  projectNextFiveHourReset,
+  resolveFiveHourReset,
   toQuotaFields,
+  USAGE_FRESH_WINDOW_MS,
 } from "../../lib/codexUsage.ts";
 import { buildQuotaWritePayload } from "../../lib/managementRecords.ts";
 
@@ -274,5 +282,74 @@ describe("帶入鋒兄額度表單欄位", () => {
       expiryWeek: "",
       quotaRemaining: 0,
     });
+  });
+});
+
+/**
+ * 存進 Appwrite 的比例只是快照，畫面必須自己判斷「這份數字還算不算數」，
+ * 否則 17:11 重設的視窗到了 19:51 還在標「已達使用上限」。
+ */
+describe("用量快照的新舊判斷", () => {
+  const at = (text) => new Date(text).getTime();
+
+  it("超過保鮮期才算過期，沒有時間戳一律當過期", () => {
+    const now = at("2026-09-05T19:51:00+08:00");
+    const fresh = new Date(now - 60_000).toISOString();
+    const old = new Date(now - USAGE_FRESH_WINDOW_MS - 1000).toISOString();
+
+    assert.equal(isUsageStale(fresh, now), false);
+    assert.equal(isUsageStale(old, now), true);
+    assert.equal(isUsageStale(undefined, now), true);
+    assert.equal(isUsageStale("not a date", now), true);
+  });
+
+  it("HH:mm 靠同步時間還原成絕對時刻；同步後才到的時分算今天", () => {
+    const syncedAt = at("2026-09-05T16:40:00+08:00");
+    assert.equal(resolveFiveHourReset("17:11", syncedAt), at("2026-09-05T17:11:00+08:00"));
+  });
+
+  it("同步當下已經過了那個時分，指的是隔天那一次", () => {
+    const syncedAt = at("2026-09-05T18:00:00+08:00");
+    assert.equal(resolveFiveHourReset("17:11", syncedAt), at("2026-09-06T17:11:00+08:00"));
+  });
+
+  it("不知道同步時間就不猜", () => {
+    assert.equal(resolveFiveHourReset("17:11", null), null);
+    assert.equal(resolveFiveHourReset("", at("2026-09-05T16:40:00+08:00")), null);
+  });
+
+  it("重設時刻過了就認定視窗已重設", () => {
+    const syncedAt = at("2026-09-05T16:40:00+08:00");
+    assert.equal(hasFiveHourWindowReset("17:11", syncedAt, at("2026-09-05T17:00:00+08:00")), false);
+    assert.equal(hasFiveHourWindowReset("17:11", syncedAt, at("2026-09-05T19:51:00+08:00")), true);
+  });
+
+  it("下次重設會往後推整數個 5 小時，並標記為估計值", () => {
+    const syncedAt = at("2026-09-05T16:40:00+08:00");
+
+    const before = projectNextFiveHourReset("17:11", syncedAt, at("2026-09-05T17:00:00+08:00"));
+    assert.deepEqual(before, { at: at("2026-09-05T17:11:00+08:00"), projected: false });
+
+    const after = projectNextFiveHourReset("17:11", syncedAt, at("2026-09-05T19:51:00+08:00"));
+    assert.deepEqual(after, { at: at("2026-09-05T22:11:00+08:00"), projected: true });
+
+    const muchLater = projectNextFiveHourReset("17:11", syncedAt, at("2026-09-06T04:00:00+08:00"));
+    assert.deepEqual(muchLater, { at: at("2026-09-06T08:11:00+08:00"), projected: true });
+  });
+
+  it("一週／一月只到日，要跨過那天結束才敢說重設過", () => {
+    assert.equal(hasDateWindowReset("2026-09-11", at("2026-09-11T23:00:00+08:00")), false);
+    assert.equal(hasDateWindowReset("2026-09-11", at("2026-09-12T00:30:00+08:00")), true);
+    assert.equal(hasDateWindowReset("", at("2026-09-12T00:30:00+08:00")), false);
+    assert.equal(parseDateField("2026-09-11"), at("2026-09-11T00:00:00+08:00"));
+    assert.equal(parseDateField("壞掉的日期"), null);
+  });
+
+  it("倒數只講到分", () => {
+    const now = at("2026-09-05T19:51:00+08:00");
+    assert.equal(formatCountdown(now + 12 * 60_000, now), "還有 12 分");
+    assert.equal(formatCountdown(now + 140 * 60_000, now), "還有 2 小時 20 分");
+    assert.equal(formatCountdown(now + 120 * 60_000, now), "還有 2 小時");
+    assert.equal(formatCountdown(now - 60_000, now), "即將重設");
   });
 });
