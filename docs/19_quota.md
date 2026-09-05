@@ -44,8 +44,9 @@
 
 | 項目 | 說明 |
 |------|------|
-| 預設值 | `0720` |
-| 覆寫方式 | 伺服器環境變數 `SUBSCRIPTION_TOKEN_PIN`（四位數字） |
+| 預設值 | `0720`（**不需要任何設定**，沒設環境變數就是這組） |
+| 覆寫方式 | 伺服器環境變數 `QUOTA_TOKEN_PIN=1234`（舊名 `SUBSCRIPTION_TOKEN_PIN` 仍可用） |
+| 格式錯誤時 | 不是四位數字就忽略、退回預設，不會把人鎖在門外 |
 | 驗證位置 | API route，PIN 不會進前端 bundle |
 
 `GET /api/quota` **永遠不回傳** `accessToken` 明文，只給 `hasAccessToken` 與 `accessTokenHint`。

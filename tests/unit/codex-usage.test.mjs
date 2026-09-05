@@ -18,6 +18,7 @@ import {
   toQuotaFields,
 } from "../../lib/codexUsage.ts";
 import { buildQuotaWritePayload } from "../../lib/managementRecords.ts";
+import { DEFAULT_TOKEN_PIN, getTokenPin, verifyTokenPin } from "../../lib/tokenPin.ts";
 
 /** 造一個帶 chatgpt_account_id claim 的假 JWT。 */
 function makeJwt(payload) {
@@ -74,6 +75,42 @@ describe("chatgpt session 解析", () => {
     assert.ok(masked.endsWith(TOKEN.slice(-4)));
     assert.ok(!masked.includes(TOKEN.slice(8, 20)));
     assert.equal(buildAccessTokenHint(TOKEN), TOKEN.slice(-4));
+  });
+});
+
+describe("四位數密碼", () => {
+  it("沒設環境變數也有預設值 0720", () => {
+    delete process.env.QUOTA_TOKEN_PIN;
+    delete process.env.SUBSCRIPTION_TOKEN_PIN;
+    assert.equal(getTokenPin(), DEFAULT_TOKEN_PIN);
+    assert.equal(verifyTokenPin("0720"), true);
+    assert.equal(verifyTokenPin("1234"), false);
+  });
+
+  it("環境變數可覆寫，舊變數名仍相容", () => {
+    process.env.QUOTA_TOKEN_PIN = "1379";
+    assert.equal(verifyTokenPin("1379"), true);
+    assert.equal(verifyTokenPin("0720"), false);
+
+    delete process.env.QUOTA_TOKEN_PIN;
+    process.env.SUBSCRIPTION_TOKEN_PIN = "2468";
+    assert.equal(verifyTokenPin("2468"), true);
+    delete process.env.SUBSCRIPTION_TOKEN_PIN;
+  });
+
+  it("格式不對的設定退回預設，不會把人鎖在門外", () => {
+    process.env.QUOTA_TOKEN_PIN = "12345";
+    assert.equal(getTokenPin(), DEFAULT_TOKEN_PIN);
+    process.env.QUOTA_TOKEN_PIN = "abcd";
+    assert.equal(getTokenPin(), DEFAULT_TOKEN_PIN);
+    delete process.env.QUOTA_TOKEN_PIN;
+  });
+
+  it("只收四位數字，不做修剪", () => {
+    assert.equal(verifyTokenPin(" 0720"), false);
+    assert.equal(verifyTokenPin("072"), false);
+    assert.equal(verifyTokenPin(720), false);
+    assert.equal(verifyTokenPin(null), false);
   });
 });
 
