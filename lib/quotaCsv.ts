@@ -5,6 +5,7 @@ export const QUOTA_CSV_HEADERS = [
   "serviceType",
   "account",
   "quotaRemaining",
+  "quotaPoints",
   "quotaRatio",
   "quotaExpiry",
   "ratio5h",
@@ -34,6 +35,12 @@ const HEADER_ALIASES: Record<string, QuotaCsvHeader> = {
   額度剩餘次數: "quotaRemaining",
   剩餘次數: "quotaRemaining",
   剩餘額度: "quotaRemaining",
+  quotapoints: "quotaPoints",
+  quota_points: "quotaPoints",
+  points: "quotaPoints",
+  額度剩餘點數: "quotaPoints",
+  剩餘點數: "quotaPoints",
+  點數: "quotaPoints",
   quotaratio: "quotaRatio",
   quota_ratio: "quotaRatio",
   ratio: "quotaRatio",
@@ -109,6 +116,7 @@ export function toQuotaCsvRow(item: Pick<Quota, QuotaCsvHeader>): string {
     escapeQuotaCsvValue(item.serviceType || "general"),
     escapeQuotaCsvValue(item.account || ""),
     escapeQuotaCsvValue(item.quotaRemaining || 0),
+    escapeQuotaCsvValue(item.quotaPoints || 0),
     escapeQuotaCsvValue(item.quotaRatio || 0),
     escapeQuotaCsvValue(csvQuotaDate(item.quotaExpiry)),
     escapeQuotaCsvValue(item.ratio5h || 0),
@@ -281,6 +289,11 @@ export function parseQuotaCsv(text: string): { data: QuotaFormData[]; errors: st
       errors.push(`第 ${lineNumber} 行: ${quotaRemaining.error}`);
       continue;
     }
+    const quotaPoints = parseNonNegativeInteger(cell("quotaPoints"), "額度剩餘點數");
+    if (!quotaPoints.ok) {
+      errors.push(`第 ${lineNumber} 行: ${quotaPoints.error}`);
+      continue;
+    }
     const quotaRatio = parseNonNegativeInteger(cell("quotaRatio"), "額度剩餘比例");
     if (!quotaRatio.ok) {
       errors.push(`第 ${lineNumber} 行: ${quotaRatio.error}`);
@@ -304,6 +317,7 @@ export function parseQuotaCsv(text: string): { data: QuotaFormData[]; errors: st
       serviceType,
       account,
       quotaRemaining: quotaRemaining.value,
+      quotaPoints: quotaPoints.value,
       quotaRatio: quotaRatio.value,
       quotaExpiry,
       ratio5h: 0,

@@ -175,6 +175,8 @@ export interface Quota {
   serviceType: QuotaServiceType;
   account?: string;
   quotaRemaining: number;
+  /** 額度剩餘點數：與「次數」並列的另一種計量（點數 / 積分制方案） */
+  quotaPoints?: number;
   quotaRatio?: number;
   quotaExpiry?: string;
   ratio5h?: number;
@@ -196,6 +198,7 @@ export interface QuotaFormData {
   serviceType: QuotaServiceType;
   account?: string;
   quotaRemaining: number;
+  quotaPoints?: number;
   quotaRatio?: number;
   quotaExpiry?: string;
   ratio5h?: number;

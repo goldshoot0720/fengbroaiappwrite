@@ -739,6 +739,17 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                 onChange={(event) => setNumberField("quotaRemaining")(event.target.value)}
               />
             </FormField>
+            <FormField label="額度剩餘點數" htmlFor="quota-points">
+              <Input
+                id="quota-points"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={form.quotaPoints}
+                onChange={(event) => setNumberField("quotaPoints")(event.target.value)}
+              />
+            </FormField>
             <FormField label="額度剩餘比例（%）" htmlFor="quota-ratio">
               <Input
                 id="quota-ratio"
@@ -1053,6 +1064,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                             <Cell label="剩餘額度">
                               <div className="space-y-1 text-sm tabular-nums text-foreground">
                                 <p>{item.quotaRemaining} 次</p>
+                                {item.quotaPoints ? <p>{item.quotaPoints} 點</p> : null}
                                 {basicRatio ? <p><span className="text-muted-foreground">比例 </span>{basicRatio}</p> : null}
                               </div>
                             </Cell>

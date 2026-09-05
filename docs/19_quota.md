@@ -74,7 +74,7 @@
 
 ## 資料表結構 (Appwrite Collection: `quota`)
 
-共 14 欄。`accessToken` 是新加的第 14 欄。
+共 15 欄。`quotaPoints` 是新加的第 15 欄。
 
 | 欄位名稱 | 類型 | 長度 | 說明 |
 |----------|------|------|------|
@@ -82,6 +82,7 @@
 | serviceType | string | 20 | `general` / `ai` |
 | account | string | 200 | 帳號 |
 | quotaRemaining | integer | - | 額度剩餘次數（ChatGPT 帶入時放剩餘積分） |
+| quotaPoints | integer | - | 額度剩餘點數（點數／積分制方案，手動填寫） |
 | quotaRatio | integer | - | 額度剩餘比例 % |
 | quotaExpiry | datetime | - | 額度到期日 |
 | ratio5h | integer | - | 5 小時剩餘比例 %（AI） |
@@ -93,7 +94,7 @@
 | note | string | 3337 | 備註 |
 | accessToken | string | 5000 | ChatGPT / Codex 憑證，見上 |
 
-既有的 13 欄資料表**不必重建**：到「鋒兄設定」重跑 `quota` 初始化即可，
+既有的 14 欄資料表**不必重建**：到「鋒兄設定」重跑 `quota` 初始化即可，
 `initializeManagementTable` 是非破壞性的，只補缺少的欄位、不刪資料。
 
 服務類型改成非 AI 時，`accessToken` 會連同 5 小時／一週／一月欄位一起清空。
