@@ -43,6 +43,7 @@ import {
   quotaImportKey,
 } from "@/lib/quotaCsv";
 import { parseChatGptSession } from "@/lib/chatgptSession";
+import { isMindvideoImageService } from "@/lib/mindvideoPoints";
 import {
   formatCountdown,
   hasDateWindowReset,
@@ -321,6 +322,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
   const staleQuotaIds = useMemo(
     () => items
       .filter((item) => {
+        if (isMindvideoImageService(item.name)) {
+          return isUsageStale(item.$updatedAt, now, LITMEDIA_FRESH_WINDOW_MS);
+        }
         if (item.serviceType === "ai" && item.hasAccessToken) {
           return isUsageStale(item.$updatedAt, now);
         }
@@ -1031,7 +1035,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                         const pointsSyncedLabel = formatPointsSynced(item.pointsSyncedAt, now);
                         // 點數只對「點數制」的列有意義：填過點數，或設定了 LitMedia 簽到帳號
                         // （等著同步的列要看得到 0 點，才知道它有在等）。其餘的列不該掛一個沒意義的 0。
-                        const showPoints = Boolean(item.quotaPoints) || Boolean(resolveLitmediaKey(item));
+                        const showPoints = Boolean(item.quotaPoints) || Boolean(resolveLitmediaKey(item)) || isMindvideoImageService(item.name);
                         // 使用者最在意「下次什麼時候重設」，所以過去的重設點要推到下一次而不是照抄
                         const fiveHour = projectNextFiveHourReset(item.expiry5h, syncedAt, now);
                         const aiPlans = item.serviceType === "ai"

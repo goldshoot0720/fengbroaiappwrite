@@ -5,6 +5,8 @@ import { findManagementTable } from "../_lib/managementTables";
 import { listAllDocuments } from "../_lib/listAllDocuments";
 import { loadCodexSnapshot } from "../_lib/codexClient";
 import { loadLitmediaReport } from "../_lib/litmediaClient";
+import { loadMindvideoReport } from "../_lib/mindvideoClient";
+import { isMindvideoImageService, mindvideoPointsForAccount } from "../../../lib/mindvideoPoints";
 import { sanitizeQuotaRow } from "../_lib/quotaSanitize";
 import { readStoredCredential } from "../../../lib/chatgptSession";
 import {
@@ -162,9 +164,10 @@ async function runRefresh(searchParams, options = {}) {
   for (const row of rows) {
     if (wanted && !wanted.has(row.$id)) continue;
 
-    const isCodex = row.serviceType === "ai" && Boolean(row.accessToken);
-    const isLitmedia = !isCodex && Boolean(resolveLitmediaKey(row));
-    if (!isCodex && !isLitmedia) {
+    const isMindvideo = isMindvideoImageService(row.name);
+    const isCodex = !isMindvideo && row.serviceType === "ai" && Boolean(row.accessToken);
+    const isLitmedia = !isMindvideo && !isCodex && Boolean(resolveLitmediaKey(row));
+    if (!isCodex && !isLitmedia && !isMindvideo) {
       if (row.serviceType === "ai") {
         results.push({ quotaId: row.$id, account: row.account || "", status: "skipped", reason: "no-token" });
       }
@@ -176,7 +179,7 @@ async function runRefresh(searchParams, options = {}) {
       results.push({ quotaId: row.$id, account: row.account || "", status: "fresh", updatedAt: row.$updatedAt || null });
       continue;
     }
-    targets.push({ row, kind: isCodex ? "codex" : "litmedia" });
+    targets.push({ row, kind: isMindvideo ? "mindvideo" : isCodex ? "codex" : "litmedia" });
   }
 
   // 33 個帳號共用同一份簽到結果，所以只跟 GitHub 要一次
@@ -190,12 +193,34 @@ async function runRefresh(searchParams, options = {}) {
     }
   }
 
+  let mindvideo = null;
+  let mindvideoError = null;
+  if (targets.some((target) => target.kind === "mindvideo")) {
+    try {
+      mindvideo = await loadMindvideoReport({ force: options.force === true, now });
+    } catch (err) {
+      mindvideoError = err instanceof Error ? err.message : "讀取 MindVideo 點數失敗";
+    }
+  }
+
   const updatedRows = [];
   let cursor = 0;
   const worker = async () => {
     while (cursor < targets.length) {
       const { row, kind } = targets[cursor];
       cursor += 1;
+
+      if (kind === "mindvideo") {
+        const fields = mindvideo && mindvideoPointsForAccount(mindvideo.report, row.account || "");
+        results.push(!mindvideo
+          ? outcomeFor(row, "error", { error: mindvideoError })
+          : !fields
+            ? outcomeFor(row, "error", { error: "報告沒有此帳號的 GPT Image 2 專屬點數，保留原額度。" })
+            : row.pointsSyncedAt && Date.parse(fields.pointsSyncedAt) < Date.parse(row.pointsSyncedAt)
+              ? outcomeFor(row, "skipped", { reason: "older-report" })
+              : await writeRow(databases, databaseId, collection.$id, row, fields, updatedRows, { pointsSource: mindvideo.source }));
+        continue;
+      }
 
       if (kind === "litmedia") {
         results.push(
