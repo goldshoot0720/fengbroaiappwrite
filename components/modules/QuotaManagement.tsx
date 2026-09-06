@@ -84,6 +84,17 @@ interface ServiceGroup {
 
 type TypeFilter = "all" | QuotaServiceType;
 
+/**
+ * 不同 AI 來源支援的重設視窗不一樣：Grok 只有一週共用額度池（沒有 5 小時／一月），
+ * Claude 沒有月視窗。不該对没支援的視窗顯示一張假的「100% 已用」卡——那只是欄位預設值，
+ * 不是真的量到的用量。未知來源（手動填寫、還沒辨識出來）保留原本 3 卡都給顯示。
+ */
+function isAiPlanKeySupported(provider: Quota["accessTokenProvider"], key: "5h" | "week" | "month"): boolean {
+  if (provider === "grok") return key === "week";
+  if (provider === "claude") return key === "5h" || key === "week";
+  return true;
+}
+
 function serviceKey(name: string) {
   return name.trim().toLocaleLowerCase("zh-Hant");
 }
@@ -1161,7 +1172,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 expired: hasDateWindowReset(item.expiryMonth, now),
                                 dateOnly: true,
                               },
-                            ].map((plan) => {
+                            ]
+                              .filter((plan) => isAiPlanKeySupported(item.accessTokenProvider, plan.key as "5h" | "week" | "month"))
+                              .map((plan) => {
                               // 有填重設時間才算「有在追蹤這段」，0% 才是真的用完而不是沒填
                               const depleted = Boolean(plan.expiry) && (plan.ratio ?? 0) === 0;
                               // 只存到「日」的欄位在重設那天整天都還算「即將重設」——

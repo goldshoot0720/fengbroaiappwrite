@@ -199,6 +199,11 @@ export interface Quota {
   /** API 不回傳明文 accessToken，只給是否存在與末 4 碼提示 */
   hasAccessToken?: boolean;
   accessTokenHint?: string;
+  /**
+   * 憑證格式判斷出来的來源（不含任何明文，只是一個標籤），用于畫面決定要顯示
+   * 哪些方案卡片（Grok 只有一週共用額度池，沒有 5 小時／一月視窗）。辨不出來就是空字串。
+   */
+  accessTokenProvider?: "claude" | "grok" | "chatgpt" | "";
   $createdAt?: string;
   $updatedAt?: string;
 }
