@@ -28,8 +28,22 @@
 | 一週比例（%） | 每週視窗剩餘百分比 | `53` |
 | 一週到期 | 每週視窗重設時間（本地 YYYY-MM-DD） | `2026-09-11` |
 | 額度剩餘次數 | 剩餘積分（可讓用量超出方案限制） | `0` |
+| 重置機會次數 | 「使用重置」機會的剩餘次數 | `1` |
+| 重置機會到期 | 上面那次機會的到期時間（本地 YYYY-MM-DD HH:mm） | `2026-10-05 07:34` |
 
 一月比例／到期不在 Codex 回傳範圍，維持手動填寫。
+
+### 額度剩餘次數 ≠ 重置機會
+
+畫面上這兩個數字很容易搞混，但來源與意思完全不同：
+
+- **額度剩餘次數**（`quotaRemaining`）＝ ChatGPT 用量頁的「剩餘積分」——付費買來、可以讓你在方案上限之後繼續用的額度。
+  多數帳號沒買這個，所以恆為 `0`，不代表帳號有問題。
+- **重置機會次數**（`resetCreditsBalance`）＝ ChatGPT 官方在用量頁提供的「使用重置」按鈕，
+  按下去可以立即恢復 5 小時上限、每週上限，或兩者皆恢復（依方案而定），一段時間才會補一次，
+  這裡的數字就是還剩幾次可以按，`重置機會到期` 是這次機會的有效期限，過了就作廢（不是「用量」的到期）。
+
+這兩個數字都是 accessToken 帶入時才有意義；沒設定 accessToken 的紀錄看到的 `0` 是「還沒填」，不是「真的用完」。
 
 ### 清單顯示
 
@@ -119,7 +133,7 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 
 ## 資料表結構 (Appwrite Collection: `quota`)
 
-共 17 欄。`litmediaAccount` 與 `pointsSyncedAt` 是新加的第 16、17 欄。
+共 19 欄。`litmediaAccount` 與 `pointsSyncedAt` 是第 16、17 欄，`resetCreditsBalance` 與 `resetCreditsExpiry` 是新加的第 18、19 欄。
 
 | 欄位名稱 | 類型 | 長度 | 說明 |
 |----------|------|------|------|
@@ -138,6 +152,8 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 | expiryWeek | string | 10 | 一週重設日 `YYYY-MM-DD`（AI） |
 | ratioMonth | integer | - | 一月剩餘比例 %（AI） |
 | expiryMonth | string | 10 | 一月重設日 `YYYY-MM-DD`（AI） |
+| resetCreditsBalance | integer | - | 「使用重置」機會的剩餘次數（AI），見上「額度剩餘次數 ≠ 重置機會」 |
+| resetCreditsExpiry | string | 20 | 上面那次機會的到期時間 `YYYY-MM-DD HH:mm`（AI） |
 | note | string | 3337 | 備註 |
 | accessToken | string | 5000 | ChatGPT / Codex 憑證，見上 |
 

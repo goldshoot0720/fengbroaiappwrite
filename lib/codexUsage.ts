@@ -383,17 +383,28 @@ export function toLocalDateField(iso: string | null, timeZone: string = QUOTA_TI
   return parts ? `${parts.year}-${parts.month}-${parts.day}` : "";
 }
 
+/** YYYY-MM-DD HH:mm（台北時間），對應「重置機會到期」欄位格式——需要日期＋時間，跟 5 小時／一週到期不同。 */
+export function toLocalDateTimeField(iso: string | null, timeZone: string = QUOTA_TIME_ZONE): string {
+  const parts = readZonedParts(iso, timeZone);
+  return parts ? `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}` : "";
+}
+
 export interface QuotaFieldsFromUsage {
   ratio5h: number;
   expiry5h: string;
   ratioWeek: number;
   expiryWeek: string;
   quotaRemaining: number;
+  /** 「使用重置」機會的剩餘次數——ChatGPT Plus 讓用量提早歸零重算的獨立機會，跟 quotaRemaining（付費超額積分）是兩回事 */
+  resetCreditsBalance: number;
+  /** 上面那次機會的到期時間（過了就作廢） */
+  resetCreditsExpiry: string;
 }
 
 /**
  * 把 Codex 用量轉成「鋒兄額度」表單欄位：
- * 剩餘比例取整數，5 小時到期用 HH:mm，一週到期用 YYYY-MM-DD，剩餘積分放 quotaRemaining。
+ * 剩餘比例取整數，5 小時到期用 HH:mm，一週到期用 YYYY-MM-DD，剩餘積分放 quotaRemaining，
+ * 重置機會（resetCredits）另外放 resetCreditsBalance／resetCreditsExpiry。
  */
 export function toQuotaFields(
   snapshot: CodexUsageSnapshot,
@@ -408,6 +419,8 @@ export function toQuotaFields(
     ratioWeek: Math.round(secondary?.remainingPercent ?? 0),
     expiryWeek: toLocalDateField(secondary?.resetsAt ?? null, timeZone),
     quotaRemaining: Math.max(0, Math.round(snapshot.credits ?? 0)),
+    resetCreditsBalance: Math.max(0, Math.round(snapshot.resetCredits?.balance ?? 0)),
+    resetCreditsExpiry: toLocalDateTimeField(snapshot.resetCredits?.expiresAt ?? null, timeZone),
   };
 }
 

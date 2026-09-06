@@ -889,6 +889,26 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     onChange={(event) => setForm((current) => ({ ...current, expiryMonth: event.target.value }))}
                   />
                 </FormField>
+                <FormField label="重置機會次數" htmlFor="quota-reset-credits-balance">
+                  <Input
+                    id="quota-reset-credits-balance"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={form.resetCreditsBalance ?? 0}
+                    onChange={(event) => setNumberField("resetCreditsBalance")(event.target.value)}
+                  />
+                </FormField>
+                <FormField label="重置機會到期" htmlFor="quota-reset-credits-expiry">
+                  <Input
+                    id="quota-reset-credits-expiry"
+                    maxLength={20}
+                    value={form.resetCreditsExpiry || ""}
+                    onChange={(event) => setForm((current) => ({ ...current, resetCreditsExpiry: event.target.value }))}
+                    placeholder="西元年-月-日 時:分，例如 2026-10-05 07:34"
+                  />
+                </FormField>
                 <CodexAccessTokenField
                   form={form}
                   setForm={setForm}
@@ -1130,6 +1150,12 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                   <p className="text-xs font-normal text-muted-foreground">{pointsSyncedLabel}</p>
                                 ) : null}
                                 {basicRatio ? <p><span className="text-muted-foreground">比例 </span>{basicRatio}</p> : null}
+                                {/* 「重置機會」是額外的手動歸零機會，跟上面剩餘次數／點數是不同的東西，只有填過到期時間才代表有在追蹤 */}
+                                {item.serviceType === "ai" && item.resetCreditsExpiry ? (
+                                  <p className="text-xs font-normal text-muted-foreground">
+                                    重置機會 {item.resetCreditsBalance ?? 0} 次・{item.resetCreditsExpiry} 前
+                                  </p>
+                                ) : null}
                               </div>
                             </Cell>
                             <Cell label="到期">
@@ -1383,7 +1409,11 @@ function CodexAccessTokenField({
         primary?.resetsAt ? `（重設 ${fields.expiry5h}）` : ""
       }、一週 ${fields.ratioWeek}% 剩餘${
         secondary?.resetsAt ? `（重設 ${fields.expiryWeek}）` : ""
-      }、剩餘積分 ${fields.quotaRemaining}`
+      }、剩餘積分 ${fields.quotaRemaining}${
+        fields.resetCreditsBalance > 0
+          ? `、重置機會 ${fields.resetCreditsBalance} 次（${fields.resetCreditsExpiry} 前）`
+          : ""
+      }`
     );
   };
 

@@ -189,6 +189,10 @@ export interface Quota {
   expiryWeek?: string;
   ratioMonth?: number;
   expiryMonth?: string;
+  /** 「使用重置」機會的剩餘次數：ChatGPT Plus 讓 5 小時／一週用量提早歸零重算的獨立機會，跟 quotaRemaining（付費超額積分）是兩回事 */
+  resetCreditsBalance?: number;
+  /** 上面那次機會的到期時間（`YYYY-MM-DD HH:mm`，台北時間），過了就作廢 */
+  resetCreditsExpiry?: string;
   note?: string;
   /** API 不回傳明文 accessToken，只給是否存在與末 4 碼提示 */
   hasAccessToken?: boolean;
@@ -212,6 +216,8 @@ export interface QuotaFormData {
   expiryWeek?: string;
   ratioMonth?: number;
   expiryMonth?: string;
+  resetCreditsBalance?: number;
+  resetCreditsExpiry?: string;
   note?: string;
   /** 新填入的 accessToken 或整份 session.json；留空代表不變更 */
   accessToken?: string;

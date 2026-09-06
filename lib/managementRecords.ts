@@ -161,6 +161,9 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "expiryWeek", type: "string", size: 10, required: false },
       { key: "ratioMonth", type: "integer", required: false },
       { key: "expiryMonth", type: "string", size: 10, required: false },
+      // ChatGPT Plus「使用重置」機會：跟 quotaRemaining（付費超額積分）是不同的東西，見上方欄位註解
+      { key: "resetCreditsBalance", type: "integer", required: false },
+      { key: "resetCreditsExpiry", type: "string", size: 20, required: false },
       { key: "note", type: "string", size: 3337, required: false },
       // ChatGPT / Codex 憑證：純 JWT 約 2000 字，或精簡後的 session JSON
       { key: "accessToken", type: "string", size: 5000, required: false },
@@ -474,6 +477,8 @@ export function buildReinstallSoftwareWritePayload(
 // 5 小時到期採 24 小時制（HH:mm，例如 14:30）
 const FIVE_HOUR_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const YEAR_MONTH_DAY_PATTERN = /^\d{4}-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])$/;
+// 重置機會到期需要日期＋時間（例如 2026-10-05 07:34），跟 5 小時／一週到期只存單一段不同
+const DATE_TIME_PATTERN = /^\d{4}-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d$/;
 
 function asQuotaServiceType(value: unknown): QuotaServiceType {
   return asChoice(value, quotaServiceTypes, "general", "服務類型");
@@ -488,6 +493,15 @@ function asOptionalDatePart(value: unknown, pattern: RegExp, label: string, huma
   if (!normalized) return "";
   if (!pattern.test(normalized)) {
     throw new Error(`${label}格式需為 ${humanExample}（例如 ${humanExample}）`);
+  }
+  return normalized;
+}
+
+function asOptionalDateTimePart(value: unknown, label: string): string {
+  const normalized = asText(value, label, 20);
+  if (!normalized) return "";
+  if (!DATE_TIME_PATTERN.test(normalized)) {
+    throw new Error(`${label}格式需為 西元年-月-日 時:分（例如 2026-10-05 07:34）`);
   }
   return normalized;
 }
@@ -525,6 +539,8 @@ export function emptyQuotaForm(name = ""): QuotaFormData {
     expiryWeek: "",
     ratioMonth: 0,
     expiryMonth: "",
+    resetCreditsBalance: 0,
+    resetCreditsExpiry: "",
     note: "",
     accessToken: "",
     clearAccessToken: false,
@@ -547,6 +563,8 @@ export function toQuotaForm(source: Quota): QuotaFormData {
     expiryWeek: source.expiryWeek || "",
     ratioMonth: source.ratioMonth == null ? 0 : Number(source.ratioMonth),
     expiryMonth: source.expiryMonth || "",
+    resetCreditsBalance: source.resetCreditsBalance == null ? 0 : Number(source.resetCreditsBalance),
+    resetCreditsExpiry: source.resetCreditsExpiry || "",
     note: source.note || "",
     // 明文不回填（API 也不回傳），留空代表沿用既有 token
     accessToken: "",
@@ -584,6 +602,8 @@ export function buildQuotaWritePayload(
     payload.expiryWeek = asOptionalDatePart(body.expiryWeek, YEAR_MONTH_DAY_PATTERN, "一週到期", "西元年-月-日");
     payload.ratioMonth = asNonNegativeInteger(body.ratioMonth, "一月比例");
     payload.expiryMonth = asOptionalDatePart(body.expiryMonth, YEAR_MONTH_DAY_PATTERN, "一月到期", "西元年-月-日");
+    payload.resetCreditsBalance = asNonNegativeInteger(body.resetCreditsBalance, "重置機會次數");
+    payload.resetCreditsExpiry = asOptionalDateTimePart(body.resetCreditsExpiry, "重置機會到期");
 
     // 空字串代表沿用既有 token；要清除必須明確送 clearAccessToken
     const accessToken = normalizeAccessTokenInput(body.accessToken);
@@ -596,6 +616,8 @@ export function buildQuotaWritePayload(
     payload.expiryWeek = "";
     payload.ratioMonth = 0;
     payload.expiryMonth = "";
+    payload.resetCreditsBalance = 0;
+    payload.resetCreditsExpiry = "";
     // 非 AI 服務不需要憑證
     payload.accessToken = "";
   }

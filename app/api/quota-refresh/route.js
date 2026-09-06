@@ -165,6 +165,11 @@ async function refreshCodexRow(databases, databaseId, collectionId, row, updated
   };
   // 剩餘積分手動也會維護，API 這次沒回報就別把它洗成 0
   if (outcome.snapshot.credits !== null) data.quotaRemaining = fields.quotaRemaining;
+  // 重置機會沒有手動維護的必要，但一樣別在 API 沒回報時洗成 0
+  if (outcome.snapshot.resetCredits !== null) {
+    data.resetCreditsBalance = fields.resetCreditsBalance;
+    data.resetCreditsExpiry = fields.resetCreditsExpiry;
+  }
 
   return writeRow(databases, databaseId, collectionId, row, data, updatedRows);
 }

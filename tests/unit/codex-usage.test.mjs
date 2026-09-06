@@ -273,6 +273,8 @@ describe("帶入鋒兄額度表單欄位", () => {
       ratioWeek: 53,
       expiryWeek: "2026-09-11",
       quotaRemaining: 0,
+      resetCreditsBalance: 0,
+      resetCreditsExpiry: "",
     });
   });
 
@@ -283,7 +285,17 @@ describe("帶入鋒兄額度表單欄位", () => {
       ratioWeek: 0,
       expiryWeek: "",
       quotaRemaining: 0,
+      resetCreditsBalance: 0,
+      resetCreditsExpiry: "",
     });
+  });
+
+  it("重置機會會一併帶入 resetCreditsBalance／resetCreditsExpiry", () => {
+    const snapshot = normalizeCodexUsage({ rate_limit: {} }, "test");
+    snapshot.resetCredits = { balance: 1, expiresAt: "2026-10-04T23:34:00.000Z" };
+    const fields = toQuotaFields(snapshot);
+    assert.equal(fields.resetCreditsBalance, 1);
+    assert.equal(fields.resetCreditsExpiry, "2026-10-05 07:34");
   });
 });
 
