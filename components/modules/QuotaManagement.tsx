@@ -883,17 +883,19 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                 </p>
               ) : null}
             </FormField>
-            <FormField label="額度剩餘點數" htmlFor="quota-points">
-              <Input
-                id="quota-points"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                value={form.quotaPoints}
-                onChange={(event) => setNumberField("quotaPoints")(event.target.value)}
-              />
-            </FormField>
+            {!formUsesChatGptCredits ? (
+              <FormField label="額度剩餘點數" htmlFor="quota-points">
+                <Input
+                  id="quota-points"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={form.quotaPoints}
+                  onChange={(event) => setNumberField("quotaPoints")(event.target.value)}
+                />
+              </FormField>
+            ) : null}
             {/* 只有 LitMedia 的服務才需要對簽到槽位，其他服務不該看到這一格 */}
             {isLitmediaServiceName(form.name) ? (
               <FormField label="LitMedia 簽到帳號" htmlFor="quota-litmedia-account">

@@ -164,6 +164,7 @@ test("trial-purchase and reinstall pages are reachable from the management menu"
     await page.getByLabel("服務類型").selectOption("ai");
     await page.getByLabel("服務名稱").fill("ChatGPT");
     await expect(page.getByLabel("剩餘積分")).toBeVisible();
+    await expect(page.getByLabel("額度剩餘點數")).toBeHidden();
     await expect(page.getByLabel("5 小時比例（%）")).toBeVisible();
     await expect(page.getByLabel("一週到期（月／日）")).toBeVisible();
     await page.getByRole("button", { name: "取消" }).click();
