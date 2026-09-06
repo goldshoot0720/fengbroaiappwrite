@@ -1,4 +1,5 @@
 import { buildStoredCredential, parseChatGptSession } from "@/lib/chatgptSession";
+import { readStoredCommandCodeCredential, serializeCommandCodeCredential } from "@/lib/commandCodeSession";
 import type {
   FinanceCustomGroup,
   FinanceInstrument,
@@ -516,6 +517,8 @@ function asOptionalDateTimePart(value: unknown, label: string): string {
 export function normalizeAccessTokenInput(value: unknown): string {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) return "";
+  const commandCode = readStoredCommandCodeCredential(raw);
+  if (commandCode) return serializeCommandCodeCredential(commandCode);
   const parsed = parseChatGptSession(raw);
   return parsed ? buildStoredCredential(parsed) : raw;
 }

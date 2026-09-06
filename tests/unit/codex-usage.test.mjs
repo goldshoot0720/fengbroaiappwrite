@@ -29,6 +29,7 @@ import {
   USAGE_FRESH_WINDOW_MS,
 } from "../../lib/codexUsage.ts";
 import { buildQuotaWritePayload } from "../../lib/managementRecords.ts";
+import { readStoredCommandCodeCredential } from "../../lib/commandCodeSession.ts";
 
 /** 造一個帶 chatgpt_account_id claim 的假 JWT。 */
 function makeJwt(payload) {
@@ -97,6 +98,31 @@ describe("額度寫入 payload 的 accessToken 規則", () => {
       accessToken: TOKEN,
       accountId: ACCOUNT_ID,
     });
+  });
+
+  it("新增時會把 Command Code auth.json 轉成獨立且精簡的憑證格式", () => {
+    const payload = buildQuotaWritePayload(
+      {
+        ...base,
+        accessToken: JSON.stringify({
+          apiKey: "cmd-test-key",
+          userId: "user-123",
+          userName: "example",
+          keyName: "desktop",
+          authenticatedAt: "2026-09-06T08:00:00.000Z",
+          localOnlySetting: "must-not-be-stored",
+        }),
+      },
+      "create"
+    );
+    assert.deepEqual(readStoredCommandCodeCredential(payload.accessToken), {
+      apiKey: "cmd-test-key",
+      userId: "user-123",
+      userName: "example",
+      keyName: "desktop",
+      authenticatedAt: "2026-09-06T08:00:00.000Z",
+    });
+    assert.equal(payload.accessToken.includes("localOnlySetting"), false);
   });
 
   it("更新時留空代表不動既有 token", () => {

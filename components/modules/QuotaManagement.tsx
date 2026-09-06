@@ -47,6 +47,8 @@ import { readStoredClaudeCredential } from "@/lib/claudeSession";
 import { toClaudeQuotaFields, type ClaudeUsageSnapshot } from "@/lib/claudeUsage";
 import { readStoredGrokCredential } from "@/lib/grokSession";
 import { normalizeGrokUsage, toGrokQuotaFields, type DecodedGrokCredits } from "@/lib/grokUsage";
+import { readStoredCommandCodeCredential } from "@/lib/commandCodeSession";
+import { toCommandCodeQuotaFields, type CommandCodeUsageSnapshot } from "@/lib/commandCodeUsage";
 import { isMindvideoImageService, MINDVIDEO_FRESH_WINDOW_MS } from "@/lib/mindvideoPoints";
 import { isOiioiiService, OIIOII_FRESH_WINDOW_MS } from "@/lib/oiioiiPoints";
 import {
@@ -730,7 +732,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
             variant="outline"
             onClick={() => void refreshUsage({ force: true })}
             disabled={loading || busy || refreshingUsage}
-            title="用已存的 accessToken 立刻重抓 AI 服務的 5 小時／一週用量並寫回"
+            title="用已存的 accessToken 立刻重抓 AI 服務的 5 小時／一週／一月用量並寫回"
           >
             <Gauge className={refreshingUsage ? "animate-pulse" : ""} />
             {refreshingUsage ? "更新用量中…" : "更新用量"}
@@ -1474,19 +1476,26 @@ interface GrokUsageResponse {
   tokenExpiry: string | null;
 }
 
+interface CommandCodeUsageResponse extends CommandCodeUsageSnapshot {
+  quotaId: string | null;
+  quotaName: string;
+}
+
 /** Claude 憑證專屬錯誤：/api/claude-usage 對「不是 Claude 格式」的 accessToken 一律回這句。 */
 const CLAUDE_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Claude 憑證，請先貼上 accessToken／憑證 JSON。";
 /** Grok 憑證專屬錯誤：/api/grok-usage 對「不是 Grok 格式」的 accessToken 一律回這句。 */
 const GROK_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Grok 憑證，請先貼上 ~/.grok/auth.json 或憑證 JSON。";
+/** Command Code 憑證專屬錯誤：用於已存憑證的來源依序判斷。 */
+const COMMAND_CODE_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Command Code 憑證，請先貼上 ~/.commandcode/auth.json。";
 
 /**
- * ChatGPT Plus / Codex 與 Claude Code 共用同一個 accessToken 欄位：
- * 貼上 session.json、accessToken 或 Claude 的 `.credentials.json` 後，
- * 可直接向對應的來源 API 帶入 5 小時／一週的剩餘比例與重設時間
+ * ChatGPT Plus / Codex、Claude Code、Grok 與 Command Code 共用同一個 accessToken 欄位：
+ * 貼上 session.json、accessToken 或各 CLI 的 auth JSON 後，
+ * 可直接向對應的來源 API 帶入支援視窗的剩餘比例與重設時間
  * （Codex 另外還有剩餘積分／重置機會，Claude 官方端點沒提供這兩個數字，維持手動填寫）。
  *
  * 明文預設隱藏；讀取已存的 token 需要四位數密碼。存的是哪一種憑證看格式辨識，
- * 辨識順序跟 `/api/quota-refresh` 一致：先試 Claude（`sk-ant-`／JSON），對不上再當 ChatGPT。
+ * 辨識順序跟 `/api/quota-refresh` 一致：Claude、Grok、Command Code，最後才是 ChatGPT。
  */
 function AiAccessTokenField({
   form,
@@ -1511,9 +1520,15 @@ function AiAccessTokenField({
   const typedClaudeCredential = form.accessToken ? readStoredClaudeCredential(form.accessToken) : null;
   const typedGrokCredential =
     !typedClaudeCredential && form.accessToken ? readStoredGrokCredential(form.accessToken) : null;
+  const typedCommandCodeCredential =
+    !typedClaudeCredential && !typedGrokCredential && form.accessToken
+      ? readStoredCommandCodeCredential(form.accessToken)
+      : null;
   const typedChatGptCredential =
-    !typedClaudeCredential && !typedGrokCredential && form.accessToken ? parseChatGptSession(form.accessToken) : null;
-  const typedCredential = typedClaudeCredential || typedGrokCredential || typedChatGptCredential;
+    !typedClaudeCredential && !typedGrokCredential && !typedCommandCodeCredential && form.accessToken
+      ? parseChatGptSession(form.accessToken)
+      : null;
+  const typedCredential = typedClaudeCredential || typedGrokCredential || typedCommandCodeCredential || typedChatGptCredential;
   // 手打的 token 直接用；沿用已存的 token 才需要密碼
   const needsPin = !typedCredential && hasExistingToken;
 
@@ -1584,6 +1599,29 @@ function AiAccessTokenField({
     );
   };
 
+  const applyCommandCodeUsage = (usage: CommandCodeUsageResponse) => {
+    const fields = toCommandCodeQuotaFields(usage);
+    setForm((current) => ({
+      ...current,
+      ...(fields.ratio5h === null ? {} : { ratio5h: fields.ratio5h, expiry5h: fields.expiry5h || "" }),
+      ...(fields.ratioWeek === null ? {} : { ratioWeek: fields.ratioWeek, expiryWeek: fields.expiryWeek || "" }),
+      ...(fields.ratioMonth === null ? {} : { ratioMonth: fields.ratioMonth, expiryMonth: fields.expiryMonth || "" }),
+    }));
+
+    const parts = [
+      fields.ratio5h === null ? null : `5 小時 ${fields.ratio5h}% 剩餘${fields.expiry5h ? `（重設 ${fields.expiry5h}）` : ""}`,
+      fields.ratioWeek === null ? null : `一週 ${fields.ratioWeek}% 剩餘${fields.expiryWeek ? `（重設 ${fields.expiryWeek}）` : ""}`,
+      fields.ratioMonth === null ? null : `一月 ${fields.ratioMonth}% 剩餘${fields.expiryMonth ? `（重設 ${fields.expiryMonth}）` : ""}`,
+    ].filter((part): part is string => Boolean(part));
+    const nothingRead = parts.length === 0;
+    setFailed(nothingRead);
+    setStatus(
+      nothingRead
+        ? "回應裡沒有可用的用量視窗（非公開 API 可能已變動），欄位維持原值。"
+        : `已帶入（Command Code）：${parts.join("、")}`
+    );
+  };
+
   const fetchCodexUsage = (body: Record<string, unknown>) =>
     fetchApi<CodexUsageResponse>(API_ENDPOINTS.CHATGPT_USAGE, {
       method: "POST",
@@ -1605,6 +1643,13 @@ function AiAccessTokenField({
       body: JSON.stringify(body),
     });
 
+  const fetchCommandCodeUsage = (body: Record<string, unknown>) =>
+    fetchApi<CommandCodeUsageResponse>(API_ENDPOINTS.COMMAND_CODE_USAGE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
   const handleFetchUsage = async () => {
     if (needsPin && !/^\d{4}$/.test(pin)) {
       setFailed(true);
@@ -1620,11 +1665,12 @@ function AiAccessTokenField({
         applyClaudeUsage(await fetchClaudeUsage({ accessToken: form.accessToken }));
       } else if (typedGrokCredential) {
         applyGrokUsage(await fetchGrokUsage({ accessToken: form.accessToken }));
+      } else if (typedCommandCodeCredential) {
+        applyCommandCodeUsage(await fetchCommandCodeUsage({ accessToken: form.accessToken }));
       } else if (typedChatGptCredential) {
         applyCodexUsage(await fetchCodexUsage({ accessToken: form.accessToken }));
       } else {
-        // 已存的 token 看不到明文，猜不出格式；照 /api/quota-refresh 的順序先試 Claude，
-        // 再試 Grok，都對不上格式再退回 ChatGPT（四位數密碼驗證沒有次數限制，多試幾次不影響安全性）。
+        // 已存的 token 看不到明文，猜不出格式；照 /api/quota-refresh 的順序逐一判斷。
         try {
           applyClaudeUsage(await fetchClaudeUsage({ quotaId, pin }));
         } catch (err) {
@@ -1633,7 +1679,15 @@ function AiAccessTokenField({
               applyGrokUsage(await fetchGrokUsage({ quotaId, pin }));
             } catch (err2) {
               if (err2 instanceof Error && err2.message === GROK_CREDENTIAL_MISMATCH_ERROR) {
-                applyCodexUsage(await fetchCodexUsage({ quotaId, pin }));
+                try {
+                  applyCommandCodeUsage(await fetchCommandCodeUsage({ quotaId, pin }));
+                } catch (err3) {
+                  if (err3 instanceof Error && err3.message === COMMAND_CODE_CREDENTIAL_MISMATCH_ERROR) {
+                    applyCodexUsage(await fetchCodexUsage({ quotaId, pin }));
+                  } else {
+                    throw err3;
+                  }
+                }
               } else {
                 throw err2;
               }
@@ -1657,7 +1711,7 @@ function AiAccessTokenField({
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <label htmlFor="quota-access-token" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <KeyRound className="h-3.5 w-3.5" />
-          accessToken（ChatGPT Plus／Claude Code／Grok 自動帶入用，選填）
+          accessToken（ChatGPT Plus／Claude Code／Grok／Command Code 自動帶入用，選填）
         </label>
         <a
           href="https://chatgpt.com/api/auth/session"
@@ -1673,7 +1727,7 @@ function AiAccessTokenField({
         rows={2}
         spellCheck={false}
         className="font-mono text-xs"
-        placeholder="貼上 session.json／accessToken（eyJ...）、Claude 的 ~/.claude/.credentials.json（sk-ant-...），或 Grok-cli 的 ~/.grok/auth.json；留空代表不變更"
+        placeholder="貼上 session.json／accessToken（eyJ...）、Claude ~/.claude/.credentials.json、Grok ~/.grok/auth.json，或 Command Code ~/.commandcode/auth.json；留空代表不變更"
         value={form.accessToken || ""}
         onChange={(event) =>
           setForm((current) => ({ ...current, accessToken: event.target.value, clearAccessToken: false }))
@@ -1746,10 +1800,12 @@ function AiAccessTokenField({
             ? `已辨識 Claude 憑證（末 4 碼 ${typedClaudeCredential.accessToken.slice(-4)}）${
                 typedClaudeCredential.refreshToken ? "，含 refresh token（可自動換新）" : "（沒有 refresh token，過期需手動重貼）"
               }；只會存精簡後的 accessToken／refreshToken／expiresAt。`
-            : typedGrokCredential
+              : typedGrokCredential
               ? `已辨識 Grok 憑證（末 4 碼 ${typedGrokCredential.accessToken.slice(-4)}）${
                   typedGrokCredential.refreshToken ? "，含 refresh token（可自動換新）" : "（沒有 refresh token，過期需手動重貼）"
                 }；只會存精簡後的 accessToken／refreshToken／expiresAt。`
+              : typedCommandCodeCredential
+                ? `已辨識 Command Code 憑證（末 4 碼 ${typedCommandCodeCredential.apiKey.slice(-4)}）；只會存使用量 API 所需的 apiKey 與帳號識別欄位。`
               : typedChatGptCredential
               ? `已辨識 ChatGPT token（末 4 碼 ${typedChatGptCredential.accessToken.slice(-4)}）${
                   typedChatGptCredential.accountId ? "，含帳號 ID" : ""
@@ -1758,7 +1814,7 @@ function AiAccessTokenField({
                 ? hasPin === false
                   ? "已存有 token，但四位數密碼還沒建立；設定後才能顯示明文或帶入用量。"
                   : "已存有 token；輸入四位數密碼即可直接帶入最新用量，或貼上新 token 覆蓋。"
-                : "貼上後即可帶入 5 小時／一週剩餘比例與重設時間（Codex 另含剩餘積分／重置機會；Grok 只有一週共用額度池）。")}
+                : "貼上後即可帶入 5 小時／一週／一月的剩餘比例與重設時間（Codex 另含剩餘積分／重置機會；Grok 只有一週共用額度池）。")}
       </p>
     </div>
   );
