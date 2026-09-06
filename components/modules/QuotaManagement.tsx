@@ -304,6 +304,11 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     [items],
   );
 
+  const accountNames = useMemo(
+    () => [...new Set(items.map((item) => item.account?.trim()).filter((account): account is string => Boolean(account)))].sort((a, b) => a.localeCompare(b, "zh-Hant")),
+    [items],
+  );
+
   // 只讀「有沒有設定過密碼」，不會拿到密碼內容
   useEffect(() => {
     let cancelled = false;
@@ -784,10 +789,14 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
               <Input
                 id="quota-account"
                 maxLength={200}
+                list="quota-accounts"
                 value={form.account || ""}
                 onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}
-                placeholder="Email、使用者名稱或辨識名稱"
+                placeholder="選擇已有帳號或自行輸入"
               />
+              <datalist id="quota-accounts">
+                {accountNames.map((account) => <option key={account} value={account} />)}
+              </datalist>
             </FormField>
             <FormField label="額度剩餘次數" htmlFor="quota-remaining">
               <Input
