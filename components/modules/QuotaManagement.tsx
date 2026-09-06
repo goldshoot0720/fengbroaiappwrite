@@ -344,7 +344,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     () => items
       .filter((item) => {
         if (isOiioiiService(item.name)) {
-          return isUsageStale(item.$updatedAt, now, OIIOII_FRESH_WINDOW_MS);
+          return !item.pointsSyncedAt || isUsageStale(item.$updatedAt, now, OIIOII_FRESH_WINDOW_MS);
         }
         if (isMindvideoImageService(item.name)) {
           return isUsageStale(item.$updatedAt, now, MINDVIDEO_FRESH_WINDOW_MS);

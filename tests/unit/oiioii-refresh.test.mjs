@@ -84,3 +84,37 @@ test("quota refresh dispatches OiiOii ahead of tokens, writes zero, preserves ne
   assert.deepEqual(writes, [{ documentId: "zero", data: { quotaPoints: 0, pointsSyncedAt: timestamp } }]);
   assert.deepEqual(body.results.map((item) => item.reason).filter(Boolean).sort(), ["no-points", "oiioii-account-not-found", "older-report"]);
 });
+test("new OiiOii account syncs 55 points immediately despite a recent document edit", async () => {
+  const timestamp = "2026-09-06T08:00:00.000Z";
+  const rows = [{ $id: "zero", name: "OiiOii", account: "account-a", quotaPoints: 0, $updatedAt: new Date().toISOString() }];
+  const writes = [];
+  let loads = 0;
+  const deps = {
+    "next/server": { NextResponse: Response }, "node-appwrite": { Query: {} },
+    "../_lib/appwriteClient": { createAppwrite: () => ({ databaseId: "db", databases: {
+      updateDocument: async ({ documentId, data }) => { writes.push({ documentId, data }); return { $id: documentId, ...data }; },
+    } }) },
+    "../_lib/managementTables": { findManagementTable: async () => ({ $id: "quota" }) },
+    "../_lib/listAllDocuments": { listAllDocuments: async () => rows },
+    "../_lib/oiioiiClient": { loadOiioiiReport: async () => {
+      loads++;
+      return { source: "fixture", report: points.parseOiioiiReport({ generatedAt: timestamp, rows: [
+        { account: 1, name: "account-a", status: "checked_in", currentPoints: 55, finishedAt: timestamp },
+        { account: 2, name: "account-b", status: "failed", currentPoints: 7, finishedAt: timestamp },
+      ] }) };
+    } },
+    "../../../lib/oiioiiPoints": points,
+    "../_lib/quotaSanitize": { sanitizeQuotaRow: (row) => row },
+    "../../../lib/mindvideoPoints": { isMindvideoImageService: () => false },
+    "../../../lib/codexUsage": { isUsageStale: (stamp, now, age) => !stamp || now - Date.parse(stamp) >= age },
+  };
+  for (const id of ["../_lib/codexClient", "../_lib/claudeClient", "../_lib/litmediaClient", "../_lib/mindvideoClient",
+    "../../../lib/chatgptSession", "../../../lib/claudeSession", "../../../lib/claudeUsage", "../../../lib/litmediaPoints"]) deps[id] = {};
+  const route = compile("../../app/api/quota-refresh/route.js", deps);
+  const response = await route.POST(new Request("https://example.com/api/quota-refresh", { method: "POST", body: '{"force":false}' }));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(loads, 1);
+  assert.deepEqual(writes, [{ documentId: "zero", data: { quotaPoints: 55, pointsSyncedAt: timestamp } }]);
+  assert.deepEqual(body.results.map((item) => item.reason).filter(Boolean).sort(), []);
+});

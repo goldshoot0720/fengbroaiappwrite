@@ -353,8 +353,9 @@ async function runRefresh(searchParams, options = {}) {
     // 保鮮期要看「上次量到用量的時刻」。$updatedAt 連換 token、手動存檔都算進去，
     // 拿它當基準會讓一筆從沒同步成功的資料看起來很新鮮，然後永遠輪不到它更新。
     // 還沒有 usageSyncedAt 的舊資料（或欄位還沒補上）退回 $updatedAt，維持原本的節奏。
+    // OiiOii 尚未同步過點數時，新增／編輯時間不能阻止第一次抓取。
     const measuredAt =
-      isClaude || isCodex ? row.usageSyncedAt || row.$updatedAt : row.$updatedAt;
+      isOiioii ? (row.pointsSyncedAt ? row.$updatedAt : null) : isClaude || isCodex ? row.usageSyncedAt || row.$updatedAt : row.$updatedAt;
     const freshWindow = isOiioii
       ? (Number.isFinite(options.maxAgeMs) ? Math.max(0, options.maxAgeMs) : OIIOII_FRESH_WINDOW_MS)
       : isClaude
