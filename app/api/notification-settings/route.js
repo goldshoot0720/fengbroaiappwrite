@@ -147,6 +147,9 @@ export async function PUT(request) {
       fromEmail,
       slotsJson: JSON.stringify(slots),
     };
+    if (slots.some((slot) => /[^\x21-\x7E]/.test(slot.apiKey))) {
+      return json({ error: "API Key 含遮蔽符號或無效字元，請重新解鎖載入金鑰；若已儲存遮蔽值，請重新貼上完整 Resend API Key。" }, 400);
+    }
     if (storedHash) {
       // 已有密碼時可一併更換密碼（需驗證過原密碼）
       if (newPassword) {
@@ -170,7 +173,9 @@ export async function PUT(request) {
       });
     }
 
-    return json({ success: true, ...toPublicPayload({ ...doc, ...data }) });
+    // Password was verified (or initialized) above. The unlocked form applies
+    // these returned slots, so masking here would replace its usable keys.
+    return json({ success: true, ...toPublicPayload({ ...doc, ...data }, true) });
   } catch (error) {
     return failure(error);
   }

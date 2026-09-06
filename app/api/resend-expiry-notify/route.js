@@ -194,6 +194,16 @@ async function handleResendExpiryNotify(request) {
       );
     }
 
+    const invalidKey = resendConfigs.find((config) =>
+      typeof config.apiKey !== "string" || /[^\x21-\x7E]/.test(config.apiKey)
+    );
+    if (invalidKey) {
+      return NextResponse.json(
+        { error: `${invalidKey.keyName} 含遮蔽符號或無效字元，請重新解鎖載入金鑰；若已儲存遮蔽值，請重新貼上完整 Resend API Key。` },
+        { status: 400 }
+      );
+    }
+
     const { databases, databaseId } = createAppwrite(searchParams, body);
     const todayKey = getTaipeiDateKey();
     const { subscriptions, foods } = await collectExpiryItems(databases, databaseId, {
