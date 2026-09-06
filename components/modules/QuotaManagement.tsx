@@ -45,6 +45,8 @@ import {
 import { parseChatGptSession } from "@/lib/chatgptSession";
 import { readStoredClaudeCredential } from "@/lib/claudeSession";
 import { toClaudeQuotaFields, type ClaudeUsageSnapshot } from "@/lib/claudeUsage";
+import { readStoredGrokCredential } from "@/lib/grokSession";
+import { normalizeGrokUsage, toGrokQuotaFields, type DecodedGrokCredits } from "@/lib/grokUsage";
 import { isMindvideoImageService, MINDVIDEO_FRESH_WINDOW_MS } from "@/lib/mindvideoPoints";
 import { isOiioiiService, OIIOII_FRESH_WINDOW_MS } from "@/lib/oiioiiPoints";
 import {
@@ -60,6 +62,7 @@ import {
   toQuotaFields,
   type CodexUsageSnapshot,
 } from "@/lib/codexUsage";
+import { toQuotaUsageChart } from "@/lib/quotaUsageDisplay";
 import {
   isLitmediaServiceName,
   LITMEDIA_FRESH_WINDOW_MS,
@@ -97,9 +100,34 @@ function formatDate(value?: string) {
   }).format(date);
 }
 
-function ratioLabel(value?: number) {
-  if (value == null || value === 0) return null;
-  return `${value}%`;
+function QuotaUsageChart({
+  label,
+  remainingPercent,
+}: {
+  label: string;
+  remainingPercent: number | null | undefined;
+}) {
+  const chart = toQuotaUsageChart(remainingPercent);
+  if (!chart) return null;
+
+  return (
+    <div role="img" aria-label={label + " " + chart.accessibilityLabel}>
+      <div className="mb-1 flex items-center justify-between gap-3 text-xs tabular-nums">
+        <span className="font-medium text-foreground">{chart.usedLabel}</span>
+        <span className="text-muted-foreground">{chart.remainingLabel}</span>
+      </div>
+      <div className="flex h-2 overflow-hidden rounded-full bg-primary/15" aria-hidden="true">
+        <div
+          className="bg-primary transition-[width] duration-300 motion-reduce:transition-none"
+          style={{ width: chart.usedPercent + "%" }}
+        />
+        <div
+          className="bg-primary/35 transition-[width] duration-300 motion-reduce:transition-none"
+          style={{ width: chart.remainingPercent + "%" }}
+        />
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -671,7 +699,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
             鋒兄額度
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            依服務集中追蹤每個帳號的剩餘額度、比例與到期日；AI 服務可再記錄 5 小時／一週／一月方案的比例與到期。點擊服務名稱即可展開帳號清單。
+            依服務集中追蹤每個帳號的剩餘額度、剩餘比例與到期日；AI 服務會把已使用與剩餘量圖表化，並記錄 5 小時／一週／一月的重設時間。點擊服務名稱即可展開帳號清單。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -856,9 +884,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
             {form.serviceType === "ai" ? (
               <>
                 <div className="sm:col-span-2 xl:col-span-3">
-                  <h3 className="border-t border-[var(--line-soft)] pt-4 text-sm font-semibold text-foreground">AI 服務方案（比例＋到期）</h3>
+                  <h3 className="border-t border-[var(--line-soft)] pt-4 text-sm font-semibold text-foreground">AI 服務方案（剩餘比例＋重設）</h3>
                 </div>
-                <FormField label="5 小時比例（%）" htmlFor="quota-ratio-5h">
+                <FormField label="5 小時剩餘比例（%）" htmlFor="quota-ratio-5h">
                   <Input
                     id="quota-ratio-5h"
                     type="number"
@@ -878,7 +906,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     onChange={(event) => setForm((current) => ({ ...current, expiry5h: event.target.value }))}
                   />
                 </FormField>
-                <FormField label="一週比例（%）" htmlFor="quota-ratio-week">
+                <FormField label="一週剩餘比例（%）" htmlFor="quota-ratio-week">
                   <Input
                     id="quota-ratio-week"
                     type="number"
@@ -898,7 +926,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     onChange={(event) => setForm((current) => ({ ...current, expiryWeek: event.target.value }))}
                   />
                 </FormField>
-                <FormField label="一月比例（%）" htmlFor="quota-ratio-month">
+                <FormField label="一月剩餘比例（%）" htmlFor="quota-ratio-month">
                   <Input
                     id="quota-ratio-month"
                     type="number"
@@ -1077,7 +1105,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     </div>
                     <div className="divide-y divide-[var(--line-soft)]">
                       {group.items.map((item) => {
-                        const basicRatio = ratioLabel(item.quotaRatio);
+                        const basicUsageChart = toQuotaUsageChart(item.quotaRatio);
                         // 這些比例是「上次量到當下」的快照，usageSyncedAt 就是那個當下
                         const syncedAt = measuredAtOf(item);
                         const syncedLabel = formatSince(item.$updatedAt, now);
@@ -1153,11 +1181,8 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 // （有憑證不等於量到過——換 token 也會寫這一列）；
                                 // 已經過了重設時刻就更不能標紅，那是舊視窗的數字
                                 warn: depleted && !plan.expired && Boolean(item.usageSyncedAt),
-                                ratioText: plan.expired
-                                  ? "已重設・待更新"
-                                  : depleted
-                                    ? "0% 剩餘"
-                                    : ratioLabel(plan.ratio),
+                                usageChart: !plan.expired && toQuotaUsageChart(plan.ratio) !== null,
+                                statusText: plan.expired ? "已重設・待更新" : null,
                               };
                             })
                           : [];
@@ -1192,7 +1217,12 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 {showPoints && pointsSyncedLabel ? (
                                   <p className="text-xs font-normal text-muted-foreground">{pointsSyncedLabel}</p>
                                 ) : null}
-                                {basicRatio ? <p><span className="text-muted-foreground">比例 </span>{basicRatio}</p> : null}
+                                {basicUsageChart ? (
+                                  <p>
+                                    <span className="text-muted-foreground">比例 </span>
+                                    {basicUsageChart.usedLabel}・{basicUsageChart.remainingLabel}
+                                  </p>
+                                ) : null}
                                 {/* 「重置機會」是額外的手動歸零機會，跟上面剩餘次數／點數是不同的東西，只有填過到期時間才代表有在追蹤 */}
                                 {item.serviceType === "ai" && item.resetCreditsExpiry ? (
                                   <p className="text-xs font-normal text-muted-foreground">
@@ -1205,35 +1235,40 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                               <div className="space-y-1.5">
                                 <p className="inline-flex items-center gap-2 text-sm text-foreground"><CalendarDays className="size-4 shrink-0 text-muted-foreground" />{formatDate(item.quotaExpiry)}</p>
                                 {aiPlans.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {aiPlans.map((plan) => plan.ratioText || plan.expiry ? (
-                                      <span
+                                  <div className="space-y-3">
+                                    {aiPlans.map((plan) => plan.usageChart || plan.statusText || plan.expiry ? (
+                                      <div
                                         key={plan.key}
                                         className={cn(
-                                          "rounded-full px-2 py-0.5 text-xs",
+                                          "space-y-1.5",
                                           plan.warn
-                                            ? "bg-destructive/12 font-medium text-destructive"
-                                            : "bg-accent/12 text-foreground"
+                                            ? "text-destructive"
+                                            : "text-foreground"
                                         )}
                                       >
-                                        {plan.prefix}
-                                        {plan.upcoming ? (
-                                          <>
-                                            {" · 下次重設 "}
-                                            <span className="font-semibold tabular-nums">{plan.resetLabel}</span>
-                                            {plan.projected ? "（估計）" : ""}
-                                            {plan.countdown ? `・${plan.countdown}` : ""}
-                                          </>
-                                        ) : plan.unverified ? (
-                                          <>
-                                            {" · 重設 "}
-                                            <span className="font-semibold tabular-nums">{plan.resetLabel}</span>
-                                            {"（時間待確認）"}
-                                          </>
+                                        <p className="text-xs leading-5 text-muted-foreground">
+                                          <span className="font-semibold text-foreground">{plan.prefix}</span>
+                                          {plan.upcoming ? (
+                                            <>
+                                              {" ・下次重設 "}
+                                              <span className="font-semibold tabular-nums text-foreground">{plan.resetLabel}</span>
+                                              {plan.projected ? "（估計）" : ""}
+                                              {plan.countdown ? "・" + plan.countdown : ""}
+                                            </>
+                                          ) : plan.unverified ? (
+                                            <>
+                                              {" ・重設 "}
+                                              <span className="font-semibold tabular-nums text-foreground">{plan.resetLabel}</span>
+                                              {"（時間待確認）"}
+                                            </>
+                                          ) : null}
+                                        </p>
+                                        {plan.usageChart ? (
+                                          <QuotaUsageChart label={plan.prefix} remainingPercent={plan.ratio} />
                                         ) : null}
-                                        {plan.ratioText ? ` · ${plan.ratioText}` : ""}
-                                        {plan.warn ? " · 已達使用上限" : ""}
-                                      </span>
+                                        {plan.statusText ? <p className="text-xs text-muted-foreground">{plan.statusText}</p> : null}
+                                        {plan.warn ? <p className="text-xs font-medium text-destructive">已達使用上限</p> : null}
+                                      </div>
                                     ) : null)}
                                   </div>
                                 ) : null}
@@ -1417,8 +1452,19 @@ interface ClaudeUsageResponse extends ClaudeUsageSnapshot {
   tokenExpiry: string | null;
 }
 
+interface GrokUsageResponse {
+  decoded: DecodedGrokCredits | null;
+  fetchedAt: string;
+  source: string;
+  quotaId: string | null;
+  quotaName: string;
+  tokenExpiry: string | null;
+}
+
 /** Claude 憑證專屬錯誤：/api/claude-usage 對「不是 Claude 格式」的 accessToken 一律回這句。 */
 const CLAUDE_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Claude 憑證，請先貼上 accessToken／憑證 JSON。";
+/** Grok 憑證專屬錯誤：/api/grok-usage 對「不是 Grok 格式」的 accessToken 一律回這句。 */
+const GROK_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Grok 憑證，請先貼上 ~/.grok/auth.json 或憑證 JSON。";
 
 /**
  * ChatGPT Plus / Codex 與 Claude Code 共用同一個 accessToken 欄位：
@@ -1450,9 +1496,11 @@ function AiAccessTokenField({
   const [fetching, setFetching] = useState(false);
 
   const typedClaudeCredential = form.accessToken ? readStoredClaudeCredential(form.accessToken) : null;
+  const typedGrokCredential =
+    !typedClaudeCredential && form.accessToken ? readStoredGrokCredential(form.accessToken) : null;
   const typedChatGptCredential =
-    !typedClaudeCredential && form.accessToken ? parseChatGptSession(form.accessToken) : null;
-  const typedCredential = typedClaudeCredential || typedChatGptCredential;
+    !typedClaudeCredential && !typedGrokCredential && form.accessToken ? parseChatGptSession(form.accessToken) : null;
+  const typedCredential = typedClaudeCredential || typedGrokCredential || typedChatGptCredential;
   // 手打的 token 直接用；沿用已存的 token 才需要密碼
   const needsPin = !typedCredential && hasExistingToken;
 
@@ -1505,6 +1553,24 @@ function AiAccessTokenField({
     );
   };
 
+  const applyGrokUsage = (usage: GrokUsageResponse) => {
+    const snapshot = normalizeGrokUsage(usage.decoded, usage.source);
+    const fields = toGrokQuotaFields(snapshot);
+    setForm((current) => ({
+      ...current,
+      ...(fields.ratioWeek === null ? {} : { ratioWeek: fields.ratioWeek, expiryWeek: fields.expiryWeek || "" }),
+    }));
+
+    setFailed(fields.ratioWeek === null);
+    setStatus(
+      fields.ratioWeek === null
+        ? "回應裡沒有可用的用量比例（非公開 API 可能已變動），欄位維持原值。"
+        : `已帶入（Grok）：一週共用額度池 ${fields.ratioWeek}% 剩餘${
+            snapshot.resetsAt ? `（重設 ${fields.expiryWeek}）` : ""
+          }（xAI 從 2026-06 起改成全產品線共用一個每週額度池，沒有 5 小時視窗）`
+    );
+  };
+
   const fetchCodexUsage = (body: Record<string, unknown>) =>
     fetchApi<CodexUsageResponse>(API_ENDPOINTS.CHATGPT_USAGE, {
       method: "POST",
@@ -1514,6 +1580,13 @@ function AiAccessTokenField({
 
   const fetchClaudeUsage = (body: Record<string, unknown>) =>
     fetchApi<ClaudeUsageResponse>(API_ENDPOINTS.CLAUDE_USAGE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  const fetchGrokUsage = (body: Record<string, unknown>) =>
+    fetchApi<GrokUsageResponse>(API_ENDPOINTS.GROK_USAGE, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -1532,16 +1605,26 @@ function AiAccessTokenField({
     try {
       if (typedClaudeCredential) {
         applyClaudeUsage(await fetchClaudeUsage({ accessToken: form.accessToken }));
+      } else if (typedGrokCredential) {
+        applyGrokUsage(await fetchGrokUsage({ accessToken: form.accessToken }));
       } else if (typedChatGptCredential) {
         applyCodexUsage(await fetchCodexUsage({ accessToken: form.accessToken }));
       } else {
         // 已存的 token 看不到明文，猜不出格式；照 /api/quota-refresh 的順序先試 Claude，
-        // 對不上格式再退回 ChatGPT（四位數密碼驗證沒有次數限制，兩次都試不影響安全性）。
+        // 再試 Grok，都對不上格式再退回 ChatGPT（四位數密碼驗證沒有次數限制，多試幾次不影響安全性）。
         try {
           applyClaudeUsage(await fetchClaudeUsage({ quotaId, pin }));
         } catch (err) {
           if (err instanceof Error && err.message === CLAUDE_CREDENTIAL_MISMATCH_ERROR) {
-            applyCodexUsage(await fetchCodexUsage({ quotaId, pin }));
+            try {
+              applyGrokUsage(await fetchGrokUsage({ quotaId, pin }));
+            } catch (err2) {
+              if (err2 instanceof Error && err2.message === GROK_CREDENTIAL_MISMATCH_ERROR) {
+                applyCodexUsage(await fetchCodexUsage({ quotaId, pin }));
+              } else {
+                throw err2;
+              }
+            }
           } else {
             throw err;
           }
@@ -1561,7 +1644,7 @@ function AiAccessTokenField({
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <label htmlFor="quota-access-token" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <KeyRound className="h-3.5 w-3.5" />
-          accessToken（ChatGPT Plus／Claude Code 自動帶入用，選填）
+          accessToken（ChatGPT Plus／Claude Code／Grok 自動帶入用，選填）
         </label>
         <a
           href="https://chatgpt.com/api/auth/session"
@@ -1577,7 +1660,7 @@ function AiAccessTokenField({
         rows={2}
         spellCheck={false}
         className="font-mono text-xs"
-        placeholder="貼上 session.json／accessToken（eyJ...），或 Claude 的 ~/.claude/.credentials.json（sk-ant-...）；留空代表不變更"
+        placeholder="貼上 session.json／accessToken（eyJ...）、Claude 的 ~/.claude/.credentials.json（sk-ant-...），或 Grok-cli 的 ~/.grok/auth.json；留空代表不變更"
         value={form.accessToken || ""}
         onChange={(event) =>
           setForm((current) => ({ ...current, accessToken: event.target.value, clearAccessToken: false }))
@@ -1650,7 +1733,11 @@ function AiAccessTokenField({
             ? `已辨識 Claude 憑證（末 4 碼 ${typedClaudeCredential.accessToken.slice(-4)}）${
                 typedClaudeCredential.refreshToken ? "，含 refresh token（可自動換新）" : "（沒有 refresh token，過期需手動重貼）"
               }；只會存精簡後的 accessToken／refreshToken／expiresAt。`
-            : typedChatGptCredential
+            : typedGrokCredential
+              ? `已辨識 Grok 憑證（末 4 碼 ${typedGrokCredential.accessToken.slice(-4)}）${
+                  typedGrokCredential.refreshToken ? "，含 refresh token（可自動換新）" : "（沒有 refresh token，過期需手動重貼）"
+                }；只會存精簡後的 accessToken／refreshToken／expiresAt。`
+              : typedChatGptCredential
               ? `已辨識 ChatGPT token（末 4 碼 ${typedChatGptCredential.accessToken.slice(-4)}）${
                   typedChatGptCredential.accountId ? "，含帳號 ID" : ""
                 }；只會存 accessToken 與帳號 ID，不存 sessionToken。`
@@ -1658,7 +1745,7 @@ function AiAccessTokenField({
                 ? hasPin === false
                   ? "已存有 token，但四位數密碼還沒建立；設定後才能顯示明文或帶入用量。"
                   : "已存有 token；輸入四位數密碼即可直接帶入最新用量，或貼上新 token 覆蓋。"
-                : "貼上後即可帶入 5 小時／一週剩餘比例與重設時間（Codex 另含剩餘積分／重置機會）。")}
+                : "貼上後即可帶入 5 小時／一週剩餘比例與重設時間（Codex 另含剩餘積分／重置機會；Grok 只有一週共用額度池）。")}
       </p>
     </div>
   );

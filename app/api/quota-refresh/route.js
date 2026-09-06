@@ -5,6 +5,7 @@ import { findManagementTable } from "../_lib/managementTables";
 import { listAllDocuments } from "../_lib/listAllDocuments";
 import { loadCodexSnapshot } from "../_lib/codexClient";
 import { loadClaudeSnapshot } from "../_lib/claudeClient";
+import { loadGrokSnapshot } from "../_lib/grokClient";
 import { loadLitmediaReport } from "../_lib/litmediaClient";
 import { loadMindvideoReport } from "../_lib/mindvideoClient";
 import { loadOiioiiReport } from "../_lib/oiioiiClient";
@@ -18,6 +19,7 @@ import {
 import { sanitizeQuotaRow } from "../_lib/quotaSanitize";
 import { readStoredCredential } from "../../../lib/chatgptSession";
 import { readStoredClaudeCredential, serializeClaudeCredential } from "../../../lib/claudeSession";
+import { readStoredGrokCredential, serializeGrokCredential } from "../../../lib/grokSession";
 import {
   isUsageStale,
   QUOTA_TIME_ZONE,
@@ -25,6 +27,7 @@ import {
   USAGE_FRESH_WINDOW_MS,
 } from "../../../lib/codexUsage";
 import { CLAUDE_USAGE_FRESH_WINDOW_MS, toClaudeQuotaFields } from "../../../lib/claudeUsage";
+import { GROK_USAGE_FRESH_WINDOW_MS, normalizeGrokUsage, toGrokQuotaFields } from "../../../lib/grokUsage";
 import {
   findLitmediaAccount,
   LITMEDIA_FRESH_WINDOW_MS,
@@ -293,6 +296,79 @@ async function refreshClaudeRow(databases, databaseId, collectionId, row, update
 }
 
 /**
+ * Grok（xAI grok-cli／SuperGrok OAuth）跟 Claude 同一套邏輯：即時查詢＋refresh token 自動換新，
+ * 換到新的就把整組憑證寫回 accessToken 欄位。差別是 Grok 只有「一週共用額度池」一個數字，
+ * 沒有 5 小時視窗，所以只動 ratioWeek/expiryWeek。
+ */
+async function refreshGrokRow(databases, databaseId, collectionId, row, updatedRows, supportsUsageSyncedAt) {
+  const credential = readStoredGrokCredential(row.accessToken);
+  if (!credential) {
+    return { quotaId: row.$id, account: row.account || "", status: "skipped", reason: "bad-token" };
+  }
+
+  let outcome;
+  try {
+    outcome = await loadGrokSnapshot(credential);
+  } catch (err) {
+    return {
+      quotaId: row.$id,
+      account: row.account || "",
+      status: "error",
+      error: err instanceof Error ? err.message : "查詢用量失敗",
+    };
+  }
+
+  if (!outcome.ok) {
+    if (outcome.rotatedCredential) {
+      await writeRow(
+        databases,
+        databaseId,
+        collectionId,
+        row,
+        { accessToken: serializeGrokCredential({ ...outcome.rotatedCredential, clientId: credential.clientId }) },
+        updatedRows
+      );
+    }
+    return {
+      quotaId: row.$id,
+      account: row.account || "",
+      status: "error",
+      error: outcome.error,
+      tokenExpiry: outcome.tokenExpiry,
+    };
+  }
+
+  const snapshot = normalizeGrokUsage(outcome.snapshot.decoded, outcome.snapshot.source);
+  const fields = toGrokQuotaFields(snapshot, QUOTA_TIME_ZONE);
+  const data = {};
+  if (fields.ratioWeek !== null) {
+    data.ratioWeek = fields.ratioWeek;
+    data.expiryWeek = fields.expiryWeek;
+  }
+  if (outcome.rotatedCredential) {
+    data.accessToken = serializeGrokCredential({ ...outcome.rotatedCredential, clientId: credential.clientId });
+  }
+
+  if (fields.ratioWeek === null) {
+    if (outcome.rotatedCredential) {
+      await writeRow(databases, databaseId, collectionId, row, data, updatedRows);
+    }
+    return outcomeFor(row, "error", {
+      error: "用量回應裡沒有可用的比例（非公開 API 可能已變動）",
+    });
+  }
+
+  return writeRow(
+    databases,
+    databaseId,
+    collectionId,
+    row,
+    withUsageSyncedAt(data, { fetchedAt: snapshot.fetchedAt }, supportsUsageSyncedAt),
+    updatedRows
+  );
+}
+
+/**
  * @param {URLSearchParams} searchParams
  * @param {{ quotaIds?: string[] | null, force?: boolean, maxAgeMs?: number }} options
  */
@@ -329,6 +405,10 @@ async function runRefresh(searchParams, options = {}) {
   const claudeMaxAgeMs = Number.isFinite(options.maxAgeMs)
     ? Math.max(0, options.maxAgeMs)
     : CLAUDE_USAGE_FRESH_WINDOW_MS;
+  // grok.com 的用量端點一樣是非公開 API，保鮮期抓保守一點
+  const grokMaxAgeMs = Number.isFinite(options.maxAgeMs)
+    ? Math.max(0, options.maxAgeMs)
+    : GROK_USAGE_FRESH_WINDOW_MS;
 
   const targets = [];
   const results = [];
@@ -337,13 +417,14 @@ async function runRefresh(searchParams, options = {}) {
 
     const isOiioii = isOiioiiService(row.name);
     const isMindvideo = isMindvideoImageService(row.name);
-    // 兩種 AI 憑證共用同一個 accessToken 欄位，先試 Claude 的 JSON/sk-ant- 格式，
-    // 對不上再當作 ChatGPT（JWT 或 session.json）——順序不能反過來，
-    // 否則 Claude 的 JSON 憑證會被 ChatGPT 那邊誤判成壞掉的 session.json。
+    // 三種 AI 憑證共用同一個 accessToken 欄位，先試 Claude 的 JSON/sk-ant- 格式，
+    // 再試 Grok 的 auth.json/grokOauth JSON，對不上再當作 ChatGPT（JWT 或 session.json）——
+    // 順序不能反過來，否則 Claude／Grok 的 JSON 憑證會被 ChatGPT 那邊誤判成壞掉的 session.json。
     const isClaude = !isOiioii && !isMindvideo && row.serviceType === "ai" && Boolean(readStoredClaudeCredential(row.accessToken));
-    const isCodex = !isOiioii && !isMindvideo && !isClaude && row.serviceType === "ai" && Boolean(row.accessToken);
-    const isLitmedia = !isOiioii && !isMindvideo && !isClaude && !isCodex && Boolean(resolveLitmediaKey(row));
-    if (!isClaude && !isCodex && !isLitmedia && !isMindvideo && !isOiioii) {
+    const isGrok = !isOiioii && !isMindvideo && !isClaude && row.serviceType === "ai" && Boolean(readStoredGrokCredential(row.accessToken));
+    const isCodex = !isOiioii && !isMindvideo && !isClaude && !isGrok && row.serviceType === "ai" && Boolean(row.accessToken);
+    const isLitmedia = !isOiioii && !isMindvideo && !isClaude && !isGrok && !isCodex && Boolean(resolveLitmediaKey(row));
+    if (!isClaude && !isGrok && !isCodex && !isLitmedia && !isMindvideo && !isOiioii) {
       if (row.serviceType === "ai") {
         results.push({ quotaId: row.$id, account: row.account || "", status: "skipped", reason: "no-token" });
       }
@@ -355,23 +436,25 @@ async function runRefresh(searchParams, options = {}) {
     // 還沒有 usageSyncedAt 的舊資料（或欄位還沒補上）退回 $updatedAt，維持原本的節奏。
     // OiiOii 尚未同步過點數時，新增／編輯時間不能阻止第一次抓取。
     const measuredAt =
-      isOiioii ? (row.pointsSyncedAt ? row.$updatedAt : null) : isClaude || isCodex ? row.usageSyncedAt || row.$updatedAt : row.$updatedAt;
+      isOiioii ? (row.pointsSyncedAt ? row.$updatedAt : null) : isClaude || isGrok || isCodex ? row.usageSyncedAt || row.$updatedAt : row.$updatedAt;
     const freshWindow = isOiioii
       ? (Number.isFinite(options.maxAgeMs) ? Math.max(0, options.maxAgeMs) : OIIOII_FRESH_WINDOW_MS)
       : isClaude
         ? claudeMaxAgeMs
-        : isCodex
-          ? maxAgeMs
-          : isMindvideo
-            ? mindvideoMaxAgeMs
-            : litmediaMaxAgeMs;
+        : isGrok
+          ? grokMaxAgeMs
+          : isCodex
+            ? maxAgeMs
+            : isMindvideo
+              ? mindvideoMaxAgeMs
+              : litmediaMaxAgeMs;
     if (!options.force && !isUsageStale(measuredAt, now, freshWindow)) {
       results.push({ quotaId: row.$id, account: row.account || "", status: "fresh", usageSyncedAt: measuredAt || null });
       continue;
     }
     targets.push({
       row,
-      kind: isOiioii ? "oiioii" : isMindvideo ? "mindvideo" : isClaude ? "claude" : isCodex ? "codex" : "litmedia",
+      kind: isOiioii ? "oiioii" : isMindvideo ? "mindvideo" : isClaude ? "claude" : isGrok ? "grok" : isCodex ? "codex" : "litmedia",
     });
   }
 
@@ -441,6 +524,20 @@ async function runRefresh(searchParams, options = {}) {
       if (kind === "claude") {
         results.push(
           await refreshClaudeRow(
+            databases,
+            databaseId,
+            collection.$id,
+            row,
+            updatedRows,
+            supportsUsageSyncedAt
+          )
+        );
+        continue;
+      }
+
+      if (kind === "grok") {
+        results.push(
+          await refreshGrokRow(
             databases,
             databaseId,
             collection.$id,
