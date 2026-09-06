@@ -4,6 +4,7 @@ import { createAppwrite } from "../_lib/appwriteClient";
 import { findManagementTable } from "../_lib/managementTables";
 import { listAllDocuments } from "../_lib/listAllDocuments";
 import { loadCodexSnapshot } from "../_lib/codexClient";
+import { loadClaudeSnapshot } from "../_lib/claudeClient";
 import { loadLitmediaReport } from "../_lib/litmediaClient";
 import { loadMindvideoReport } from "../_lib/mindvideoClient";
 import {
@@ -14,12 +15,14 @@ import {
 } from "../../../lib/mindvideoPoints";
 import { sanitizeQuotaRow } from "../_lib/quotaSanitize";
 import { readStoredCredential } from "../../../lib/chatgptSession";
+import { readStoredClaudeCredential, serializeClaudeCredential } from "../../../lib/claudeSession";
 import {
   isUsageStale,
   QUOTA_TIME_ZONE,
   toQuotaFields,
   USAGE_FRESH_WINDOW_MS,
 } from "../../../lib/codexUsage";
+import { CLAUDE_USAGE_FRESH_WINDOW_MS, toClaudeQuotaFields } from "../../../lib/claudeUsage";
 import {
   findLitmediaAccount,
   LITMEDIA_FRESH_WINDOW_MS,
@@ -175,6 +178,64 @@ async function refreshCodexRow(databases, databaseId, collectionId, row, updated
 }
 
 /**
+ * Claude 跟 Codex 一樣是即時查詢，差別是 access token 只活 ~60 分鐘、
+ * 但配了 refresh token 可以自動換新——換到新的就把整組憑證寫回 accessToken 欄位，
+ * 不然下次 refresh token 已經輪替過、舊的那顆會直接失敗。
+ */
+async function refreshClaudeRow(databases, databaseId, collectionId, row, updatedRows) {
+  const credential = readStoredClaudeCredential(row.accessToken);
+  if (!credential) {
+    return { quotaId: row.$id, account: row.account || "", status: "skipped", reason: "bad-token" };
+  }
+
+  let outcome;
+  try {
+    outcome = await loadClaudeSnapshot(credential);
+  } catch (err) {
+    return {
+      quotaId: row.$id,
+      account: row.account || "",
+      status: "error",
+      error: err instanceof Error ? err.message : "查詢用量失敗",
+    };
+  }
+
+  if (!outcome.ok) {
+    // 就算這次查詢失敗，只要有換到新 access token 還是要寫回去，不然它就白換了
+    if (outcome.rotatedCredential) {
+      await writeRow(
+        databases,
+        databaseId,
+        collectionId,
+        row,
+        { accessToken: serializeClaudeCredential(outcome.rotatedCredential) },
+        updatedRows
+      );
+    }
+    return {
+      quotaId: row.$id,
+      account: row.account || "",
+      status: "error",
+      error: outcome.error,
+      tokenExpiry: outcome.tokenExpiry,
+    };
+  }
+
+  const fields = toClaudeQuotaFields(outcome.snapshot, QUOTA_TIME_ZONE);
+  const data = {
+    ratio5h: fields.ratio5h,
+    expiry5h: fields.expiry5h,
+    ratioWeek: fields.ratioWeek,
+    expiryWeek: fields.expiryWeek,
+  };
+  if (outcome.rotatedCredential) {
+    data.accessToken = serializeClaudeCredential(outcome.rotatedCredential);
+  }
+
+  return writeRow(databases, databaseId, collectionId, row, data, updatedRows);
+}
+
+/**
  * @param {URLSearchParams} searchParams
  * @param {{ quotaIds?: string[] | null, force?: boolean, maxAgeMs?: number }} options
  */
@@ -202,6 +263,10 @@ async function runRefresh(searchParams, options = {}) {
   const mindvideoMaxAgeMs = Number.isFinite(options.maxAgeMs)
     ? Math.max(0, options.maxAgeMs)
     : MINDVIDEO_FRESH_WINDOW_MS;
+  // Claude 官方端點對頻繁查詢很敏感，保鮮期比 Codex 長一點
+  const claudeMaxAgeMs = Number.isFinite(options.maxAgeMs)
+    ? Math.max(0, options.maxAgeMs)
+    : CLAUDE_USAGE_FRESH_WINDOW_MS;
 
   const targets = [];
   const results = [];
@@ -209,21 +274,34 @@ async function runRefresh(searchParams, options = {}) {
     if (wanted && !wanted.has(row.$id)) continue;
 
     const isMindvideo = isMindvideoImageService(row.name);
-    const isCodex = !isMindvideo && row.serviceType === "ai" && Boolean(row.accessToken);
-    const isLitmedia = !isMindvideo && !isCodex && Boolean(resolveLitmediaKey(row));
-    if (!isCodex && !isLitmedia && !isMindvideo) {
+    // 兩種 AI 憑證共用同一個 accessToken 欄位，先試 Claude 的 JSON/sk-ant- 格式，
+    // 對不上再當作 ChatGPT（JWT 或 session.json）——順序不能反過來，
+    // 否則 Claude 的 JSON 憑證會被 ChatGPT 那邊誤判成壞掉的 session.json。
+    const isClaude = !isMindvideo && row.serviceType === "ai" && Boolean(readStoredClaudeCredential(row.accessToken));
+    const isCodex = !isMindvideo && !isClaude && row.serviceType === "ai" && Boolean(row.accessToken);
+    const isLitmedia = !isMindvideo && !isClaude && !isCodex && Boolean(resolveLitmediaKey(row));
+    if (!isClaude && !isCodex && !isLitmedia && !isMindvideo) {
       if (row.serviceType === "ai") {
         results.push({ quotaId: row.$id, account: row.account || "", status: "skipped", reason: "no-token" });
       }
       continue;
     }
 
-    const freshWindow = isCodex ? maxAgeMs : isMindvideo ? mindvideoMaxAgeMs : litmediaMaxAgeMs;
+    const freshWindow = isClaude
+      ? claudeMaxAgeMs
+      : isCodex
+        ? maxAgeMs
+        : isMindvideo
+          ? mindvideoMaxAgeMs
+          : litmediaMaxAgeMs;
     if (!options.force && !isUsageStale(row.$updatedAt, now, freshWindow)) {
       results.push({ quotaId: row.$id, account: row.account || "", status: "fresh", updatedAt: row.$updatedAt || null });
       continue;
     }
-    targets.push({ row, kind: isMindvideo ? "mindvideo" : isCodex ? "codex" : "litmedia" });
+    targets.push({
+      row,
+      kind: isMindvideo ? "mindvideo" : isClaude ? "claude" : isCodex ? "codex" : "litmedia",
+    });
   }
 
   // 33 個帳號共用同一份簽到結果，所以只跟 GitHub 要一次
@@ -269,6 +347,11 @@ async function runRefresh(searchParams, options = {}) {
             ? await refreshLitmediaRow(databases, databaseId, collection.$id, row, litmedia, updatedRows)
             : { quotaId: row.$id, account: row.account || "", status: "error", error: litmediaError }
         );
+        continue;
+      }
+
+      if (kind === "claude") {
+        results.push(await refreshClaudeRow(databases, databaseId, collection.$id, row, updatedRows));
         continue;
       }
 

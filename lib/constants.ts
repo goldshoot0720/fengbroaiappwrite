@@ -107,6 +107,7 @@ export const API_ENDPOINTS = {
   REINSTALL: "/api/reinstall",
   QUOTA: "/api/quota",
   CHATGPT_USAGE: "/api/chatgpt-usage",
+  CLAUDE_USAGE: "/api/claude-usage",
   /** 用存好的 accessToken 自動重抓用量並寫回（不回傳明文，免四位數密碼） */
   QUOTA_REFRESH: "/api/quota-refresh",
   /** 全站共用的四位數密碼（在鋒兄設定建立） */

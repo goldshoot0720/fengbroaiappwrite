@@ -54,6 +54,14 @@
   所以取「從現在算起的下一次」——今天還沒到就是今天，已經過了就是明天。
   沒有任何重設時間的排最後。
 
+## Claude 自動帶入
+
+有 Claude Code 訂閱（Pro/Max）的帳號可填 `accessToken`，直接從官方非公開端點帶入
+5 小時／一週的剩餘比例與重設時間，做法與 ChatGPT/Codex 對稱，細節見 [`claude-quota.md`](./claude-quota.md)。
+
+跟 ChatGPT 最大的不同：Claude 的 access token 只活 ~60 分鐘，靠 refresh token 自動換新
+（換到新的會連同 refresh token 一起寫回 `accessToken` 欄位），不必像 ChatGPT 那樣每隔幾天手動重貼。
+
 ## LitMedia 剩餘點數
 
 LitMedia 的點數**不是即時查來的**。它的用量 API
@@ -155,7 +163,7 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 | resetCreditsBalance | integer | - | 「使用重置」機會的剩餘次數（AI），見上「額度剩餘次數 ≠ 重置機會」 |
 | resetCreditsExpiry | string | 20 | 上面那次機會的到期時間 `YYYY-MM-DD HH:mm`（AI） |
 | note | string | 3337 | 備註 |
-| accessToken | string | 5000 | ChatGPT / Codex 憑證，見上 |
+| accessToken | string | 5000 | ChatGPT/Codex 憑證或 Claude 憑證 JSON，見上 |
 
 既有的 15 欄資料表**不必重建**：到「鋒兄設定」重跑 `quota` 初始化即可，
 `initializeManagementTable` 是非破壞性的，只補缺少的欄位、不刪資料。
@@ -172,6 +180,7 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 | DELETE | `/api/quota/[id]` | 刪除 |
 | POST | `/api/quota/[id]/access-token` | 通過四位數密碼後回傳明文 token |
 | POST | `/api/chatgpt-usage` | 查 Codex 用量（`quotaId` + `pin`，或直接給 `accessToken`） |
+| POST | `/api/claude-usage` | 查 Claude 用量（`quotaId` + `pin`，或直接給 `accessToken`），細節見 [`claude-quota.md`](./claude-quota.md) |
 
 共用密碼的 `/api/access-pin` 見上方「四位數密碼」。
 
@@ -187,15 +196,17 @@ ChatGPT 用量 API 未公開，欄位名稱會隨版本變動，因此依序嘗�
 `used_percent` / `usedPercent`、`resets_at` / `resetsInSeconds`、`window_minutes` / `limit_window_seconds`
 等寫法都吃得下；兩個端點都失敗時會顯示錯誤，請改看官方用量頁。
 
+Claude 用量端點見 [`claude-quota.md`](./claude-quota.md#上游端點)。
+
 ## 技術規格
 
 - **元件路徑**：`components/modules/QuotaManagement.tsx`
 - **共用元件**：`components/ui/access-token-reveal.tsx`
-- **憑證解析**：`lib/chatgptSession.ts`
-- **用量正規化／欄位轉換**：`lib/codexUsage.ts`
+- **憑證解析**：`lib/chatgptSession.ts`（ChatGPT）· `lib/claudeSession.ts`（Claude）
+- **用量正規化／欄位轉換**：`lib/codexUsage.ts`（ChatGPT）· `lib/claudeUsage.ts`（Claude）
 - **共用密碼**：`app/api/_lib/accessPin.js` · `components/modules/SettingsManagement.tsx`（AccessPinSettings）
 - **表單與 Schema**：`lib/managementRecords.ts`
-- **單元測試**：`tests/unit/codex-usage.test.mjs`
+- **單元測試**：`tests/unit/codex-usage.test.mjs`（ChatGPT）· `tests/unit/claude-usage.test.mjs`（Claude）
 
 ---
 
@@ -204,3 +215,5 @@ ChatGPT 用量 API 未公開，欄位名稱會隨版本變動，因此依序嘗�
 - [選單索引](./INDEX.md) - 返回文件總覽
 - [訂閱說明](./03_subscription.md) - 訂閱費用與扣款日
 - [鋒兄設定](./14_settings.md) - 建表與補欄位
+- [Claude 自動帶入細節](./claude-quota.md) - 上游端點、refresh token 自動輪替
+- [MindVideo/GPT Image 2 專屬點數](./mindvideo-quota.md) - 另一種點數來源做法
