@@ -88,12 +88,29 @@ describe("toClaudeQuotaFields", () => {
     assert.equal(fields.ratioWeek, 20); // 100 - 80
   });
 
-  it("完全沒有視窗資料就回 0，不猜、不炸", () => {
+  it("完全沒有視窗資料就回 null——0 會被畫面讀成「已達使用上限」", () => {
     const fields = toClaudeQuotaFields(normalizeClaudeUsage({}, "test"));
+    assert.equal(fields.ratio5h, null);
+    assert.equal(fields.expiry5h, null);
+    assert.equal(fields.ratioWeek, null);
+    assert.equal(fields.expiryWeek, null);
+  });
+
+  it("只讀到一個視窗時，另一個維持 null（不要拿 0 蓋掉原本的數字）", () => {
+    const fields = toClaudeQuotaFields(
+      normalizeClaudeUsage({ five_hour: { utilization: 28, resets_at: "2026-09-06T08:30:00Z" } }, "test")
+    );
+    assert.equal(fields.ratio5h, 72);
+    assert.match(fields.expiry5h, /^\d{2}:\d{2}$/);
+    assert.equal(fields.ratioWeek, null);
+    assert.equal(fields.expiryWeek, null);
+  });
+
+  it("真的用完（utilization 100）才回 0", () => {
+    const fields = toClaudeQuotaFields(
+      normalizeClaudeUsage({ five_hour: { utilization: 100, resets_at: "2026-09-06T08:30:00Z" } }, "test")
+    );
     assert.equal(fields.ratio5h, 0);
-    assert.equal(fields.expiry5h, "");
-    assert.equal(fields.ratioWeek, 0);
-    assert.equal(fields.expiryWeek, "");
   });
 });
 

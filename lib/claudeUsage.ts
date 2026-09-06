@@ -118,16 +118,22 @@ export function normalizeClaudeUsage(payload: unknown, source: string): ClaudeUs
 export const CLAUDE_USAGE_FRESH_WINDOW_MS = 10 * 60 * 1000;
 
 export interface ClaudeQuotaFields {
-  ratio5h: number;
-  expiry5h: string;
-  ratioWeek: number;
-  expiryWeek: string;
+  /**
+   * 這次回應沒有對應視窗就是 null，呼叫端要略過那個欄位、別寫進資料庫。
+   * 「沒讀到」不能寫成 0——畫面把「0% 剩餘」當成「已達使用上限」，
+   * 那會讓一個查詢不完整的帳號看起來像用光了。
+   */
+  ratio5h: number | null;
+  expiry5h: string | null;
+  ratioWeek: number | null;
+  expiryWeek: string | null;
 }
 
 /**
  * 把 Claude 用量轉成「鋒兄額度」表單欄位：跟 ChatGPT 共用 ratio5h/expiry5h/ratioWeek/expiryWeek，
  * 5 小時到期用 HH:mm、一週到期用 YYYY-MM-DD，都以台北時間為準（跟 `toQuotaFields` 同一套換算）。
  * 一週視窗優先取全模型的 `seven_day`；只有 opus/sonnet 分項時退而求其次取用量較高的那個。
+ * 回應裡沒有的視窗一律回 null（見 ClaudeQuotaFields），不要拿 0 頂替。
  */
 export function toClaudeQuotaFields(
   snapshot: ClaudeUsageSnapshot,
@@ -141,9 +147,9 @@ export function toClaudeQuotaFields(
       .sort((a, b) => b.usedPercent - a.usedPercent)[0];
 
   return {
-    ratio5h: Math.round(fiveHour?.remainingPercent ?? 0),
-    expiry5h: toLocalTimeField(fiveHour?.resetsAt ?? null, timeZone),
-    ratioWeek: Math.round(sevenDay?.remainingPercent ?? 0),
-    expiryWeek: toLocalDateField(sevenDay?.resetsAt ?? null, timeZone),
+    ratio5h: fiveHour ? Math.round(fiveHour.remainingPercent) : null,
+    expiry5h: fiveHour ? toLocalTimeField(fiveHour.resetsAt, timeZone) : null,
+    ratioWeek: sevenDay ? Math.round(sevenDay.remainingPercent) : null,
+    expiryWeek: sevenDay ? toLocalDateField(sevenDay.resetsAt, timeZone) : null,
   };
 }

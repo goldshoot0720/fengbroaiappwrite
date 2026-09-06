@@ -55,7 +55,11 @@ function outcomeFor(row, status, extra = {}) {
   return { quotaId: row.$id, account: row.account || "", status, ...extra };
 }
 
-/** 即使數字沒變也照寫，讓 $updatedAt 成為可信的「最後一次成功同步」時間。 */
+/**
+ * 即使數字沒變也照寫，讓 $updatedAt 成為可信的「最後一次嘗試」時間。
+ * 「最後一次量到用量」是另一回事，記在 usageSyncedAt——這裡也會寫別的東西
+ * （換新的 accessToken、點數），那些不代表比例有更新過。
+ */
 async function writeRow(databases, databaseId, collectionId, row, data, updatedRows, extra = {}) {
   try {
     const updated = await databases.updateDocument({
@@ -129,7 +133,17 @@ async function refreshMindvideoRow(databases, databaseId, collectionId, row, sna
   );
 }
 
-async function refreshCodexRow(databases, databaseId, collectionId, row, updatedRows) {
+/**
+ * 用量欄位的量測時刻。$updatedAt 是寫入時間，換 token、同步點數、手動存檔都會動到它，
+ * 拿它當「這組比例是什麼時候量到的」會把舊數字說成剛更新的（見 usageSyncedAt 欄位註解）。
+ * 欄位還沒補上去的資料表就跳過這個鍵，免得整筆寫回被 Appwrite 擋下來。
+ */
+function withUsageSyncedAt(data, snapshot, supported) {
+  if (!supported) return data;
+  return { ...data, usageSyncedAt: snapshot.fetchedAt };
+}
+
+async function refreshCodexRow(databases, databaseId, collectionId, row, updatedRows, supportsUsageSyncedAt) {
   const credential = readStoredCredential(row.accessToken);
   if (!credential) {
     return { quotaId: row.$id, account: row.account || "", status: "skipped", reason: "bad-token" };
@@ -174,7 +188,14 @@ async function refreshCodexRow(databases, databaseId, collectionId, row, updated
     data.resetCreditsExpiry = fields.resetCreditsExpiry;
   }
 
-  return writeRow(databases, databaseId, collectionId, row, data, updatedRows);
+  return writeRow(
+    databases,
+    databaseId,
+    collectionId,
+    row,
+    withUsageSyncedAt(data, outcome.snapshot, supportsUsageSyncedAt),
+    updatedRows
+  );
 }
 
 /**
@@ -182,7 +203,7 @@ async function refreshCodexRow(databases, databaseId, collectionId, row, updated
  * 但配了 refresh token 可以自動換新——換到新的就把整組憑證寫回 accessToken 欄位，
  * 不然下次 refresh token 已經輪替過、舊的那顆會直接失敗。
  */
-async function refreshClaudeRow(databases, databaseId, collectionId, row, updatedRows) {
+async function refreshClaudeRow(databases, databaseId, collectionId, row, updatedRows, supportsUsageSyncedAt) {
   const credential = readStoredClaudeCredential(row.accessToken);
   if (!credential) {
     return { quotaId: row.$id, account: row.account || "", status: "skipped", reason: "bad-token" };
@@ -222,17 +243,39 @@ async function refreshClaudeRow(databases, databaseId, collectionId, row, update
   }
 
   const fields = toClaudeQuotaFields(outcome.snapshot, QUOTA_TIME_ZONE);
-  const data = {
-    ratio5h: fields.ratio5h,
-    expiry5h: fields.expiry5h,
-    ratioWeek: fields.ratioWeek,
-    expiryWeek: fields.expiryWeek,
-  };
+  // 這次回應沒有的視窗一律不動：寫 0 會被畫面讀成「已達使用上限」，
+  // 一個查不到週視窗的帳號不該長得像額度用光了
+  const data = {};
+  if (fields.ratio5h !== null) {
+    data.ratio5h = fields.ratio5h;
+    data.expiry5h = fields.expiry5h;
+  }
+  if (fields.ratioWeek !== null) {
+    data.ratioWeek = fields.ratioWeek;
+    data.expiryWeek = fields.expiryWeek;
+  }
   if (outcome.rotatedCredential) {
     data.accessToken = serializeClaudeCredential(outcome.rotatedCredential);
   }
+  // 一個視窗都沒解析出來就不算量到用量：新換的 token 該寫還是要寫（不然它就白換了），
+  // 但別蓋上量測時刻，也別讓這一輪看起來像成功
+  if (fields.ratio5h === null && fields.ratioWeek === null) {
+    if (outcome.rotatedCredential) {
+      await writeRow(databases, databaseId, collectionId, row, data, updatedRows);
+    }
+    return outcomeFor(row, "error", {
+      error: "用量回應裡沒有可用的視窗（非公開 API 可能已變動）",
+    });
+  }
 
-  return writeRow(databases, databaseId, collectionId, row, data, updatedRows);
+  return writeRow(
+    databases,
+    databaseId,
+    collectionId,
+    row,
+    withUsageSyncedAt(data, outcome.snapshot, supportsUsageSyncedAt),
+    updatedRows
+  );
 }
 
 /**
@@ -249,6 +292,11 @@ async function runRefresh(searchParams, options = {}) {
   }
 
   const rows = await listAllDocuments(databases, databaseId, collection.$id, { Query });
+  // usageSyncedAt 是後來才加的欄位；資料表還沒補上就照舊只寫比例，不要整筆寫回被擋下
+  const supportsUsageSyncedAt = (collection.attributes || []).some(
+    (attribute) =>
+      attribute.key === "usageSyncedAt" && (!attribute.status || attribute.status === "available")
+  );
   const wanted = options.quotaIds?.length ? new Set(options.quotaIds) : null;
   const maxAgeMs = Number.isFinite(options.maxAgeMs)
     ? Math.max(0, options.maxAgeMs)
@@ -287,6 +335,11 @@ async function runRefresh(searchParams, options = {}) {
       continue;
     }
 
+    // 保鮮期要看「上次量到用量的時刻」。$updatedAt 連換 token、手動存檔都算進去，
+    // 拿它當基準會讓一筆從沒同步成功的資料看起來很新鮮，然後永遠輪不到它更新。
+    // 還沒有 usageSyncedAt 的舊資料（或欄位還沒補上）退回 $updatedAt，維持原本的節奏。
+    const measuredAt =
+      isClaude || isCodex ? row.usageSyncedAt || row.$updatedAt : row.$updatedAt;
     const freshWindow = isClaude
       ? claudeMaxAgeMs
       : isCodex
@@ -294,8 +347,8 @@ async function runRefresh(searchParams, options = {}) {
         : isMindvideo
           ? mindvideoMaxAgeMs
           : litmediaMaxAgeMs;
-    if (!options.force && !isUsageStale(row.$updatedAt, now, freshWindow)) {
-      results.push({ quotaId: row.$id, account: row.account || "", status: "fresh", updatedAt: row.$updatedAt || null });
+    if (!options.force && !isUsageStale(measuredAt, now, freshWindow)) {
+      results.push({ quotaId: row.$id, account: row.account || "", status: "fresh", usageSyncedAt: measuredAt || null });
       continue;
     }
     targets.push({
@@ -351,11 +404,29 @@ async function runRefresh(searchParams, options = {}) {
       }
 
       if (kind === "claude") {
-        results.push(await refreshClaudeRow(databases, databaseId, collection.$id, row, updatedRows));
+        results.push(
+          await refreshClaudeRow(
+            databases,
+            databaseId,
+            collection.$id,
+            row,
+            updatedRows,
+            supportsUsageSyncedAt
+          )
+        );
         continue;
       }
 
-      results.push(await refreshCodexRow(databases, databaseId, collection.$id, row, updatedRows));
+      results.push(
+        await refreshCodexRow(
+          databases,
+          databaseId,
+          collection.$id,
+          row,
+          updatedRows,
+          supportsUsageSyncedAt
+        )
+      );
     }
   };
   await Promise.all(

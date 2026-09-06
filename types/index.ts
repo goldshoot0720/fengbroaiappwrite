@@ -183,6 +183,8 @@ export interface Quota {
   pointsSyncedAt?: string;
   quotaRatio?: number;
   quotaExpiry?: string;
+  /** 5 小時／一週比例的量測時刻：只有自動更新成功才會寫，手填或只換 token 都不會有 */
+  usageSyncedAt?: string;
   ratio5h?: number;
   expiry5h?: string;
   ratioWeek?: number;

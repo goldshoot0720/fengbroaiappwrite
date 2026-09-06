@@ -155,6 +155,9 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "pointsSyncedAt", type: "datetime", required: false },
       { key: "quotaRatio", type: "integer", required: false },
       { key: "quotaExpiry", type: "datetime", required: false },
+      // 5 小時／一週比例是「哪一刻量到的」——$updatedAt 只是寫入時間，
+      // 換 token、同步點數、手動改備註都會動到它，不能拿來當用量的量測時刻
+      { key: "usageSyncedAt", type: "datetime", required: false },
       { key: "ratio5h", type: "integer", required: false },
       { key: "expiry5h", type: "string", size: 10, required: false },
       { key: "ratioWeek", type: "integer", required: false },
@@ -604,12 +607,16 @@ export function buildQuotaWritePayload(
     payload.expiryMonth = asOptionalDatePart(body.expiryMonth, YEAR_MONTH_DAY_PATTERN, "一月到期", "西元年-月-日");
     payload.resetCreditsBalance = asNonNegativeInteger(body.resetCreditsBalance, "重置機會次數");
     payload.resetCreditsExpiry = asOptionalDateTimePart(body.resetCreditsExpiry, "重置機會到期");
+    // 這些比例現在是手填的，之前那個「API 量到的時刻」就不算數了；
+    // 清掉之後畫面會標成手動填寫，下一輪自動更新再把真正的量測時刻寫回來
+    payload.usageSyncedAt = null;
 
     // 空字串代表沿用既有 token；要清除必須明確送 clearAccessToken
     const accessToken = normalizeAccessTokenInput(body.accessToken);
     if (body.clearAccessToken === true) payload.accessToken = "";
     else if (accessToken) payload.accessToken = accessToken;
   } else {
+    payload.usageSyncedAt = null;
     payload.ratio5h = 0;
     payload.expiry5h = "";
     payload.ratioWeek = 0;
