@@ -48,6 +48,7 @@ import { toClaudeQuotaFields, type ClaudeUsageSnapshot } from "@/lib/claudeUsage
 import { isMindvideoImageService, MINDVIDEO_FRESH_WINDOW_MS } from "@/lib/mindvideoPoints";
 import {
   formatCountdown,
+  formatDateCountdown,
   hasDateWindowReset,
   hasFiveHourWindowReset,
   isUsageStale,
@@ -98,6 +99,18 @@ function formatDate(value?: string) {
 function ratioLabel(value?: number) {
   if (value == null || value === 0) return null;
   return `${value}%`;
+}
+
+/**
+ * 5 小時／一週比例是「哪一刻量到的」。
+ * usageSyncedAt 是自動更新成功時寫的量測時刻；沒有的話（手填、或還沒同步過的舊資料）
+ * 只好退回 $updatedAt——那是寫入時間，換 token、同步點數、改備註都會動到它。
+ */
+function measuredAtOf(item: Quota): number | null {
+  const source = item.usageSyncedAt || item.$updatedAt;
+  if (!source) return null;
+  const parsed = new Date(source).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 /** 相對時間：讓「這份數字有多舊」一眼看得出來。 */
@@ -159,7 +172,7 @@ interface QuotaRefreshResponse {
  */
 function nextResetTime(item: Quota, now: number): number {
   if (item.serviceType === "ai" && item.expiry5h) {
-    const syncedAt = item.$updatedAt ? new Date(item.$updatedAt).getTime() : null;
+    const syncedAt = measuredAtOf(item);
     const projected = projectNextFiveHourReset(item.expiry5h, syncedAt, now);
     if (projected) return projected.at;
 
@@ -328,7 +341,8 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
           return isUsageStale(item.$updatedAt, now, MINDVIDEO_FRESH_WINDOW_MS);
         }
         if (item.serviceType === "ai" && item.hasAccessToken) {
-          return isUsageStale(item.$updatedAt, now);
+          // 從沒量到用量的那幾筆（例如剛貼上憑證）也算過期，不然要等 $updatedAt 過保鮮期才輪得到
+          return isUsageStale(item.usageSyncedAt || item.$updatedAt, now);
         }
         if (resolveLitmediaKey(item)) {
           return isUsageStale(item.$updatedAt, now, LITMEDIA_FRESH_WINDOW_MS);
@@ -1051,9 +1065,11 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     <div className="divide-y divide-[var(--line-soft)]">
                       {group.items.map((item) => {
                         const basicRatio = ratioLabel(item.quotaRatio);
-                        // 這些比例是「上次同步當下」的快照，$updatedAt 就是那個當下
-                        const syncedAt = item.$updatedAt ? new Date(item.$updatedAt).getTime() : null;
+                        // 這些比例是「上次量到當下」的快照，usageSyncedAt 就是那個當下
+                        const syncedAt = measuredAtOf(item);
                         const syncedLabel = formatSince(item.$updatedAt, now);
+                        // 只有自動更新成功才會有 usageSyncedAt；沒有就代表這排數字是手填的
+                        const usageSyncedLabel = formatSince(item.usageSyncedAt, now);
                         const pointsSyncedLabel = formatPointsSynced(item.pointsSyncedAt, now);
                         // 點數只對「點數制」的列有意義：填過點數，或設定了 LitMedia 簽到帳號
                         // （等著同步的列要看得到 0 點，才知道它有在等）。其餘的列不該掛一個沒意義的 0。
@@ -1077,6 +1093,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 unverified: Boolean(fiveHour && !fiveHour.reliable),
                                 // 重設時刻已經過了，這筆比例講的是上一個視窗
                                 expired: hasFiveHourWindowReset(item.expiry5h, syncedAt, now),
+                                dateOnly: false,
                               },
                               {
                                 key: "week",
@@ -1088,6 +1105,8 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 projected: false,
                                 unverified: false,
                                 expired: hasDateWindowReset(item.expiryWeek, now),
+                                // 只有日期、沒有時分，倒數要照日曆天數算
+                                dateOnly: true,
                               },
                               {
                                 key: "month",
@@ -1099,19 +1118,28 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 projected: false,
                                 unverified: false,
                                 expired: hasDateWindowReset(item.expiryMonth, now),
+                                dateOnly: true,
                               },
                             ].map((plan) => {
                               // 有填重設時間才算「有在追蹤這段」，0% 才是真的用完而不是沒填
                               const depleted = Boolean(plan.expiry) && (plan.ratio ?? 0) === 0;
-                              const upcoming = plan.resetAt !== null && plan.resetAt > now;
+                              // 只存到「日」的欄位在重設那天整天都還算「即將重設」——
+                              // 當天 00:00 一過就把倒數收掉，等於提早一天說它結束了
+                              const upcoming =
+                                plan.resetAt !== null && (plan.dateOnly ? !plan.expired : plan.resetAt > now);
                               return {
                                 ...plan,
                                 depleted,
                                 upcoming,
-                                countdown: upcoming ? formatCountdown(plan.resetAt as number, now) : null,
-                                // 手動填的數字不確定是不是最新，只有 accessToken 帶回來的才敢示警；
+                                countdown: upcoming
+                                  ? plan.dateOnly
+                                    ? formatDateCountdown(plan.resetAt as number, now)
+                                    : formatCountdown(plan.resetAt as number, now)
+                                  : null,
+                                // 手動填的數字不確定是不是最新，只有 API 量回來的才敢示警
+                                // （有憑證不等於量到過——換 token 也會寫這一列）；
                                 // 已經過了重設時刻就更不能標紅，那是舊視窗的數字
-                                warn: depleted && !plan.expired && Boolean(item.hasAccessToken),
+                                warn: depleted && !plan.expired && Boolean(item.usageSyncedAt),
                                 ratioText: plan.expired
                                   ? "已重設・待更新"
                                   : depleted
@@ -1197,15 +1225,17 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                   </div>
                                 ) : null}
                                 {/*
-                                  「手動填寫於」是用 $updatedAt 算的，只有在這一列全靠手填時才成立。
-                                  點數會自動寫回，$updatedAt 就變成「上次自動同步」的時間，
-                                  再標成手動填寫等於謊報——這種列已經有「簽到時的數字」那行負責報時間了。
+                                  「用量更新於」報的是 usageSyncedAt——API 真的量到比例的那一刻。
+                                  $updatedAt 只是寫入時間，換 token、同步點數、改備註都會動到它，
+                                  拿它報時間會讓一排從沒同步成功的舊數字看起來像剛更新的。
+                                  沒量到過就退回「手動填寫於」（$updatedAt）；點數自動寫回的列連這個都不能標，
+                                  那已經有「簽到時的數字」那行負責報時間了。
                                 */}
-                                {item.serviceType === "ai" && syncedLabel && (item.hasAccessToken || !item.pointsSyncedAt) ? (
+                                {item.serviceType === "ai" && (usageSyncedLabel || (syncedLabel && !item.pointsSyncedAt)) ? (
                                   <p className="text-xs text-muted-foreground">
-                                    {item.hasAccessToken
-                                      ? `用量更新於 ${syncedLabel}${refreshingUsage ? "・更新中…" : ""}`
-                                      : `手動填寫於 ${syncedLabel}`}
+                                    {usageSyncedLabel
+                                      ? `用量更新於 ${usageSyncedLabel}${refreshingUsage ? "・更新中…" : ""}`
+                                      : `手動填寫於 ${syncedLabel}${item.hasAccessToken && refreshingUsage ? "・更新中…" : ""}`}
                                   </p>
                                 ) : null}
                               </div>
@@ -1435,17 +1465,30 @@ function AiAccessTokenField({
 
   const applyClaudeUsage = (usage: ClaudeUsageResponse) => {
     const fields = toClaudeQuotaFields(usage);
-    setForm((current) => ({ ...current, ...fields }));
+    // 這次沒讀到的視窗維持原值：填 0 會被存成「已達使用上限」，比留著舊數字更誤導
+    setForm((current) => ({
+      ...current,
+      ...(fields.ratio5h === null ? {} : { ratio5h: fields.ratio5h, expiry5h: fields.expiry5h || "" }),
+      ...(fields.ratioWeek === null ? {} : { ratioWeek: fields.ratioWeek, expiryWeek: fields.expiryWeek || "" }),
+    }));
 
     const fiveHour = usage.windows.find((window) => window.key === "five_hour");
     const sevenDay = usage.windows.find((window) => window.key.startsWith("seven_day"));
-    setFailed(false);
+    const fiveHourText =
+      fields.ratio5h === null
+        ? "5 小時（這次沒讀到，維持原值）"
+        : `5 小時 ${fields.ratio5h}% 剩餘${fiveHour?.resetsAt ? `（重設 ${fields.expiry5h}）` : ""}`;
+    const weekText =
+      fields.ratioWeek === null
+        ? "一週（這次沒讀到，維持原值）"
+        : `一週 ${fields.ratioWeek}% 剩餘${sevenDay?.resetsAt ? `（重設 ${fields.expiryWeek}）` : ""}`;
+
+    const nothingRead = fields.ratio5h === null && fields.ratioWeek === null;
+    setFailed(nothingRead);
     setStatus(
-      `已帶入（Claude）：5 小時 ${fields.ratio5h}% 剩餘${
-        fiveHour?.resetsAt ? `（重設 ${fields.expiry5h}）` : ""
-      }、一週 ${fields.ratioWeek}% 剩餘${
-        sevenDay?.resetsAt ? `（重設 ${fields.expiryWeek}）` : ""
-      }（重置機會等欄位 Claude 官方沒提供，仍需手動維護）`
+      nothingRead
+        ? "回應裡沒有可用的用量視窗（非公開 API 可能已變動），欄位維持原值。"
+        : `已帶入（Claude）：${fiveHourText}、${weekText}（重置機會等欄位 Claude 官方沒提供，仍需手動維護）`
     );
   };
 

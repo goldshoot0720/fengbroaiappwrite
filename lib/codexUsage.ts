@@ -402,9 +402,23 @@ export interface QuotaFieldsFromUsage {
 }
 
 /**
+ * 這個視窗是不是已經開始計時。
+ *
+ * 5 小時視窗從「這段期間的第一個請求」起算，還沒用過就還沒有重設點；
+ * 這時 API 給的 `resets_in_seconds` 是整段視窗長度，換算出來的其實是「查詢時間 + 5 小時」，
+ * 每同步一次就往後挪一次——存成 HH:mm 之後看起來像個確定的時刻，實際上不是。
+ * （Codex CLI 顯示 17:27、鋒兄額度顯示 17:19，差的正好是那次同步到現在的 8 分鐘。）
+ * 用量是 0 就代表視窗還沒開始，這種「重設時間」寧可不存。
+ */
+function isWindowStarted(window: CodexUsageWindow | undefined): boolean {
+  return Boolean(window) && (window as CodexUsageWindow).usedPercent > 0;
+}
+
+/**
  * 把 Codex 用量轉成「鋒兄額度」表單欄位：
  * 剩餘比例取整數，5 小時到期用 HH:mm，一週到期用 YYYY-MM-DD，剩餘積分放 quotaRemaining，
  * 重置機會（resetCredits）另外放 resetCreditsBalance／resetCreditsExpiry。
+ * 還沒開始計時的 5 小時視窗不寫重設時間（見 isWindowStarted）。
  */
 export function toQuotaFields(
   snapshot: CodexUsageSnapshot,
@@ -415,7 +429,7 @@ export function toQuotaFields(
 
   return {
     ratio5h: Math.round(primary?.remainingPercent ?? 0),
-    expiry5h: toLocalTimeField(primary?.resetsAt ?? null, timeZone),
+    expiry5h: isWindowStarted(primary) ? toLocalTimeField(primary?.resetsAt ?? null, timeZone) : "",
     ratioWeek: Math.round(secondary?.remainingPercent ?? 0),
     expiryWeek: toLocalDateField(secondary?.resetsAt ?? null, timeZone),
     quotaRemaining: Math.max(0, Math.round(snapshot.credits ?? 0)),
@@ -565,6 +579,27 @@ export function formatCountdown(target: number, now: number = Date.now()): strin
     return rest ? `還有 ${hours} 小時 ${rest} 分` : `還有 ${hours} 小時`;
   }
   return `還有 ${Math.floor(hours / 24)} 天`;
+}
+
+/**
+ * 一週／一月的倒數：用日曆天數差，不是毫秒差。
+ *
+ * 這兩個欄位只存到「日」，`parseDateField` 只能給出當天 00:00；
+ * 拿它去做毫秒倒數再無條件捨去，9/6 看 9/11 會變成「還有 4 天」——
+ * 那是把重設點當成 9/11 凌晨的結果，跟畫面上寫的「9/11 重設」自相矛盾
+ * （Codex 實際重設時刻是 9/11 22:16，真正剩下的是 5 天多）。
+ * 欄位只有日期，就照日期數天數。
+ */
+export function formatDateCountdown(
+  target: number,
+  now: number = Date.now(),
+  timeZone: string = QUOTA_TIME_ZONE
+): string {
+  const startOfDay = (instant: number) => instant - zonedMsOfDay(instant, timeZone);
+  const days = Math.round((startOfDay(target) - startOfDay(now)) / MS_PER_DAY);
+  if (days <= 0) return "今天重設";
+  if (days === 1) return "明天重設";
+  return `還有 ${days} 天`;
 }
 
 /** 一週／一月只有日期，回傳那天在台北時間的起點，用來算「還有幾天」。 */

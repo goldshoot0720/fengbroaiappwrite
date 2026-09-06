@@ -13,6 +13,7 @@ import {
 import {
   describeWindow,
   formatCountdown,
+  formatDateCountdown,
   getUsageTone,
   hasDateWindowReset,
   hasFiveHourWindowReset,
@@ -278,6 +279,47 @@ describe("帶入鋒兄額度表單欄位", () => {
     });
   });
 
+  it("5 小時視窗還沒開始用就不寫重設時間", () => {
+    // 沒用過的視窗，API 給的是整段長度（5 小時），換算出來只是「查詢時間 + 5 小時」，
+    // 每同步一次就往後挪一次；存成 HH:mm 會看起來像個確定的時刻，跟 Codex CLI 永遠差一個同步間隔
+    const snapshot = normalizeCodexUsage(
+      {
+        rate_limit: {
+          primary_window: { used_percent: 0, window_minutes: 300, resets_in_seconds: 5 * 60 * 60 },
+          secondary_window: {
+            used_percent: 40,
+            window_minutes: 10080,
+            resets_at: new Date("2026-09-11T22:16:00+08:00").getTime() / 1000,
+          },
+        },
+      },
+      "test"
+    );
+
+    const fields = toQuotaFields(snapshot);
+    assert.equal(fields.ratio5h, 100);
+    assert.equal(fields.expiry5h, "");
+    // 一週視窗有在用，重設時間照舊
+    assert.equal(fields.expiryWeek, "2026-09-11");
+  });
+
+  it("5 小時視窗只要用過一點就照樣寫重設時間", () => {
+    const snapshot = normalizeCodexUsage(
+      {
+        rate_limit: {
+          primary_window: {
+            used_percent: 0.4,
+            window_minutes: 300,
+            resets_at: new Date("2026-09-05T17:28:00+08:00").getTime() / 1000,
+          },
+        },
+      },
+      "test"
+    );
+
+    assert.equal(toQuotaFields(snapshot).expiry5h, "17:28");
+  });
+
   it("沒有視窗資料時給安全預設值", () => {
     assert.deepEqual(toQuotaFields(normalizeCodexUsage({}, "test")), {
       ratio5h: 0,
@@ -383,6 +425,16 @@ describe("用量快照的新舊判斷", () => {
     assert.equal(formatCountdown(now + 120 * 60_000, now), "還有 2 小時");
     assert.equal(formatCountdown(now - 60_000, now), "即將重設");
   });
+
+  it("只有日期的視窗照日曆天數倒數", () => {
+    // 9/6 中午看 9/11：毫秒差算到 9/11 00:00 只有 4 天多，會講成「還有 4 天」，
+    // 但畫面同時寫著「9/11 重設」——欄位只存到日，就照日期數
+    const now = at("2026-09-06T12:27:00+08:00");
+    assert.equal(formatDateCountdown(parseDateField("2026-09-11"), now), "還有 5 天");
+    assert.equal(formatDateCountdown(parseDateField("2026-09-07"), now), "明天重設");
+    assert.equal(formatDateCountdown(parseDateField("2026-09-06"), now), "今天重設");
+    assert.equal(formatDateCountdown(parseDateField("2026-09-05"), now), "今天重設");
+  });
 });
 
 /**
@@ -394,7 +446,8 @@ describe("額度時間一律以台北時間為準", () => {
     {
       rate_limits: {
         primary_window: {
-          used_percent: 0,
+          // 用過了才有真正的重設時刻可以換算時區（沒用過的視窗不寫時間，見上面的測試）
+          used_percent: 12,
           window_minutes: 300,
           // 台北時間 2026-09-06 01:02
           resets_at: "2026-09-05T17:02:00Z",
