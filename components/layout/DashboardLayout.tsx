@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/theme-toggle";
 import EnhancedScrollNavigation from "@/components/ui/enhanced-scroll-navigation";
 import { cn } from "@/lib/utils";
+import { getLastSubmenu, rememberLastSubmenu } from "@/lib/menuSubmenuHistory";
 import { MenuItem } from "@/types";
 
 // These panels are available throughout the console, but they are not part of
@@ -152,20 +153,31 @@ export default function DashboardLayout({
     setIsSidebarOpen(true);
   }, []);
 
+  // 點進某個子選單時，順便記住它是哪個分類（鋒兄管理／鋒兄工具／…）最後用的一個，
+  // 好讓下次點回該分類時直接回到這裡，而不是永遠跳去分類裡的第一項。
+  const navigateWithSubmenuHistory = useCallback(
+    (moduleId: string) => {
+      const parent = findActiveParent(menuItems, moduleId);
+      if (parent) rememberLastSubmenu(parent.id, moduleId);
+      onModuleChange(moduleId);
+    },
+    [menuItems, onModuleChange]
+  );
+
   const handleMenuClick = useCallback(
     (moduleId: string) => {
-      onModuleChange(moduleId);
+      navigateWithSubmenuHistory(moduleId);
       if (isMobile) closeSidebar();
     },
-    [closeSidebar, isMobile, onModuleChange]
+    [closeSidebar, isMobile, navigateWithSubmenuHistory]
   );
 
   const handlePrimaryTabClick = useCallback(
     (moduleId: string) => {
-      onModuleChange(moduleId);
+      navigateWithSubmenuHistory(moduleId);
       closeSidebar();
     },
-    [closeSidebar, onModuleChange]
+    [closeSidebar, navigateWithSubmenuHistory]
   );
 
   return (
@@ -213,7 +225,7 @@ export default function DashboardLayout({
               leafItems={leafItems}
               onClose={closeSidebar}
               onNavigateLeaf={(id) => {
-                onModuleChange(id);
+                navigateWithSubmenuHistory(id);
                 closeSidebar();
               }}
             />
@@ -343,7 +355,12 @@ function useTopNavState(
         currentModule === item.id ||
         item.children.some((child) => child.id === currentModule);
       if (alreadyInGroup) return;
-      onModuleChange(item.children[0].id);
+      // 優先回到這個分類上次用的子選單，沒記錄過（第一次點）才落回第一項。
+      const lastChildId = getLastSubmenu(item.id);
+      const target = item.children.some((child) => child.id === lastChildId)
+        ? (lastChildId as string)
+        : item.children[0].id;
+      onModuleChange(target);
     },
     [currentModule, onModuleChange]
   );
