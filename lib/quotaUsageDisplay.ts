@@ -12,6 +12,31 @@ export interface QuotaUsageChart {
   accessibilityLabel: string;
 }
 
+/**
+ * 每張圖表呈現的是各自視窗的原始用量；帳號能否呼叫則取決於所有仍有效的視窗。
+ *
+ * 例如 5 小時視窗尚未使用，卻可能因每週額度已滿而無法呼叫。這裡只接受已確認
+ * 為當前狀態的視窗，避免讓過期或手動填寫的資料錯誤封鎖帳號。
+ */
+export interface QuotaAvailabilityWindow {
+  key: string;
+  label: string;
+  reached: boolean;
+  current: boolean;
+}
+
+export interface QuotaAvailabilityBlocker {
+  key: string;
+  label: string;
+}
+
+export function getQuotaAvailabilityBlocker(
+  windows: readonly QuotaAvailabilityWindow[],
+): QuotaAvailabilityBlocker | null {
+  const blocker = windows.find((window) => window.current && window.reached);
+  return blocker ? { key: blocker.key, label: blocker.label } : null;
+}
+
 export function toQuotaUsageChart(remainingPercent: number | null | undefined): QuotaUsageChart | null {
   if (
     typeof remainingPercent !== "number" ||

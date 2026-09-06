@@ -37,4 +37,14 @@ describe("quota usage chart", () => {
       { key: "week", label: "一週" },
     );
   });
+
+  it("does not block from a reached window whose snapshot is no longer current", () => {
+    assert.equal(
+      getQuotaAvailabilityBlocker([
+        { key: "5h", label: "5 小時", reached: false, current: true },
+        { key: "week", label: "一週", reached: true, current: false },
+      ]),
+      null,
+    );
+  });
 });

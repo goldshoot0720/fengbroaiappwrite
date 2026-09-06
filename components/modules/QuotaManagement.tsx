@@ -64,7 +64,7 @@ import {
   toQuotaFields,
   type CodexUsageSnapshot,
 } from "@/lib/codexUsage";
-import { toQuotaUsageChart } from "@/lib/quotaUsageDisplay";
+import { getQuotaAvailabilityBlocker, toQuotaUsageChart } from "@/lib/quotaUsageDisplay";
 import {
   isLitmediaServiceName,
   LITMEDIA_FRESH_WINDOW_MS,
@@ -1201,10 +1201,15 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                               };
                             })
                           : [];
-                        // 多個視窗彼此獨立計量，但實際能不能呼叫要看「最嚴格」的那個。
-                        // 5 小時視窗顯示 0% 已用、100% 剩餘沒有錯，但只要還有別的視窗（例如一週）已經打滿，
-                        // 帳號現在還是打不動——單看 5 小時那格會誤以為現在能用。
-                        const blockedByOtherWindow = aiPlans.some((plan) => plan.warn);
+                        // 多個視窗各自的圖表都是真實數字；帳號是否可用則由任何已滿、仍有效的視窗決定。
+                        const availabilityBlocker = getQuotaAvailabilityBlocker(
+                          aiPlans.map((plan) => ({
+                            key: plan.key,
+                            label: plan.prefix,
+                            reached: plan.warn,
+                            current: !plan.expired,
+                          })),
+                        );
                         return (
                           <div key={item.$id} className={cn("grid gap-4 px-4 py-4 sm:grid-cols-2 xl:items-start xl:px-5", quotaRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
                             {bulk.selectionMode ? (
@@ -1255,6 +1260,14 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 <p className="inline-flex items-center gap-2 text-sm text-foreground"><CalendarDays className="size-4 shrink-0 text-muted-foreground" />{formatDate(item.quotaExpiry)}</p>
                                 {aiPlans.length > 0 ? (
                                   <div className="space-y-3">
+                                    {availabilityBlocker ? (
+                                      <p
+                                        role="status"
+                                        className="rounded-lg border border-destructive/25 bg-destructive/8 px-2.5 py-2 text-xs font-semibold text-destructive"
+                                      >
+                                        目前無法使用：{availabilityBlocker.label}已達使用上限
+                                      </p>
+                                    ) : null}
                                     {aiPlans.map((plan) => plan.usageChart || plan.statusText || plan.expiry ? (
                                       <div
                                         key={plan.key}
@@ -1287,9 +1300,6 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                         ) : null}
                                         {plan.statusText ? <p className="text-xs text-muted-foreground">{plan.statusText}</p> : null}
                                         {plan.warn ? <p className="text-xs font-medium text-destructive">已達使用上限</p> : null}
-                                        {!plan.warn && !plan.expired && blockedByOtherWindow ? (
-                                          <p className="text-xs font-medium text-destructive">其他視窗已達上限，目前仍無法使用</p>
-                                        ) : null}
                                       </div>
                                     ) : null)}
                                   </div>
@@ -1620,12 +1630,22 @@ function AiAccessTokenField({
       fields.ratioWeek === null ? null : `一週 ${fields.ratioWeek}% 剩餘${fields.expiryWeek ? `（重設 ${fields.expiryWeek}）` : ""}`,
       fields.ratioMonth === null ? null : `一月 ${fields.ratioMonth}% 剩餘${fields.expiryMonth ? `（重設 ${fields.expiryMonth}）` : ""}`,
     ].filter((part): part is string => Boolean(part));
+    const availabilityBlocker = getQuotaAvailabilityBlocker(
+      usage.windows.map((window) => ({
+        key: window.key,
+        label: window.key === "fiveHour" ? "5 小時" : "一週",
+        reached: window.reached,
+        current: true,
+      })),
+    );
     const nothingRead = parts.length === 0;
     setFailed(nothingRead);
     setStatus(
       nothingRead
         ? "回應裡沒有可用的用量視窗（非公開 API 可能已變動），欄位維持原值。"
-        : `已帶入（Command Code）：${parts.join("、")}`
+        : `已帶入（Command Code）：${parts.join("、")}${
+            availabilityBlocker ? `；目前無法使用（${availabilityBlocker.label}已達使用上限）` : ""
+          }`
     );
   };
 
