@@ -125,6 +125,12 @@ describe("額度寫入 payload 的 accessToken 規則", () => {
     assert.equal(payload.accessToken.includes("localOnlySetting"), false);
   });
 
+  it("Command Code 也可直接貼 API key，不必提供完整 auth.json", () => {
+    const apiKey = "command_code_api_key_0123456789abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJK";
+    const payload = buildQuotaWritePayload({ ...base, accessToken: apiKey }, "create");
+    assert.deepEqual(readStoredCommandCodeCredential(payload.accessToken), { apiKey });
+  });
+
   it("更新時留空代表不動既有 token", () => {
     const payload = buildQuotaWritePayload({ ...base, accessToken: "" }, "update");
     assert.equal("accessToken" in payload, false);

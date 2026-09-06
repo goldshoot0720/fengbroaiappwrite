@@ -101,7 +101,7 @@ test("quota refresh writes Command Code's three real meters without exposing its
   }));
 
   assert.equal(response.status, 200);
-  assert.deepEqual(requestedCredential, { apiKey: "cmd-test-key", userId: "user-123", userName: undefined, keyName: undefined, authenticatedAt: undefined });
+  assert.deepEqual(requestedCredential, { apiKey: "cmd-test-key", userId: "user-123" });
   assert.deepEqual(writes, [{
     documentId: "command-code",
     data: {

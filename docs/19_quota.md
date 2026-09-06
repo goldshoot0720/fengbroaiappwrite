@@ -74,7 +74,7 @@
 
 ## Command Code 自動帶入
 
-Command Code CLI 的 `~/.commandcode/auth.json` 也能直接貼入 `accessToken` 欄位。系統會帶入
+Command Code 的 **API key**（或 CLI 的 `~/.commandcode/auth.json`）也能直接貼入 `accessToken` 欄位。系統會帶入
 5 小時、每週與每月三個剩餘比例，並沿用既有的三段圖表；詳細的憑證安全、方案月 credits 換算與
 10 分鐘保鮮期見 [`command-code-quota.md`](./command-code-quota.md)。
 

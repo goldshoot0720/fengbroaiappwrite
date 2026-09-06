@@ -1,7 +1,7 @@
 # Command Code 自動帶入
 
-在「鋒兄額度」新增或編輯資料時，服務類型選 **AI**，把 Command Code CLI 的
-`~/.commandcode/auth.json` 整份貼進 `accessToken` 欄位，即可帶入 5 小時、每週與每月的剩餘比例及重設時間。
+在「鋒兄額度」新增或編輯資料時，服務類型選 **AI**，直接貼上 Command Code **API key** 即可。
+也可貼整份 CLI `~/.commandcode/auth.json`；兩種方式都會帶入 5 小時、每週與每月的剩餘比例及重設時間。
 
 Command Code 的方案本身有 rolling 5 小時、每週用量，以及每月 credits；官方的說明可見
 [Pricing & Limits](https://commandcode.ai/docs/resources/pricing-limits)。
@@ -19,8 +19,8 @@ Command Code 的方案本身有 rolling 5 小時、每週用量，以及每月 c
 
 ## 憑證與安全
 
-- 原始 `auth.json` 只在使用者貼入表單後由伺服器端使用；瀏覽器只收到比例、重設時間和末 4 碼提示。
-- 寫入資料庫時會變成 `{ "commandCode": { ... } }` 的精簡格式，只保留 API key 與辨識帳號所需欄位，避免與 ChatGPT session JSON 混淆。
+- API key 或原始 `auth.json` 只在使用者貼入表單後由伺服器端使用；瀏覽器只收到比例、重設時間和末 4 碼提示。
+- 寫入資料庫時會變成 `{ "commandCode": { ... } }` 的精簡格式，只保留 API key 與可用的帳號識別欄位，避免與 ChatGPT session JSON 混淆。
 - 已儲存憑證的手動查詢需要全站四位數密碼；直接貼上的新檔案可先查詢、確認數字後再儲存。
 - API key 不會出現在 `/api/quota`、圖表或自動更新的回應中。
 

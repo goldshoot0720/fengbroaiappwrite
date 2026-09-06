@@ -1201,6 +1201,10 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                               };
                             })
                           : [];
+                        // 多個視窗彼此獨立計量，但實際能不能呼叫要看「最嚴格」的那個。
+                        // 5 小時視窗顯示 0% 已用、100% 剩餘沒有錯，但只要還有別的視窗（例如一週）已經打滿，
+                        // 帳號現在還是打不動——單看 5 小時那格會誤以為現在能用。
+                        const blockedByOtherWindow = aiPlans.some((plan) => plan.warn);
                         return (
                           <div key={item.$id} className={cn("grid gap-4 px-4 py-4 sm:grid-cols-2 xl:items-start xl:px-5", quotaRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
                             {bulk.selectionMode ? (
@@ -1283,6 +1287,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                         ) : null}
                                         {plan.statusText ? <p className="text-xs text-muted-foreground">{plan.statusText}</p> : null}
                                         {plan.warn ? <p className="text-xs font-medium text-destructive">已達使用上限</p> : null}
+                                        {!plan.warn && !plan.expired && blockedByOtherWindow ? (
+                                          <p className="text-xs font-medium text-destructive">其他視窗已達上限，目前仍無法使用</p>
+                                        ) : null}
                                       </div>
                                     ) : null)}
                                   </div>
@@ -1486,7 +1493,7 @@ const CLAUDE_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Claude 憑證，請先
 /** Grok 憑證專屬錯誤：/api/grok-usage 對「不是 Grok 格式」的 accessToken 一律回這句。 */
 const GROK_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Grok 憑證，請先貼上 ~/.grok/auth.json 或憑證 JSON。";
 /** Command Code 憑證專屬錯誤：用於已存憑證的來源依序判斷。 */
-const COMMAND_CODE_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Command Code 憑證，請先貼上 ~/.commandcode/auth.json。";
+const COMMAND_CODE_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Command Code API key，請貼上 API key 或 ~/.commandcode/auth.json。";
 
 /**
  * ChatGPT Plus / Codex、Claude Code、Grok 與 Command Code 共用同一個 accessToken 欄位：
@@ -1727,7 +1734,7 @@ function AiAccessTokenField({
         rows={2}
         spellCheck={false}
         className="font-mono text-xs"
-        placeholder="貼上 session.json／accessToken（eyJ...）、Claude ~/.claude/.credentials.json、Grok ~/.grok/auth.json，或 Command Code ~/.commandcode/auth.json；留空代表不變更"
+        placeholder="貼上 session.json／accessToken（eyJ...）、Claude ~/.claude/.credentials.json、Grok ~/.grok/auth.json，或 Command Code API key／~/.commandcode/auth.json；留空代表不變更"
         value={form.accessToken || ""}
         onChange={(event) =>
           setForm((current) => ({ ...current, accessToken: event.target.value, clearAccessToken: false }))
@@ -1805,7 +1812,7 @@ function AiAccessTokenField({
                   typedGrokCredential.refreshToken ? "，含 refresh token（可自動換新）" : "（沒有 refresh token，過期需手動重貼）"
                 }；只會存精簡後的 accessToken／refreshToken／expiresAt。`
               : typedCommandCodeCredential
-                ? `已辨識 Command Code 憑證（末 4 碼 ${typedCommandCodeCredential.apiKey.slice(-4)}）；只會存使用量 API 所需的 apiKey 與帳號識別欄位。`
+                ? `已辨識 Command Code API key（末 4 碼 ${typedCommandCodeCredential.apiKey.slice(-4)}）；只會存使用量 API 所需的 apiKey 與可用的帳號識別欄位。`
               : typedChatGptCredential
               ? `已辨識 ChatGPT token（末 4 碼 ${typedChatGptCredential.accessToken.slice(-4)}）${
                   typedChatGptCredential.accountId ? "，含帳號 ID" : ""

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** 對不是 Command Code auth.json 的輸入回固定訊息，供前端安全地接著嘗試其他憑證。 */
 export const COMMAND_CODE_CREDENTIAL_MISMATCH_ERROR =
-  "沒有可用的 Command Code 憑證，請先貼上 ~/.commandcode/auth.json。";
+  "沒有可用的 Command Code API key，請貼上 API key 或 ~/.commandcode/auth.json。";
 
 async function loadCredentialFromQuota(searchParams, quotaId) {
   const { databases, databaseId } = createAppwrite(searchParams);

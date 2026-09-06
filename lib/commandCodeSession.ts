@@ -2,7 +2,7 @@
  * Command Code CLI 憑證解析工具。
  *
  * Command Code 將登入資訊放在 `~/.commandcode/auth.json`。額度資料只需要 apiKey，
- * 但保留辨識用的帳號 metadata，才能讓日後貼回原始檔或精簡後的資料都能被辨識。
+ * 因此可直接貼 API key；完整檔案則額外保留辨識用的帳號 metadata。
  * 寫入 Appwrite 時包在 `commandCode` 下，避免被 ChatGPT session JSON 的解析誤認。
  */
 
@@ -29,8 +29,30 @@ function pickCredentialBag(parsed: unknown): Record<string, unknown> | null {
 }
 
 /**
- * 讀取原始 `~/.commandcode/auth.json` 或儲存後的 `{ commandCode: {...} }`。
- * 需要 apiKey 加上至少一個 CLI 的帳號識別欄位，避免把任意 JSON 誤當成 Command Code 憑證。
+ * 純 API key 沒有官方固定前綴；只接受夠長、無空白、不是 JWT 或 Claude OAuth 的字串。
+ * 這樣能支援 CLI 產生的 key，同時不會把 ChatGPT/Grok JWT 或 Claude token 誤判過來。
+ */
+function looksLikeRawCommandCodeApiKey(value: string): boolean {
+  return value.length >= 32 && !/[.\s]/.test(value) && !value.startsWith("sk-ant-");
+}
+
+function buildCredential(bag: Record<string, unknown>, apiKey: string): CommandCodeCredential {
+  const userId = asTrimmed(bag.userId);
+  const userName = asTrimmed(bag.userName);
+  const keyName = asTrimmed(bag.keyName);
+  const authenticatedAt = asTrimmed(bag.authenticatedAt);
+  return {
+    apiKey,
+    ...(userId ? { userId } : {}),
+    ...(userName ? { userName } : {}),
+    ...(keyName ? { keyName } : {}),
+    ...(authenticatedAt ? { authenticatedAt } : {}),
+  };
+}
+
+/**
+ * 讀取純 API key、原始 `~/.commandcode/auth.json`，或儲存後的 `{ commandCode: {...} }`。
+ * JSON 裡明確有 `apiKey` 就可用；純字串則先避開其他 provider 的 token 格式。
  */
 export function readStoredCommandCodeCredential(stored?: string | null): CommandCodeCredential | null {
   const raw = asTrimmed(stored);
@@ -40,27 +62,14 @@ export function readStoredCommandCodeCredential(stored?: string | null): Command
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return null;
+    return looksLikeRawCommandCodeApiKey(raw) ? { apiKey: raw } : null;
   }
 
   const bag = pickCredentialBag(parsed);
   if (!bag) return null;
 
   const apiKey = asTrimmed(bag.apiKey);
-  const userId = asTrimmed(bag.userId);
-  const userName = asTrimmed(bag.userName);
-  const keyName = asTrimmed(bag.keyName);
-  const authenticatedAt = asTrimmed(bag.authenticatedAt);
-
-  if (!apiKey || !(userId || userName || keyName || authenticatedAt)) return null;
-
-  return {
-    apiKey,
-    userId: userId || undefined,
-    userName: userName || undefined,
-    keyName: keyName || undefined,
-    authenticatedAt: authenticatedAt || undefined,
-  };
+  return apiKey ? buildCredential(bag, apiKey) : null;
 }
 
 /** 寫回 Appwrite 的精簡格式；不保留 CLI 不需要的其他設定。 */

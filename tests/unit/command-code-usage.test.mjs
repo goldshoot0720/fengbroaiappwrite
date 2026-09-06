@@ -17,6 +17,7 @@ const authFile = JSON.stringify({
   keyName: "desktop-cli",
   authenticatedAt: "2026-09-06T08:00:00.000Z",
 });
+const apiKeyOnly = "command_code_api_key_0123456789abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJK";
 
 describe("Command Code credential", () => {
   it("reads the raw CLI auth.json and persists only the fields needed for usage", () => {
@@ -33,9 +34,17 @@ describe("Command Code credential", () => {
     });
   });
 
-  it("does not mistake arbitrary JSON for a Command Code credential", () => {
+  it("accepts an API key by itself, whether pasted raw or as JSON", () => {
+    assert.deepEqual(readStoredCommandCodeCredential(apiKeyOnly), { apiKey: apiKeyOnly });
+    assert.deepEqual(readStoredCommandCodeCredential(JSON.stringify({ apiKey: apiKeyOnly })), { apiKey: apiKeyOnly });
+  });
+
+  it("does not mistake another provider's token or arbitrary JSON for a Command Code credential", () => {
     assert.equal(readStoredCommandCodeCredential('{"accessToken":"eyJ..."}'), null);
-    assert.equal(readStoredCommandCodeCredential('{"apiKey":"cmd-test-key"}'), null);
+    assert.equal(readStoredCommandCodeCredential("eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIn0.signature"), null);
+    assert.equal(readStoredCommandCodeCredential(`sk-ant-oat01-${"a".repeat(64)}`), null);
+    assert.equal(readStoredCommandCodeCredential('{"apiKey":[]}'), null);
+    assert.equal(readStoredCommandCodeCredential("not-a-command-code-key"), null);
   });
 });
 
