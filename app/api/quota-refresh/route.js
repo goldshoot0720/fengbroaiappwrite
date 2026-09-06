@@ -7,6 +7,8 @@ import { loadCodexSnapshot } from "../_lib/codexClient";
 import { loadClaudeSnapshot } from "../_lib/claudeClient";
 import { loadLitmediaReport } from "../_lib/litmediaClient";
 import { loadMindvideoReport } from "../_lib/mindvideoClient";
+import { loadOiioiiReport } from "../_lib/oiioiiClient";
+import { findOiioiiAccount, isOiioiiService, OIIOII_FRESH_WINDOW_MS, toOiioiiPointsFields } from "../../../lib/oiioiiPoints";
 import {
   findMindvideoAccount,
   isMindvideoImageService,
@@ -131,6 +133,18 @@ async function refreshMindvideoRow(databases, databaseId, collectionId, row, sna
     updatedRows,
     { pointsSource: snapshot.source }
   );
+}
+
+/** OiiOii 只寫回成功量到的點數，並保留來源時間。 */
+async function refreshOiioiiRow(databases, databaseId, collectionId, row, snapshot, updatedRows) {
+  const entry = findOiioiiAccount(snapshot.report, row.account);
+  if (!entry) return outcomeFor(row, "skipped", { reason: "oiioii-account-not-found" });
+  const fields = toOiioiiPointsFields(entry, snapshot.report);
+  if (!fields) return outcomeFor(row, "skipped", { reason: "no-points" });
+  if (row.pointsSyncedAt && Date.parse(fields.pointsSyncedAt) < Date.parse(row.pointsSyncedAt)) {
+    return outcomeFor(row, "skipped", { reason: "older-report" });
+  }
+  return writeRow(databases, databaseId, collectionId, row, fields, updatedRows, { pointsSource: snapshot.source });
 }
 
 /**
@@ -321,14 +335,15 @@ async function runRefresh(searchParams, options = {}) {
   for (const row of rows) {
     if (wanted && !wanted.has(row.$id)) continue;
 
+    const isOiioii = isOiioiiService(row.name);
     const isMindvideo = isMindvideoImageService(row.name);
     // 兩種 AI 憑證共用同一個 accessToken 欄位，先試 Claude 的 JSON/sk-ant- 格式，
     // 對不上再當作 ChatGPT（JWT 或 session.json）——順序不能反過來，
     // 否則 Claude 的 JSON 憑證會被 ChatGPT 那邊誤判成壞掉的 session.json。
-    const isClaude = !isMindvideo && row.serviceType === "ai" && Boolean(readStoredClaudeCredential(row.accessToken));
-    const isCodex = !isMindvideo && !isClaude && row.serviceType === "ai" && Boolean(row.accessToken);
-    const isLitmedia = !isMindvideo && !isClaude && !isCodex && Boolean(resolveLitmediaKey(row));
-    if (!isClaude && !isCodex && !isLitmedia && !isMindvideo) {
+    const isClaude = !isOiioii && !isMindvideo && row.serviceType === "ai" && Boolean(readStoredClaudeCredential(row.accessToken));
+    const isCodex = !isOiioii && !isMindvideo && !isClaude && row.serviceType === "ai" && Boolean(row.accessToken);
+    const isLitmedia = !isOiioii && !isMindvideo && !isClaude && !isCodex && Boolean(resolveLitmediaKey(row));
+    if (!isClaude && !isCodex && !isLitmedia && !isMindvideo && !isOiioii) {
       if (row.serviceType === "ai") {
         results.push({ quotaId: row.$id, account: row.account || "", status: "skipped", reason: "no-token" });
       }
@@ -340,20 +355,22 @@ async function runRefresh(searchParams, options = {}) {
     // 還沒有 usageSyncedAt 的舊資料（或欄位還沒補上）退回 $updatedAt，維持原本的節奏。
     const measuredAt =
       isClaude || isCodex ? row.usageSyncedAt || row.$updatedAt : row.$updatedAt;
-    const freshWindow = isClaude
-      ? claudeMaxAgeMs
-      : isCodex
-        ? maxAgeMs
-        : isMindvideo
-          ? mindvideoMaxAgeMs
-          : litmediaMaxAgeMs;
+    const freshWindow = isOiioii
+      ? (Number.isFinite(options.maxAgeMs) ? Math.max(0, options.maxAgeMs) : OIIOII_FRESH_WINDOW_MS)
+      : isClaude
+        ? claudeMaxAgeMs
+        : isCodex
+          ? maxAgeMs
+          : isMindvideo
+            ? mindvideoMaxAgeMs
+            : litmediaMaxAgeMs;
     if (!options.force && !isUsageStale(measuredAt, now, freshWindow)) {
       results.push({ quotaId: row.$id, account: row.account || "", status: "fresh", usageSyncedAt: measuredAt || null });
       continue;
     }
     targets.push({
       row,
-      kind: isMindvideo ? "mindvideo" : isClaude ? "claude" : isCodex ? "codex" : "litmedia",
+      kind: isOiioii ? "oiioii" : isMindvideo ? "mindvideo" : isClaude ? "claude" : isCodex ? "codex" : "litmedia",
     });
   }
 
@@ -378,12 +395,29 @@ async function runRefresh(searchParams, options = {}) {
     }
   }
 
+  let oiioii = null;
+  let oiioiiError = null;
+  if (targets.some((target) => target.kind === "oiioii")) {
+    try {
+      oiioii = await loadOiioiiReport({ force: options.force === true, now });
+    } catch (err) {
+      oiioiiError = err instanceof Error ? err.message : "讀取 OiiOii 點數失敗";
+    }
+  }
+
   const updatedRows = [];
   let cursor = 0;
   const worker = async () => {
     while (cursor < targets.length) {
       const { row, kind } = targets[cursor];
       cursor += 1;
+
+      if (kind === "oiioii") {
+        results.push(oiioii
+          ? await refreshOiioiiRow(databases, databaseId, collection.$id, row, oiioii, updatedRows)
+          : outcomeFor(row, "error", { error: oiioiiError }));
+        continue;
+      }
 
       if (kind === "mindvideo") {
         results.push(

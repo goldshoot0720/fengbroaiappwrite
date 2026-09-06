@@ -46,6 +46,7 @@ import { parseChatGptSession } from "@/lib/chatgptSession";
 import { readStoredClaudeCredential } from "@/lib/claudeSession";
 import { toClaudeQuotaFields, type ClaudeUsageSnapshot } from "@/lib/claudeUsage";
 import { isMindvideoImageService, MINDVIDEO_FRESH_WINDOW_MS } from "@/lib/mindvideoPoints";
+import { isOiioiiService, OIIOII_FRESH_WINDOW_MS } from "@/lib/oiioiiPoints";
 import {
   formatCountdown,
   formatDateCountdown,
@@ -337,6 +338,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
   const staleQuotaIds = useMemo(
     () => items
       .filter((item) => {
+        if (isOiioiiService(item.name)) {
+          return isUsageStale(item.$updatedAt, now, OIIOII_FRESH_WINDOW_MS);
+        }
         if (isMindvideoImageService(item.name)) {
           return isUsageStale(item.$updatedAt, now, MINDVIDEO_FRESH_WINDOW_MS);
         }
@@ -1073,7 +1077,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                         const pointsSyncedLabel = formatPointsSynced(item.pointsSyncedAt, now);
                         // 點數只對「點數制」的列有意義：填過點數，或設定了 LitMedia 簽到帳號
                         // （等著同步的列要看得到 0 點，才知道它有在等）。其餘的列不該掛一個沒意義的 0。
-                        const showPoints = Boolean(item.quotaPoints) || Boolean(resolveLitmediaKey(item)) || isMindvideoImageService(item.name);
+                        const showPoints = Boolean(item.quotaPoints) || Boolean(resolveLitmediaKey(item)) || isMindvideoImageService(item.name) || isOiioiiService(item.name);
                         // 使用者最在意「下次什麼時候重設」，所以過去的重設點要推到下一次而不是照抄
                         const fiveHour = projectNextFiveHourReset(item.expiry5h, syncedAt, now);
                         const aiPlans = item.serviceType === "ai"
