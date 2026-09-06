@@ -74,8 +74,8 @@ test("quota refresh dispatches OiiOii ahead of tokens, writes zero, preserves ne
     "../../../lib/mindvideoPoints": { isMindvideoImageService: () => false },
     "../../../lib/codexUsage": { isUsageStale: () => true },
   };
-  for (const id of ["../_lib/codexClient", "../_lib/claudeClient", "../_lib/litmediaClient", "../_lib/mindvideoClient",
-    "../../../lib/chatgptSession", "../../../lib/claudeSession", "../../../lib/claudeUsage", "../../../lib/litmediaPoints"]) deps[id] = {};
+  for (const id of ["../_lib/codexClient", "../_lib/claudeClient", "../_lib/grokClient", "../_lib/litmediaClient", "../_lib/mindvideoClient",
+    "../../../lib/chatgptSession", "../../../lib/claudeSession", "../../../lib/claudeUsage", "../../../lib/grokSession", "../../../lib/grokUsage", "../../../lib/litmediaPoints"]) deps[id] = {};
   const route = compile("../../app/api/quota-refresh/route.js", deps);
   const response = await route.POST(new Request("https://example.com/api/quota-refresh", { method: "POST", body: '{"force":true}' }));
   assert.equal(response.status, 200);
@@ -108,8 +108,8 @@ test("new OiiOii account syncs 55 points immediately despite a recent document e
     "../../../lib/mindvideoPoints": { isMindvideoImageService: () => false },
     "../../../lib/codexUsage": { isUsageStale: (stamp, now, age) => !stamp || now - Date.parse(stamp) >= age },
   };
-  for (const id of ["../_lib/codexClient", "../_lib/claudeClient", "../_lib/litmediaClient", "../_lib/mindvideoClient",
-    "../../../lib/chatgptSession", "../../../lib/claudeSession", "../../../lib/claudeUsage", "../../../lib/litmediaPoints"]) deps[id] = {};
+  for (const id of ["../_lib/codexClient", "../_lib/claudeClient", "../_lib/grokClient", "../_lib/litmediaClient", "../_lib/mindvideoClient",
+    "../../../lib/chatgptSession", "../../../lib/claudeSession", "../../../lib/claudeUsage", "../../../lib/grokSession", "../../../lib/grokUsage", "../../../lib/litmediaPoints"]) deps[id] = {};
   const route = compile("../../app/api/quota-refresh/route.js", deps);
   const response = await route.POST(new Request("https://example.com/api/quota-refresh", { method: "POST", body: '{"force":false}' }));
   assert.equal(response.status, 200);

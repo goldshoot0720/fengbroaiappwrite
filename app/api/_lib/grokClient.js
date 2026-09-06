@@ -78,6 +78,43 @@ async function refreshAccessToken(refreshToken, clientId) {
   };
 }
 
+function getGrpcWebStatus(buffer, headers) {
+  const headerStatus = headers.get("grpc-status");
+  if (headerStatus) return headerStatus;
+
+  let offset = 0;
+  while (offset + 5 <= buffer.length) {
+    const flag = buffer[offset];
+    const length = buffer.readUInt32BE(offset + 1);
+    const payloadStart = offset + 5;
+    const payloadEnd = payloadStart + length;
+    if (payloadEnd > buffer.length) return null;
+
+    if ((flag & 0x80) !== 0) {
+      const trailer = buffer.subarray(payloadStart, payloadEnd).toString("utf8");
+      const match = trailer.match(/(?:^|\r?\n)grpc-status\s*:\s*(\d+)/i);
+      return match?.[1] || null;
+    }
+    offset = payloadEnd;
+  }
+
+  return null;
+}
+
+function grpcStatusToHttpStatus(grpcStatus, httpStatus) {
+  if (!grpcStatus || grpcStatus === "0") return httpStatus;
+  if (grpcStatus === "16") return 401;
+  if (grpcStatus === "8") return 429;
+  return 502;
+}
+
+/**
+ * gRPC-web 要求連請求本身也包一層 5-byte frame header（1 byte flag=0x00 + 4 byte
+ * big-endian 長度），即使要送的是一個沒任何字段的空訊息也一樣。送真正的 0 bytes
+ * （沒包 header）server 不會报錯，但會回完全空的回應，看起來像解不出來。
+ */
+const EMPTY_FRAMED_REQUEST = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x00]);
+
 async function fetchUsage(accessToken) {
   const response = await fetch(USAGE_ENDPOINT, {
     method: "POST",
@@ -87,12 +124,18 @@ async function fetchUsage(accessToken) {
       "Content-Type": "application/grpc-web+proto",
       "x-grpc-web": "1",
     },
-    // GetGrokCreditsConfig 不吃任何參數，空 body 就會回目前帳號的額度
-    body: Buffer.alloc(0),
+    // GetGrokCreditsConfig 不吃任何參數，但還是得包上空訊息的 frame header
+    body: EMPTY_FRAMED_REQUEST,
     cache: "no-store",
   });
   const buffer = Buffer.from(await response.arrayBuffer());
-  return { ok: response.ok, status: response.status, buffer };
+  const grpcStatus = getGrpcWebStatus(buffer, response.headers);
+  return {
+    ok: response.ok && (!grpcStatus || grpcStatus === "0"),
+    status: grpcStatusToHttpStatus(grpcStatus, response.status),
+    grpcStatus,
+    buffer,
+  };
 }
 
 /**
@@ -145,6 +188,8 @@ export async function loadGrokSnapshot(credential) {
         ? "查詢用量被限流，稍後再試。"
         : usage.status === 401
           ? "access token 無效，請重新登入 grok-cli 或重新貼上 auth.json。"
+          : usage.grpcStatus
+            ? `Grok 用量服務回傳 gRPC 狀態 ${usage.grpcStatus}，非公開 API 可能已變動。`
           : `無法取得 Grok 用量資料（HTTP ${usage.status}，非公開 API 可能已變動）。`;
     return {
       ok: false,

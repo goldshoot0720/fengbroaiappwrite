@@ -97,8 +97,13 @@ function decodeTimestamp(buf, start, end) {
   return new Date(seconds * 1000 + Math.round(nanos / 1e6)).toISOString();
 }
 
+/**
+ * 注意：proto3 对數值欄位會省略預設值（0）——實測確認：一個從未使用過的 Grok 帳號，
+ * 回應裡根本沒有子欄位 1（用量比例），不是它存在但值是 0。所以這邊一律以 0 當預設，
+ * 不能拿 null——否則一個完全沒用過的帳號會被看成「解不出來」而不是「0% 已用」。
+ */
 function decodeCreditsInfo(buf, start, end) {
-  let usageRatio = null;
+  let usageRatio = 0;
   let resetsAtIso = null;
   forEachField(buf, start, end, (fieldNumber, wireType, offset) => {
     if (fieldNumber === 1 && wireType === WIRE_FIXED32) {
@@ -139,27 +144,38 @@ function findDataFramePayload(buf) {
 }
 
 /**
- * 解析 `GetGrokCreditsConfig` 的回應（framed 或 raw 都吃），失敗一律回 null（不丟例外）。
+ * 解析 `GetGrokCreditsConfig` 的回應（framed 或 raw 都吃）。
+ *
+ * 注意區分兩種「沒數字」：這個方法隳屬的 `null` 只代表「連最外層的訊息都找不到，
+ * 格式可能已變動」；若成功找到最外層但內層的用量比例子欄位不存在，那是 proto3
+ * 省略預設值（實測確認：從未使用過的帳號根本不會帶這個子欄位，不是它存在但值是 0），
+ * 代表「0% 已用」，不是「解不出來」。
  * @param {Buffer | ArrayBuffer | Uint8Array} buffer
- * @returns {{ usageRatio: number | null, resetsAtIso: string | null } | null}
+ * @returns {{ usageRatio: number, resetsAtIso: string | null } | null}
  */
 export function decodeGrokCreditsResponse(buffer) {
   try {
     const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-    if (buf.length === 0) return null;
+    if (buf.length === 0) return { usageRatio: 0, resetsAtIso: null };
 
     const framed = findDataFramePayload(buf);
     const payload = framed || buf;
+    if (payload.length === 0) return { usageRatio: 0, resetsAtIso: null };
 
-    let result = null;
+    let found = false;
+    let result = { usageRatio: 0, resetsAtIso: null };
     forEachField(payload, 0, payload.length, (fieldNumber, wireType, offset) => {
       if (fieldNumber === 1 && wireType === WIRE_LENGTH_DELIMITED) {
+        found = true;
         const nested = readLengthDelimited(payload, offset);
         result = decodeCreditsInfo(payload, nested.start, nested.end);
         return nested.end;
       }
       return undefined;
     });
+
+    // 真的連最外層的 field 1 都找不到，才算解析失敗（回應的層結構跟預期不一樣）。
+    if (!found) return null;
 
     return result;
   } catch {
