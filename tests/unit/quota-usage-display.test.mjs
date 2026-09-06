@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { toQuotaUsageChart } from "../../lib/quotaUsageDisplay.ts";
+import { getQuotaAvailabilityBlocker, toQuotaUsageChart } from "../../lib/quotaUsageDisplay.ts";
 
 describe("quota usage chart", () => {
   it("shows the reported used percentage alongside the stored remaining percentage", () => {
@@ -26,5 +26,15 @@ describe("quota usage chart", () => {
   it("does not invent a chart when the stored percentage is absent or invalid", () => {
     assert.equal(toQuotaUsageChart(undefined), null);
     assert.equal(toQuotaUsageChart(101), null);
+  });
+
+  it("keeps a fresh 5-hour meter factual while reporting that a reached weekly limit blocks use", () => {
+    assert.deepEqual(
+      getQuotaAvailabilityBlocker([
+        { key: "5h", label: "5 小時", reached: false, current: true },
+        { key: "week", label: "一週", reached: true, current: true },
+      ]),
+      { key: "week", label: "一週" },
+    );
   });
 });
