@@ -33,6 +33,7 @@ const HEADER_ALIASES: Record<string, QuotaCsvHeader> = {
   quotaremaining: "quotaRemaining",
   quota_remaining: "quotaRemaining",
   remaining: "quotaRemaining",
+  剩餘積分: "quotaRemaining",
   額度剩餘次數: "quotaRemaining",
   剩餘次數: "quotaRemaining",
   剩餘額度: "quotaRemaining",
@@ -291,7 +292,7 @@ export function parseQuotaCsv(text: string): { data: QuotaFormData[]; errors: st
       continue;
     }
 
-    const quotaRemaining = parseNonNegativeInteger(cell("quotaRemaining"), "額度剩餘次數");
+    const quotaRemaining = parseNonNegativeInteger(cell("quotaRemaining"), "剩餘額度");
     if (!quotaRemaining.ok) {
       errors.push(`第 ${lineNumber} 行: ${quotaRemaining.error}`);
       continue;

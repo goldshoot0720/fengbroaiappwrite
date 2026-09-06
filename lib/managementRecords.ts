@@ -592,7 +592,7 @@ export function buildQuotaWritePayload(
     name,
     serviceType,
     account: asOptionalText(body.account, "帳號", 200),
-    quotaRemaining: asNonNegativeInteger(body.quotaRemaining, "額度剩餘次數"),
+    quotaRemaining: asNonNegativeInteger(body.quotaRemaining, "剩餘額度"),
     quotaPoints: asNonNegativeInteger(body.quotaPoints, "額度剩餘點數"),
     litmediaAccount: asOptionalText(body.litmediaAccount, "LitMedia 簽到帳號", 100),
     quotaRatio: asNonNegativeInteger(body.quotaRatio, "額度剩餘比例"),

@@ -101,6 +101,16 @@ function serviceKey(name: string) {
   return name.trim().toLocaleLowerCase("zh-Hant");
 }
 
+/**
+ * ChatGPT/Codex 的 `quotaRemaining` 是用量頁所說的「剩餘積分」，不是可用次數。
+ * 已儲存的憑證來源最可靠；新建或尚未儲存的紀錄則以服務名稱作為即時提示。
+ */
+function isChatGptCreditsSource(source: Pick<Quota, "name" | "serviceType" | "accessTokenProvider">): boolean {
+  if (source.serviceType !== "ai") return false;
+  if (source.accessTokenProvider) return source.accessTokenProvider === "chatgpt";
+  return /chat\s*gpt|codex/i.test(source.name);
+}
+
 function formatDate(value?: string) {
   if (!value) return "未設定";
   const date = new Date(value);
@@ -348,6 +358,23 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
   const accountNames = useMemo(
     () => [...new Set(items.map((item) => item.account?.trim()).filter((account): account is string => Boolean(account)))].sort((a, b) => a.localeCompare(b, "zh-Hant")),
     [items],
+  );
+
+  const editingQuota = useMemo(
+    () => (editingId ? items.find((item) => item.$id === editingId) : undefined),
+    [editingId, items],
+  );
+
+  // 表單剛貼入 ChatGPT session.json 時還沒儲存，這時也要立刻把單位改成「積分」。
+  const formUsesChatGptCredits = useMemo(
+    () => form.serviceType === "ai" && (
+      isChatGptCreditsSource({
+        name: form.name,
+        serviceType: form.serviceType,
+        accessTokenProvider: editingQuota?.accessTokenProvider,
+      }) || Boolean(parseChatGptSession(form.accessToken || ""))
+    ),
+    [editingQuota?.accessTokenProvider, form.accessToken, form.name, form.serviceType],
   );
 
   // 只讀「有沒有設定過密碼」，不會拿到密碼內容
@@ -839,7 +866,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                 {accountNames.map((account) => <option key={account} value={account} />)}
               </datalist>
             </FormField>
-            <FormField label="額度剩餘次數" htmlFor="quota-remaining">
+            <FormField label={formUsesChatGptCredits ? "剩餘積分" : "額度剩餘次數"} htmlFor="quota-remaining">
               <Input
                 id="quota-remaining"
                 type="number"
@@ -848,7 +875,13 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                 step={1}
                 value={form.quotaRemaining}
                 onChange={(event) => setNumberField("quotaRemaining")(event.target.value)}
+                aria-describedby={formUsesChatGptCredits ? "quota-remaining-help" : undefined}
               />
+              {formUsesChatGptCredits ? (
+                <p id="quota-remaining-help" className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                  從 ChatGPT 帶入時，這是用量頁的剩餘積分，不是重置機會次數。
+                </p>
+              ) : null}
             </FormField>
             <FormField label="額度剩餘點數" htmlFor="quota-points">
               <Input
@@ -1119,6 +1152,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     <div className="divide-y divide-[var(--line-soft)]">
                       {group.items.map((item) => {
                         const basicUsageChart = toQuotaUsageChart(item.quotaRatio);
+                        const usesChatGptCredits = isChatGptCreditsSource(item);
                         // 這些比例是「上次量到當下」的快照，usageSyncedAt 就是那個當下
                         const syncedAt = measuredAtOf(item);
                         const syncedLabel = formatSince(item.$updatedAt, now);
@@ -1234,9 +1268,9 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                                 </div>
                               ) : null}
                             </Cell>
-                            <Cell label="剩餘額度">
+                            <Cell label={usesChatGptCredits ? "剩餘積分" : "剩餘額度"}>
                               <div className="space-y-1 text-sm tabular-nums text-foreground">
-                                <p>{item.quotaRemaining} 次</p>
+                                <p>{item.quotaRemaining} {usesChatGptCredits ? "點" : "次"}</p>
                                 {showPoints ? <p>{item.quotaPoints || 0} 點</p> : null}
                                 {showPoints && pointsSyncedLabel ? (
                                   <p className="text-xs font-normal text-muted-foreground">{pointsSyncedLabel}</p>

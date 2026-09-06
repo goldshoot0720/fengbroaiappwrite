@@ -75,14 +75,14 @@ describe("quota CSV", () => {
 
   it("accepts Chinese headers and labels, and matches 服務×帳號", () => {
     const csv = [
-      "服務名稱,服務類型,帳號,剩餘次數,剩餘點數,簽到帳號,剩餘比例,到期日,備註",
-      " ChatGPT ,AI 服務,Owner@example.com ,30,45,19,60,2026/09/30,主帳號",
+      "服務名稱,服務類型,帳號,剩餘積分,剩餘點數,簽到帳號,剩餘比例,到期日,備註",
+      " ChatGPT ,AI 服務,Owner@example.com ,500,45,19,60,2026/09/30,主帳號",
     ].join("\n");
 
     const { data, errors } = parseQuotaCsv(csv);
     assert.deepEqual(errors, []);
     assert.equal(data[0].serviceType, "ai");
-    assert.equal(data[0].quotaRemaining, 30);
+    assert.equal(data[0].quotaRemaining, 500);
     assert.equal(data[0].quotaPoints, 45);
     assert.equal(data[0].litmediaAccount, "19");
     assert.equal(data[0].quotaRatio, 60);
@@ -111,7 +111,7 @@ describe("quota CSV", () => {
     assert.ok(errors.some((error) => error.includes("name")));
     assert.ok(errors.some((error) => error.includes("服務類型")));
     assert.ok(errors.some((error) => error.includes("到期日")));
-    assert.ok(errors.some((error) => error.includes("次數")));
+    assert.ok(errors.some((error) => error.includes("剩餘額度")));
     assert.ok(errors.some((error) => error.includes("點數")));
     assert.ok(errors.some((error) => error.includes("5 小時到期")));
     assert.ok(errors.some((error) => error.includes("一週到期")));

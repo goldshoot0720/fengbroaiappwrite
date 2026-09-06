@@ -27,17 +27,17 @@
 | 5 小時到期 | 5 小時視窗重設時間（本地 HH:mm） | `17:28` |
 | 一週比例（%） | 每週視窗剩餘百分比 | `53` |
 | 一週到期 | 每週視窗重設時間（本地 YYYY-MM-DD） | `2026-09-11` |
-| 額度剩餘次數 | 剩餘積分（可讓用量超出方案限制） | `0` |
+| 剩餘積分 | 剩餘積分（可讓用量超出方案限制） | `0` |
 | 重置機會次數 | 「使用重置」機會的剩餘次數 | `1` |
 | 重置機會到期 | 上面那次機會的到期時間（本地 YYYY-MM-DD HH:mm） | `2026-10-05 07:34` |
 
 一月比例／到期不在 Codex 回傳範圍，維持手動填寫。
 
-### 額度剩餘次數 ≠ 重置機會
+### 剩餘積分 ≠ 重置機會
 
 畫面上這兩個數字很容易搞混，但來源與意思完全不同：
 
-- **額度剩餘次數**（`quotaRemaining`）＝ ChatGPT 用量頁的「剩餘積分」——付費買來、可以讓你在方案上限之後繼續用的額度。
+- **剩餘積分**（資料欄位 `quotaRemaining`）＝ ChatGPT 用量頁的「剩餘積分」——付費買來、可以讓你在方案上限之後繼續用的額度。
   多數帳號沒買這個，所以恆為 `0`，不代表帳號有問題。
 - **重置機會次數**（`resetCreditsBalance`）＝ ChatGPT 官方在用量頁提供的「使用重置」按鈕，
   按下去可以立即恢復 5 小時上限、每週上限，或兩者皆恢復（依方案而定），一段時間才會補一次，
@@ -165,7 +165,7 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 | name | string | 100 | 服務名稱（必填） |
 | serviceType | string | 20 | `general` / `ai` |
 | account | string | 200 | 帳號 |
-| quotaRemaining | integer | - | 額度剩餘次數（ChatGPT 帶入時放剩餘積分） |
+| quotaRemaining | integer | - | 一般服務的剩餘次數；ChatGPT 帶入時為剩餘積分 |
 | quotaPoints | integer | - | 額度剩餘點數（LitMedia 會自動帶入） |
 | litmediaAccount | string | 100 | LitMedia 每日簽到的帳號槽位（`19` 或 `goldshoot0720-checkin`），見上 |
 | pointsSyncedAt | datetime | - | 點數量測時刻＝上次簽到成功的時間，**不是**寫入時間 |
@@ -177,7 +177,7 @@ LitMedia 的點數**不是即時查來的**。它的用量 API
 | expiryWeek | string | 10 | 一週重設日 `YYYY-MM-DD`（AI） |
 | ratioMonth | integer | - | 一月剩餘比例 %（AI） |
 | expiryMonth | string | 10 | 一月重設日 `YYYY-MM-DD`（AI） |
-| resetCreditsBalance | integer | - | 「使用重置」機會的剩餘次數（AI），見上「額度剩餘次數 ≠ 重置機會」 |
+| resetCreditsBalance | integer | - | 「使用重置」機會的剩餘次數（AI），見上「剩餘積分 ≠ 重置機會」 |
 | resetCreditsExpiry | string | 20 | 上面那次機會的到期時間 `YYYY-MM-DD HH:mm`（AI） |
 | note | string | 3337 | 備註 |
 | accessToken | string | 5000 | ChatGPT/Codex、Claude、Grok 或 Command Code 憑證 JSON，見上 |
