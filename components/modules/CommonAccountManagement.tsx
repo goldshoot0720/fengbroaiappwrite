@@ -5,12 +5,7 @@ import { Star, Link as LinkIcon, FileText as NoteIcon, Plus, Trash2, Edit2, X, S
 import { CommonAccount, CommonAccountFormData } from "@/types";
 import { Input, Textarea, DataCard, Button, SectionHeader, FormCard, FormActions } from "@/components/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger
-} from "@/components/ui/select";
+import { SiteNamePicker } from "@/components/ui/site-name-picker";
 import { useCrud, fetchApi } from "@/hooks/useApi";
 import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { API_ENDPOINTS } from "@/lib/constants";
@@ -1362,7 +1357,7 @@ export default function CommonAccountManagement() {
                 </Button>
               </FormActions>
 
-              <div className="space-y-4">
+              <div className="w-full max-w-3xl space-y-4">
                 <h3 className="text-md font-bold flex items-center gap-2 text-blue-600">
                   <LinkIcon size={18} /> 常用網站與備註 (最多 37 個)
                 </h3>
@@ -1378,7 +1373,7 @@ export default function CommonAccountManagement() {
                         <div className="space-y-1">
                           <div className="flex gap-2 items-center">
                             <span className="w-8 h-10 flex items-center justify-center text-xs text-gray-400 font-mono shrink-0">{idx}</span>
-                            <div className="flex-1 flex gap-2">
+                            <div className="min-w-0 flex-1 flex gap-2">
                               <Input
                                 placeholder={`網站名稱 / Site Name (${idx})`}
                                 value={(form as any)[siteKey] || ""}
@@ -1386,19 +1381,7 @@ export default function CommonAccountManagement() {
                                 className="rounded-xl flex-1 h-12"
                                 maxLength={100}
                               />
-                              <Select
-                                value=""
-                                onValueChange={(val) => setForm({ ...form, [siteKey]: val } as any)}
-                              >
-                                <SelectTrigger className="h-12 w-12 rounded-xl px-0 justify-center shrink-0">
-                                  <ChevronDown className="h-4 w-4" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {allSiteNames.map(site => (
-                                    <SelectItem key={site} value={site}>{site}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <SiteNamePicker names={allSiteNames} label={`選擇常用網站 ${idx}`} onSelect={(val) => setForm({ ...form, [siteKey]: val } as any)} />
                             </div>
                             <Button
                               type="button"
@@ -1648,7 +1631,7 @@ export default function CommonAccountManagement() {
                               // Inline Edit Mode
                               <div className="space-y-3">
                                 <div className="flex gap-2 items-center">
-                                  <div className="flex-1 flex gap-2">
+                                  <div className="min-w-0 flex-1 flex gap-2">
                                     <Input
                                       placeholder={`網站名稱/${idx}`}
                                       value={inlineEdit.siteName}
@@ -1657,19 +1640,7 @@ export default function CommonAccountManagement() {
                                       autoFocus
                                       maxLength={100}
                                     />
-                                    <Select
-                                      value=""
-                                      onValueChange={(val) => setInlineEdit({ ...inlineEdit, siteName: val })}
-                                    >
-                                      <SelectTrigger className="h-9 w-9 rounded-lg px-0 justify-center shrink-0">
-                                        <ChevronDown className="h-4 w-4" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {allSiteNames.map(site => (
-                                          <SelectItem key={site} value={site}>{site}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                    <SiteNamePicker names={allSiteNames} label={`選擇常用網站 ${idx}`} onSelect={(val) => setInlineEdit({ ...inlineEdit, siteName: val })} />
                                   </div>
                                 </div>
                                 <Textarea
