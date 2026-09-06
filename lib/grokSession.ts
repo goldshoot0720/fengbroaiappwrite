@@ -19,7 +19,14 @@
  * 使用者可以直接貼整份 `auth.json`。寫回 Appwrite 前一律轉成精簡格式，
  * 包一層 `grokOauth`——跟 Claude 的 `claudeAiOauth` 同一招，避免跟 ChatGPT 那邊
  * 「頂層有 accessToken 就當 ChatGPT session.json」的判斷打架。
+ *
+ * 也允許只貼裡面那顆 access token JWT（不包 refresh_token 那層），但這種 JWT
+ * 跟 ChatGPT 的 access token還是三段 base64url，外型一樣——唱一能分的只有 payload
+ * 裡的 `iss` claim（grok-cli 發的 token 一律是 `https://auth.x.ai`）。没有 refresh_token
+ * 就需要過期後手動重貼，跟 ChatGPT 純 JWT 同一套限制。
  */
+
+import { decodeJwtPayload, looksLikeJwt } from "./chatgptSession";
 
 export interface GrokCredential {
   accessToken: string;
@@ -73,6 +80,18 @@ function pickFromSimplifiedBag(parsed: unknown): Record<string, unknown> | null 
 export function readStoredGrokCredential(stored?: string | null): GrokCredential | null {
   const raw = asTrimmed(stored);
   if (!raw) return null;
+
+  // 純 JWT：跟 ChatGPT 的 access token 格式一樣（三段 base64url），唯一能分的只有
+  // payload 裡的 iss claim。解不到 payload 或 iss 不對就當作不是 Grok，讓下一個解法試。
+  if (looksLikeJwt(raw)) {
+    const payload = decodeJwtPayload(raw);
+    if (asTrimmed(payload?.iss) !== "https://auth.x.ai") return null;
+    const exp = payload?.exp;
+    return {
+      accessToken: raw,
+      expiresAt: typeof exp === "number" && Number.isFinite(exp) ? exp * 1000 : undefined,
+    };
+  }
 
   let parsed: unknown;
   try {
