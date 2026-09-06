@@ -43,6 +43,8 @@ import {
   quotaImportKey,
 } from "@/lib/quotaCsv";
 import { parseChatGptSession } from "@/lib/chatgptSession";
+import { readStoredClaudeCredential } from "@/lib/claudeSession";
+import { toClaudeQuotaFields, type ClaudeUsageSnapshot } from "@/lib/claudeUsage";
 import { isMindvideoImageService, MINDVIDEO_FRESH_WINDOW_MS } from "@/lib/mindvideoPoints";
 import {
   formatCountdown,
@@ -909,7 +911,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                     placeholder="西元年-月-日 時:分，例如 2026-10-05 07:34"
                   />
                 </FormField>
-                <CodexAccessTokenField
+                <AiAccessTokenField
                   form={form}
                   setForm={setForm}
                   quotaId={editingId}
@@ -1360,20 +1362,31 @@ function SummaryValue({ label, value, icon }: { label: string; value: number; ic
   );
 }
 
-interface UsageResponse extends CodexUsageSnapshot {
+interface CodexUsageResponse extends CodexUsageSnapshot {
   quotaId: string | null;
   quotaName: string;
   tokenExpiry: string | null;
 }
 
+interface ClaudeUsageResponse extends ClaudeUsageSnapshot {
+  quotaId: string | null;
+  quotaName: string;
+  tokenExpiry: string | null;
+}
+
+/** Claude 憑證專屬錯誤：/api/claude-usage 對「不是 Claude 格式」的 accessToken 一律回這句。 */
+const CLAUDE_CREDENTIAL_MISMATCH_ERROR = "沒有可用的 Claude 憑證，請先貼上 accessToken／憑證 JSON。";
+
 /**
- * ChatGPT Plus / Codex 憑證欄位：貼上 session.json 或 accessToken 後，
- * 可直接向 https://chatgpt.com/codex/cloud/settings/analytics#usage 的來源 API 帶入
- * 5 小時／一週的剩餘比例、重設時間與剩餘積分。
+ * ChatGPT Plus / Codex 與 Claude Code 共用同一個 accessToken 欄位：
+ * 貼上 session.json、accessToken 或 Claude 的 `.credentials.json` 後，
+ * 可直接向對應的來源 API 帶入 5 小時／一週的剩餘比例與重設時間
+ * （Codex 另外還有剩餘積分／重置機會，Claude 官方端點沒提供這兩個數字，維持手動填寫）。
  *
- * 明文預設隱藏；讀取已存的 token 需要四位數密碼。
+ * 明文預設隱藏；讀取已存的 token 需要四位數密碼。存的是哪一種憑證看格式辨識，
+ * 辨識順序跟 `/api/quota-refresh` 一致：先試 Claude（`sk-ant-`／JSON），對不上再當 ChatGPT。
  */
-function CodexAccessTokenField({
+function AiAccessTokenField({
   form,
   setForm,
   quotaId,
@@ -1393,11 +1406,14 @@ function CodexAccessTokenField({
   const [failed, setFailed] = useState(false);
   const [fetching, setFetching] = useState(false);
 
-  const typedCredential = form.accessToken ? parseChatGptSession(form.accessToken) : null;
+  const typedClaudeCredential = form.accessToken ? readStoredClaudeCredential(form.accessToken) : null;
+  const typedChatGptCredential =
+    !typedClaudeCredential && form.accessToken ? parseChatGptSession(form.accessToken) : null;
+  const typedCredential = typedClaudeCredential || typedChatGptCredential;
   // 手打的 token 直接用；沿用已存的 token 才需要密碼
   const needsPin = !typedCredential && hasExistingToken;
 
-  const applyUsage = (usage: UsageResponse) => {
+  const applyCodexUsage = (usage: CodexUsageResponse) => {
     const fields = toQuotaFields(usage);
     setForm((current) => ({ ...current, ...fields }));
 
@@ -1405,7 +1421,7 @@ function CodexAccessTokenField({
     const secondary = usage.windows.find((window) => window.key === "secondary");
     setFailed(false);
     setStatus(
-      `已帶入：5 小時 ${fields.ratio5h}% 剩餘${
+      `已帶入（ChatGPT）：5 小時 ${fields.ratio5h}% 剩餘${
         primary?.resetsAt ? `（重設 ${fields.expiry5h}）` : ""
       }、一週 ${fields.ratioWeek}% 剩餘${
         secondary?.resetsAt ? `（重設 ${fields.expiryWeek}）` : ""
@@ -1416,6 +1432,36 @@ function CodexAccessTokenField({
       }`
     );
   };
+
+  const applyClaudeUsage = (usage: ClaudeUsageResponse) => {
+    const fields = toClaudeQuotaFields(usage);
+    setForm((current) => ({ ...current, ...fields }));
+
+    const fiveHour = usage.windows.find((window) => window.key === "five_hour");
+    const sevenDay = usage.windows.find((window) => window.key.startsWith("seven_day"));
+    setFailed(false);
+    setStatus(
+      `已帶入（Claude）：5 小時 ${fields.ratio5h}% 剩餘${
+        fiveHour?.resetsAt ? `（重設 ${fields.expiry5h}）` : ""
+      }、一週 ${fields.ratioWeek}% 剩餘${
+        sevenDay?.resetsAt ? `（重設 ${fields.expiryWeek}）` : ""
+      }（重置機會等欄位 Claude 官方沒提供，仍需手動維護）`
+    );
+  };
+
+  const fetchCodexUsage = (body: Record<string, unknown>) =>
+    fetchApi<CodexUsageResponse>(API_ENDPOINTS.CHATGPT_USAGE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  const fetchClaudeUsage = (body: Record<string, unknown>) =>
+    fetchApi<ClaudeUsageResponse>(API_ENDPOINTS.CLAUDE_USAGE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
   const handleFetchUsage = async () => {
     if (needsPin && !/^\d{4}$/.test(pin)) {
@@ -1428,15 +1474,23 @@ function CodexAccessTokenField({
     setStatus("");
     setFailed(false);
     try {
-      const body = typedCredential
-        ? { accessToken: form.accessToken }
-        : { quotaId, pin };
-      const usage = await fetchApi<UsageResponse>(API_ENDPOINTS.CHATGPT_USAGE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      applyUsage(usage);
+      if (typedClaudeCredential) {
+        applyClaudeUsage(await fetchClaudeUsage({ accessToken: form.accessToken }));
+      } else if (typedChatGptCredential) {
+        applyCodexUsage(await fetchCodexUsage({ accessToken: form.accessToken }));
+      } else {
+        // 已存的 token 看不到明文，猜不出格式；照 /api/quota-refresh 的順序先試 Claude，
+        // 對不上格式再退回 ChatGPT（四位數密碼驗證沒有次數限制，兩次都試不影響安全性）。
+        try {
+          applyClaudeUsage(await fetchClaudeUsage({ quotaId, pin }));
+        } catch (err) {
+          if (err instanceof Error && err.message === CLAUDE_CREDENTIAL_MISMATCH_ERROR) {
+            applyCodexUsage(await fetchCodexUsage({ quotaId, pin }));
+          } else {
+            throw err;
+          }
+        }
+      }
       setPin("");
     } catch (err) {
       setFailed(true);
@@ -1451,7 +1505,7 @@ function CodexAccessTokenField({
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <label htmlFor="quota-access-token" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <KeyRound className="h-3.5 w-3.5" />
-          accessToken（ChatGPT Plus 自動帶入用，選填）
+          accessToken（ChatGPT Plus／Claude Code 自動帶入用，選填）
         </label>
         <a
           href="https://chatgpt.com/api/auth/session"
@@ -1467,7 +1521,7 @@ function CodexAccessTokenField({
         rows={2}
         spellCheck={false}
         className="font-mono text-xs"
-        placeholder="貼上 session.json 全文或 accessToken（eyJ...）；留空代表不變更"
+        placeholder="貼上 session.json／accessToken（eyJ...），或 Claude 的 ~/.claude/.credentials.json（sk-ant-...）；留空代表不變更"
         value={form.accessToken || ""}
         onChange={(event) =>
           setForm((current) => ({ ...current, accessToken: event.target.value, clearAccessToken: false }))
@@ -1515,7 +1569,7 @@ function CodexAccessTokenField({
           className="rounded-lg"
         >
           <RefreshCw className={cn("mr-1 h-3.5 w-3.5", fetching && "animate-spin")} />
-          {fetching ? "查詢中…" : "從 ChatGPT 帶入用量"}
+          {fetching ? "查詢中…" : "帶入用量"}
         </Button>
         {hasExistingToken ? (
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -1536,15 +1590,19 @@ function CodexAccessTokenField({
       </div>
       <p className={cn("mt-1.5 text-xs", failed ? "text-destructive" : "text-muted-foreground")}>
         {status ||
-          (typedCredential
-            ? `已辨識 token（末 4 碼 ${typedCredential.accessToken.slice(-4)}）${
-                typedCredential.accountId ? "，含帳號 ID" : ""
-              }；只會存 accessToken 與帳號 ID，不存 sessionToken。`
-            : hasExistingToken
-              ? hasPin === false
-                ? "已存有 token，但四位數密碼還沒建立；設定後才能顯示明文或帶入用量。"
-                : "已存有 token；輸入四位數密碼即可直接帶入最新用量，或貼上新 token 覆蓋。"
-              : "貼上後即可帶入 5 小時／一週剩餘比例、重設時間與剩餘積分。")}
+          (typedClaudeCredential
+            ? `已辨識 Claude 憑證（末 4 碼 ${typedClaudeCredential.accessToken.slice(-4)}）${
+                typedClaudeCredential.refreshToken ? "，含 refresh token（可自動換新）" : "（沒有 refresh token，過期需手動重貼）"
+              }；只會存精簡後的 accessToken／refreshToken／expiresAt。`
+            : typedChatGptCredential
+              ? `已辨識 ChatGPT token（末 4 碼 ${typedChatGptCredential.accessToken.slice(-4)}）${
+                  typedChatGptCredential.accountId ? "，含帳號 ID" : ""
+                }；只會存 accessToken 與帳號 ID，不存 sessionToken。`
+              : hasExistingToken
+                ? hasPin === false
+                  ? "已存有 token，但四位數密碼還沒建立；設定後才能顯示明文或帶入用量。"
+                  : "已存有 token；輸入四位數密碼即可直接帶入最新用量，或貼上新 token 覆蓋。"
+                : "貼上後即可帶入 5 小時／一週剩餘比例與重設時間（Codex 另含剩餘積分／重置機會）。")}
       </p>
     </div>
   );
