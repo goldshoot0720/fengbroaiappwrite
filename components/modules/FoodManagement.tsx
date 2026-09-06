@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Plus, Minus, ChevronDown, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, CalendarClock, RefreshCw, Copy } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Minus, ChevronDown, Download, Upload, X, Trash2, Pencil, Check, Square, CheckSquare, AlertTriangle, Sparkles, PackageOpen, RefreshCw, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1507,65 +1507,58 @@ export default function FoodManagement() {
         recentSearchKey="food-management"
         density="compact"
         searchExtras={
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex min-w-[260px] flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950">
-              <CalendarClock size={18} className="shrink-0 text-slate-400" />
-              <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">日期</span>
-              <Select
-                value={yearFilter || "all"}
-                onValueChange={(value) => {
-                  setYearFilter(value === "all" ? "" : value);
+          <div className="grid w-full grid-cols-2 gap-2 lg:flex lg:w-auto lg:shrink-0">
+            <Select
+              value={yearFilter || "all"}
+              onValueChange={(value) => {
+                setYearFilter(value === "all" ? "" : value);
+                setMonthFilter("");
+              }}
+            >
+              <SelectTrigger className="w-full lg:w-32">
+                <SelectValue placeholder="全部年份" />
+              </SelectTrigger>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                <SelectItem value="all">全部年份</SelectItem>
+                <SelectItem value="no-date">無日期</SelectItem>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    {year} 年
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={monthFilter || "all"}
+              onValueChange={(value) => setMonthFilter(value === "all" ? "" : value)}
+              disabled={yearFilter === "no-date"}
+            >
+              <SelectTrigger className="w-full lg:w-28">
+                <SelectValue placeholder="全部月份" />
+              </SelectTrigger>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                <SelectItem value="all">全部月份</SelectItem>
+                {monthOptions.map((month) => (
+                  <SelectItem key={month} value={month}>
+                    {formatMonthOption(month)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(yearFilter || monthFilter) && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="col-span-2 rounded-xl lg:col-span-1"
+                onClick={() => {
+                  setYearFilter("");
                   setMonthFilter("");
                 }}
               >
-                <SelectTrigger className="h-8 min-w-[112px] border-0 bg-transparent px-0 shadow-none focus:ring-0">
-                  <span className={yearFilter ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}>
-                    {yearFilter === "no-date" ? "無日期" : yearFilter || "全部年份"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部年份</SelectItem>
-                  <SelectItem value="no-date">無日期</SelectItem>
-                  {yearOptions.map((year) => (
-                    <SelectItem key={year} value={year}>
-                      {year} 年
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={monthFilter || "all"}
-                onValueChange={(value) => setMonthFilter(value === "all" ? "" : value)}
-                disabled={yearFilter === "no-date"}
-              >
-                <SelectTrigger className="h-8 min-w-[104px] border-0 bg-transparent px-0 shadow-none focus:ring-0 disabled:opacity-50">
-                  <span className={monthFilter ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}>
-                    {monthFilter ? formatMonthOption(monthFilter) : "全部月份"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部月份</SelectItem>
-                  {monthOptions.map((month) => (
-                    <SelectItem key={month} value={month}>
-                      {formatMonthOption(month)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(yearFilter || monthFilter) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setYearFilter("");
-                    setMonthFilter("");
-                  }}
-                  className="rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                  aria-label="清除年月篩選"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+                清除日期篩選
+              </Button>
+            )}
           </div>
         }
         intro={
