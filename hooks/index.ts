@@ -30,6 +30,7 @@ export {
 } from "./useSpeechRecognition";
 export { useVoicePreferences } from "./useVoicePreferences";
 export { useNotificationPermission } from "./useNotificationPermission";
+export { useNotificationPreferences } from "./useNotificationPreferences";
 export {
   useExpiryNotifications,
   sendExpiryOsNotifications,

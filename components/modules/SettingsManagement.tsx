@@ -7,6 +7,7 @@ import { CollapsibleSettingsCard } from "@/components/ui/collapsible-settings-ca
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useVoicePreferences } from "@/hooks/useVoicePreferences";
+import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { clearAllCaches, getAppwriteConfig, getExportFilename } from "@/lib/utils";
 import { notifyAppwriteConfigChanged } from "@/hooks/useAppwriteSetup";
 import { useWebPush } from "@/hooks/useWebPush";
@@ -79,6 +80,7 @@ interface CreateProgress {
 export default function SettingsManagement() {
   const { theme, setTheme } = useTheme();
   const { preferences: voicePreferences, updatePreferences: updateVoicePreferences } = useVoicePreferences();
+  const { preferences: notificationPreferences, updatePreferences: updateNotificationPreferences } = useNotificationPreferences();
   const {
     notificationPermission,
     pushSubscribed,
@@ -1384,6 +1386,20 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
           subtitle="APP 關閉時仍可收到到期提醒"
         >
           <div className="space-y-4">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white/70 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-gray-300"
+                checked={notificationPreferences.dashboardOsEnabled}
+                onChange={(event) => updateNotificationPreferences({ dashboardOsEnabled: event.target.checked })}
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Dashboard 到期提醒（開啟／返回 App 時跳出）</span>
+                <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                  在瀏覽器已授權通知的前提下自由開關；關閉後即使已授權也不會再跳出，不影響下方「推播通知」APP 關閉時的背景推播。
+                </span>
+              </span>
+            </label>
             {notificationPermission === 'unsupported' ? (
               <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm text-gray-500">
                 此瀏覽器不支援推播通知

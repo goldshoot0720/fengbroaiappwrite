@@ -11,6 +11,7 @@ import {
   financeBreakthroughMessage,
 } from "@/lib/notifications/messages";
 import { NOTIFICATION_POLICY } from "@/lib/notifications/policy";
+import { getNotificationPreferences } from "@/lib/notifications/notificationPreferences";
 import { showAppNotification } from "@/lib/notifications/showNotification";
 import type { FoodDetail, SubscriptionDetail } from "@/types";
 
@@ -66,6 +67,7 @@ export async function sendExpiryOsNotifications(params: {
   if (typeof window === "undefined") return;
   if (typeof Notification === "undefined") return;
   if (Notification.permission !== "granted") return;
+  if (!getNotificationPreferences().dashboardOsEnabled) return;
 
   const policy = NOTIFICATION_POLICY.dashboardOs;
   const now = new Date();
