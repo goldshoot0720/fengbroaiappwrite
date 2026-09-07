@@ -4,6 +4,8 @@ import { verifyAuth } from "../_lib/cronAuth";
 import { collectExpiryItems } from "../_lib/expiryCollector";
 import { getTaipeiDateKey } from "../../../lib/notifications/daysUntil";
 import { NOTIFICATION_POLICY } from "../../../lib/notifications/policy";
+import { loadResendConfig } from "../_lib/resendSettings";
+import { validateResendConfigs } from "../../../lib/notifications/resolveResendConfig.mjs";
 import { RESEND_SLOT_COUNT } from "../../../lib/notifications/resendConfig";
 
 export const dynamic = "force-dynamic";
@@ -17,33 +19,6 @@ async function readBody(request) {
   } catch {
     return {};
   }
-}
-
-function getResendConfig(searchParams, body = {}) {
-  const from =
-    body.resendFrom ||
-    searchParams.get("_resendFrom") ||
-    process.env.RESEND_FROM_EMAIL ||
-    "FengBro <onboarding@resend.dev>";
-
-  return Array.from({ length: RESEND_SLOT_COUNT }, (_, index) => {
-    const slot = index + 1;
-    const suffix = slot === 1 ? "" : String(slot);
-    return {
-      keyName: `RESEND_API_KEY${suffix}`,
-      apiKey:
-        body[`resendApiKey${suffix}`] ||
-        searchParams.get(`_resendKey${suffix}`) ||
-        process.env[`RESEND_API_KEY${suffix}`] ||
-        "",
-      to:
-        body[`resendTo${suffix}`] ||
-        searchParams.get(`_resendTo${suffix}`) ||
-        process.env[`RESEND_TO_EMAIL${suffix}`] ||
-        "",
-      from,
-    };
-  }).filter((config) => config.apiKey || config.to);
 }
 
 function formatDate(dateStr) {
@@ -170,41 +145,25 @@ async function handleResendExpiryNotify(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const resendConfigs = getResendConfig(searchParams, body);
+    const { databases, databaseId } = createAppwrite(searchParams, body);
+    const { configs: resendConfigs } = await loadResendConfig(databases, databaseId, { searchParams, body });
 
     if (resendConfigs.length === 0) {
       return NextResponse.json({
         success: true,
         skipped: true,
-        reason: "RESEND_API_KEY / RESEND_TO_EMAIL is not configured",
+        reason: "notificationsettings and RESEND environment configuration are empty",
         maxResendSlots: RESEND_SLOT_COUNT,
         configuredResendSlots: 0,
       });
     }
 
-    const invalidConfig = resendConfigs.find((config) => !config.apiKey || !config.to);
-    if (invalidConfig) {
-      return NextResponse.json(
-        {
-          error: `${invalidConfig.keyName} requires both API key and recipient email`,
-          maxResendSlots: RESEND_SLOT_COUNT,
-          configuredResendSlots: resendConfigs.length,
-        },
-        { status: 400 }
-      );
+    try {
+      validateResendConfigs(resendConfigs);
+    } catch (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    const invalidKey = resendConfigs.find((config) =>
-      typeof config.apiKey !== "string" || /[^\x21-\x7E]/.test(config.apiKey)
-    );
-    if (invalidKey) {
-      return NextResponse.json(
-        { error: `${invalidKey.keyName} 含遮蔽符號或無效字元，請重新解鎖載入金鑰；若已儲存遮蔽值，請重新貼上完整 Resend API Key。` },
-        { status: 400 }
-      );
-    }
-
-    const { databases, databaseId } = createAppwrite(searchParams, body);
     const todayKey = getTaipeiDateKey();
     const { subscriptions, foods } = await collectExpiryItems(databases, databaseId, {
       mode: "exact",
@@ -265,3 +224,4 @@ export async function GET(request) {
 export async function POST(request) {
   return handleResendExpiryNotify(request);
 }
+

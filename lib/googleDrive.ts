@@ -24,6 +24,7 @@ const CLIENT_ID_STORAGE_KEY = "NEXT_PUBLIC_GOOGLE_CLIENT_ID";
 const API_KEY_STORAGE_KEY = "NEXT_PUBLIC_GOOGLE_API_KEY";
 
 type GoogleTokenResponse = { access_token?: string; error?: string };
+type GoogleTokenError = { type?: string; message?: string };
 type GoogleTokenClient = { requestAccessToken: (options?: { prompt?: string }) => void };
 type GoogleAccountsNamespace = {
   oauth2: {
@@ -31,6 +32,7 @@ type GoogleAccountsNamespace = {
       client_id: string;
       scope: string;
       callback: (response: GoogleTokenResponse) => void;
+      error_callback?: (error: GoogleTokenError) => void;
     }) => GoogleTokenClient;
     revoke?: (token: string, done?: () => void) => void;
   };
@@ -115,6 +117,21 @@ function loadScript(src: string): Promise<void> {
 }
 
 let gisLoadPromise: Promise<void> | null = null;
+
+/**
+ * Fetches the Google Identity Services script ahead of time.
+ *
+ * Browsers only let a popup open while a click is still "active", and that
+ * window does not survive a script download plus a backup being zipped. Call
+ * this when the page settles so the token request itself is instant.
+ */
+export function preloadGoogleIdentityServices(): void {
+  if (!isBrowser() || window.google?.accounts?.oauth2) return;
+  void loadGoogleIdentityServices().catch(() => {
+    // A failed preload is not worth surfacing; the real request will report it.
+  });
+}
+
 function loadGoogleIdentityServices(): Promise<void> {
   if (!isBrowser()) return Promise.reject(new Error("僅支援瀏覽器環境"));
   if (window.google?.accounts?.oauth2) return Promise.resolve();
@@ -174,6 +191,23 @@ export async function requestGoogleDriveAccessToken(options?: { forcePrompt?: bo
           }
           cachedToken = { accessToken: response.access_token, expiresAt: Date.now() + 55 * 60 * 1000 };
           resolve(response.access_token);
+        },
+        // Without this, a popup the browser refuses to open never calls back at
+        // all and the caller waits forever.
+        error_callback: (error) => {
+          if (error?.type === "popup_failed_to_open") {
+            reject(
+              new Error(
+                "瀏覽器擋下了 Google 授權視窗。請允許這個網站顯示彈出式視窗後再試一次。"
+              )
+            );
+            return;
+          }
+          if (error?.type === "popup_closed") {
+            reject(new Error("Google 授權視窗被關閉，尚未完成授權。"));
+            return;
+          }
+          reject(new Error(error?.message || "取得 Google 授權失敗"));
         },
       });
       tokenClient.requestAccessToken({ prompt: options?.forcePrompt ? "consent" : "" });

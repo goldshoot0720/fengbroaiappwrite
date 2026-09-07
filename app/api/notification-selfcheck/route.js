@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createAppwrite, getCollectionId } from "../_lib/appwriteClient";
 import { collectExpiryItems } from "../_lib/expiryCollector";
 import { NOTIFICATION_POLICY } from "../../../lib/notifications/policy";
-import { RESEND_SLOT_COUNT } from "../../../lib/notifications/resendConfig";
+import { loadResendConfig } from "../_lib/resendSettings";
+import { validateResendConfigs } from "../../../lib/notifications/resolveResendConfig.mjs";
 import { getTaipeiDateKey } from "../../../lib/notifications/daysUntil";
 
 export const dynamic = "force-dynamic";
@@ -13,16 +14,6 @@ function item(id, channel, label, status, detail) {
   return { id, channel, label, status, detail };
 }
 
-function countConfiguredResendSlots() {
-  let count = 0;
-  for (let slot = 1; slot <= RESEND_SLOT_COUNT; slot++) {
-    const suffix = slot === 1 ? "" : String(slot);
-    const apiKey = process.env[`RESEND_API_KEY${suffix}`] || "";
-    const to = process.env[`RESEND_TO_EMAIL${suffix}`] || "";
-    if (apiKey && to) count += 1;
-  }
-  return count;
-}
 
 async function readBody(request) {
   if (request.method === "GET") return {};
@@ -84,18 +75,19 @@ async function handleSelfCheck(request) {
     )
   );
 
-  const resendSlots = countConfiguredResendSlots();
-  items.push(
-    item(
-      "server.resend",
-      "email",
-      "Resend Email 環境變數",
-      resendSlots > 0 ? "pass" : "warn",
-      resendSlots > 0
-        ? `已設定 ${resendSlots} 組 RESEND_API_KEY / RESEND_TO_EMAIL`
-        : "部署環境未設定 RESEND（設定頁本機 localStorage 無法給 Cron 用）"
-    )
-  );
+  // Probe with deployment credentials, exactly as Cron does (no browser overrides).
+  try {
+    const { databases, databaseId } = createAppwrite();
+    const { configs, source } = await loadResendConfig(databases, databaseId);
+    validateResendConfigs(configs);
+    items.push(item("server.resend", "email", "Resend Email 排程設定",
+      configs.length ? "pass" : "warn",
+      configs.length ? `已設定 ${configs.length} 組（來源：${source}）`
+        : "notificationsettings 與部署環境均未設定 Resend，請在設定頁儲存至資料表"));
+  } catch {
+    items.push(item("server.resend", "email", "Resend Email 排程設定", "warn",
+      "Cron 無法讀取有效的 Resend 設定，請檢查伺服器 Appwrite 設定、資料表權限與完整金鑰／收件 Email"));
+  }
 
   // Appwrite: prefer request body (from Settings), else env/server defaults
   let appwriteOk = false;
@@ -264,3 +256,4 @@ export async function GET(request) {
 export async function POST(request) {
   return handleSelfCheck(request);
 }
+

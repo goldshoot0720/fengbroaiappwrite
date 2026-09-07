@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Archive, CloudDownload, CloudUpload, Download, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui";
 import { CollapsibleSettingsCard } from "@/components/ui/collapsible-settings-card";
@@ -15,6 +15,8 @@ import {
   getGoogleApiKey,
   getGoogleClientId,
   pickBackupFromGoogleDrive,
+  preloadGoogleIdentityServices,
+  requestGoogleDriveAccessToken,
   uploadBackupToGoogleDrive,
 } from "@/lib/googleDrive";
 import { GoogleDriveConnectionSettings } from "@/components/modules/GoogleDriveConnectionSettings";
@@ -37,6 +39,12 @@ export function MenuBackupSettings() {
   // the Drive buttons know whether they can run without re-reading on render.
   const [googleClientId, setGoogleClientIdState] = useState(() => getGoogleClientId());
   const [googleApiKey, setGoogleApiKeyState] = useState(() => getGoogleApiKey());
+
+  // Have the OAuth script ready before anyone clicks, so asking for the token
+  // costs no time out of the click's popup allowance.
+  useEffect(() => {
+    if (googleClientId && googleApiKey) preloadGoogleIdentityServices();
+  }, [googleClientId, googleApiKey]);
 
   const csvCount = csvMenus().length;
   const zipCount = zipMenus().length;
@@ -111,8 +119,12 @@ export function MenuBackupSettings() {
     setBusy(kind);
     setAction("drive-export");
     setResults(null);
-    setProgress({ stage: "export", current: 0, total: 1, message: "準備匯出…" });
+    setProgress({ stage: "drive-auth", current: 0, total: 1, message: "取得 Google 授權…" });
     try {
+      // Ask while the click still counts as user activation; zipping the backup
+      // first would get the popup blocked.
+      await requestGoogleDriveAccessToken();
+      setProgress({ stage: "export", current: 0, total: 1, message: "準備匯出…" });
       const filename = getExportFilename(kind === "csv" ? "all-csv" : "all-menus", "zip");
       const run = await exportMenuBundle(
         kind,
@@ -150,8 +162,10 @@ export function MenuBackupSettings() {
     setBusy(kind);
     setAction("drive-import");
     setResults(null);
-    setProgress({ stage: "drive-pick", current: 0, total: 1, message: "開啟 Google 雲端硬碟選取視窗…" });
+    setProgress({ stage: "drive-auth", current: 0, total: 1, message: "取得 Google 授權…" });
     try {
+      await requestGoogleDriveAccessToken();
+      setProgress({ stage: "drive-pick", current: 0, total: 1, message: "開啟 Google 雲端硬碟選取視窗…" });
       const picked = await pickBackupFromGoogleDrive();
       if (!picked) {
         setBusy(null);
