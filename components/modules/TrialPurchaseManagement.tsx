@@ -96,10 +96,14 @@ function purchaseStatusLabel(status: PurchaseStatus) {
   return ALL_PURCHASE_STATUS_OPTIONS.find((option) => option.value === status)?.label || "無首購";
 }
 
-/** Done reads as success, in progress as info, not started as something to do. */
+/**
+ * Done reads as success, in progress as info, not started as something to do.
+ * "無試用" is none of those — nothing is owed, so it stays quiet.
+ */
 function trialStatusTone(status: TrialStatus) {
   if (status === "tried") return "success" as const;
   if (status === "trialing") return "info" as const;
+  if (status === "no_trial") return "normal" as const;
   return "warning" as const;
 }
 
@@ -210,7 +214,7 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
       const matchesQuery = !normalizedQuery || [item.name, item.account, item.note]
         .some((value) => String(value || "").toLocaleLowerCase("zh-Hant").includes(normalizedQuery));
       const matchesAttention = attentionFilter === "all"
-        || (attentionFilter === "untried" && item.trialStatus !== "trialing" && item.trialStatus !== "tried")
+        || (attentionFilter === "untried" && item.trialStatus !== "trialing" && item.trialStatus !== "tried" && item.trialStatus !== "no_trial")
         || (attentionFilter === "trialing" && item.trialStatus === "trialing")
         || (attentionFilter === "purchasing" && item.purchaseStatus === "purchasing")
         || (attentionFilter === "not_purchased" && item.purchaseStatus === "not_purchased");
@@ -253,14 +257,18 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
     () => new Set(items.map((item) => serviceKey(item.name))).size,
     [items],
   );
-  const untriedCount = items.filter((item) => item.trialStatus !== "trialing" && item.trialStatus !== "tried").length;
+  // Anything not explicitly moved along counts as untried, so rows saved
+  // before this field existed still surface as something to do.
+  const untriedCount = items.filter((item) =>
+    item.trialStatus !== "trialing" && item.trialStatus !== "tried" && item.trialStatus !== "no_trial",
+  ).length;
   const trialingCount = items.filter((item) => item.trialStatus === "trialing").length;
   const notPurchasedCount = items.filter((item) => item.purchaseStatus === "not_purchased").length;
   const purchasingCount = items.filter((item) => item.purchaseStatus === "purchasing").length;
   // Anything not finished on either track still wants attention; a service
   // that never offered a first purchase is finished as far as buying goes.
   const pendingCount = items.filter((item) =>
-    item.trialStatus !== "tried"
+    (item.trialStatus !== "tried" && item.trialStatus !== "no_trial")
     || (item.purchaseStatus !== "purchased" && item.purchaseStatus !== "unavailable"),
   ).length;
   const pendingDetail = [
@@ -713,7 +721,9 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
         <div className="space-y-3">
           {groups.map((group) => {
             const isOpen = query.trim() ? !collapsedSearchServices.has(group.key) : expandedServices.has(group.key);
-            const groupUntried = group.items.filter((item) => item.trialStatus !== "trialing" && item.trialStatus !== "tried").length;
+            const groupUntried = group.items.filter((item) =>
+              item.trialStatus !== "trialing" && item.trialStatus !== "tried" && item.trialStatus !== "no_trial",
+            ).length;
             const groupTrialing = group.items.filter((item) => item.trialStatus === "trialing").length;
             const groupUnpurchased = group.items.filter((item) => item.purchaseStatus === "not_purchased").length;
             const groupPurchasing = group.items.filter((item) => item.purchaseStatus === "purchasing").length;

@@ -51,9 +51,12 @@ const TRIAL_STATUS_ALIASES: Record<string, TrialStatus> = {
   untried: "untried",
   trialing: "trialing",
   tried: "tried",
+  no_trial: "no_trial",
   未試用: "untried",
   試用中: "trialing",
   已試用: "tried",
+  無試用: "no_trial",
+  無提供試用: "no_trial",
   // Wording used before the three-step progression.
   尚未試用: "untried",
 };

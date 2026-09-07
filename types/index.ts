@@ -65,7 +65,8 @@ export interface SubscriptionDetail {
 }
 
 // 試用／首購管理：一筆代表「一個服務 × 一個帳號」
-export type TrialStatus = "untried" | "trialing" | "tried";
+/** "no_trial" is the service never offering one, not a step you can finish. */
+export type TrialStatus = "untried" | "trialing" | "tried" | "no_trial";
 /**
  * "unavailable" predates the three-step progression and is kept so existing
  * rows still load, validate and save unchanged; the picker only offers the

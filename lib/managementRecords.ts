@@ -32,6 +32,8 @@ export const TRIAL_STATUS_OPTIONS: ReadonlyArray<{ value: TrialStatus; label: st
   { value: "untried", label: "未試用" },
   { value: "trialing", label: "試用中" },
   { value: "tried", label: "已試用" },
+  // Last, because it leaves the progression rather than completing it.
+  { value: "no_trial", label: "無試用" },
 ];
 
 export const PURCHASE_STATUS_OPTIONS: ReadonlyArray<{ value: PurchaseStatus; label: string }> = [
