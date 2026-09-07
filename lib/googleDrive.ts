@@ -11,7 +11,15 @@
 const GIS_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 const GAPI_SCRIPT_SRC = "https://apis.google.com/js/api.js";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const BACKUP_FOLDER_NAME = "鋒兄備份";
+/**
+ * Backups live under OAuth/fengbroaiappwrite. Two levels, so the OAuth folder
+ * can hold one subfolder per app instead of every app dropping files loose at
+ * the Drive root.
+ */
+const BACKUP_FOLDER_PATH = ["OAuth", "fengbroaiappwrite"] as const;
+
+/** Human-readable form for messages, e.g. "OAuth／fengbroaiappwrite". */
+export const BACKUP_FOLDER_LABEL = BACKUP_FOLDER_PATH.join("／");
 const CLIENT_ID_STORAGE_KEY = "NEXT_PUBLIC_GOOGLE_CLIENT_ID";
 const API_KEY_STORAGE_KEY = "NEXT_PUBLIC_GOOGLE_API_KEY";
 
@@ -175,9 +183,13 @@ export async function requestGoogleDriveAccessToken(options?: { forcePrompt?: bo
   });
 }
 
-async function ensureBackupFolderId(accessToken: string): Promise<string> {
+/** Finds or creates one folder inside `parentId` ("root" for the Drive root). */
+async function ensureFolder(accessToken: string, name: string, parentId: string): Promise<string> {
+  // Drive query strings are single-quoted, so a quote in the name would end
+  // the literal early; these names have none, but escape anyway.
+  const escapedName = name.replace(/'/g, "\\'");
   const query = encodeURIComponent(
-    `name = '${BACKUP_FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
+    `name = '${escapedName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false and '${parentId}' in parents`
   );
   const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -191,11 +203,31 @@ async function ensureBackupFolderId(accessToken: string): Promise<string> {
   const createRes = await fetch("https://www.googleapis.com/drive/v3/files?fields=id", {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ name: BACKUP_FOLDER_NAME, mimeType: "application/vnd.google-apps.folder" }),
+    body: JSON.stringify({
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId],
+    }),
   });
-  if (!createRes.ok) throw new Error("建立 Google Drive「鋒兄備份」資料夾失敗");
+  if (!createRes.ok) throw new Error(`建立 Google Drive「${name}」資料夾失敗`);
   const created = await createRes.json();
   return created.id;
+}
+
+/**
+ * Walks BACKUP_FOLDER_PATH from the Drive root, creating whatever is missing.
+ *
+ * The drive.file scope only sees folders this app created, so a folder the
+ * user made by hand with the same name stays invisible here and a second one
+ * gets created — that is the scope working as intended, not a bug to route
+ * around by asking for broader access.
+ */
+async function ensureBackupFolderId(accessToken: string): Promise<string> {
+  let parentId = "root";
+  for (const name of BACKUP_FOLDER_PATH) {
+    parentId = await ensureFolder(accessToken, name, parentId);
+  }
+  return parentId;
 }
 
 /** Uploads a backup blob into a "鋒兄備份" folder in the user's Drive. */

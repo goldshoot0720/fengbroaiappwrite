@@ -27,8 +27,15 @@ export const NOTIFICATION_SETTINGS_SCHEMA = {
     { key: "passwordHash", type: "string", size: 300, required: false },
     { key: "fromEmail", type: "string", size: 300, required: false },
     { key: "slotsJson", type: "string", size: 20000, required: false },
+    // Google Drive 連接設定（documentId "googledrive"）共用這張表，
+    // 讀寫都要通過全站共用的四位數密碼。
+    { key: "googleClientId", type: "string", size: 300, required: false },
+    { key: "googleApiKey", type: "string", size: 300, required: false },
   ],
 } as const;
+
+/** Google Drive 連接設定的固定 documentId。 */
+export const GOOGLE_DRIVE_SETTINGS_DOCUMENT_ID = "googledrive";
 
 export type NotificationSettingSlot = {
   apiKey: string;

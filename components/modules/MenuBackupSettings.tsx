@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Archive, CloudDownload, CloudUpload, Download, Loader2, Upload } from "lucide-react";
-import { Button, Input } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { CollapsibleSettingsCard } from "@/components/ui/collapsible-settings-card";
 import { notifyDataRefresh } from "@/hooks/useRefreshKey";
 import { csvMenus, zipMenus } from "@/lib/menuBackup/catalog";
@@ -10,14 +10,14 @@ import { exportMenuBundle, importMenuBundle, summarize } from "@/lib/menuBackup/
 import type { MenuBackupMode, MenuJobResult } from "@/lib/menuBackup";
 import { getExportFilename } from "@/lib/utils";
 import {
+  BACKUP_FOLDER_LABEL,
   downloadBackupFromGoogleDrive,
   getGoogleApiKey,
   getGoogleClientId,
   pickBackupFromGoogleDrive,
-  setGoogleApiKey,
-  setGoogleClientId,
   uploadBackupToGoogleDrive,
 } from "@/lib/googleDrive";
+import { GoogleDriveConnectionSettings } from "@/components/modules/GoogleDriveConnectionSettings";
 
 type ProgressState = {
   stage: string;
@@ -33,6 +33,8 @@ export function MenuBackupSettings() {
   const [action, setAction] = useState<"export" | "import" | "drive-export" | "drive-import" | null>(null);
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [results, setResults] = useState<MenuJobResult[] | null>(null);
+  // The connection panel writes these through to localStorage; keep a copy so
+  // the Drive buttons know whether they can run without re-reading on render.
   const [googleClientId, setGoogleClientIdState] = useState(() => getGoogleClientId());
   const [googleApiKey, setGoogleApiKeyState] = useState(() => getGoogleApiKey());
 
@@ -129,7 +131,7 @@ export function MenuBackupSettings() {
       if (!run.blob) throw new Error("匯出檔案產生失敗");
       setProgress({ stage: "drive-upload", current: 1, total: 1, message: "上傳到 Google 雲端硬碟…" });
       await uploadBackupToGoogleDrive(run.blob, filename);
-      window.alert(`已上傳到 Google 雲端硬碟「鋒兄備份」資料夾：${filename}\n\n${summarize(run.results)}`);
+      window.alert(`已上傳到 Google 雲端硬碟「${BACKUP_FOLDER_LABEL}」資料夾：${filename}\n\n${summarize(run.results)}`);
     } catch (error) {
       window.alert(`上傳到 Google 雲端硬碟失敗：${error instanceof Error ? error.message : "未知錯誤"}`);
     } finally {
@@ -256,7 +258,7 @@ export function MenuBackupSettings() {
                 className="flex-1 text-sky-700 dark:text-sky-300"
                 disabled={Boolean(busy)}
                 onClick={() => void runExportToDrive("csv")}
-                title="匯出後不下載到本機，直接上傳到 Google 雲端硬碟「鋒兄備份」資料夾"
+                title={`匯出後不下載到本機，直接上傳到 Google 雲端硬碟「${BACKUP_FOLDER_LABEL}」資料夾`}
               >
                 {busy === "csv" && action === "drive-export" ? (
                   <><Loader2 size={16} className="animate-spin" /> 上傳中…</>
@@ -328,7 +330,7 @@ export function MenuBackupSettings() {
                 className="flex-1 text-sky-700 dark:text-sky-300"
                 disabled={Boolean(busy)}
                 onClick={() => void runExportToDrive("all")}
-                title="匯出後不下載到本機，直接上傳到 Google 雲端硬碟「鋒兄備份」資料夾"
+                title={`匯出後不下載到本機，直接上傳到 Google 雲端硬碟「${BACKUP_FOLDER_LABEL}」資料夾`}
               >
                 {busy === "all" && action === "drive-export" ? (
                   <><Loader2 size={16} className="animate-spin" /> 上傳中…</>
@@ -377,45 +379,12 @@ export function MenuBackupSettings() {
           </div>
         )}
 
-        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-950/40">
-          <h4 className="flex items-center gap-2 font-semibold text-sky-900 dark:text-sky-100">
-            <CloudUpload size={16} /> Google 雲端硬碟連接設定
-          </h4>
-          <p className="mt-1 text-xs text-sky-700 dark:text-sky-300">
-            需先在 Google Cloud Console 建立 OAuth 用戶端 ID（網頁應用程式）與 API 金鑰，並啟用 Google Drive API，
-            將目前網域加入「已授權的 JavaScript 來源」。填入後點擊上方「匯出到雲端硬碟」或「從雲端硬碟匯入」時會彈出 Google 授權視窗。
-          </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <label className="space-y-1">
-              <span className="block text-xs text-sky-700 dark:text-sky-300">Google Client ID</span>
-              <Input
-                value={googleClientId}
-                onChange={(event) => {
-                  setGoogleClientIdState(event.target.value);
-                  setGoogleClientId(event.target.value);
-                }}
-                placeholder="xxxxx.apps.googleusercontent.com"
-                className="font-mono text-xs"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="block text-xs text-sky-700 dark:text-sky-300">Google API Key</span>
-              <Input
-                value={googleApiKey}
-                onChange={(event) => {
-                  setGoogleApiKeyState(event.target.value);
-                  setGoogleApiKey(event.target.value);
-                }}
-                placeholder="AIza…"
-                className="font-mono text-xs"
-              />
-            </label>
-          </div>
-          <p className="mt-2 text-[11px] text-sky-600 dark:text-sky-400">
-            {googleConfigured ? "已設定，雲端硬碟按鈕可以使用。" : "尚未設定，雲端硬碟按鈕會提示先填好這兩個欄位。"}
-            授權只要求 drive.file 範圍，只能存取本 App 建立或你透過選取視窗開啟的檔案，不會讀取雲端硬碟其他資料。
-          </p>
-        </div>
+        <GoogleDriveConnectionSettings
+          onCredentialsChange={({ clientId, apiKey }) => {
+            setGoogleClientIdState(clientId);
+            setGoogleApiKeyState(apiKey);
+          }}
+        />
       </div>
     </CollapsibleSettingsCard>
   );

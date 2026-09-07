@@ -114,6 +114,7 @@ export const API_ENDPOINTS = {
   QUOTA_REFRESH: "/api/quota-refresh",
   /** 全站共用的四位數密碼（在鋒兄設定建立） */
   ACCESS_PIN: "/api/access-pin",
+  GOOGLE_DRIVE_SETTINGS: "/api/google-drive-settings",
   SHOPPING_LIST: "/api/shopping-list",
   BANK: "/api/bank",
   IMAGES: "/api/images",
