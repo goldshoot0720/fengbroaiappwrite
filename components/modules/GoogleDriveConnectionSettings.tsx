@@ -14,7 +14,12 @@ type SettingsState = {
   apiKeyMasked: string;
 };
 
-type UnlockedSecrets = { clientId: string; apiKey: string };
+/**
+ * Wire names stay prefixed: the API-route helper that builds the Appwrite
+ * client also scans the request body for a field called `apiKey`, and would
+ * otherwise use the Google key to talk to Appwrite.
+ */
+type UnlockedSecrets = { googleClientId: string; googleApiKey: string };
 
 interface GoogleDriveConnectionSettingsProps {
   /** Lets the parent re-check whether the Drive buttons can be used. */
@@ -66,8 +71,8 @@ export function GoogleDriveConnectionSettings({
   }, [open, state, loading, loadState]);
 
   const applyLocally = (secrets: UnlockedSecrets) => {
-    setGoogleClientId(secrets.clientId);
-    setGoogleApiKey(secrets.apiKey);
+    setGoogleClientId(secrets.googleClientId);
+    setGoogleApiKey(secrets.googleApiKey);
     onCredentialsChange?.(secrets);
   };
 
@@ -86,12 +91,12 @@ export function GoogleDriveConnectionSettings({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
       });
-      setClientId(secrets.clientId);
-      setApiKey(secrets.apiKey);
+      setClientId(secrets.googleClientId);
+      setApiKey(secrets.googleApiKey);
       setUnlocked(true);
       applyLocally(secrets);
       setStatus(
-        secrets.clientId || secrets.apiKey
+        secrets.googleClientId || secrets.googleApiKey
           ? "已解鎖，並同步到這台裝置。"
           : "已解鎖，Appwrite 上還沒有存過任何值。"
       );
@@ -113,15 +118,15 @@ export function GoogleDriveConnectionSettings({
     setStatus(null);
     setFailed(false);
     try {
-      const saved = await fetchApi<{ clientId: string; apiKey: string; configured: boolean }>(
+      const saved = await fetchApi<UnlockedSecrets & { configured: boolean }>(
         API_ENDPOINTS.GOOGLE_DRIVE_SETTINGS,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin, clientId, apiKey }),
+          body: JSON.stringify({ pin, googleClientId: clientId, googleApiKey: apiKey }),
         }
       );
-      applyLocally({ clientId: saved.clientId, apiKey: saved.apiKey });
+      applyLocally({ googleClientId: saved.googleClientId, googleApiKey: saved.googleApiKey });
       setStatus("已儲存到 Appwrite，並同步到這台裝置。");
       await loadState();
     } catch (error) {
@@ -202,6 +207,7 @@ export function GoogleDriveConnectionSettings({
             <label className="space-y-1">
               <span className="block text-xs text-sky-700 dark:text-sky-300">四位數密碼</span>
               <Input
+                type="password"
                 value={pin}
                 onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
                 inputMode="numeric"

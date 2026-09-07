@@ -380,9 +380,9 @@ export function MenuBackupSettings() {
         )}
 
         <GoogleDriveConnectionSettings
-          onCredentialsChange={({ clientId, apiKey }) => {
-            setGoogleClientIdState(clientId);
-            setGoogleApiKeyState(apiKey);
+          onCredentialsChange={({ googleClientId, googleApiKey }) => {
+            setGoogleClientIdState(googleClientId);
+            setGoogleApiKeyState(googleApiKey);
           }}
         />
       </div>

@@ -36,8 +36,38 @@ function mask(value) {
   return `${value.slice(0, 6)}••••••••${value.slice(-6)}`;
 }
 
+/**
+ * createAppwrite() also mines the request body for Appwrite config, and its
+ * alias list includes bare `apiKey` / `key`. This body carries Google
+ * credentials, so hand the resolver a copy with those stripped — otherwise the
+ * Google API key would be used as the Appwrite key and every write would come
+ * back "not authorized".
+ */
+const APPWRITE_CONFIG_KEYS = [
+  "endpoint",
+  "_endpoint",
+  "projectId",
+  "project",
+  "_project",
+  "databaseId",
+  "database",
+  "_database",
+  "bucketId",
+  "bucket",
+  "_bucket",
+];
+
+function appwriteConfigFrom(body) {
+  if (!body || typeof body !== "object") return {};
+  const config = {};
+  for (const key of APPWRITE_CONFIG_KEYS) {
+    if (body[key] != null && body[key] !== "") config[key] = body[key];
+  }
+  return config;
+}
+
 async function load(searchParams, body) {
-  const { databases, databaseId } = createAppwrite(searchParams, body);
+  const { databases, databaseId } = createAppwrite(searchParams, appwriteConfigFrom(body));
   const collectionId = await ensureNotificationSettingsCollection(databases, databaseId);
   const doc = await readSettingsDocument(databases, databaseId, collectionId, DOC_ID);
   return { databases, databaseId, collectionId, doc };
@@ -82,8 +112,8 @@ export async function POST(request) {
     if (!pinCheck.ok) return pinFailure(pinCheck.reason);
 
     return json({
-      clientId: doc?.googleClientId || "",
-      apiKey: doc?.googleApiKey || "",
+      googleClientId: doc?.googleClientId || "",
+      googleApiKey: doc?.googleApiKey || "",
     });
   } catch (error) {
     return failure(error);
@@ -100,8 +130,8 @@ export async function PUT(request) {
     const pinCheck = await verifyAccessPin(databases, databaseId, body?.pin);
     if (!pinCheck.ok) return pinFailure(pinCheck.reason);
 
-    const clientId = String(body?.clientId || "").trim();
-    const apiKey = String(body?.apiKey || "").trim();
+    const clientId = String(body?.googleClientId || "").trim();
+    const apiKey = String(body?.googleApiKey || "").trim();
 
     // The masked form is what GET hands out; saving it back would overwrite the
     // real value with bullets, so refuse instead of silently destroying it.
@@ -122,8 +152,8 @@ export async function PUT(request) {
     return json({
       success: true,
       configured: Boolean(clientId && apiKey),
-      clientId,
-      apiKey,
+      googleClientId: clientId,
+      googleApiKey: apiKey,
       clientIdMasked: mask(clientId),
       apiKeyMasked: mask(apiKey),
     });
