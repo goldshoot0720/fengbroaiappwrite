@@ -129,6 +129,7 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
     name: "reinstall",
     attributes: [
       { key: "name", type: "string", size: 100, required: true },
+      { key: "category", type: "string", size: 50, required: false },
       { key: "system", type: "string", size: 10, required: false },
       { key: "softwareType", type: "string", size: 20, required: false },
       { key: "licenseType", type: "string", size: 20, required: false },
@@ -371,6 +372,7 @@ export function buildTrialPurchaseWritePayload(
 export function emptyReinstallSoftwareForm(): ReinstallSoftwareFormData {
   return {
     name: "",
+    category: "",
     system: "win",
     softwareType: "free",
     licenseType: "none",
@@ -411,6 +413,7 @@ export function toReinstallSoftwareForm(source: ReinstallSoftware): ReinstallSof
   const period = parseReinstallSubscriptionPeriod(source.subscriptionPeriod);
   return {
     name: source.name || "",
+    category: source.category || "",
     system: asChoice(source.system, reinstallSystems, "win"),
     softwareType: asChoice(source.softwareType, reinstallSoftwareTypes, "free"),
     licenseType: asChoice(source.licenseType, reinstallLicenseTypes, "none"),
@@ -458,6 +461,7 @@ export function buildReinstallSoftwareWritePayload(
   const site = asOptionalUrl(body.site);
   const payload: Record<string, unknown> = {
     name,
+    category: asText(body.category, "分類", 50),
     system: asChoice(body.system, reinstallSystems, "win", "使用系統"),
     softwareType: asChoice(body.softwareType, reinstallSoftwareTypes, "free", "軟體類型"),
     licenseType,

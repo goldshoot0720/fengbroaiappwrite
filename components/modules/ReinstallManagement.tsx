@@ -173,11 +173,16 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     return () => cancelAnimationFrame(frame);
   }, [editingId, formOpen]);
 
+  const existingCategories = useMemo(() => {
+    const cats = items.map((item) => item.category).filter(Boolean) as string[];
+    return Array.from(new Set(cats)).sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  }, [items]);
+
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("zh-Hant");
     return items
       .filter((item) => {
-        const matchesQuery = !normalizedQuery || [item.name, item.site, item.note]
+        const matchesQuery = !normalizedQuery || [item.name, item.category, item.site, item.note]
           .some((value) => String(value || "").toLocaleLowerCase("zh-Hant").includes(normalizedQuery));
         const matchesSystem = systemFilter === "all" || item.system === systemFilter;
         const matchesSoftware = softwareFilter === "all" || item.softwareType === softwareFilter;
@@ -544,6 +549,19 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                 autoFocus
               />
             </FormField>
+            <FormField label="分類" htmlFor="reinstall-category">
+              <Input
+                id="reinstall-category"
+                list="reinstall-category-options"
+                maxLength={50}
+                value={form.category || ""}
+                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+                placeholder="可選既有分類或自行輸入"
+              />
+              <datalist id="reinstall-category-options">
+                {existingCategories.map((cat) => <option key={cat} value={cat} />)}
+              </datalist>
+            </FormField>
             <FormField label="使用系統" htmlFor="reinstall-system">
               <NativeSelect id="reinstall-system" value={form.system} onChange={(value) => setForm((current) => ({ ...current, system: value as ReinstallSystem }))}>
                 {REINSTALL_SYSTEM_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -691,9 +709,9 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_160px_160px]">
         <label className="relative min-w-0">
-          <span className="sr-only">搜尋服務、網站或備註</span>
+          <span className="sr-only">搜尋服務、分類、網站或備註</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" placeholder="搜尋服務、網站或備註" />
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" placeholder="搜尋服務、分類、網站或備註" />
         </label>
         <label>
           <span className="sr-only">篩選使用系統</span>
@@ -762,7 +780,12 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                       />
                     </div>
                   ) : null}
-                  <Cell label="服務名稱"><h2 className="break-words font-semibold text-foreground">{item.name}</h2></Cell>
+                  <Cell label="服務名稱">
+                    <h2 className="break-words font-semibold text-foreground">{item.name}</h2>
+                    {item.category ? (
+                      <StatusBadge status="normal" className="mt-1">{item.category}</StatusBadge>
+                    ) : null}
+                  </Cell>
                   <Cell label="系統"><StatusBadge status="info">{optionLabel(REINSTALL_SYSTEM_OPTIONS, item.system)}</StatusBadge></Cell>
                   <Cell label="軟體類型">
                     <div className="space-y-1.5">

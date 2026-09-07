@@ -135,6 +135,7 @@ export type ReinstallSubscriptionCurrency = "TWD" | "USD" | "JPY" | "CNY";
 export interface ReinstallSoftware {
   $id: string;
   name: string;
+  category?: string;
   system: ReinstallSystem;
   softwareType: ReinstallSoftwareType;
   licenseType: ReinstallLicenseType;
@@ -152,6 +153,7 @@ export interface ReinstallSoftware {
 
 export interface ReinstallSoftwareFormData {
   name: string;
+  category?: string;
   system: ReinstallSystem;
   softwareType: ReinstallSoftwareType;
   licenseType: ReinstallLicenseType;

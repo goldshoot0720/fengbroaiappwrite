@@ -10,6 +10,7 @@ import type {
 
 export const REINSTALL_CSV_HEADERS = [
   "name",
+  "category",
   "system",
   "softwareType",
   "licenseType",
@@ -30,6 +31,9 @@ const HEADER_ALIASES: Record<string, ReinstallCsvHeader> = {
   服務: "name",
   服務名稱: "name",
   軟體名稱: "name",
+  category: "category",
+  分類: "category",
+  類別: "category",
   system: "system",
   系統: "system",
   使用系統: "system",
@@ -147,6 +151,7 @@ export function reinstallImportKey(item: { name: string; system?: string }): str
 export function toReinstallCsvRow(item: Pick<ReinstallSoftware, ReinstallCsvHeader>): string {
   return [
     escapeReinstallCsvValue(item.name || ""),
+    escapeReinstallCsvValue(item.category || ""),
     escapeReinstallCsvValue(item.system || "win"),
     escapeReinstallCsvValue(item.softwareType || "free"),
     escapeReinstallCsvValue(item.licenseType || "none"),
@@ -297,6 +302,12 @@ export function parseReinstallCsv(text: string): { data: ReinstallSoftwareFormDa
       continue;
     }
 
+    const category = cell("category").trim();
+    if (category.length > 50) {
+      errors.push(`第 ${lineNumber} 行: 分類最多 50 個字元`);
+      continue;
+    }
+
     const systemRaw = cell("system").trim();
     const system = systemRaw ? lookup(SYSTEM_ALIASES, systemRaw) : "win";
     if (!system) {
@@ -387,6 +398,7 @@ export function parseReinstallCsv(text: string): { data: ReinstallSoftwareFormDa
 
     data.push({
       name,
+      category,
       system,
       softwareType,
       licenseType,
