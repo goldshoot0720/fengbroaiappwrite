@@ -200,8 +200,8 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   );
   const bulk = useBulkSelection(visibleIds);
   const reinstallRowCols = bulk.selectionMode
-    ? "xl:grid-cols-[28px_minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px]"
-    : "xl:grid-cols-[minmax(0,1.1fr)_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px]";
+    ? "xl:grid-cols-[28px_minmax(0,1.1fr)_110px_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px]"
+    : "xl:grid-cols-[minmax(0,1.1fr)_110px_70px_100px_minmax(0,1.3fr)_minmax(0,1fr)_136px]";
 
   const clearBulkSelection = bulk.clear;
   useEffect(() => {
@@ -761,7 +761,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
         <div className="surface-inset overflow-hidden rounded-2xl">
           <div className={cn("hidden gap-4 border-b border-[var(--line-soft)] px-5 py-3 text-xs font-semibold text-muted-foreground xl:grid", reinstallRowCols)}>
             {bulk.selectionMode ? <span className="sr-only">選取</span> : null}
-            <span>服務名稱</span><span>系統</span><span>軟體類型</span><span>序號</span><span>網站／備註</span><span>操作</span>
+            <span>服務名稱</span><span>分類</span><span>系統</span><span>軟體類型</span><span>序號</span><span>網站／備註</span><span>操作</span>
           </div>
           <div className="divide-y divide-[var(--line-soft)]">
             {filteredItems.map((item) => {
@@ -780,11 +780,11 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
                       />
                     </div>
                   ) : null}
-                  <Cell label="服務名稱">
-                    <h2 className="break-words font-semibold text-foreground">{item.name}</h2>
+                  <Cell label="服務名稱"><h2 className="break-words font-semibold text-foreground">{item.name}</h2></Cell>
+                  <Cell label="分類">
                     {item.category ? (
-                      <StatusBadge status="normal" className="mt-1">{item.category}</StatusBadge>
-                    ) : null}
+                      <StatusBadge status="normal">{item.category}</StatusBadge>
+                    ) : <span className="text-sm text-muted-foreground">未分類</span>}
                   </Cell>
                   <Cell label="系統"><StatusBadge status="info">{optionLabel(REINSTALL_SYSTEM_OPTIONS, item.system)}</StatusBadge></Cell>
                   <Cell label="軟體類型">
