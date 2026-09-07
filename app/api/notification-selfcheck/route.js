@@ -229,7 +229,7 @@ async function handleSelfCheck(request) {
       "server",
       "Vercel Cron 排程",
       "info",
-      "push-send 05:06 台灣 / resend-expiry-notify 05:16 台灣（見 vercel.json）"
+      "push-send 05:06 台灣 / resend-expiry-notify 05:16、11:16、17:16 台灣，同一天用同一個 Idempotency-Key 避免重複寄出（見 vercel.json）"
     )
   );
 

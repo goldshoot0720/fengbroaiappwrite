@@ -77,7 +77,7 @@
 | Dashboard 本機 OS 通知 | 訂閱、食品、試用/首購、額度、購物清單（依上表窗口）＋過期食品 | 開啟完整儀表 / 回前景 / 本地 05:21 |
 | SW Periodic Sync | 同左（`/api/check-expiry` 依窗口回傳各模組） | Android Chrome 背景同步 |
 | Web Push（Vercel Cron） | 同左（彙整單則推送，每日 05:06 台灣） | `/api/push-send` |
-| Resend Email | 訂閱 **剛好前 1 天**、食品 **剛好前 7 天**（維持精確日） | 每日 05:16（台灣）`/api/resend-expiry-notify` |
+| Resend Email | 訂閱 **剛好前 1 天**、食品 **剛好前 7 天**（維持精確日） | 每日 05:16、11:16、17:16（台灣）`/api/resend-expiry-notify`，後兩次為補檢：若前一次已成功寄出，同一天的 Idempotency-Key 會讓 Resend 自動回傳原結果不重寄；若前一次因錯誤或網路問題沒寄成，下一次會完整重試 |
 
 - 伺服器天數計算統一使用 **Asia/Taipei** 日曆日（`lib/notifications/daysUntil.ts`）
 - Dashboard OS 通知以 session 去重，同日同項目不重複打擾
