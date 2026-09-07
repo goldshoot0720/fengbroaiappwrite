@@ -88,6 +88,50 @@ describe("trial-purchase CSV", () => {
     assert.ok(errors.some((error) => error.includes("首購狀態")));
   });
 
+  it("reads the three trial and three purchase states, in code or in Chinese", () => {
+    const csv = [
+      TRIAL_PURCHASE_CSV_HEADERS.join(","),
+      "A,,0,0,,,untried,not_purchased",
+      "B,,0,0,,,trialing,purchasing",
+      "C,,0,0,,,tried,purchased",
+      "D,,0,0,,,未試用,無首購",
+      "E,,0,0,,,試用中,首購中",
+      "F,,0,0,,,已試用,已首購",
+    ].join("\n");
+
+    const { data, errors } = parseTrialPurchaseCsv(csv);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      data.map((row) => [row.trialStatus, row.purchaseStatus]),
+      [
+        ["untried", "not_purchased"],
+        ["trialing", "purchasing"],
+        ["tried", "purchased"],
+        ["untried", "not_purchased"],
+        ["trialing", "purchasing"],
+        ["tried", "purchased"],
+      ],
+    );
+  });
+
+  it("still imports the wording used before the three-step progression", () => {
+    const csv = [
+      TRIAL_PURCHASE_CSV_HEADERS.join(","),
+      "A,,0,0,,,尚未試用,未首購",
+      "B,,0,0,,,已試用,無提供首購",
+    ].join("\n");
+
+    const { data, errors } = parseTrialPurchaseCsv(csv);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      data.map((row) => [row.trialStatus, row.purchaseStatus]),
+      [
+        ["untried", "not_purchased"],
+        ["tried", "unavailable"],
+      ],
+    );
+  });
+
   it("fills defaults when optional columns are omitted", () => {
     const { data, errors } = parseTrialPurchaseCsv("name\nNotion");
     assert.deepEqual(errors, []);

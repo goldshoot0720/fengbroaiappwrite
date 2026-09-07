@@ -65,8 +65,13 @@ export interface SubscriptionDetail {
 }
 
 // 試用／首購管理：一筆代表「一個服務 × 一個帳號」
-export type TrialStatus = "tried" | "untried";
-export type PurchaseStatus = "purchased" | "not_purchased" | "unavailable";
+export type TrialStatus = "untried" | "trialing" | "tried";
+/**
+ * "unavailable" predates the three-step progression and is kept so existing
+ * rows still load, validate and save unchanged; the picker only offers the
+ * three current states.
+ */
+export type PurchaseStatus = "not_purchased" | "purchasing" | "purchased" | "unavailable";
 
 export interface TrialPurchase {
   $id: string;

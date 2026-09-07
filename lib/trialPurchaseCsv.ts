@@ -49,17 +49,26 @@ const HEADER_ALIASES: Record<string, TrialPurchaseCsvHeader> = {
 
 const TRIAL_STATUS_ALIASES: Record<string, TrialStatus> = {
   untried: "untried",
+  trialing: "trialing",
   tried: "tried",
-  尚未試用: "untried",
+  未試用: "untried",
+  試用中: "trialing",
   已試用: "tried",
+  // Wording used before the three-step progression.
+  尚未試用: "untried",
 };
 
 const PURCHASE_STATUS_ALIASES: Record<string, PurchaseStatus> = {
   not_purchased: "not_purchased",
+  purchasing: "purchasing",
   purchased: "purchased",
   unavailable: "unavailable",
-  未首購: "not_purchased",
+  無首購: "not_purchased",
+  首購中: "purchasing",
   已首購: "purchased",
+  // Wording used before the three-step progression; "無提供首購" is retired
+  // from the picker but still imports so old exports keep round-tripping.
+  未首購: "not_purchased",
   無提供首購: "unavailable",
 };
 

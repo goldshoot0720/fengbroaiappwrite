@@ -33,6 +33,8 @@ import { deleteByIds } from "@/lib/bulkSelection";
 import { API_ENDPOINTS } from "@/lib/constants";
 import {
   emptyTrialPurchaseForm,
+  ALL_PURCHASE_STATUS_OPTIONS,
+  LEGACY_PURCHASE_STATUS_OPTIONS,
   PURCHASE_STATUS_OPTIONS,
   toTrialPurchaseForm,
   TRIAL_STATUS_OPTIONS,
@@ -50,7 +52,7 @@ import type {
   TrialStatus,
 } from "@/types";
 
-type AttentionFilter = "all" | "untried" | "not_purchased";
+type AttentionFilter = "all" | "untried" | "trialing" | "not_purchased" | "purchasing";
 
 interface TrialPurchaseManagementProps {
   onNavigate?: (moduleId: string) => void;
@@ -85,11 +87,27 @@ function formatDate(value?: string) {
 }
 
 function trialStatusLabel(status: TrialStatus) {
-  return TRIAL_STATUS_OPTIONS.find((option) => option.value === status)?.label || "尚未試用";
+  return TRIAL_STATUS_OPTIONS.find((option) => option.value === status)?.label || "未試用";
 }
 
 function purchaseStatusLabel(status: PurchaseStatus) {
-  return PURCHASE_STATUS_OPTIONS.find((option) => option.value === status)?.label || "未首購";
+  // Looks through the retired options too, so a legacy row still reads as
+  // itself rather than falling back to the wrong label.
+  return ALL_PURCHASE_STATUS_OPTIONS.find((option) => option.value === status)?.label || "無首購";
+}
+
+/** Done reads as success, in progress as info, not started as something to do. */
+function trialStatusTone(status: TrialStatus) {
+  if (status === "tried") return "success" as const;
+  if (status === "trialing") return "info" as const;
+  return "warning" as const;
+}
+
+function purchaseStatusTone(status: PurchaseStatus) {
+  if (status === "purchased") return "success" as const;
+  if (status === "purchasing") return "info" as const;
+  if (status === "unavailable") return "normal" as const;
+  return "warning" as const;
 }
 
 function NativeSelect({
@@ -192,7 +210,9 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
       const matchesQuery = !normalizedQuery || [item.name, item.account, item.note]
         .some((value) => String(value || "").toLocaleLowerCase("zh-Hant").includes(normalizedQuery));
       const matchesAttention = attentionFilter === "all"
-        || (attentionFilter === "untried" && item.trialStatus !== "tried")
+        || (attentionFilter === "untried" && item.trialStatus !== "trialing" && item.trialStatus !== "tried")
+        || (attentionFilter === "trialing" && item.trialStatus === "trialing")
+        || (attentionFilter === "purchasing" && item.purchaseStatus === "purchasing")
         || (attentionFilter === "not_purchased" && item.purchaseStatus === "not_purchased");
       return matchesQuery && matchesAttention;
     });
@@ -233,9 +253,22 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
     () => new Set(items.map((item) => serviceKey(item.name))).size,
     [items],
   );
-  const untriedCount = items.filter((item) => item.trialStatus !== "tried").length;
+  const untriedCount = items.filter((item) => item.trialStatus !== "trialing" && item.trialStatus !== "tried").length;
+  const trialingCount = items.filter((item) => item.trialStatus === "trialing").length;
   const notPurchasedCount = items.filter((item) => item.purchaseStatus === "not_purchased").length;
-  const pendingCount = items.filter((item) => item.trialStatus !== "tried" || item.purchaseStatus === "not_purchased").length;
+  const purchasingCount = items.filter((item) => item.purchaseStatus === "purchasing").length;
+  // Anything not finished on either track still wants attention; a service
+  // that never offered a first purchase is finished as far as buying goes.
+  const pendingCount = items.filter((item) =>
+    item.trialStatus !== "tried"
+    || (item.purchaseStatus !== "purchased" && item.purchaseStatus !== "unavailable"),
+  ).length;
+  const pendingDetail = [
+    untriedCount > 0 ? `${untriedCount} 未試用` : "",
+    trialingCount > 0 ? `${trialingCount} 試用中` : "",
+    notPurchasedCount > 0 ? `${notPurchasedCount} 無首購` : "",
+    purchasingCount > 0 ? `${purchasingCount} 首購中` : "",
+  ].filter(Boolean).join(" · ") || "全部完成";
   const busy = saving || deletingId !== null || importing || bulkDeleting;
 
   const openCreateForm = (name = "") => {
@@ -513,7 +546,7 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
         <SummaryValue
           label="待處理帳號"
           value={pendingCount}
-          detail={`${untriedCount} 尚未試用 · ${notPurchasedCount} 未首購`}
+          detail={pendingDetail}
           icon={<CircleDollarSign />}
         />
       </div>
@@ -600,6 +633,12 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
                 onChange={(value) => setForm((current) => ({ ...current, purchaseStatus: value as PurchaseStatus }))}
               >
                 {PURCHASE_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                {/* A row still on a retired value keeps it visible and
+                    selected; otherwise the picker would silently rewrite it to
+                    the first option on the next save. */}
+                {LEGACY_PURCHASE_STATUS_OPTIONS
+                  .filter((option) => option.value === form.purchaseStatus)
+                  .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </NativeSelect>
             </FormField>
             <FormField label="備註" htmlFor="trial-note" className="sm:col-span-2 xl:col-span-2">
@@ -642,8 +681,10 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
           <span className="sr-only">待處理狀態</span>
           <NativeSelect id="trial-attention-filter" value={attentionFilter} onChange={(value) => setAttentionFilter(value as AttentionFilter)}>
             <option value="all">全部狀態</option>
-            <option value="untried">尚未試用</option>
-            <option value="not_purchased">未首購</option>
+            <option value="untried">未試用</option>
+            <option value="trialing">試用中</option>
+            <option value="not_purchased">無首購</option>
+            <option value="purchasing">首購中</option>
           </NativeSelect>
         </label>
       </div>
@@ -672,8 +713,10 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
         <div className="space-y-3">
           {groups.map((group) => {
             const isOpen = query.trim() ? !collapsedSearchServices.has(group.key) : expandedServices.has(group.key);
-            const groupUntried = group.items.filter((item) => item.trialStatus !== "tried").length;
+            const groupUntried = group.items.filter((item) => item.trialStatus !== "trialing" && item.trialStatus !== "tried").length;
+            const groupTrialing = group.items.filter((item) => item.trialStatus === "trialing").length;
             const groupUnpurchased = group.items.filter((item) => item.purchaseStatus === "not_purchased").length;
+            const groupPurchasing = group.items.filter((item) => item.purchaseStatus === "purchasing").length;
             return (
               <section key={group.key} className="surface-inset overflow-hidden rounded-2xl">
                 <div className="flex items-center gap-2 p-3 sm:p-4">
@@ -703,8 +746,10 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
                       <span className="block break-words text-lg font-semibold text-foreground">{group.name}</span>
                       <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
                         <span>{group.items.length} 個帳號</span>
-                        {groupUntried > 0 ? <span>{groupUntried} 尚未試用</span> : null}
-                        {groupUnpurchased > 0 ? <span>{groupUnpurchased} 未首購</span> : null}
+                        {groupUntried > 0 ? <span>{groupUntried} 未試用</span> : null}
+                        {groupTrialing > 0 ? <span>{groupTrialing} 試用中</span> : null}
+                        {groupUnpurchased > 0 ? <span>{groupUnpurchased} 無首購</span> : null}
+                        {groupPurchasing > 0 ? <span>{groupPurchasing} 首購中</span> : null}
                       </span>
                     </span>
                     {isOpen ? <ChevronUp className="shrink-0" /> : <ChevronDown className="shrink-0" />}
@@ -744,8 +789,8 @@ export default function TrialPurchaseManagement({ onNavigate }: TrialPurchaseMan
                           </Cell>
                           <Cell label="狀態">
                             <div className="flex flex-wrap gap-1.5">
-                              <StatusBadge status={item.trialStatus === "tried" ? "success" : "warning"}>{trialStatusLabel(item.trialStatus)}</StatusBadge>
-                              <StatusBadge status={item.purchaseStatus === "purchased" ? "success" : item.purchaseStatus === "unavailable" ? "normal" : "warning"}>{purchaseStatusLabel(item.purchaseStatus)}</StatusBadge>
+                              <StatusBadge status={trialStatusTone(item.trialStatus)}>{trialStatusLabel(item.trialStatus)}</StatusBadge>
+                              <StatusBadge status={purchaseStatusTone(item.purchaseStatus)}>{purchaseStatusLabel(item.purchaseStatus)}</StatusBadge>
                             </div>
                           </Cell>
                           <Cell label="備註"><p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{item.note?.trim() || "—"}</p></Cell>

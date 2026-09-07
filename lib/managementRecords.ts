@@ -29,14 +29,29 @@ import { guessFinanceRelatedLinkLabel } from "@/lib/fengbroFinanceCustom";
 import { normalizeFengbroTubeChannels } from "@/lib/fengbroTubeChannels";
 
 export const TRIAL_STATUS_OPTIONS: ReadonlyArray<{ value: TrialStatus; label: string }> = [
-  { value: "untried", label: "尚未試用" },
+  { value: "untried", label: "未試用" },
+  { value: "trialing", label: "試用中" },
   { value: "tried", label: "已試用" },
 ];
 
 export const PURCHASE_STATUS_OPTIONS: ReadonlyArray<{ value: PurchaseStatus; label: string }> = [
-  { value: "not_purchased", label: "未首購" },
+  { value: "not_purchased", label: "無首購" },
+  { value: "purchasing", label: "首購中" },
   { value: "purchased", label: "已首購" },
+];
+
+/**
+ * Retired from the picker but still accepted on read and write, so rows saved
+ * before the three-step progression neither fail validation nor get silently
+ * rewritten the next time someone opens the edit form.
+ */
+export const LEGACY_PURCHASE_STATUS_OPTIONS: ReadonlyArray<{ value: PurchaseStatus; label: string }> = [
   { value: "unavailable", label: "無提供首購" },
+];
+
+export const ALL_PURCHASE_STATUS_OPTIONS: ReadonlyArray<{ value: PurchaseStatus; label: string }> = [
+  ...PURCHASE_STATUS_OPTIONS,
+  ...LEGACY_PURCHASE_STATUS_OPTIONS,
 ];
 
 export const REINSTALL_SYSTEM_OPTIONS: ReadonlyArray<{ value: ReinstallSystem; label: string }> = [
@@ -102,7 +117,7 @@ export const SHOPPING_CURRENCY_OPTIONS: ReadonlyArray<{ value: string; label: st
 ];
 
 const trialStatuses = new Set(TRIAL_STATUS_OPTIONS.map((option) => option.value));
-const purchaseStatuses = new Set(PURCHASE_STATUS_OPTIONS.map((option) => option.value));
+const purchaseStatuses = new Set(ALL_PURCHASE_STATUS_OPTIONS.map((option) => option.value));
 const shoppingCurrencies = new Set(SHOPPING_CURRENCY_OPTIONS.map((option) => option.value));
 const reinstallSystems = new Set(REINSTALL_SYSTEM_OPTIONS.map((option) => option.value));
 const reinstallSoftwareTypes = new Set(REINSTALL_SOFTWARE_TYPE_OPTIONS.map((option) => option.value));
