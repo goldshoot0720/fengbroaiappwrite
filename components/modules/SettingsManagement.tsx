@@ -394,10 +394,11 @@ export default function SettingsManagement() {
     }
   };
 
+  // 手動檢查今天是否應寄發 Email；若應寄發但今天還沒寄成就這裡補寄。同一天重複點不會重寄（Resend Idempotency-Key）。
   const handleTestResendNotification = async () => {
-    // 測試使用明文 API Key，需先解鎖（驗證通知密碼）
+    // 檢查使用明文 API Key，需先解鎖（驗證通知密碼）
     if (resendHasPassword && !resendUnlocked) {
-      alert('測試到期 Email 會使用明文的 API Key，請先輸入通知密碼並點擊「解鎖並載入金鑰」。');
+      alert('檢查/補寄到期 Email 會使用明文的 API Key，請先輸入通知密碼並點擊「解鎖並載入金鑰」。');
       return;
     }
     const resendPayload: Record<string, string> = {};
@@ -429,10 +430,14 @@ export default function SettingsManagement() {
         }),
       });
       const result = await response.json();
-      if (!response.ok || result.error) throw new Error(result.error || 'Resend 測試失敗');
-      alert(result.sent ? `✅ Email 通知已送出：訂閱 ${result.subscriptions}、食品 ${result.foods}` : '✅ 檢查完成，目前沒有符合通知條件的項目');
+      if (!response.ok || result.error) throw new Error(result.error || 'Resend 檢查失敗');
+      alert(
+        result.sent
+          ? `✅ 今天應寄發的都已確認送達（訂閱 ${result.subscriptions}、食品 ${result.foods}）。若今天自動檢查已寄過，Resend 會自動回傳原結果不重寄；若還沒寄到，這次就是補寄。`
+          : '✅ 檢查完成：今天沒有剛好到期的項目（訂閱剛好前 1 天／食品剛好前 7 天），不需要寄信。'
+      );
     } catch (error) {
-      alert(`❌ Resend 測試失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
+      alert(`❌ Resend 檢查/補寄失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
     } finally {
       setResendTestLoading(false);
     }
@@ -1712,11 +1717,12 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                 onClick={handleTestResendNotification}
                 disabled={resendTestLoading}
                 className="flex-1 flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white"
+                title="檢查今天是否有剔好到期的項目；若應寄發但今天還沒寄成就補寄，已寄過不會重寄"
               >
                 {resendTestLoading ? (
-                  <><Loader2 size={16} className="animate-spin" /> 測試中...</>
+                  <><Loader2 size={16} className="animate-spin" /> 檢查中...</>
                 ) : (
-                  <><Send size={16} /> 測試到期 Email</>
+                  <><Send size={16} /> 檢查／補寄今日 Email</>
                 )}
               </Button>
             </div>
