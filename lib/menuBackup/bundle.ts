@@ -77,6 +77,7 @@ export async function exportMenuBundle(
   kind: MenuBackupMode,
   filename: string,
   onProgress?: BackupProgressFn,
+  options?: { skipDownload?: boolean },
 ): Promise<BundleRun> {
   const zip = new (await loadJSZip())();
   const results: MenuJobResult[] = [];
@@ -140,7 +141,7 @@ export async function exportMenuBundle(
   zip.file(MANIFEST_NAME, JSON.stringify(buildManifest(kind, included), null, 2));
   zip.file(REPORT_NAME, formatReport(kind, results));
   const blob = await zip.generateAsync({ type: "blob" });
-  downloadBlob(blob, filename);
+  if (!options?.skipDownload) downloadBlob(blob, filename);
   return { kind, results, blob };
 }
 
