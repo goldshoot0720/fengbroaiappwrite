@@ -1116,12 +1116,19 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             </div>
           ) : dbStats ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl mb-4">
-                <div className="flex flex-col">
-                  <span className="text-gray-600 dark:text-gray-300">總欄位數</span>
-                  <span className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{dbStats.totalColumns || 0}</span>
-                </div>
-                <div className="flex gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl mb-4">
+                <dl className="flex flex-wrap gap-x-8 gap-y-4">
+                  <div>
+                    <dt className="text-gray-600 dark:text-gray-300">Table 總數</dt>
+                    <dd className="text-3xl font-bold tabular-nums text-indigo-600 dark:text-indigo-400">{dbStats.totalCollections ?? dbStats.collections?.length ?? 0}</dd>
+                    <dd className="text-xs text-gray-600 dark:text-gray-300">含尚未建立的設定表格</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-600 dark:text-gray-300">總欄位數</dt>
+                    <dd className="text-3xl font-bold tabular-nums text-indigo-600 dark:text-indigo-400">{dbStats.totalColumns || 0}</dd>
+                  </div>
+                </dl>
+                <div className="flex flex-wrap gap-2">
                   {missingTablesCount > 0 && (
                     <Button 
                       onClick={handleBulkCreate}
