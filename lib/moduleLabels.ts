@@ -7,7 +7,7 @@ export const MODULE_LABELS: Record<string, string> = {
   "trial-purchase": "試用/首購",
   reinstall: "重灌",
   quota: "額度",
-  food: "食品",
+  food: "食品/商品",
   "shopping-list": "購物清單",
   common: "常用",
   "bank-stats": "銀行",
