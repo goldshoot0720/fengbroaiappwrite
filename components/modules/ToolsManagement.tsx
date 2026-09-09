@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Pencil, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Pencil, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
@@ -49,6 +49,12 @@ import {
   mergeFengbroTubeChannels,
   parseFengbroTubeCsv,
 } from "@/lib/fengbroTubeCsv";
+import {
+  FENGBRO_TUBE_STALE_DAYS,
+  formatFengbroTubeStaleDuration,
+  getFengbroTubeLatestPublishedAt,
+  getStaleFengbroTubeChannels,
+} from "@/lib/fengbroTubeStale";
 import {
   DOWNFALL_INDEX_BASELINE_HISTORY,
   buildDownfallIndexHistory,
@@ -1813,6 +1819,16 @@ function FengbroTubeSection({
   }, [result]);
   
   const channelCount = result ? visibleChannels.length : channelConfigs.length;
+  /** 超過三個月沒有新影片的頻道，用來提示使用者。 */
+  const staleChannels = useMemo(() => getStaleFengbroTubeChannels(visibleChannels), [visibleChannels]);
+  const staleDaysBySource = useMemo(
+    () => new Map(staleChannels.map((channel) => [channel.sourceUrl, channel.staleDays])),
+    [staleChannels],
+  );
+  const channelAnchorBySource = useMemo(
+    () => new Map(visibleChannels.map((channel, index) => [channel.sourceUrl, getTubeChannelAnchor(index)])),
+    [visibleChannels],
+  );
   const resolvedChannelTitleBySource = useMemo(() => {
     return new Map((result?.channels || []).map((channel) => [channel.sourceUrl, channel.title]));
   }, [result]);
@@ -1975,7 +1991,14 @@ function FengbroTubeSection({
                     />
                   ) : null}
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{getChannelConfigLabel(channel)}</p>
+                    <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-foreground">
+                      <span className="truncate">{getChannelConfigLabel(channel)}</span>
+                      {staleDaysBySource.has(channel.sourceUrl) && (
+                        <span className="shrink-0 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
+                          已停更 {formatFengbroTubeStaleDuration(staleDaysBySource.get(channel.sourceUrl)!)}
+                        </span>
+                      )}
+                    </p>
                     <a href={channel.sourceUrl} target="_blank" rel="noreferrer" className="block truncate text-xs text-red-700 hover:underline">
                       {channel.sourceUrl}
                     </a>
@@ -2063,6 +2086,36 @@ function FengbroTubeSection({
               )}
             </div>
 
+            {staleChannels.length > 0 && (
+              <div className="rounded-[20px] border border-orange-200 bg-orange-50/70 p-4">
+                <div className="mb-1 flex items-center gap-2 text-orange-800">
+                  <AlertTriangle size={18} />
+                  <h4 className="font-semibold">超過 3 個月未更新：{staleChannels.length} 個頻道</h4>
+                </div>
+                <p className="mb-3 text-xs text-orange-700/90">
+                  最新影片距今已超過 {FENGBRO_TUBE_STALE_DAYS} 天，可到「頻道管理」確認是否要移除。
+                </p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {staleChannels.map((channel) => {
+                    const anchorId = channelAnchorBySource.get(channel.sourceUrl);
+                    return (
+                      <a
+                        key={channel.sourceUrl}
+                        href={anchorId ? `#${anchorId}` : channel.sourceUrl}
+                        {...(anchorId ? {} : { target: "_blank", rel: "noreferrer" })}
+                        className="rounded-2xl border border-orange-100 bg-white px-3 py-2 text-sm transition hover:border-orange-300"
+                      >
+                        <div className="line-clamp-1 font-medium text-foreground">{channel.title}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          已停更 {formatFengbroTubeStaleDuration(channel.staleDays)} · 最新影片 {formatDownfallDateTime(channel.latestPublishedAt)}
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {result.recentVideos.length > 0 && (
               <div className="rounded-[20px] border border-amber-200 bg-amber-50/70 p-4">
                 <div className="mb-3 flex items-center gap-2 text-amber-800">
@@ -2122,6 +2175,14 @@ function FengbroTubeSection({
                       </a>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      {staleDaysBySource.has(channel.sourceUrl) && (
+                        <span
+                          className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700"
+                          title={`最新影片：${formatDownfallDateTime(getFengbroTubeLatestPublishedAt(channel))}`}
+                        >
+                          已停更 {formatFengbroTubeStaleDuration(staleDaysBySource.get(channel.sourceUrl)!)}
+                        </span>
+                      )}
                       {channel.error ? (
                         <span className="rounded-full bg-red-50 px-3 py-1 text-xs text-red-600">{channel.error}</span>
                       ) : (
