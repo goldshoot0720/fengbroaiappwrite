@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 
 export interface CommonDocumentData {
   $id: string;
@@ -45,7 +46,14 @@ export function useCommonDocument() {
       return;
     }
 
-    setLoading(true);
+    // 重新整理後先畫出上次存下的結果，再讓下面的請求在背景更新。
+    const persisted = forceRefresh ? null : readEndpointCache<CommonDocumentData[]>(API_ENDPOINTS.COMMONDOCUMENT);
+    if (persisted && persisted.length) {
+      setCommonDocument(persisted);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
       const cacheParam = (forceRefresh || storedRefreshKey) ? `?t=${storedRefreshKey || Date.now()}` : '';
@@ -55,13 +63,15 @@ export function useCommonDocument() {
       
       cachedCommonDocument = commondocumentList;
       cacheTimestamp = Date.now();
+      writeEndpointCache(API_ENDPOINTS.COMMONDOCUMENT, commondocumentList);
       
       setCommonDocument(commondocumentList);
     } catch (err) {
       const message = err instanceof Error ? err.message : "載入鋒兄文件失敗";
       setError(message);
       console.error("載入鋒兄文件失敗:", err);
-      setCommonDocument([]);
+      // 已經用上次的快取上畫時，暫時的讀取失敗不要把畫面清空。
+      if (!persisted) setCommonDocument([]);
     } finally {
       setLoading(false);
     }

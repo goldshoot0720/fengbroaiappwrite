@@ -6,6 +6,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 
 // 全域快取
 let cachedFoods: Food[] | null = null;
@@ -53,7 +54,14 @@ export function useFoods() {
       return cachedFoods;
     }
 
-    setLoading(true);
+    // 重新整理後先畫出上次存下的結果，再讓下面的請求在背景更新。
+    const persisted = forceRefresh ? null : readEndpointCache<Food[]>(API_ENDPOINTS.FOOD);
+    if (persisted && persisted.length) {
+      setFoods(persisted);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
       const cacheParam = (forceRefresh || storedRefreshKey) ? `?t=${storedRefreshKey || Date.now()}` : '';
@@ -65,6 +73,7 @@ export function useFoods() {
       // 更新快取
       cachedFoods = data;
       cacheTimestamp = Date.now();
+      writeEndpointCache(API_ENDPOINTS.FOOD, data);
       
       setFoods(data);
       return data;

@@ -2,12 +2,32 @@
 
 import { useState, useCallback } from "react";
 import { bumpRefreshKey } from "@/hooks/useRefreshKey";
+import { dedupedGet, invalidateRequestCache } from "@/lib/requestCache";
 
-// 通用 fetch 函數
+/**
+ * 通用 fetch 函數。
+ * GET 會經過共用快取層：同一個 URL 在飛行中只發一次，結果也會存進 session 快取
+ * 供下次重新整理立即上畫。寫入操作則順手清掉對應的記憶體快取。
+ */
 export async function fetchApi<T>(
   url: string,
   options?: RequestInit
 ): Promise<T> {
+  const method = (options?.method || "GET").toUpperCase();
+
+  if (method !== "GET") {
+    // 寫入 /api/food/<id> 也會影響 /api/food 清單；TTL 只有兩秒，整批清掉最穩當。
+    invalidateRequestCache();
+    return requestApi<T>(url, options);
+  }
+
+  // 帶 signal 的請求各自有取消時機，不共用飛行中的 promise。
+  if (options?.signal) return requestApi<T>(url, options);
+
+  return dedupedGet<T>(url, () => requestApi<T>(url, options));
+}
+
+async function requestApi<T>(url: string, options?: RequestInit): Promise<T> {
   // 添加 Appwrite 配置到 URL (從 localStorage)
   const urlWithConfig = addAppwriteConfigToUrl(url);
   

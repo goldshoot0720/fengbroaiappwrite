@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 
 export interface MusicData {
   $id: string;
@@ -49,7 +50,14 @@ export function useMusic(enabled = true) {
       return;
     }
 
-    setLoading(true);
+    // 重新整理後先畫出上次存下的結果，再讓下面的請求在背景更新。
+    const persisted = forceRefresh ? null : readEndpointCache<MusicData[]>(API_ENDPOINTS.MUSIC);
+    if (persisted && persisted.length) {
+      setMusic(persisted);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
       const cacheParam = (forceRefresh || storedRefreshKey) ? `?t=${storedRefreshKey || Date.now()}` : '';
@@ -59,13 +67,15 @@ export function useMusic(enabled = true) {
       
       cachedMusic = musicList;
       cacheTimestamp = Date.now();
+      writeEndpointCache(API_ENDPOINTS.MUSIC, musicList);
       
       setMusic(musicList);
     } catch (err) {
       const message = err instanceof Error ? err.message : "載入音樂失敗";
       setError(message);
       console.error("載入音樂失敗:", err);
-      setMusic([]);
+      // 已經用上次的快取上畫時，暫時的讀取失敗不要把畫面清空。
+      if (!persisted) setMusic([]);
     } finally {
       setLoading(false);
     }

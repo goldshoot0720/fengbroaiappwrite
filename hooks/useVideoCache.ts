@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { resolveVideoBlob } from "@/lib/videoMultipart";
 import { recordMediaTraffic } from "@/lib/mediaTraffic";
+import { openDatabase } from "@/lib/idbConnection";
 
 interface VideoItem {
   id: string;
@@ -48,27 +49,15 @@ export function useVideoCache() {
     downloadingVideos: 0
   });
 
-  // 初始化數據庫
-  const initDB = (): Promise<IDBDatabase> => {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-      
-      request.onerror = () => reject(new Error("無法打開數據庫"));
-      
-      request.onsuccess = (event) => {
-        resolve((event.target as IDBOpenDBRequest).result);
-      };
-      
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
-          store.createIndex("cachedAt", "cachedAt", { unique: false });
-          store.createIndex("size", "size", { unique: false });
-        }
-      };
+  // 共用連線池：同一個資料庫只開一次，之後的操作直接重用。
+  const initDB = (): Promise<IDBDatabase> =>
+    openDatabase(DB_NAME, DB_VERSION, (db) => {
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
+        store.createIndex("cachedAt", "cachedAt", { unique: false });
+        store.createIndex("size", "size", { unique: false });
+      }
     });
-  };
 
   // 檢查影片是否已快取
   const checkVideoCache = async (videoId: string): Promise<boolean> => {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 
 export interface PodcastData {
   $id: string;
@@ -45,7 +46,14 @@ export function usePodcast(enabled = true) {
       return;
     }
 
-    setLoading(true);
+    // 重新整理後先畫出上次存下的結果，再讓下面的請求在背景更新。
+    const persisted = forceRefresh ? null : readEndpointCache<PodcastData[]>(API_ENDPOINTS.PODCAST);
+    if (persisted && persisted.length) {
+      setPodcast(persisted);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
       const cacheParam = (forceRefresh || storedRefreshKey) ? `?t=${storedRefreshKey || Date.now()}` : '';
@@ -55,13 +63,15 @@ export function usePodcast(enabled = true) {
       
       cachedPodcast = podcastList;
       cacheTimestamp = Date.now();
+      writeEndpointCache(API_ENDPOINTS.PODCAST, podcastList);
       
       setPodcast(podcastList);
     } catch (err) {
       const message = err instanceof Error ? err.message : "載入播客失敗";
       setError(message);
       console.error("載入播客失敗:", err);
-      setPodcast([]);
+      // 已經用上次的快取上畫時，暫時的讀取失敗不要把畫面清空。
+      if (!persisted) setPodcast([]);
     } finally {
       setLoading(false);
     }

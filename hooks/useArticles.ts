@@ -5,6 +5,7 @@ import { Article, ArticleFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 
 // 全域快取
 let cachedArticles: Article[] | null = null;
@@ -32,7 +33,14 @@ export function useArticles() {
       return cachedArticles;
     }
 
-    setLoading(true);
+    // 重新整理後先畫出上次存下的結果，再讓下面的請求在背景更新。
+    const persisted = forceRefresh ? null : readEndpointCache<Article[]>(API_ENDPOINTS.ARTICLE);
+    if (persisted && persisted.length) {
+      setArticles(persisted);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
       const cacheParam = (forceRefresh || storedRefreshKey) ? `?t=${storedRefreshKey || Date.now()}` : '';
@@ -45,6 +53,7 @@ export function useArticles() {
 
       cachedArticles = data;
       cacheTimestamp = Date.now();
+      writeEndpointCache(API_ENDPOINTS.ARTICLE, data);
 
       setArticles(data);
       return data;
