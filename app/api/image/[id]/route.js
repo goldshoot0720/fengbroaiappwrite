@@ -99,22 +99,28 @@ export async function DELETE(request, { params }) {
     // First, get the document to retrieve file URL
     const doc = await databases.getDocument(databaseId, collectionId, id);
     
+    // 檔案清理與刪除文件同時進行，不再一個等一個（清理失敗不影響刪除）。
+    const cleanups = [];
     // If there's a file, try to delete it from storage
     if (doc.file && bucketId) {
-      const fileId = extractFileIdFromUrl(doc.file);
-      if (fileId) {
-        try {
-          await storage.deleteFile(bucketId, fileId);
-          console.log(`Deleted image file: ${fileId}`);
-        } catch (imgErr) {
-          // Log but don't fail if image deletion fails (might be external URL)
-          console.warn(`Failed to delete image file ${fileId}:`, imgErr.message);
+      cleanups.push((async () => {
+        const fileId = extractFileIdFromUrl(doc.file);
+        if (fileId) {
+          try {
+            await storage.deleteFile(bucketId, fileId);
+            console.log(`Deleted image file: ${fileId}`);
+          } catch (imgErr) {
+            // Log but don't fail if image deletion fails (might be external URL)
+            console.warn(`Failed to delete image file ${fileId}:`, imgErr.message);
+          }
         }
-      }
+      })());
     }
-    
-    // Delete the document
-    await databases.deleteDocument(databaseId, collectionId, id);
+
+    await Promise.all([
+      databases.deleteDocument(databaseId, collectionId, id),
+      ...cleanups,
+    ]);
     
     return NextResponse.json({ success: true });
   } catch (err) {

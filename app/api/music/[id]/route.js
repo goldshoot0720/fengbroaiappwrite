@@ -139,48 +139,55 @@ export async function DELETE(request, { params }) {
     // Get document to retrieve file URLs
     const doc = await databases.getDocument(databaseId, collectionId, id);
     
+    // 檔案清理與刪除文件同時進行，不再一個等一個（清理失敗不影響刪除）。
+    const cleanups = [];
     // Check if music file is referenced by other documents
     if (doc.file && bucketId) {
-      const fileId = extractFileIdFromUrl(doc.file);
-      if (fileId) {
-        try {
-          const fileRefCount = await countOtherDocumentsWithField(
-            databases, databaseId, collectionId, sdk, "file", doc.file, id
-          );
-          if (fileRefCount === 0) {
-            await storage.deleteFile(bucketId, fileId);
-            console.log(`Deleted music file: ${fileId}`);
-          } else {
-            console.log(`Skipped deleting music file ${fileId} - referenced by ${fileRefCount} other documents`);
+      cleanups.push((async () => {
+        const fileId = extractFileIdFromUrl(doc.file);
+        if (fileId) {
+          try {
+            const fileRefCount = await countOtherDocumentsWithField(
+              databases, databaseId, collectionId, sdk, "file", doc.file, id
+            );
+            if (fileRefCount === 0) {
+              await storage.deleteFile(bucketId, fileId);
+              console.log(`Deleted music file: ${fileId}`);
+            } else {
+              console.log(`Skipped deleting music file ${fileId} - referenced by ${fileRefCount} other documents`);
+            }
+          } catch (fileErr) {
+            console.warn(`Failed to delete music file ${fileId}:`, fileErr.message);
           }
-        } catch (fileErr) {
-          console.warn(`Failed to delete music file ${fileId}:`, fileErr.message);
         }
-      }
+      })());
     }
-    
     // Check if cover image is referenced by other documents
     if (doc.cover && bucketId) {
-      const coverId = extractFileIdFromUrl(doc.cover);
-      if (coverId) {
-        try {
-          const coverRefCount = await countOtherDocumentsWithField(
-            databases, databaseId, collectionId, sdk, "cover", doc.cover, id
-          );
-          if (coverRefCount === 0) {
-            await storage.deleteFile(bucketId, coverId);
-            console.log(`Deleted cover image: ${coverId}`);
-          } else {
-            console.log(`Skipped deleting cover image ${coverId} - referenced by ${coverRefCount} other documents`);
+      cleanups.push((async () => {
+        const coverId = extractFileIdFromUrl(doc.cover);
+        if (coverId) {
+          try {
+            const coverRefCount = await countOtherDocumentsWithField(
+              databases, databaseId, collectionId, sdk, "cover", doc.cover, id
+            );
+            if (coverRefCount === 0) {
+              await storage.deleteFile(bucketId, coverId);
+              console.log(`Deleted cover image: ${coverId}`);
+            } else {
+              console.log(`Skipped deleting cover image ${coverId} - referenced by ${coverRefCount} other documents`);
+            }
+          } catch (coverErr) {
+            console.warn(`Failed to delete cover image ${coverId}:`, coverErr.message);
           }
-        } catch (coverErr) {
-          console.warn(`Failed to delete cover image ${coverId}:`, coverErr.message);
         }
-      }
+      })());
     }
-    
-    // Delete the document
-    await databases.deleteDocument(databaseId, collectionId, id);
+
+    await Promise.all([
+      databases.deleteDocument(databaseId, collectionId, id),
+      ...cleanups,
+    ]);
     
     return NextResponse.json({ success: true });
   } catch (err) {

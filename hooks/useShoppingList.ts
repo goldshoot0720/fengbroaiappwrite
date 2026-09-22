@@ -6,7 +6,16 @@ import { APPWRITE_CONFIG_CHANGED_EVENT } from "@/hooks/useAppwriteSetup";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getDaysFromToday, getExpiryStatus } from "@/lib/formatters";
+import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 import type { ShoppingItem } from "@/types";
+
+function sortByPlannedDate(list: ShoppingItem[]): ShoppingItem[] {
+  return list.sort((a, b) => {
+    const dateA = a.plannedDate ? new Date(a.plannedDate).getTime() : Number.POSITIVE_INFINITY;
+    const dateB = b.plannedDate ? new Date(b.plannedDate).getTime() : Number.POSITIVE_INFINITY;
+    return dateA - dateB;
+  });
+}
 
 export const SHOPPING_LIST_REFRESH_KEY = "shoppinglist_refresh_key";
 
@@ -17,22 +26,29 @@ export function useShoppingList() {
   const [error, setError] = useState<string | null>(null);
   const revision = useRef(0);
   const mounted = useRef(false);
+  /** 自己寫入後觸發的 refresh 事件不需要再整張表重抓。 */
+  const selfBump = useRef(false);
 
   const fetchAll = useCallback(async (silent = false) => {
     const requestRevision = ++revision.current;
-    if (!silent) setLoading(true);
+    if (!silent) {
+      // 先畫出上次的結果（session 快取），Appwrite 回來後再覆蓋。
+      const persisted = readEndpointCache<ShoppingItem[]>(API_ENDPOINTS.SHOPPING_LIST);
+      if (persisted && persisted.length) {
+        setItems(persisted);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+    }
     setError(null);
     try {
       const result = await fetchApi<ShoppingItem[]>(API_ENDPOINTS.SHOPPING_LIST, {
         cache: "no-store",
       });
       if (mounted.current && requestRevision === revision.current) {
-        const list = Array.isArray(result) ? result : [];
-        list.sort((a, b) => {
-          const dateA = a.plannedDate ? new Date(a.plannedDate).getTime() : Number.POSITIVE_INFINITY;
-          const dateB = b.plannedDate ? new Date(b.plannedDate).getTime() : Number.POSITIVE_INFINITY;
-          return dateA - dateB;
-        });
+        const list = sortByPlannedDate(Array.isArray(result) ? result : []);
+        writeEndpointCache(API_ENDPOINTS.SHOPPING_LIST, list);
         setItems(list);
       }
     } catch (err) {
@@ -87,17 +103,21 @@ export function useShoppingList() {
         : method === "PUT"
           ? current.map((item) => (item.$id === id ? result : item))
           : [...current, result];
-      return next.sort((a, b) => {
-        const dateA = a.plannedDate ? new Date(a.plannedDate).getTime() : Number.POSITIVE_INFINITY;
-        const dateB = b.plannedDate ? new Date(b.plannedDate).getTime() : Number.POSITIVE_INFINITY;
-        return dateA - dateB;
-      });
+      const sorted = sortByPlannedDate(next);
+      writeEndpointCache(API_ENDPOINTS.SHOPPING_LIST, sorted);
+      return sorted;
     });
-    bumpRefreshKey(SHOPPING_LIST_REFRESH_KEY);
+    selfBump.current = true;
+    try {
+      bumpRefreshKey(SHOPPING_LIST_REFRESH_KEY);
+    } finally {
+      selfBump.current = false;
+    }
     return result;
   }, []);
 
   const handleExternalRefresh = useCallback(() => {
+    if (selfBump.current) return;
     void fetchAll(true);
   }, [fetchAll]);
   useRefreshKeyListener(SHOPPING_LIST_REFRESH_KEY, handleExternalRefresh);

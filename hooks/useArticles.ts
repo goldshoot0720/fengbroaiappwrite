@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Article, ArticleFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
@@ -21,7 +21,29 @@ export function useArticles() {
     return localStorage.getItem('articles_refresh_key') || '';
   };
 
-  const setRefreshKey = () => bumpRefreshKey("articles_refresh_key");
+  // 寫入後本地狀態已是最新：只通知其他模組／分頁，自己不再整張表重抓一次 Appwrite。
+  const selfBump = useRef(false);
+  const setRefreshKey = () => {
+    selfBump.current = true;
+    try {
+      bumpRefreshKey("articles_refresh_key");
+    } finally {
+      selfBump.current = false;
+    }
+  };
+
+  /** 寫入後同步更新畫面、模組快取與 session 快取。 */
+  const commitArticles = useCallback((updater: (prev: Article[]) => Article[]) => {
+    setArticles((prev) => {
+      const next = updater(prev).sort(
+        (a, b) => new Date(b.newDate).getTime() - new Date(a.newDate).getTime()
+      );
+      cachedArticles = next;
+      cacheTimestamp = Date.now() + 1;
+      writeEndpointCache(API_ENDPOINTS.ARTICLE, next);
+      return next;
+    });
+  }, []);
 
   // 載入文章資料（使用快取）
   const loadArticles = useCallback(async (forceRefresh = false) => {
@@ -104,20 +126,14 @@ export function useArticles() {
       });
 
       const newArticle: Article = res;
-      setArticles((prev) => {
-        const updated = [newArticle, ...prev];
-        return updated.sort(
-          (a, b) => new Date(b.newDate).getTime() - new Date(a.newDate).getTime()
-        );
-      });
-      cachedArticles = null;
       setRefreshKey();
+      commitArticles((prev) => [newArticle, ...prev.filter((a) => a.$id !== newArticle.$id)]);
       return newArticle;
     } catch (err) {
       console.error("新增文章失敗:", err);
       throw err;
     }
-  }, []);
+  }, [commitArticles]);
 
   // 更新文章
   const updateArticle = useCallback(async (id: string, formData: ArticleFormData): Promise<Article | null> => {
@@ -156,44 +172,39 @@ export function useArticles() {
       });
 
       const updatedArticle: Article = res;
-      setArticles((prev) => {
-        const updated = prev.map((a) => (a.$id === id ? updatedArticle : a));
-        return updated.sort(
-          (a, b) => new Date(b.newDate).getTime() - new Date(a.newDate).getTime()
-        );
-      });
-      cachedArticles = null;
       setRefreshKey();
+      commitArticles((prev) => prev.map((a) => (a.$id === id ? updatedArticle : a)));
       return updatedArticle;
     } catch (err) {
       console.error("更新文章失敗:", err);
       throw err;
     }
-  }, []);
+  }, [commitArticles]);
 
   // 刪除文章
   const deleteArticle = useCallback(async (id: string): Promise<boolean> => {
     try {
       await fetchApi(`${API_ENDPOINTS.ARTICLE}/${id}`, { method: "DELETE" });
 
-      setArticles((prev) => prev.filter((a) => a.$id !== id));
-      cachedArticles = null;
       setRefreshKey();
+      commitArticles((prev) => prev.filter((a) => a.$id !== id));
       return true;
     } catch (err) {
       console.error("刪除文章失敗:", err);
       throw err;
     }
-  }, []);
+  }, [commitArticles]);
 
   // 初始載入
   useEffect(() => {
     loadArticles();
   }, [loadArticles]);
 
-  useRefreshKeyListener("articles_refresh_key", () => {
+  const handleArticlesRefresh = useCallback(() => {
+    if (selfBump.current) return;
     loadArticles(true);
-  });
+  }, [loadArticles]);
+  useRefreshKeyListener("articles_refresh_key", handleArticlesRefresh);
 
   const stats = {
     total: Array.isArray(articles) ? articles.length : 0,

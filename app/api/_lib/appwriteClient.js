@@ -6,9 +6,17 @@
 
 const sdk = require("node-appwrite");
 
-const COLLECTION_CACHE_TTL_MS = 60_000;
-/** @type {Map<string, { expires: number, byName: Map<string, any>, list: any[] }>} */
+/** 新鮮期：期間內直接用快取，不打 Appwrite。 */
+const COLLECTION_CACHE_TTL_MS = 5 * 60_000;
+/** 過期但仍可先用的上限：先回舊值，背景重新整理（stale-while-revalidate）。 */
+const COLLECTION_CACHE_STALE_MS = 30 * 60_000;
+/** listCollections 一頁筆數；Appwrite 預設只回 25 筆，表多時會漏找。 */
+const COLLECTION_PAGE_SIZE = 100;
+/** @type {Map<string, { expires: number, staleUntil: number, byName: Map<string, any>, list: any[] }>} */
 const collectionCache = new Map();
+/** 同一把鍵的 listCollections 在飛行中只發一次（首頁同時打十幾支 API 時很關鍵）。 */
+/** @type {Map<string, Promise<any>>} */
+const collectionInflight = new Map();
 
 function pickFirst(...values) {
   for (const value of values) {
@@ -162,33 +170,114 @@ export function createAppwriteFromHeaders(headers) {
 }
 
 export function clearCollectionCache(databaseId) {
-  if (databaseId) {
-    collectionCache.delete(String(databaseId));
-  } else {
+  if (!databaseId) {
     collectionCache.clear();
+    collectionInflight.clear();
+    return;
+  }
+  // 快取鍵含 endpoint / project，呼叫端只知道 databaseId → 清掉所有同 databaseId 的鍵。
+  const suffix = `|${databaseId}`;
+  for (const key of [...collectionCache.keys()]) {
+    if (key === String(databaseId) || key.endsWith(suffix)) collectionCache.delete(key);
+  }
+  for (const key of [...collectionInflight.keys()]) {
+    if (key === String(databaseId) || key.endsWith(suffix)) collectionInflight.delete(key);
   }
 }
 
-async function loadCollections(databases, databaseId) {
-  const key = String(databaseId);
+/** 不同帳號（project）可能有同名 databaseId，快取鍵必須區分連線。 */
+function collectionCacheKey(databases, databaseId) {
+  const config = databases?.client?.config || {};
+  return `${config.endpoint || ""}|${config.project || ""}|${databaseId}`;
+}
+
+async function fetchAllCollections(databases, databaseId) {
+  const list = [];
+  let offset = 0;
+  // 分頁抓完所有 collection；舊版 SDK 不支援 queries 參數時退回單次呼叫。
+  while (true) {
+    let response;
+    try {
+      response = await databases.listCollections(databaseId, [
+        sdk.Query.limit(COLLECTION_PAGE_SIZE),
+        sdk.Query.offset(offset),
+      ]);
+    } catch (err) {
+      if (offset === 0 && /query|limit|offset/i.test(String(err?.message || ""))) {
+        response = await databases.listCollections(databaseId);
+        list.push(...(response.collections || []));
+        break;
+      }
+      throw err;
+    }
+    const page = response.collections || [];
+    list.push(...page);
+    if (page.length < COLLECTION_PAGE_SIZE) break;
+    if (typeof response.total === "number" && list.length >= response.total) break;
+    offset += page.length;
+  }
+  return list;
+}
+
+function refreshCollections(databases, databaseId, key) {
+  const pending = collectionInflight.get(key);
+  if (pending) return pending;
+
+  const request = fetchAllCollections(databases, databaseId)
+    .then((list) => {
+      const byName = new Map();
+      for (const col of list) {
+        if (col?.name) byName.set(String(col.name).toLowerCase(), col);
+        if (col?.$id) byName.set(String(col.$id).toLowerCase(), col);
+      }
+      const now = Date.now();
+      const entry = {
+        expires: now + COLLECTION_CACHE_TTL_MS,
+        staleUntil: now + COLLECTION_CACHE_STALE_MS,
+        byName,
+        list,
+      };
+      collectionCache.set(key, entry);
+      return entry;
+    })
+    .finally(() => {
+      collectionInflight.delete(key);
+    });
+
+  collectionInflight.set(key, request);
+  return request;
+}
+
+async function loadCollections(databases, databaseId, { force = false } = {}) {
+  const key = collectionCacheKey(databases, databaseId);
   const now = Date.now();
   const cached = collectionCache.get(key);
-  if (cached && cached.expires > now) {
-    return cached;
+
+  if (!force && cached) {
+    if (cached.expires > now) return cached;
+    if (cached.staleUntil > now) {
+      // 先用舊結果回應，背景更新；collection id 幾乎不會變。
+      refreshCollections(databases, databaseId, key).catch(() => {});
+      return cached;
+    }
   }
 
-  const response = await databases.listCollections(databaseId);
-  const list = response.collections || [];
-  const byName = new Map();
+  return refreshCollections(databases, databaseId, key);
+}
 
-  for (const col of list) {
-    if (col?.name) byName.set(String(col.name).toLowerCase(), col);
-    if (col?.$id) byName.set(String(col.$id).toLowerCase(), col);
-  }
+function findCollection(entry, name) {
+  const normalizedName = String(name).toLowerCase();
+  const exact =
+    entry.list.find((c) => c.name === name) ||
+    entry.list.find((c) => c.$id === name) ||
+    entry.byName.get(normalizedName);
+  if (exact) return exact;
 
-  const entry = { expires: now + COLLECTION_CACHE_TTL_MS, byName, list };
-  collectionCache.set(key, entry);
-  return entry;
+  return (
+    entry.list.find((c) => String(c.name || "").toLowerCase().includes(normalizedName)) ||
+    entry.list.find((c) => String(c.$id || "").toLowerCase().includes(normalizedName)) ||
+    null
+  );
 }
 
 /**
@@ -198,28 +287,17 @@ async function loadCollections(databases, databaseId) {
  */
 export async function getCollection(databases, databaseId, name, options = {}) {
   const { required = true, useCache = true } = options;
-  const normalizedName = String(name).toLowerCase();
 
-  let entry;
-  if (useCache) {
-    entry = await loadCollections(databases, databaseId);
-  } else {
-    clearCollectionCache(databaseId);
-    entry = await loadCollections(databases, databaseId);
+  let entry = await loadCollections(databases, databaseId, { force: !useCache });
+  let found = findCollection(entry, name);
+
+  // 快取裡找不到：可能是別的實例剛建立的表，強制重抓一次再判定。
+  if (!found && useCache) {
+    entry = await loadCollections(databases, databaseId, { force: true });
+    found = findCollection(entry, name);
   }
 
-  const exact =
-    entry.list.find((c) => c.name === name) ||
-    entry.list.find((c) => c.$id === name) ||
-    entry.byName.get(normalizedName);
-
-  if (exact) return exact;
-
-  const fuzzy =
-    entry.list.find((c) => String(c.name || "").toLowerCase().includes(normalizedName)) ||
-    entry.list.find((c) => String(c.$id || "").toLowerCase().includes(normalizedName));
-
-  if (fuzzy) return fuzzy;
+  if (found) return found;
   if (!required) return null;
   throw new Error(`Collection ${name} not found`);
 }

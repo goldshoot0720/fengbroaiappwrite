@@ -88,34 +88,41 @@ export async function DELETE(request, { params }) {
     // Get document to retrieve file URLs
     const doc = await databases.getDocument(databaseId, collectionId, id);
     
+    // 檔案清理與刪除文件同時進行，不再一個等一個（清理失敗不影響刪除）。
+    const cleanups = [];
     // Delete podcast file from storage if exists
     if (doc.file && bucketId) {
-      const fileId = extractFileIdFromUrl(doc.file);
-      if (fileId) {
-        try {
-          await storage.deleteFile(bucketId, fileId);
-          console.log(`Deleted podcast file: ${fileId}`);
-        } catch (fileErr) {
-          console.warn(`Failed to delete podcast file ${fileId}:`, fileErr.message);
+      cleanups.push((async () => {
+        const fileId = extractFileIdFromUrl(doc.file);
+        if (fileId) {
+          try {
+            await storage.deleteFile(bucketId, fileId);
+            console.log(`Deleted podcast file: ${fileId}`);
+          } catch (fileErr) {
+            console.warn(`Failed to delete podcast file ${fileId}:`, fileErr.message);
+          }
         }
-      }
+      })());
     }
-    
     // Delete cover image from storage if exists
     if (doc.cover && bucketId) {
-      const coverId = extractFileIdFromUrl(doc.cover);
-      if (coverId) {
-        try {
-          await storage.deleteFile(bucketId, coverId);
-          console.log(`Deleted cover image: ${coverId}`);
-        } catch (coverErr) {
-          console.warn(`Failed to delete cover image ${coverId}:`, coverErr.message);
+      cleanups.push((async () => {
+        const coverId = extractFileIdFromUrl(doc.cover);
+        if (coverId) {
+          try {
+            await storage.deleteFile(bucketId, coverId);
+            console.log(`Deleted cover image: ${coverId}`);
+          } catch (coverErr) {
+            console.warn(`Failed to delete cover image ${coverId}:`, coverErr.message);
+          }
         }
-      }
+      })());
     }
-    
-    // Delete the document
-    await databases.deleteDocument(databaseId, collectionId, id);
+
+    await Promise.all([
+      databases.deleteDocument(databaseId, collectionId, id),
+      ...cleanups,
+    ]);
     
     return NextResponse.json({ success: true });
   } catch (err) {

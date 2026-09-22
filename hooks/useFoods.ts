@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Food, FoodFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus } from "@/lib/formatters";
@@ -35,7 +35,27 @@ export function useFoods() {
     return localStorage.getItem('foods_refresh_key') || '';
   };
 
-  const setRefreshKey = () => bumpRefreshKey("foods_refresh_key");
+  // 寫入後本地狀態已是最新：只通知其他模組／分頁，自己不再整張表重抓一次 Appwrite。
+  const selfBump = useRef(false);
+  const setRefreshKey = () => {
+    selfBump.current = true;
+    try {
+      bumpRefreshKey("foods_refresh_key");
+    } finally {
+      selfBump.current = false;
+    }
+  };
+
+  /** 把寫入後的清單同步進模組快取與 session 快取，下次掛載／重新整理可直接上畫。 */
+  const commitFoods = useCallback((updater: (prev: Food[]) => Food[]) => {
+    setFoods((prev) => {
+      const next = updater(prev).sort(sortFoodsByExpiryDate);
+      cachedFoods = next;
+      cacheTimestamp = Date.now() + 1;
+      writeEndpointCache(API_ENDPOINTS.FOOD, next);
+      return next;
+    });
+  }, []);
 
   // 載入食品資料（使用快取）
   const loadFoods = useCallback(async (forceRefresh = false) => {
@@ -95,62 +115,61 @@ export function useFoods() {
         body: JSON.stringify(formData),
       });
       
-      setFoods((prev) => {
-        const updated = [...prev, newFood];
-        return updated.sort(sortFoodsByExpiryDate);
-      });
-      cachedFoods = null;
       setRefreshKey();
+      commitFoods((prev) => [...prev.filter((f) => f.$id !== newFood.$id), newFood]);
       return newFood;
     } catch (err) {
       console.error("新增食品失敗:", err);
       throw err;
     }
-  }, []);
+  }, [commitFoods]);
 
   // 更新食品
   const updateFood = useCallback(async (id: string, formData: FoodFormData): Promise<Food | null> => {
     try {
-      console.log('更新食品 - ID:', id, '資料:', formData);
       const updatedFood = await fetchApi<Food>(`${API_ENDPOINTS.FOOD}/${id}`, {
         method: "PUT",
         body: JSON.stringify(formData),
       });
-      console.log('更新成功:', updatedFood);
-      
-      setFoods((prev) => {
-        const updated = prev.map((f) => (f.$id === id ? updatedFood : f));
-        return updated.sort(sortFoodsByExpiryDate);
-      });
-      cachedFoods = null;
       setRefreshKey();
+      commitFoods((prev) => prev.map((f) => (f.$id === id ? updatedFood : f)));
       return updatedFood;
     } catch (err) {
       console.error("更新食品失敗:", err);
       console.error("錯誤詳情:", err instanceof Error ? err.message : err);
       throw err;
     }
-  }, []);
+  }, [commitFoods]);
 
   // 刪除食品
   const deleteFood = useCallback(async (id: string): Promise<boolean> => {
+    // 樂觀刪除：先從畫面移除，失敗再放回去。
+    let removed: Food | undefined;
+    commitFoods((prev) => {
+      removed = prev.find((f) => f.$id === id);
+      return prev.filter((f) => f.$id !== id);
+    });
     try {
       await fetchApi(`${API_ENDPOINTS.FOOD}/${id}`, { method: "DELETE" });
-      
-      setFoods((prev) => prev.filter((f) => f.$id !== id));
-      cachedFoods = null;
       setRefreshKey();
       return true;
     } catch (err) {
       console.error("刪除食品失敗:", err);
+      if (removed) {
+        const restore = removed;
+        commitFoods((prev) => (prev.some((f) => f.$id === id) ? prev : [...prev, restore]));
+      }
       throw err;
     }
-  }, []);
+  }, [commitFoods]);
 
   // 更新數量
   const updateAmount = useCallback(async (food: Food, delta: number): Promise<boolean> => {
     const newAmount = food.amount + delta;
     if (newAmount < 0) return false;
+
+    // 樂觀更新：數量加減立即反映在畫面，不等 Appwrite 回應。
+    commitFoods((prev) => prev.map((f) => (f.$id === food.$id ? { ...f, amount: newAmount } : f)));
 
     try {
       const updatedFood = await fetchApi<Food>(`${API_ENDPOINTS.FOOD}/${food.$id}`, {
@@ -166,17 +185,15 @@ export function useFoods() {
         }),
       });
 
-      setFoods((prev) => {
-        const updated = prev.map((f) => (f.$id === food.$id ? updatedFood : f));
-        cachedFoods = updated.sort(sortFoodsByExpiryDate);
-        cacheTimestamp = Date.now();
-        return cachedFoods;
-      });
+      setRefreshKey();
+      commitFoods((prev) => prev.map((f) => (f.$id === food.$id ? updatedFood : f)));
       return true;
     } catch {
+      // 失敗回滾到原本數量。
+      commitFoods((prev) => prev.map((f) => (f.$id === food.$id ? { ...f, amount: food.amount } : f)));
       return false;
     }
-  }, []);
+  }, [commitFoods]);
 
   // 初始載入
   useEffect(() => {
@@ -186,6 +203,7 @@ export function useFoods() {
   // 事件驅動快取失效（同頁 CustomEvent / 跨分頁 storage）
   // 用穩定 callback，避免 useFoods 每次 render 都重綁 listener
   const handleFoodsRefresh = useCallback(() => {
+    if (selfBump.current) return;
     loadFoods(true);
   }, [loadFoods]);
 
