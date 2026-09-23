@@ -41,6 +41,14 @@ export async function GET(request) {
 }
 
 // 新增銀行資料
+// Appwrite 拒絕資料表沒有的欄位時，錯誤訊息只寫 Unknown attribute，
+// 使用者看不出下一步。補一句去哪裡補欄位。
+function withMissingAttributeHint(message) {
+  const match = /Unknown attribute: "([^"]+)"/.exec(message || "");
+  if (!match) return message;
+  return `bank 資料表還沒有「${match[1]}」欄位，請到「鋒兄設定」的 bank 按「補欄位」後再試。（${message}）`;
+}
+
 // 表單送來的是 YYYY-MM-DD，Appwrite datetime 也吃得下；
 // 若帶了時間就正規化成 ISO。無法解析的字串回傳 null，讓呼叫端擋下來。
 function toAppwriteDate(value) {
@@ -112,6 +120,6 @@ export async function POST(req) {
   } catch (err) {
     console.error("POST /bank error:", err);
     const message = err instanceof Error ? err.message : "Create failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: withMissingAttributeHint(message) }, { status: 500 });
   }
 }
