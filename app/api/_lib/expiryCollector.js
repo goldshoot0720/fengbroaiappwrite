@@ -15,6 +15,7 @@ const sdk = require("node-appwrite");
  * @property {'exact'} mode
  * @property {number} [subscriptionDays]
  * @property {number} [foodDays]
+ * @property {number} [bankDays]
  * @property {number} [limit]
  */
 
@@ -64,6 +65,15 @@ export async function collectExpiryItems(databases, databaseId, options) {
     const minDays = options.minDays ?? 0;
     const maxDays = options.maxDays ?? NOTIFICATION_POLICY.dashboardOs.foodMaxDays;
     return days >= minDays && days <= maxDays;
+  };
+
+  const matchBank = (days) => {
+    if (days == null) return false;
+    if (mode === "exact") {
+      const exact = options.bankDays ?? NOTIFICATION_POLICY.email.bankExactDays;
+      return days === exact;
+    }
+    return inRange(days, 0, NOTIFICATION_POLICY.dashboardOs.bankExpiryMaxDays);
   };
 
   // 管理模組表以「可選」方式處理：沒建表時略過，不讓整批通知失敗。
@@ -189,25 +199,25 @@ export async function collectExpiryItems(databases, databaseId, options) {
     }
   }
 
-  // 銀行／電子票證／點數：expiry 0~7 天（固定窗口，點數要留時間用掉）
-  if (mode !== "exact") {
-    try {
-      const docs = await readCollection("bank", "expiry");
-      for (const doc of docs) {
-        const days = daysUntil(doc.expiry);
-        if (!inRange(days, 0, NOTIFICATION_POLICY.dashboardOs.bankExpiryMaxDays)) continue;
-        banks.push({
-          id: doc.$id,
-          name: doc.name || "未命名帳戶",
-          daysLeft: days,
-          expiry: doc.expiry,
-          category: doc.category || "",
-          account: doc.account || "",
-        });
-      }
-    } catch {
-      // ignore bank query errors
+  // 銀行／電子票證／點數：expiry 0~7 天（點數要留時間用掉）；exact 郵件通道剛好前 7 天
+  try {
+    const docs = await readCollection("bank", "expiry");
+    for (const doc of docs) {
+      const days = daysUntil(doc.expiry);
+      if (!matchBank(days)) continue;
+      banks.push({
+        id: doc.$id,
+        name: doc.name || "未命名帳戶",
+        daysLeft: days,
+        expiry: doc.expiry,
+        category: doc.category || "",
+        account: doc.account || "",
+        deposit: doc.deposit,
+        note: doc.note || "",
+      });
     }
+  } catch {
+    // ignore bank query errors
   }
 
   // 購物清單：plannedDate 0~3 天（固定窗口）

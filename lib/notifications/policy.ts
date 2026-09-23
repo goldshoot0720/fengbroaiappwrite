@@ -40,6 +40,7 @@ export const NOTIFICATION_POLICY = {
   email: {
     subscriptionExactDays: 1,
     foodExactDays: 7,
+    bankExactDays: 7,
   },
   ui: {
     foodSoon: DATE_THRESHOLDS.FOOD_EXPIRING_SOON,

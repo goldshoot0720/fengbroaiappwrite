@@ -31,7 +31,7 @@ function formatRenewal(value) {
   return "續訂中";
 }
 
-function buildEmail({ subscriptions, foods, todayKey }) {
+function buildEmail({ subscriptions, foods, banks, todayKey }) {
   const subscriptionLines = subscriptions.map((item) => {
     const parts = [`- ${item.name}：${formatDate(item.nextdate)} 到期`];
     if (item.account) parts.push(`  帳號：${item.account}`);
@@ -40,6 +40,13 @@ function buildEmail({ subscriptions, foods, todayKey }) {
     return parts.join("\n");
   });
   const foodLines = foods.map((item) => `- ${item.name}：${formatDate(item.todate)} 到期`);
+  const bankLines = banks.map((item) => {
+    const parts = [`- ${item.name}：${formatDate(item.expiry)} 到期`];
+    if (item.deposit != null) parts.push(`  金額／點數：${item.deposit}`);
+    if (item.account) parts.push(`  帳號：${item.account}`);
+    if (item.note) parts.push(`  備註：${item.note}`);
+    return parts.join("\n");
+  });
   const title = `鋒兄到期提醒 ${todayKey}`;
   const text = [
     "鋒兄到期提醒",
@@ -49,6 +56,9 @@ function buildEmail({ subscriptions, foods, todayKey }) {
     "",
     foods.length ? "食品：到期前一周" : "",
     ...foodLines,
+    "",
+    banks.length ? "銀行票證點數：到期前一周" : "",
+    ...bankLines,
   ]
     .filter(Boolean)
     .join("\n");
@@ -97,6 +107,25 @@ function buildEmail({ subscriptions, foods, todayKey }) {
           ? `
         <h3 style="margin:20px 0 8px">食品：到期前一周</h3>
         <ul>${foods.map((item) => `<li><strong>${item.name}</strong>：${formatDate(item.todate)} 到期</li>`).join("")}</ul>
+      `
+          : ""
+      }
+      ${
+        banks.length
+          ? `
+        <h3 style="margin:20px 0 8px">銀行票證點數：到期前一周</h3>
+        <ul>${banks
+          .map((item) => {
+            const extras = [
+              item.deposit != null ? `金額／點數 ${item.deposit}` : "",
+              item.account ? `帳號 ${item.account}` : "",
+              item.note ? `備註 ${item.note}` : "",
+            ].filter(Boolean);
+            return `<li><strong>${item.name}</strong>：${formatDate(item.expiry)} 到期${
+              extras.length ? `<br><span style="color:#64748b;white-space:pre-wrap">${extras.join("｜")}</span>` : ""
+            }</li>`;
+          })
+          .join("")}</ul>
       `
           : ""
       }
@@ -165,26 +194,28 @@ async function handleResendExpiryNotify(request) {
     }
 
     const todayKey = getTaipeiDateKey();
-    const { subscriptions, foods } = await collectExpiryItems(databases, databaseId, {
+    const { subscriptions, foods, banks } = await collectExpiryItems(databases, databaseId, {
       mode: "exact",
       subscriptionDays: NOTIFICATION_POLICY.email.subscriptionExactDays,
       foodDays: NOTIFICATION_POLICY.email.foodExactDays,
+      bankDays: NOTIFICATION_POLICY.email.bankExactDays,
       limit: 500,
     });
 
-    if (subscriptions.length === 0 && foods.length === 0) {
+    if (subscriptions.length === 0 && foods.length === 0 && banks.length === 0) {
       return NextResponse.json({
         success: true,
         sent: 0,
         subscriptions: 0,
         foods: 0,
+        banks: 0,
         maxResendSlots: RESEND_SLOT_COUNT,
         configuredResendSlots: resendConfigs.length,
         checkedAt: new Date().toISOString(),
       });
     }
 
-    const email = buildEmail({ subscriptions, foods, todayKey });
+    const email = buildEmail({ subscriptions, foods, banks, todayKey });
     const resendResults = await Promise.all(
       resendConfigs.map((resend, index) =>
         sendResendEmail({
@@ -201,6 +232,7 @@ async function handleResendExpiryNotify(request) {
       resendIds: resendResults.map((result) => result?.id).filter(Boolean),
       subscriptions: subscriptions.length,
       foods: foods.length,
+      banks: banks.length,
       maxResendSlots: RESEND_SLOT_COUNT,
       configuredResendSlots: resendConfigs.length,
       checkedAt: new Date().toISOString(),

@@ -206,7 +206,7 @@ export async function runClientNotificationSelfCheck(): Promise<SelfCheckItem[]>
     channel: "client",
     label: "通知門檻政策",
     status: "info",
-    detail: `OS 0–${NOTIFICATION_POLICY.dashboardOs.subscriptionMaxDays} 天｜Push/SW 0–${NOTIFICATION_POLICY.pushAndSw.warnDays} 天｜Email 訂閱前 ${NOTIFICATION_POLICY.email.subscriptionExactDays} 天 / 食品前 ${NOTIFICATION_POLICY.email.foodExactDays} 天｜TZ ${NOTIFICATION_POLICY.timezone}`,
+    detail: `OS 0–${NOTIFICATION_POLICY.dashboardOs.subscriptionMaxDays} 天｜Push/SW 0–${NOTIFICATION_POLICY.pushAndSw.warnDays} 天｜Email 訂閱前 ${NOTIFICATION_POLICY.email.subscriptionExactDays} 天 / 食品前 ${NOTIFICATION_POLICY.email.foodExactDays} 天 / 銀行前 ${NOTIFICATION_POLICY.email.bankExactDays} 天｜TZ ${NOTIFICATION_POLICY.timezone}`,
   });
 
   return items;

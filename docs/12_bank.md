@@ -95,6 +95,7 @@ interface Bank {
 - **分類判斷**：`lib/bankClassification.ts`（`category` 優先，其次關鍵字推斷）
 - **到期提醒窗口**：`lib/constants.ts` → `NOTIFY_WINDOW_DAYS.BANK_EXPIRY`（7 天）
 - **到期收集（API）**：`app/api/_lib/expiryCollector.js` → `banks`
+- **Email 到期通知**：`/api/resend-expiry-notify` 在有效期限 **剛好前 7 天** 寄出（`NOTIFICATION_POLICY.email.bankExactDays`）
 
 ---
 
