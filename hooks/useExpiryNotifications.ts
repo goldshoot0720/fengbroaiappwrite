@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  dashboardOsBankMessage,
   dashboardOsFoodExpiredMessage,
   dashboardOsFoodExpiringMessage,
   dashboardOsQuotaMessage,
@@ -32,6 +33,14 @@ type QuotaExpiryNotifItem = {
   label: string;
 };
 
+/** 銀行／電子票證／點數到期通知列 */
+type BankExpiryNotifItem = {
+  id: string;
+  name: string;
+  daysRemaining: number;
+  expiry: string;
+};
+
 /** 購物清單到期通知列 */
 type ShoppingNotifItem = {
   id: string;
@@ -50,6 +59,8 @@ type ExpiryNotificationStats = {
   quotaExpiringSoonList: QuotaExpiryNotifItem[];
   /** 購物清單：3 天內 */
   shoppingItemsExpiring3DaysList: ShoppingNotifItem[];
+  /** 銀行／電子票證／點數：7 天內 */
+  banksExpiring7DaysList?: BankExpiryNotifItem[];
 };
 
 type UseExpiryNotificationsOptions = {
@@ -179,6 +190,24 @@ export async function sendExpiryOsNotifications(params: {
         body: msg.body,
         icon: NOTIFICATION_POLICY.icon,
         tag: `shopping-${item.id}`,
+      });
+      updated[key] = "shown";
+      hasNew = true;
+    }
+  }
+
+  // 銀行／電子票證／點數：7 天內（含當天）每天一次
+  const bankItems = (params.stats.banksExpiring7DaysList || []).filter(
+    (item) => item.daysRemaining >= 0 && item.daysRemaining <= policy.bankExpiryMaxDays
+  );
+  for (const item of bankItems) {
+    const key = `bank-${item.id}-${item.expiry}-${today}`;
+    if (notified[key] !== "shown") {
+      const msg = dashboardOsBankMessage(item);
+      await showAppNotification(msg.title, {
+        body: msg.body,
+        icon: NOTIFICATION_POLICY.icon,
+        tag: `bank-${item.id}`,
       });
       updated[key] = "shown";
       hasNew = true;

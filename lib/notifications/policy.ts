@@ -10,10 +10,11 @@ import { DATE_THRESHOLDS, NOTIFY_WINDOW_DAYS } from "@/lib/constants";
  * - 額度非 AI (quota general)：剩 0~3 天（quotaExpiry）
  * - 額度 AI：一週／一月到期 只提醒前一天與當天（剩 0~1 天）
  * - 購物清單 (shoppinglist)：剩 0~3 天（plannedDate）
+ * - 銀行／電子票證／點數 (bank)：剩 0~7 天（expiry）
  */
 export const NOTIFICATION_POLICY = {
   timezone: "Asia/Taipei",
-  swVersion: "v14",
+  swVersion: "v15",
   dashboardOs: {
     /** 每日通知窗口上限（天）。 */
     subscriptionMaxDays: NOTIFY_WINDOW_DAYS.SUBSCRIPTION,
@@ -22,6 +23,7 @@ export const NOTIFICATION_POLICY = {
     quotaGeneralMaxDays: NOTIFY_WINDOW_DAYS.QUOTA_GENERAL,
     quotaAiMaxDays: NOTIFY_WINDOW_DAYS.QUOTA_AI_WEEK,
     shoppingListMaxDays: NOTIFY_WINDOW_DAYS.SHOPPING_LIST,
+    bankExpiryMaxDays: NOTIFY_WINDOW_DAYS.BANK_EXPIRY,
     maxExpiredFoodNotices: 3,
     maxOverdueSubscriptionNotices: 3,
     maxOverdueShoppingNotices: 3,

@@ -60,6 +60,7 @@ export const NOTIFY_WINDOW_DAYS = {
   QUOTA_AI_WEEK: 1, // 額度 AI 一週到期：前一天與當天
   QUOTA_AI_MONTH: 1, // 額度 AI 一月到期：前一天與當天
   SHOPPING_LIST: 3, // 鋒兄購物清單：3 天內，每天一次，含當天
+  BANK_EXPIRY: 7, // 鋒兄銀行／電子票證／點數：7 天內，每天一次，含當天（點數要留時間去用掉）
 } as const;
 
 // 網站起源日：本專案承繼自 nextshadcn20250928，故以該專案名稱日期為起算點。

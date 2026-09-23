@@ -151,7 +151,7 @@ async function handleSelfCheck(request) {
     }
 
     try {
-      const { subscriptions, foods } = await collectExpiryItems(databases, databaseId, {
+      const { subscriptions, foods, banks } = await collectExpiryItems(databases, databaseId, {
         mode: "range",
         minDays: 0,
         maxDays: NOTIFICATION_POLICY.pushAndSw.warnDays,
@@ -167,6 +167,7 @@ async function handleSelfCheck(request) {
         range7: {
           subscriptions: subscriptions.length,
           foods: foods.length,
+          banks: banks.length,
         },
         emailExact: {
           subscriptions: exact.subscriptions.length,
@@ -179,7 +180,7 @@ async function handleSelfCheck(request) {
           "push",
           "到期掃描（Push/SW 0–7 天）",
           "pass",
-          `訂閱 ${subscriptions.length} / 食品 ${foods.length}`
+          `訂閱 ${subscriptions.length} / 食品 ${foods.length} / 銀行票證點數 ${banks.length}`
         )
       );
       items.push(

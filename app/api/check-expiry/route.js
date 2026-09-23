@@ -30,6 +30,7 @@ export async function GET(request) {
       expiringTrialPurchases: collected.trialPurchases,
       expiringQuotas: collected.quotas,
       expiringShoppingItems: collected.shoppingItems,
+      expiringBanks: collected.banks,
       checkedAt: new Date().toISOString(),
     });
   } catch (err) {

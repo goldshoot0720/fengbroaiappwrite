@@ -1,4 +1,4 @@
-import { Bank, BankFormData } from "@/types";
+import type { Bank, BankFormData } from "@/types";
 
 /** Appwrite 存的是 ISO datetime，<input type="date"> 只吃 YYYY-MM-DD。 */
 export function toDateInputValue(value?: string): string {

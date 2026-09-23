@@ -15,6 +15,9 @@
 - **卡片資訊**：關聯的金融卡/信用卡資訊。
 - **刪除確認**：刪除前需輸入「DELETE [銀行名稱]」防止誤刪。
 - **CSV 匯入/匯出**：批次帳戶資料管理。
+- **三分頁**：銀行／電子票證／點數，依名稱自動判斷，也可在 `category` 手動指定。
+- **多行備註**：備註為 textarea，可換行；列表以原樣多行顯示。
+- **有效期限提醒**：填了 `expiry` 後，剩 0–7 天會進首頁待辦、完整儀表警示與 OS／推播通知。
 
 ## 資料表結構 (Appwrite Collection: `bank`)
 
@@ -29,6 +32,9 @@
 | activity | url | - | ❌ | 帳戶活動連結 |
 | card | string | 100 | ❌ | 金融卡/信用卡資訊 |
 | account | string | 100 | ❌ | 銀行帳號 |
+| note | string | 500 | ❌ | 備註（可多行） |
+| category | string | 20 | ❌ | `bank`／`ticket`／`points`；留空＝依名稱自動判斷 |
+| expiry | datetime | - | ❌ | 有效期限（表單為 `YYYY-MM-DD`） |
 
 ## TypeScript 類型定義
 
@@ -44,6 +50,9 @@ interface Bank {
   activity?: string;
   card?: string;
   account?: string;
+  note?: string;
+  category?: string;
+  expiry?: string;
   $createdAt: string;
   $updatedAt: string;
 }
@@ -62,6 +71,11 @@ interface Bank {
 | 7 | activity | 活動連結 |
 | 8 | card | 卡片資訊 |
 | 9 | account | 帳號 |
+| 10 | note | 備註（多行會以雙引號包起來） |
+| 11 | category | 分類，留空＝自動判斷 |
+| 12 | expiry | 有效期限 `YYYY-MM-DD` |
+
+> 舊備份欄位較少也能匯入：只要表頭是上表的前綴，缺的尾欄視為空值。
 
 ## API 端點
 
@@ -78,6 +92,9 @@ interface Bank {
 - **元件路徑**：`components/modules/BankManagement.tsx`
 - **API 路徑**：`app/api/bank/`
 - **常數定義**：`lib/constants.ts` → `API_ENDPOINTS.BANK`
+- **分類判斷**：`lib/bankClassification.ts`（`category` 優先，其次關鍵字推斷）
+- **到期提醒窗口**：`lib/constants.ts` → `NOTIFY_WINDOW_DAYS.BANK_EXPIRY`（7 天）
+- **到期收集（API）**：`app/api/_lib/expiryCollector.js` → `banks`
 
 ---
 

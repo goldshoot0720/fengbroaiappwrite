@@ -28,6 +28,7 @@ function inRange(days, minDays, maxDays) {
  * - subscription 訂閱、trialpurchase 試用/首購、shoppinglist 購物清單：0~3 天
  * - food 食品：0~7 天
  * - quota 額度：非 AI quotaExpiry 0~3 天；AI expiryWeek/expiryMonth 只提醒 0~1 天
+ * - bank 銀行／電子票證／點數：expiry 0~7 天
  * @param {import('node-appwrite').Databases} databases
  * @param {string} databaseId
  * @param {RangeFilter | ExactFilter} options
@@ -41,6 +42,7 @@ export async function collectExpiryItems(databases, databaseId, options) {
   const trialPurchases = [];
   const quotas = [];
   const shoppingItems = [];
+  const banks = [];
 
   const matchSubscription = (days) => {
     if (days == null) return false;
@@ -187,6 +189,27 @@ export async function collectExpiryItems(databases, databaseId, options) {
     }
   }
 
+  // 銀行／電子票證／點數：expiry 0~7 天（固定窗口，點數要留時間用掉）
+  if (mode !== "exact") {
+    try {
+      const docs = await readCollection("bank", "expiry");
+      for (const doc of docs) {
+        const days = daysUntil(doc.expiry);
+        if (!inRange(days, 0, NOTIFICATION_POLICY.dashboardOs.bankExpiryMaxDays)) continue;
+        banks.push({
+          id: doc.$id,
+          name: doc.name || "未命名帳戶",
+          daysLeft: days,
+          expiry: doc.expiry,
+          category: doc.category || "",
+          account: doc.account || "",
+        });
+      }
+    } catch {
+      // ignore bank query errors
+    }
+  }
+
   // 購物清單：plannedDate 0~3 天（固定窗口）
   if (mode !== "exact") {
     try {
@@ -207,5 +230,5 @@ export async function collectExpiryItems(databases, databaseId, options) {
     }
   }
 
-  return { subscriptions, foods, trialPurchases, quotas, shoppingItems };
+  return { subscriptions, foods, trialPurchases, quotas, shoppingItems, banks };
 }

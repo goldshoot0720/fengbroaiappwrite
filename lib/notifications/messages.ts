@@ -62,7 +62,7 @@ export function financeBreakthroughMessage(alert: {
 /** How many item lines to put in a multi-item push body (OS trays truncate long text). */
 const PUSH_BODY_PREVIEW_LIMIT = 8;
 
-type ExpiryItemKind = "subscription" | "food" | "trialPurchase" | "quota" | "shopping";
+type ExpiryItemKind = "subscription" | "food" | "trialPurchase" | "quota" | "shopping" | "bank";
 
 type TypedExpiryItem = ExpiryItemLike & {
   type: ExpiryItemKind;
@@ -87,10 +87,11 @@ export function formatMultiItemPushBody(params: {
   trialPurchases?: ExpiryItemLike[];
   quotas?: Array<ExpiryItemLike & { label?: string }>;
   shoppingItems?: ExpiryItemLike[];
+  banks?: ExpiryItemLike[];
   items: TypedExpiryItem[];
   previewLimit?: number;
 }): string {
-  const { subscriptions, foods, trialPurchases = [], quotas = [], shoppingItems = [] } = params;
+  const { subscriptions, foods, trialPurchases = [], quotas = [], shoppingItems = [], banks = [] } = params;
   const limit = params.previewLimit ?? PUSH_BODY_PREVIEW_LIMIT;
   const totalItems = params.items.length;
   const counts = [
@@ -99,6 +100,7 @@ export function formatMultiItemPushBody(params: {
     trialPurchases.length ? `${trialPurchases.length} 試用/首購` : null,
     quotas.length ? `${quotas.length} 額度` : null,
     shoppingItems.length ? `${shoppingItems.length} 購物` : null,
+    banks.length ? `${banks.length} 銀行/票證/點數` : null,
   ].filter(Boolean);
   const summary = `${totalItems} 個項目即將到期（${counts.join(" + ")}）`;
 
@@ -117,6 +119,7 @@ function titleForSingle(item: TypedExpiryItem): string {
     case "trialPurchase": return "🧪 試用／首購到期提醒";
     case "quota": return "🎯 額度到期提醒";
     case "shopping": return "🛒 購物清單提醒";
+    case "bank": return "🏦 銀行／票證／點數到期提醒";
   }
 }
 
@@ -126,9 +129,10 @@ export function aggregatePushSummary(params: {
   trialPurchases?: ExpiryItemLike[];
   quotas?: Array<ExpiryItemLike & { label?: string }>;
   shoppingItems?: ExpiryItemLike[];
+  banks?: ExpiryItemLike[];
 }) {
-  const { subscriptions, foods, trialPurchases = [], quotas = [], shoppingItems = [] } = params;
-  const totalItems = subscriptions.length + foods.length + trialPurchases.length + quotas.length + shoppingItems.length;
+  const { subscriptions, foods, trialPurchases = [], quotas = [], shoppingItems = [], banks = [] } = params;
+  const totalItems = subscriptions.length + foods.length + trialPurchases.length + quotas.length + shoppingItems.length + banks.length;
   if (totalItems === 0) {
     return { title: "⏰ 鋒兄到期提醒", body: "無到期項目", items: [] as TypedExpiryItem[] };
   }
@@ -139,6 +143,7 @@ export function aggregatePushSummary(params: {
     ...trialPurchases.map((t) => ({ type: "trialPurchase" as const, ...t })),
     ...quotas.map((q) => ({ type: "quota" as const, ...q })),
     ...shoppingItems.map((s) => ({ type: "shopping" as const, ...s })),
+    ...banks.map((b) => ({ type: "bank" as const, ...b })),
   ];
 
   if (totalItems === 1) {
@@ -155,7 +160,7 @@ export function aggregatePushSummary(params: {
 
   return {
     title: "⏰ 鋒兄到期提醒",
-    body: formatMultiItemPushBody({ subscriptions, foods, trialPurchases, quotas, shoppingItems, items }),
+    body: formatMultiItemPushBody({ subscriptions, foods, trialPurchases, quotas, shoppingItems, banks, items }),
     items,
   };
 }
@@ -199,6 +204,14 @@ export function dashboardOsQuotaMessage(item: ExpiryItemLike & { label?: string 
   return {
     title: "額度到期提醒",
     body: `${item.name}${label} ${days === 0 ? "今天到期" : `將在 ${days} 天內到期`}`,
+  };
+}
+
+export function dashboardOsBankMessage(item: ExpiryItemLike) {
+  const days = resolveDays(item);
+  return {
+    title: "銀行／票證／點數到期提醒",
+    body: `${item.name} ${days === 0 ? "今天到期" : `將在 ${days} 天內到期`}`,
   };
 }
 

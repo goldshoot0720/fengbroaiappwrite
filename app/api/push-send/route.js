@@ -39,7 +39,8 @@ async function handlePushSend(request) {
       + collected.foods.length
       + collected.trialPurchases.length
       + collected.quotas.length
-      + collected.shoppingItems.length;
+      + collected.shoppingItems.length
+      + collected.banks.length;
     if (totalItems === 0) {
       return NextResponse.json({ success: true, sent: 0, message: "無到期項目" });
     }

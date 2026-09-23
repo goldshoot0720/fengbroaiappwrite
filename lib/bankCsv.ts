@@ -1,4 +1,4 @@
-import { Bank, BankFormData } from "@/types";
+import type { Bank, BankFormData } from "@/types";
 import { toDateInputValue } from "@/lib/bankForm";
 
 export const BANK_CSV_HEADERS = ["name", "deposit", "site", "address", "withdrawals", "transfer", "activity", "card", "account", "note", "category", "expiry"];

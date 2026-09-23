@@ -89,6 +89,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
       })),
     ],
     shoppingItemsExpiring3DaysList: stats.shoppingItemsExpiring3DaysList,
+    banksExpiring7DaysList: stats.banksExpiring7DaysList,
   };
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
     stats: notifStats,
     financeAlerts,
     enabled: showFullPane && !loading && !dashboardError,
-    depsKey: `${stats.subscriptionsExpiring3DaysList.length}-${stats.foodsExpiring7DaysList.length}-${stats.expiredFoodsList.length}-${stats.trialPurchasesExpiring3DaysList.length}-${stats.quotaAccountsExpiring3DaysList.length}-${stats.quotaAiExpiringSoonList.length}-${stats.shoppingItemsExpiring3DaysList.length}-${financeAlerts.length}`,
+    depsKey: `${stats.subscriptionsExpiring3DaysList.length}-${stats.foodsExpiring7DaysList.length}-${stats.expiredFoodsList.length}-${stats.trialPurchasesExpiring3DaysList.length}-${stats.quotaAccountsExpiring3DaysList.length}-${stats.quotaAiExpiringSoonList.length}-${stats.shoppingItemsExpiring3DaysList.length}-${stats.banksExpiring7DaysList.length}-${financeAlerts.length}`,
   });
 
   useEffect(() => {
@@ -340,7 +341,8 @@ function DashboardFullView(props: {
     stats.trialPurchasesExpiring3Days > 0 ||
     stats.quotaAccountsExpiring3Days > 0 ||
     stats.quotaAiExpiringTodayOrTomorrow > 0 ||
-    stats.shoppingItemsExpiring3Days > 0;
+    stats.shoppingItemsExpiring3Days > 0 ||
+    stats.banksExpiring7Days > 0;
 
   return (
     <div className="space-y-4 lg:space-y-6">
@@ -464,7 +466,7 @@ function DashboardFullView(props: {
         <StatCard title="訂閱服務" value={stats.totalSubscriptions} icon={CreditCard} />
         <StatCard title="年費總計" value={formatCurrency(stats.totalAnnualFee)} icon={DollarSign} />
         <StatCard title="食品項目" value={stats.totalFoods} icon={Package} />
-        <StatCard title="需要關注" value={stats.foodsExpiring7Days + stats.subscriptionsExpiring3Days + stats.trialPurchasesExpiring3Days + stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow + stats.shoppingItemsExpiring3Days} icon={AlertTriangle} gradient="from-[var(--warning)] to-[var(--chart-5)]" />
+        <StatCard title="需要關注" value={stats.foodsExpiring7Days + stats.subscriptionsExpiring3Days + stats.trialPurchasesExpiring3Days + stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow + stats.shoppingItemsExpiring3Days + stats.banksExpiring7Days} icon={AlertTriangle} gradient="from-[var(--warning)] to-[var(--chart-5)]" />
       </div>
 
       {/* 其他統計 */}
@@ -481,9 +483,10 @@ function DashboardFullView(props: {
       </div>
 
       {/* 銀行統計 + 例行統計 */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         <StatCard title="銀行總數" value={stats.totalBanks} icon={Building2} />
         <StatCard title="銀行存款" value={formatCurrency(stats.totalBankDeposit)} icon={Building2} />
+        <StatCard title="7 天內到期（票證/點數）" value={stats.banksExpiring7Days} icon={CalendarClock} />
         <StatCard title="例行數量" value={stats.totalRoutines} icon={CalendarClock} />
       </div>
 
@@ -510,6 +513,7 @@ function HomeTaskBoard({
     { label: "試用/首購 3 天內", value: stats.trialPurchasesExpiring3Days, moduleId: "trial-purchase" },
     { label: "額度接近到期", value: stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow, moduleId: "quota" },
     { label: "3 天內要買", value: stats.shoppingItemsExpiring3Days, moduleId: "shopping-list" },
+    { label: "票證/點數 7 天內到期", value: stats.banksExpiring7Days, moduleId: "bank-stats" },
   ];
   const totalAttention = attentionItems.reduce((total, item) => total + item.value, 0);
   const quickActions = [
@@ -1215,6 +1219,14 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
               🛒 有 {stats.shoppingItemsExpiring3Days} 項購物將在 3 天內到預定購買日
             </p>
             <AlertItemList items={stats.shoppingItemsExpiring3DaysList} tone="orange" />
+          </div>
+        )}
+        {stats.banksExpiring7Days > 0 && (
+          <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
+            <p className="font-medium text-blue-700 dark:text-blue-300">
+              🏦 有 {stats.banksExpiring7Days} 項銀行／票證／點數將在 7 天內到期
+            </p>
+            <AlertItemList items={stats.banksExpiring7DaysList} tone="orange" />
           </div>
         )}
       </div>

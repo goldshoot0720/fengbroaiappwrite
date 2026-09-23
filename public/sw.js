@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fengbro-ai-v14';
+const CACHE_NAME = 'fengbro-ai-v15';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
@@ -111,6 +111,7 @@ async function checkExpiryBackground() {
       expiringTrialPurchases = [],
       expiringQuotas = [],
       expiringShoppingItems = [],
+      expiringBanks = [],
     } = data;
 
     // 訂閱即將到期通知（0–3 天，與 policy 一致）
@@ -174,6 +175,18 @@ async function checkExpiryBackground() {
         icon: '/favicon.ico',
         badge: '/favicon.ico',
         tag: `shopping-${item.id}`,
+        renotify: false,
+        data: { url: '/' },
+      });
+    }
+    // 銀行／電子票證／點數（0–7 天）
+    for (const item of expiringBanks) {
+      const label = item.daysLeft === 0 ? '今天到期！' : `${item.daysLeft} 天後到期`;
+      await self.registration.showNotification('🏦 銀行／票證／點數到期提醒', {
+        body: `${item.name} ${label}`,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: `bank-${item.id}`,
         renotify: false,
         data: { url: '/' },
       });

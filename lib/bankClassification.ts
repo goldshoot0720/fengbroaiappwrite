@@ -1,4 +1,4 @@
-import { Bank } from "@/types";
+import type { Bank } from "@/types";
 
 const TAIWAN_BANK_KEYWORDS = [
   "台灣銀行",
