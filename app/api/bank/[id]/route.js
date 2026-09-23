@@ -70,6 +70,23 @@ export async function PUT(req, context) {
     }
     if (formattedExpiry) payload.expiry = formattedExpiry;
 
+    // 清空：表單把欄位送成空字串代表要清掉。舊資料表可能還沒有這些欄位，
+    // 所以只對資料表裡真的存在的欄位送 null，不存在的就維持不送。
+    const cleared = [
+      ["note", note],
+      ["category", category],
+      ["expiry", expiry],
+    ]
+      .filter(([, value]) => value === "" || value === null)
+      .map(([key]) => key);
+    if (cleared.length) {
+      const collection = await databases.getCollection(databaseId, collectionId);
+      const existing = new Set((collection.attributes || []).map((attr) => attr.key));
+      for (const key of cleared) {
+        if (existing.has(key)) payload[key] = null;
+      }
+    }
+
     const response = await databases.updateDocument(
       databaseId,
       collectionId,
