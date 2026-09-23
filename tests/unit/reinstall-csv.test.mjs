@@ -10,6 +10,7 @@ import {
 const sample = {
   $id: "doc1",
   name: "Adobe Acrobat",
+  category: "文書",
   system: "win",
   softwareType: "paid",
   licenseType: "paid_serial",
@@ -24,9 +25,10 @@ const sample = {
 };
 
 describe("reinstall CSV", () => {
-  it("exports the twelve Appwrite fields and round-trips quoted notes and serials", () => {
+  it("exports the thirteen Appwrite fields and round-trips quoted notes and serials", () => {
     assert.deepEqual(REINSTALL_CSV_HEADERS, [
       "name",
+      "category",
       "system",
       "softwareType",
       "licenseType",
@@ -41,7 +43,7 @@ describe("reinstall CSV", () => {
     ]);
 
     const csv = buildReinstallCsv([sample]);
-    assert.match(csv, /^name,system,softwareType,licenseType,serial,viewPassword,subscriptionSoftware,subscriptionPeriod,subscriptionPrice,subscriptionCurrency,site,note\n/);
+    assert.match(csv, /^name,category,system,softwareType,licenseType,serial,viewPassword,subscriptionSoftware,subscriptionPeriod,subscriptionPrice,subscriptionCurrency,site,note\n/);
     assert.match(csv, /"AAAA-BBBB,CCCC"/);
     assert.match(csv, /"主機, 含逗號"/);
 
@@ -50,6 +52,7 @@ describe("reinstall CSV", () => {
     assert.deepEqual(data, [
       {
         name: "Adobe Acrobat",
+        category: "文書",
         system: "win",
         softwareType: "paid",
         licenseType: "paid_serial",
@@ -85,14 +88,26 @@ describe("reinstall CSV", () => {
   });
 
   it("skips invalid rows and requires a service name", () => {
+    // 依表頭組行，之後再加欄位也不會讓這些案例錯位。
+    const row = (overrides) =>
+      REINSTALL_CSV_HEADERS.map((header) => overrides[header] ?? "").join(",");
     const csv = [
       REINSTALL_CSV_HEADERS.join(","),
-      ",win,free,none,,,,,,,",
-      "工具,linux,free,none,,,,,,,",
-      "工具,win,unknown,none,,,,,,,",
-      "工具,win,free,maybe,,,,,,,",
-      "工具,win,paid,none,,,,,,,javascript:alert(1),",
-      "訂閱,win,paid,none,, ,true,一年,0,USD,,",
+      row({ system: "win", softwareType: "free", licenseType: "none" }),
+      row({ name: "工具", system: "linux", softwareType: "free", licenseType: "none" }),
+      row({ name: "工具", system: "win", softwareType: "unknown", licenseType: "none" }),
+      row({ name: "工具", system: "win", softwareType: "free", licenseType: "maybe" }),
+      row({ name: "工具", system: "win", softwareType: "paid", licenseType: "none", site: "javascript:alert(1)" }),
+      row({
+        name: "訂閱",
+        system: "win",
+        softwareType: "paid",
+        licenseType: "none",
+        subscriptionSoftware: "true",
+        subscriptionPeriod: "一年",
+        subscriptionPrice: "0",
+        subscriptionCurrency: "USD",
+      }),
     ].join("\n");
 
     const { data, errors } = parseReinstallCsv(csv);
@@ -111,6 +126,7 @@ describe("reinstall CSV", () => {
     assert.deepEqual(data, [
       {
         name: "7-Zip",
+        category: "",
         system: "win",
         softwareType: "free",
         licenseType: "none",

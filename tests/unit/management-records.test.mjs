@@ -92,6 +92,7 @@ describe("reinstall software records", () => {
   it("defaults to Windows free software without a serial", () => {
     assert.deepEqual(emptyReinstallSoftwareForm(), {
       name: "",
+      category: "",
       system: "win",
       softwareType: "free",
       licenseType: "none",
