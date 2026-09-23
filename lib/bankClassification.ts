@@ -156,8 +156,24 @@ export type BankCategory = "bank" | "ticket" | "points";
  * Bank wins first: "玉山銀行紅利點數" is still a bank account. 票證 stays the
  * catch-all it always was.
  */
+const EXPLICIT_CATEGORIES: readonly BankCategory[] = ["bank", "ticket", "points"];
+
+function readExplicitCategory(bank: Bank): BankCategory | null {
+  const stored = (bank.category || "").trim().toLowerCase();
+  return EXPLICIT_CATEGORIES.includes(stored as BankCategory) ? (stored as BankCategory) : null;
+}
+
 export function classifyBankRecord(bank: Bank): BankCategory {
+  // A category someone actually chose beats anything guessed from the name.
+  const explicit = readExplicitCategory(bank);
+  if (explicit) return explicit;
+
   if (isTaiwanBankAccount(bank)) return "bank";
   if (isPointsAccount(bank)) return "points";
   return "ticket";
+}
+
+/** 這筆是使用者指定的，還是關鍵字推斷出來的？ */
+export function hasExplicitCategory(bank: Bank): boolean {
+  return readExplicitCategory(bank) !== null;
 }

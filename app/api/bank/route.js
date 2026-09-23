@@ -56,7 +56,8 @@ export async function POST(req) {
       activity,
       card,
       account,
-      note
+      note,
+      category
     } = body;
 
     if (!name) {
@@ -79,8 +80,10 @@ export async function POST(req) {
       account: account || null
     };
 
-    // 舊的 bank 資料表沒有 note 欄位，空值就不要送，免得整筆新增被擋下。
+    // 舊的 bank 資料表沒有 note / category 欄位，空值就不要送，
+    // 免得整筆新增被擋下。
     if (note) payload.note = note;
+    if (category) payload.category = category;
 
     const res = await databases.createDocument(
       databaseId,

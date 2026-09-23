@@ -22,7 +22,8 @@ export async function PUT(req, context) {
       activity,
       card,
       account,
-      note
+      note,
+      category
     } = body;
 
     const { searchParams } = new URL(req.url);
@@ -41,8 +42,9 @@ export async function PUT(req, context) {
     if (activity !== undefined) payload.activity = activity || null;
     if (card !== undefined) payload.card = card;
     if (account !== undefined) payload.account = account;
-    // 同上：只有真的填了備註才送這個欄位。
+    // 同上：只有真的填了才送這兩個欄位。
     if (note) payload.note = note;
+    if (category) payload.category = category;
 
     const response = await databases.updateDocument(
       databaseId,

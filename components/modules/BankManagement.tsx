@@ -45,7 +45,7 @@ import { getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
 import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
 import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
-import { classifyBankRecord, type BankCategory } from "@/lib/bankClassification";
+import { classifyBankRecord, hasExplicitCategory, type BankCategory } from "@/lib/bankClassification";
 import { BANK_CSV_HEADERS, parseBankCsv, toBankCsvRow } from "@/lib/bankCsv";
 import { INITIAL_BANK_FORM, bankToFormData } from "@/lib/bankForm";
 import {
@@ -98,7 +98,8 @@ const FIELD_HINTS = {
   activity: "優惠活動、回饋活動或相關頁面連結。",
   card: "卡片資訊，例如卡別名稱或末四碼。",
   account: "網銀帳號、登入 ID 或使用者名稱。",
-  note: "備註，例如點數的有效期限：有效期限至 2027 年 2 月 7 日。"
+  note: "備註，例如點數的有效期限：有效期限至 2027 年 2 月 7 日。",
+  category: "分類：留空會依名稱自動判斷，選了就以你選的為準。"
 } as const;
 
 /**
@@ -849,7 +850,7 @@ export default function BankManagement() {
                     <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
                       <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
                       <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200">
-                        欄位順序：{ui.namePlaceholder}、{ui.amountLabel}、網站連結、地址、跨行提款優惠次數、跨行轉帳優惠次數、活動連結、卡片資訊、帳號、備註。
+                        欄位順序：{ui.namePlaceholder}、{ui.amountLabel}、網站連結、地址、跨行提款優惠次數、跨行轉帳優惠次數、活動連結、卡片資訊、帳號、分類、備註。
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         <Input
@@ -918,6 +919,20 @@ export default function BankManagement() {
                           title={FIELD_HINTS.account}
                           className="h-9 rounded-lg text-sm"
                         />
+                        <Select
+                          value={inlineEditForm.category || "__auto__"}
+                          onValueChange={(value) => setInlineEditForm({ ...inlineEditForm, category: value === "__auto__" ? "" : value })}
+                        >
+                          <SelectTrigger className="h-9 rounded-lg text-sm" title={FIELD_HINTS.category}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__auto__">自動判斷</SelectItem>
+                            {BANK_CATEGORY_ORDER.map((key) => (
+                              <SelectItem key={key} value={key}>{BANK_CATEGORY_UI[key].tabLabel}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <Input
                           placeholder="備註（例如：有效期限至 2027 年 2 月 7 日）"
                           value={inlineEditForm.note}
@@ -965,6 +980,9 @@ export default function BankManagement() {
                             )}
                             <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ui.badgeClass}`}>
                               {ui.badge}
+                              {!hasExplicitCategory(bank) && (
+                                <span className="ml-1 opacity-60" title="依名稱自動判斷，可在編輯裡指定分類">自動</span>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -1842,6 +1860,28 @@ export default function BankManagement() {
                       </SelectContent>
                     </Select>
                   )}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">分類 / Category</label>
+                <Select
+                  value={form.category || "__auto__"}
+                  onValueChange={(value) => setForm({ ...form, category: value === "__auto__" ? "" : value })}
+                >
+                  <SelectTrigger className="h-12 rounded-xl w-full" title={FIELD_HINTS.category}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto__">自動判斷 / Auto</SelectItem>
+                    {BANK_CATEGORY_ORDER.map((key) => (
+                      <SelectItem key={key} value={key}>{BANK_CATEGORY_UI[key].tabLabel}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="px-1 h-4">
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                    {form.category ? "已指定分類 / Set explicitly" : "(選填) 依名稱自動判斷 / (Optional) inferred from the name"}
+                  </span>
                 </div>
               </div>
               <div className="space-y-1 md:col-span-2 xl:col-span-3">

@@ -1,6 +1,6 @@
 import { Bank, BankFormData } from "@/types";
 
-export const BANK_CSV_HEADERS = ["name", "deposit", "site", "address", "withdrawals", "transfer", "activity", "card", "account", "note"];
+export const BANK_CSV_HEADERS = ["name", "deposit", "site", "address", "withdrawals", "transfer", "activity", "card", "account", "note", "category"];
 
 const EXPECTED_BANK_CSV_COLUMN_COUNT = BANK_CSV_HEADERS.length;
 
@@ -25,6 +25,7 @@ export function toBankCsvRow(bank: Bank): string {
     escapeCsvValue(bank.card || ""),
     escapeCsvValue(bank.account || ""),
     escapeCsvValue(bank.note || ""),
+    escapeCsvValue(bank.category || ""),
   ].join(",");
 }
 
@@ -39,12 +40,14 @@ export function parseBankCsv(text: string): { data: BankFormData[]; errors: stri
   }
 
   const headerValues = rows[0].map((header) => header.trim());
-  if (headerValues.length !== EXPECTED_BANK_CSV_COLUMN_COUNT) {
-    errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_BANK_CSV_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
+  // 舊的備份欄位比較少（note 與 category 是後來才加的），
+  // 只要表頭是目前欄位的前綴就接受，缺的尾欄當空值。
+  if (headerValues.length > EXPECTED_BANK_CSV_COLUMN_COUNT) {
+    errors.push(`表頭欄位數量錯誤: 最多 ${EXPECTED_BANK_CSV_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
     return { data, errors };
   }
 
-  for (let i = 0; i < BANK_CSV_HEADERS.length; i++) {
+  for (let i = 0; i < headerValues.length; i++) {
     if (headerValues[i] !== BANK_CSV_HEADERS[i]) {
       errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${BANK_CSV_HEADERS[i]}"，實際 "${headerValues[i]}"`);
       if (errors.length >= 5) {
@@ -60,7 +63,7 @@ export function parseBankCsv(text: string): { data: BankFormData[]; errors: stri
     const values = rows[i];
     const lineNumber = i + 1;
 
-    if (values.length !== EXPECTED_BANK_CSV_COLUMN_COUNT) {
+    if (values.length !== headerValues.length) {
       errors.push(`第 ${lineNumber} 行: 欄位數量錯誤`);
       continue;
     }
@@ -81,6 +84,7 @@ export function parseBankCsv(text: string): { data: BankFormData[]; errors: stri
       card: values[7]?.trim() || "",
       account: values[8]?.trim() || "",
       note: values[9]?.trim() || "",
+      category: values[10]?.trim() || "",
     });
   }
 

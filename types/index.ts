@@ -424,6 +424,8 @@ export interface Bank {
   account?: string;
   /** 自由備註，點數多半用來記有效期限。 */
   note?: string;
+  /** "bank" | "ticket" | "points"；留空代表沿用關鍵字自動判斷。 */
+  category?: string;
   $createdAt: string;
   $updatedAt: string;
 }
@@ -439,6 +441,7 @@ export interface BankFormData {
   card?: string;
   account?: string;
   note?: string;
+  category?: string;
 }
 
 // 常用帳號類型
