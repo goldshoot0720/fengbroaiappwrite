@@ -413,6 +413,7 @@ export interface ApiResponse<T> {
 export interface Bank {
   $id: string;
   name: string;
+  /** 銀行／票證是金額，點數是點數；單位看分類而定。 */
   deposit?: number;
   site?: string;
   address?: string;
@@ -421,6 +422,8 @@ export interface Bank {
   activity?: string;
   card?: string;
   account?: string;
+  /** 自由備註，點數多半用來記有效期限。 */
+  note?: string;
   $createdAt: string;
   $updatedAt: string;
 }
@@ -435,6 +438,7 @@ export interface BankFormData {
   activity?: string;
   card?: string;
   account?: string;
+  note?: string;
 }
 
 // 常用帳號類型

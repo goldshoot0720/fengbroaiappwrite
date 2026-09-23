@@ -56,7 +56,7 @@ const MODULES = [
   { num: 10, name: "鋒兄音樂", category: "媒體", desc: "音樂播放、歌詞、整理摘要與媒體控制" },
   { num: 11, name: "鋒兄文件", category: "知識", desc: "文件預覽、分類、匯入匯出與技術內容整理" },
   { num: 12, name: "鋒兄播客", category: "媒體", desc: "播客播放、批次上傳與摘要式管理" },
-  { num: 13, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、電子票證、餘額與異常提醒" },
+  { num: 13, name: "鋒兄銀行", category: "財務", desc: "帳戶資料、電子票證、點數、餘額與異常提醒" },
   { num: 14, name: "鋒兄例行", category: "任務", desc: "例行事項、日期遞移與週期追蹤" },
   { num: 15, name: "鋒兄設定", category: "維運", desc: "Appwrite 設定、Table 初始化、資料統計與 system config" },
   { num: 16, name: "鋒兄關於", category: "文件", desc: "更新內容、架構說明、版本資訊與文件中心" },

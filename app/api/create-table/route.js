@@ -47,7 +47,8 @@ const TABLE_SCHEMAS = {
       { key: 'transfer', type: 'integer', required: false },
       { key: 'activity', type: 'url', required: false },
       { key: 'card', type: 'string', size: 100, required: false },
-      { key: 'account', type: 'string', size: 100, required: false }
+      { key: 'account', type: 'string', size: 100, required: false },
+      { key: 'note', type: 'string', size: 500, required: false }
     ]
   },
   article: {

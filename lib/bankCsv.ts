@@ -1,6 +1,6 @@
 import { Bank, BankFormData } from "@/types";
 
-export const BANK_CSV_HEADERS = ["name", "deposit", "site", "address", "withdrawals", "transfer", "activity", "card", "account"];
+export const BANK_CSV_HEADERS = ["name", "deposit", "site", "address", "withdrawals", "transfer", "activity", "card", "account", "note"];
 
 const EXPECTED_BANK_CSV_COLUMN_COUNT = BANK_CSV_HEADERS.length;
 
@@ -24,6 +24,7 @@ export function toBankCsvRow(bank: Bank): string {
     escapeCsvValue(bank.activity || ""),
     escapeCsvValue(bank.card || ""),
     escapeCsvValue(bank.account || ""),
+    escapeCsvValue(bank.note || ""),
   ].join(",");
 }
 
@@ -79,6 +80,7 @@ export function parseBankCsv(text: string): { data: BankFormData[]; errors: stri
       activity: values[6]?.trim() || "",
       card: values[7]?.trim() || "",
       account: values[8]?.trim() || "",
+      note: values[9]?.trim() || "",
     });
   }
 

@@ -93,11 +93,45 @@ const TAIWAN_BANK_DOMAINS = [
   "linebank.com.tw",
 ];
 
-export function isTaiwanBankAccount(bank: Bank): boolean {
-  const haystack = [bank.name, bank.site, bank.card, bank.account, bank.address]
+/**
+ * Loyalty points are counted in 點, not money, so they cannot sit in the same
+ * total as a bank balance. Matching is deliberately narrow — bare "點" would
+ * catch names like "全家點餐" — and a record is only treated as points when it
+ * is not already a bank.
+ */
+const POINTS_KEYWORDS = [
+  "點數",
+  "紅利",
+  "哩程",
+  "里程",
+  "積點",
+  "積分",
+  "點回饋",
+  "line points",
+  "line point",
+  "linepoints",
+  "line pay point",
+  "linepay point",
+  "openpoint",
+  "open point",
+  "happy go",
+  "happygo",
+  "亞洲萬里通",
+  "asia miles",
+  "ubear point",
+  "全聯福利點",
+  "熊贊",
+];
+
+function haystackOf(bank: Bank): string {
+  return [bank.name, bank.site, bank.card, bank.account, bank.address, bank.note]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+}
+
+export function isTaiwanBankAccount(bank: Bank): boolean {
+  const haystack = haystackOf(bank);
 
   if (!haystack.trim()) return false;
 
@@ -105,4 +139,25 @@ export function isTaiwanBankAccount(bank: Bank): boolean {
     TAIWAN_BANK_KEYWORDS.some((keyword) => haystack.includes(keyword.toLowerCase())) ||
     TAIWAN_BANK_DOMAINS.some((domain) => haystack.includes(domain))
   );
+}
+
+export function isPointsAccount(bank: Bank): boolean {
+  const haystack = haystackOf(bank);
+  if (!haystack.trim()) return false;
+  return POINTS_KEYWORDS.some((keyword) => haystack.includes(keyword));
+}
+
+export type BankCategory = "bank" | "ticket" | "points";
+
+/**
+ * The one place that decides which section a record belongs to, so the three
+ * buckets stay mutually exclusive and nothing is counted twice.
+ *
+ * Bank wins first: "玉山銀行紅利點數" is still a bank account. 票證 stays the
+ * catch-all it always was.
+ */
+export function classifyBankRecord(bank: Bank): BankCategory {
+  if (isTaiwanBankAccount(bank)) return "bank";
+  if (isPointsAccount(bank)) return "points";
+  return "ticket";
 }

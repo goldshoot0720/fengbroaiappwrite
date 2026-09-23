@@ -21,7 +21,8 @@ export async function PUT(req, context) {
       transfer,
       activity,
       card,
-      account
+      account,
+      note
     } = body;
 
     const { searchParams } = new URL(req.url);
@@ -40,6 +41,7 @@ export async function PUT(req, context) {
     if (activity !== undefined) payload.activity = activity || null;
     if (card !== undefined) payload.card = card;
     if (account !== undefined) payload.account = account;
+    if (note !== undefined) payload.note = note;
 
     const response = await databases.updateDocument(
       databaseId,

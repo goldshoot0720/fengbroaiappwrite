@@ -10,6 +10,7 @@ export const INITIAL_BANK_FORM: BankFormData = {
   activity: "",
   card: "",
   account: "",
+  note: "",
 };
 
 export function bankToFormData(bank: Bank, overrides: Partial<BankFormData> = {}): BankFormData {
@@ -23,6 +24,7 @@ export function bankToFormData(bank: Bank, overrides: Partial<BankFormData> = {}
     activity: bank.activity || "",
     card: bank.card || "",
     account: bank.account || "",
+    note: bank.note || "",
     ...overrides,
   };
 }

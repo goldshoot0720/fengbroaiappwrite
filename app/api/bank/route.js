@@ -55,7 +55,8 @@ export async function POST(req) {
       transfer,
       activity,
       card,
-      account
+      account,
+      note
     } = body;
 
     if (!name) {
@@ -75,7 +76,8 @@ export async function POST(req) {
       transfer: transfer ? parseInt(transfer, 10) : 0,
       activity: activity || null,
       card: card || null,
-      account: account || null
+      account: account || null,
+      note: note || null
     };
 
     const res = await databases.createDocument(
