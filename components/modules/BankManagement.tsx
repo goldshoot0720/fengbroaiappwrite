@@ -25,10 +25,12 @@ import {
   X,
   Trash2,
   Edit2,
+  CalendarClock,
   AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
 import { DataCard, DataCardList, DataCardItem } from "@/components/ui/data-card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -47,7 +49,7 @@ import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
 import { classifyBankRecord, hasExplicitCategory, type BankCategory } from "@/lib/bankClassification";
 import { BANK_CSV_HEADERS, parseBankCsv, toBankCsvRow } from "@/lib/bankCsv";
-import { INITIAL_BANK_FORM, bankToFormData } from "@/lib/bankForm";
+import { INITIAL_BANK_FORM, bankToFormData, toDateInputValue } from "@/lib/bankForm";
 import {
   BankBulkAmountAction,
   BankBulkAmountMode,
@@ -98,7 +100,8 @@ const FIELD_HINTS = {
   activity: "優惠活動、回饋活動或相關頁面連結。",
   card: "卡片資訊，例如卡別名稱或末四碼。",
   account: "網銀帳號、登入 ID 或使用者名稱。",
-  note: "備註，例如點數的有效期限：有效期限至 2027 年 2 月 7 日。",
+  note: "備註，可以換行寫多行。",
+  expiry: "有效期限，日期格式 YYYY-MM-DD。",
   category: "分類：留空會依名稱自動判斷，選了就以你選的為準。"
 } as const;
 
@@ -850,7 +853,7 @@ export default function BankManagement() {
                     <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
                       <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
                       <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200">
-                        欄位順序：{ui.namePlaceholder}、{ui.amountLabel}、網站連結、地址、跨行提款優惠次數、跨行轉帳優惠次數、活動連結、卡片資訊、帳號、分類、備註。
+                        欄位順序：{ui.namePlaceholder}、{ui.amountLabel}、網站連結、地址、跨行提款優惠次數、跨行轉帳優惠次數、活動連結、卡片資訊、帳號、分類、有效期限、備註。
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         <Input
@@ -934,11 +937,19 @@ export default function BankManagement() {
                           </SelectContent>
                         </Select>
                         <Input
-                          placeholder="備註（例如：有效期限至 2027 年 2 月 7 日）"
+                          type="date"
+                          value={inlineEditForm.expiry || ""}
+                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, expiry: e.target.value })}
+                          title={FIELD_HINTS.expiry}
+                          className="h-9 rounded-lg text-sm"
+                        />
+                        <Textarea
+                          placeholder="備註（可換行寫多行）"
                           value={inlineEditForm.note}
                           onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
                           title={FIELD_HINTS.note}
-                          className="h-9 rounded-lg text-sm md:col-span-2 xl:col-span-3"
+                          rows={3}
+                          className="rounded-lg text-sm md:col-span-2 xl:col-span-3"
                         />
                       </div>
                       <div className="flex gap-2">
@@ -1033,10 +1044,16 @@ export default function BankManagement() {
                             <span>{bank.account}</span>
                           </div>
                         )}
-                        {bank.note && (
+                        {bank.expiry && (
                           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                            <StickyNote size={16} className="text-gray-400" />
-                            <span className="truncate" title={bank.note}>{bank.note}</span>
+                            <CalendarClock size={16} className="text-gray-400" />
+                            <span>有效期限：{toDateInputValue(bank.expiry)}</span>
+                          </div>
+                        )}
+                        {bank.note && (
+                          <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <StickyNote size={16} className="text-gray-400 mt-0.5 shrink-0" />
+                            <span className="whitespace-pre-wrap break-words" title={bank.note}>{bank.note}</span>
                           </div>
                         )}
                         {(Number(bank.withdrawals) > 0 || Number(bank.transfer) > 0) && (
@@ -1653,7 +1670,7 @@ export default function BankManagement() {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium">存款金額 / Deposit Amount</label>
+                <label className="text-sm font-medium">存款金額(或票證或點數) / Deposit Amount</label>
                 <div className="flex gap-1 items-center">
                   <Input type="number" placeholder="0" value={form.deposit || ""} onChange={(e) => setForm({ ...form, deposit: parseInt(e.target.value) || 0 })} title={FIELD_HINTS.deposit} className="h-12 rounded-xl flex-1" />
                   {(form.deposit || 0) > 0 && (
@@ -1884,20 +1901,38 @@ export default function BankManagement() {
                   </span>
                 </div>
               </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">有效期限 / Expiry Date</label>
+                <Input
+                  type="date"
+                  value={form.expiry || ""}
+                  onChange={(e) => setForm({ ...form, expiry: e.target.value })}
+                  title={FIELD_HINTS.expiry}
+                  className="h-12 rounded-xl w-full"
+                />
+                <div className="px-1 h-4">
+                  {form.expiry ? (
+                    <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 點數／票證到期日 / (Optional) points or ticket expiry</span>
+                  )}
+                </div>
+              </div>
               <div className="space-y-1 md:col-span-2 xl:col-span-3">
                 <label className="text-sm font-medium">備註 / Note</label>
-                <Input
-                  placeholder="例如：有效期限至 2027 年 2 月 7 日 / e.g. valid until 2027-02-07"
+                <Textarea
+                  placeholder="可換行寫多行 / Multiple lines are fine"
                   value={form.note}
                   onChange={(e) => setForm({ ...form, note: e.target.value })}
                   title={FIELD_HINTS.note}
-                  className="h-12 rounded-xl w-full"
+                  rows={4}
+                  className="rounded-xl w-full"
                 />
                 <div className="px-1 h-4">
                   {form.note ? (
                     <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
                   ) : (
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 點數常用來記有效期限 / (Optional) often the points expiry date</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 可按 Enter 換行 / (Optional) press Enter for a new line</span>
                   )}
                 </div>
               </div>

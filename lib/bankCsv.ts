@@ -1,6 +1,7 @@
 import { Bank, BankFormData } from "@/types";
+import { toDateInputValue } from "@/lib/bankForm";
 
-export const BANK_CSV_HEADERS = ["name", "deposit", "site", "address", "withdrawals", "transfer", "activity", "card", "account", "note", "category"];
+export const BANK_CSV_HEADERS = ["name", "deposit", "site", "address", "withdrawals", "transfer", "activity", "card", "account", "note", "category", "expiry"];
 
 const EXPECTED_BANK_CSV_COLUMN_COUNT = BANK_CSV_HEADERS.length;
 
@@ -26,6 +27,7 @@ export function toBankCsvRow(bank: Bank): string {
     escapeCsvValue(bank.account || ""),
     escapeCsvValue(bank.note || ""),
     escapeCsvValue(bank.category || ""),
+    escapeCsvValue(toDateInputValue(bank.expiry)),
   ].join(",");
 }
 
@@ -40,7 +42,7 @@ export function parseBankCsv(text: string): { data: BankFormData[]; errors: stri
   }
 
   const headerValues = rows[0].map((header) => header.trim());
-  // 舊的備份欄位比較少（note 與 category 是後來才加的），
+  // 舊的備份欄位比較少（note、category、expiry 是後來才加的），
   // 只要表頭是目前欄位的前綴就接受，缺的尾欄當空值。
   if (headerValues.length > EXPECTED_BANK_CSV_COLUMN_COUNT) {
     errors.push(`表頭欄位數量錯誤: 最多 ${EXPECTED_BANK_CSV_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
@@ -85,6 +87,7 @@ export function parseBankCsv(text: string): { data: BankFormData[]; errors: stri
       account: values[8]?.trim() || "",
       note: values[9]?.trim() || "",
       category: values[10]?.trim() || "",
+      expiry: values[11]?.trim() || "",
     });
   }
 

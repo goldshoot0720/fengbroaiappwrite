@@ -426,6 +426,8 @@ export interface Bank {
   note?: string;
   /** "bank" | "ticket" | "points"；留空代表沿用關鍵字自動判斷。 */
   category?: string;
+  /** 有效期限，Appwrite 存 datetime，表單用 YYYY-MM-DD。 */
+  expiry?: string;
   $createdAt: string;
   $updatedAt: string;
 }
@@ -442,6 +444,7 @@ export interface BankFormData {
   account?: string;
   note?: string;
   category?: string;
+  expiry?: string;
 }
 
 // 常用帳號類型

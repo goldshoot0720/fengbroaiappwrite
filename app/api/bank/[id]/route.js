@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { createAppwrite, getCollectionId } from "../../_lib/appwriteClient";
 
 
+// 表單送來的是 YYYY-MM-DD，Appwrite datetime 也吃得下；
+// 若帶了時間就正規化成 ISO。無法解析的字串回傳 null，讓呼叫端擋下來。
+function toAppwriteDate(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return String(value).includes("T") ? parsed.toISOString() : String(value);
+}
+
 // PUT /api/bank/[id]
 export async function PUT(req, context) {
   try {
@@ -23,7 +32,8 @@ export async function PUT(req, context) {
       card,
       account,
       note,
-      category
+      category,
+      expiry
     } = body;
 
     const { searchParams } = new URL(req.url);
@@ -42,9 +52,15 @@ export async function PUT(req, context) {
     if (activity !== undefined) payload.activity = activity || null;
     if (card !== undefined) payload.card = card;
     if (account !== undefined) payload.account = account;
-    // 同上：只有真的填了才送這兩個欄位。
+    // 同上：只有真的填了才送這幾個欄位。
     if (note) payload.note = note;
     if (category) payload.category = category;
+
+    const formattedExpiry = toAppwriteDate(expiry);
+    if (formattedExpiry === null) {
+      return NextResponse.json({ error: `Invalid date format: ${expiry}` }, { status: 400 });
+    }
+    if (formattedExpiry) payload.expiry = formattedExpiry;
 
     const response = await databases.updateDocument(
       databaseId,

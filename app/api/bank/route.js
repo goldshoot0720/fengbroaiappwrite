@@ -41,6 +41,15 @@ export async function GET(request) {
 }
 
 // 新增銀行資料
+// 表單送來的是 YYYY-MM-DD，Appwrite datetime 也吃得下；
+// 若帶了時間就正規化成 ISO。無法解析的字串回傳 null，讓呼叫端擋下來。
+function toAppwriteDate(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return String(value).includes("T") ? parsed.toISOString() : String(value);
+}
+
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -57,7 +66,8 @@ export async function POST(req) {
       card,
       account,
       note,
-      category
+      category,
+      expiry
     } = body;
 
     if (!name) {
@@ -80,10 +90,16 @@ export async function POST(req) {
       account: account || null
     };
 
-    // 舊的 bank 資料表沒有 note / category 欄位，空值就不要送，
+    // 舊的 bank 資料表沒有 note / category / expiry 欄位，空值就不要送，
     // 免得整筆新增被擋下。
     if (note) payload.note = note;
     if (category) payload.category = category;
+
+    const formattedExpiry = toAppwriteDate(expiry);
+    if (formattedExpiry === null) {
+      return NextResponse.json({ error: `Invalid date format: ${expiry}` }, { status: 400 });
+    }
+    if (formattedExpiry) payload.expiry = formattedExpiry;
 
     const res = await databases.createDocument(
       databaseId,
