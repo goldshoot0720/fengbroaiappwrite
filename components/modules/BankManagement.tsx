@@ -1053,7 +1053,7 @@ export default function BankManagement() {
                         {bank.note && (
                           <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
                             <StickyNote size={16} className="text-gray-400 mt-0.5 shrink-0" />
-                            <span className="whitespace-pre-wrap break-words" title={bank.note}>{bank.note}</span>
+                            <span className="whitespace-pre-wrap break-words" title={bank.note}>備註：{bank.note}</span>
                           </div>
                         )}
                         {(Number(bank.withdrawals) > 0 || Number(bank.transfer) > 0) && (
