@@ -1,7 +1,7 @@
 {
   "snapshotDate": "2026-09-23",
   "totalFiles": 393,
-  "totalLines": 119062,
+  "totalLines": 119065,
   "scope": "core-source",
   "sourceDirs": [
     "app",
@@ -26,7 +26,7 @@
     {
       "label": "JavaScript",
       "files": 93,
-      "lines": 11760
+      "lines": 11763
     },
     {
       "label": "ES Module",

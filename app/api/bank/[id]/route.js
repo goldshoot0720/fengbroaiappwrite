@@ -41,7 +41,8 @@ export async function PUT(req, context) {
     if (activity !== undefined) payload.activity = activity || null;
     if (card !== undefined) payload.card = card;
     if (account !== undefined) payload.account = account;
-    if (note !== undefined) payload.note = note;
+    // 同上：只有真的填了備註才送這個欄位。
+    if (note) payload.note = note;
 
     const response = await databases.updateDocument(
       databaseId,

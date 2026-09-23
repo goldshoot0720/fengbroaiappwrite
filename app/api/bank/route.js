@@ -76,9 +76,11 @@ export async function POST(req) {
       transfer: transfer ? parseInt(transfer, 10) : 0,
       activity: activity || null,
       card: card || null,
-      account: account || null,
-      note: note || null
+      account: account || null
     };
+
+    // 舊的 bank 資料表沒有 note 欄位，空值就不要送，免得整筆新增被擋下。
+    if (note) payload.note = note;
 
     const res = await databases.createDocument(
       databaseId,
