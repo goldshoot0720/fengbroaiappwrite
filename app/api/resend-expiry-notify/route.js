@@ -41,7 +41,8 @@ function buildEmail({ subscriptions, foods, banks, todayKey }) {
   });
   const foodLines = foods.map((item) => `- ${item.name}：${formatDate(item.todate)} 到期`);
   const bankLines = banks.map((item) => {
-    const parts = [`- ${item.name}：${formatDate(item.expiry)} 到期`];
+    const parts = [`- ${item.name}`];
+    parts.push(`  有效期限：${formatDate(item.expiry)}`);
     if (item.deposit != null) parts.push(`  金額／點數：${item.deposit}`);
     if (item.account) parts.push(`  帳號：${item.account}`);
     if (item.note) parts.push(`  備註：${item.note}`);
@@ -114,18 +115,30 @@ function buildEmail({ subscriptions, foods, banks, todayKey }) {
         banks.length
           ? `
         <h3 style="margin:20px 0 8px">銀行票證點數：到期前一周</h3>
-        <ul>${banks
-          .map((item) => {
-            const extras = [
-              item.deposit != null ? `金額／點數 ${item.deposit}` : "",
-              item.account ? `帳號 ${item.account}` : "",
-              item.note ? `備註 ${item.note}` : "",
-            ].filter(Boolean);
-            return `<li><strong>${item.name}</strong>：${formatDate(item.expiry)} 到期${
-              extras.length ? `<br><span style="color:#64748b;white-space:pre-wrap">${extras.join("｜")}</span>` : ""
-            }</li>`;
-          })
-          .join("")}</ul>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">
+          <thead>
+            <tr style="background:#f1f5f9;text-align:left">
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">名稱</th>
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">帳號</th>
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">金額／點數</th>
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">有效期限</th>
+              <th style="padding:8px 12px;border-bottom:2px solid #e2e8f0">備註</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${banks
+              .map(
+                (item) => `<tr style="border-bottom:1px solid #e2e8f0">
+                <td style="padding:8px 12px;font-weight:600">${item.name}</td>
+                <td style="padding:8px 12px;color:#64748b">${item.account || "-"}</td>
+                <td style="padding:8px 12px">${item.deposit ?? "-"}</td>
+                <td style="padding:8px 12px">${formatDate(item.expiry)}</td>
+                <td style="padding:8px 12px;color:#64748b;max-width:200px;white-space:pre-wrap">${item.note || "-"}</td>
+              </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>
       `
           : ""
       }

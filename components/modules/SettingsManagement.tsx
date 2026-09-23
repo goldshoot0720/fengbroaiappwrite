@@ -433,8 +433,8 @@ export default function SettingsManagement() {
       if (!response.ok || result.error) throw new Error(result.error || 'Resend 檢查失敗');
       alert(
         result.sent
-          ? `✅ 今天應寄發的都已確認送達（訂閱 ${result.subscriptions}、食品 ${result.foods}）。若今天自動檢查已寄過，Resend 會自動回傳原結果不重寄；若還沒寄到，這次就是補寄。`
-          : '✅ 檢查完成：今天沒有剛好到期的項目（訂閱剛好前 1 天／食品剛好前 7 天），不需要寄信。'
+          ? `✅ 今天應寄發的都已確認送達（訂閱 ${result.subscriptions}、食品 ${result.foods}、銀行 ${result.banks ?? 0}）。若今天自動檢查已寄過，Resend 會自動回傳原結果不重寄；若還沒寄到，這次就是補寄。`
+          : '✅ 檢查完成：今天沒有剛好到期的項目（訂閱剛好前 1 天／食品剛好前 7 天／銀行有效期限剛好前 7 天），不需要寄信。'
       );
     } catch (error) {
       alert(`❌ Resend 檢查/補寄失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
