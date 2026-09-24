@@ -1,13 +1,47 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Subscription, SubscriptionFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus, convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey } from "@/hooks/useRefreshKey";
+import { createWriteTracker, patchItem, removeItem, replaceItem, restoreItem, upsertItem } from "@/lib/optimisticList";
+
+const SUBSCRIPTION_REFRESH_KEY = "subscription_refresh_key";
+
+/** 按處理優先級排序：已過期 -> 7天內 -> 本月 -> 之後 -> 無日期 */
+function sortSubscriptions(list: Subscription[]): Subscription[] {
+  const bucket = (sub: Subscription, days: number) => {
+    if (!sub.nextdate) return 4;
+    if (days < 0) return 0;
+    if (days <= 7) return 1;
+    if (days <= 31) return 2;
+    return 3;
+  };
+  return list.sort((a, b) => {
+    const hasA = !!a.nextdate;
+    const hasB = !!b.nextdate;
+    const daysA = hasA ? getDaysFromToday(a.nextdate!) : Number.POSITIVE_INFINITY;
+    const daysB = hasB ? getDaysFromToday(b.nextdate!) : Number.POSITIVE_INFINITY;
+    const bucketA = bucket(a, daysA);
+    const bucketB = bucket(b, daysB);
+    if (bucketA !== bucketB) return bucketA - bucketB;
+    if (!hasA && !hasB) return a.name.localeCompare(b.name);
+    if (!hasA) return 1;
+    if (!hasB) return -1;
+    return new Date(a.nextdate!).getTime() - new Date(b.nextdate!).getTime();
+  });
+}
 
 export function useSubscriptions() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tracker = useRef(createWriteTracker()).current;
+
+  /** 本地清單更新後維持排序；寫入不再整張表重抓。 */
+  const commit = useCallback((updater: (prev: Subscription[]) => Subscription[]) => {
+    setSubscriptions((prev) => sortSubscriptions(updater(prev)));
+  }, []);
 
   // 載入訂閱資料（不使用快取）
   const loadSubscriptions = useCallback(async (silent = false) => {
@@ -17,31 +51,7 @@ export function useSubscriptions() {
     setError(null);
     try {
       const resData = await fetchApi<Subscription[]>(`${API_ENDPOINTS.SUBSCRIPTION}?t=${Date.now()}`);
-      let data: Subscription[] = Array.isArray(resData) ? resData : [];
-      // 按處理優先級排序：已過期 -> 7天內 -> 本月 -> 之後 -> 無日期
-      data = data.sort((a, b) => {
-        const hasA = !!a.nextdate;
-        const hasB = !!b.nextdate;
-        const daysA = hasA ? getDaysFromToday(a.nextdate!) : Number.POSITIVE_INFINITY;
-        const daysB = hasB ? getDaysFromToday(b.nextdate!) : Number.POSITIVE_INFINITY;
-
-        const bucket = (sub: Subscription, days: number) => {
-          if (!sub.nextdate) return 4;
-          if (days < 0) return 0;
-          if (days <= 7) return 1;
-          if (days <= 31) return 2;
-          return 3;
-        };
-
-        const bucketA = bucket(a, daysA);
-        const bucketB = bucket(b, daysB);
-        if (bucketA !== bucketB) return bucketA - bucketB;
-        if (!hasA && !hasB) return a.name.localeCompare(b.name);
-        if (!hasA) return 1;
-        if (!hasB) return -1;
-        return new Date(a.nextdate!).getTime() - new Date(b.nextdate!).getTime();
-      });
-      
+      const data = sortSubscriptions(Array.isArray(resData) ? resData : []);
       setSubscriptions(data);
       return data;
     } catch (err) {
@@ -56,7 +66,7 @@ export function useSubscriptions() {
     }
   }, []);
 
-  // 新增訂閱
+  // 新增訂閱：需要伺服器配發的 $id，回應後直接插入本地清單。
   const createSubscription = useCallback(async (formData: SubscriptionFormData): Promise<Subscription | null> => {
     try {
       const newSub = await fetchApi<Subscription>(API_ENDPOINTS.SUBSCRIPTION, {
@@ -64,14 +74,14 @@ export function useSubscriptions() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
-      // 重新載入以確保資料同步
-      await loadSubscriptions(true);
+      commit((prev) => upsertItem(prev, newSub));
+      bumpRefreshKey(SUBSCRIPTION_REFRESH_KEY);
       return newSub;
     } catch (err) {
       console.error("新增訂閱失敗:", err);
       throw err;
     }
-  }, [loadSubscriptions]);
+  }, [commit]);
 
   // 新增訂閱（不重新載入，用於批量匯入）
   const createSubscriptionSilent = useCallback(async (formData: SubscriptionFormData): Promise<Subscription | null> => {
@@ -88,22 +98,32 @@ export function useSubscriptions() {
     }
   }, []);
 
-  // 更新訂閱
+  // 更新訂閱：樂觀更新，失敗回滾。
   const updateSubscription = useCallback(async (id: string, formData: SubscriptionFormData): Promise<Subscription | null> => {
+    const token = tracker.begin(id);
+    let previous: Subscription | undefined;
+    commit((prev) => {
+      const patched = patchItem(prev, id, formData as Partial<Subscription>);
+      previous = patched.previous;
+      return patched.list;
+    });
     try {
       const updatedSub = await fetchApi<Subscription>(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
-      // 重新載入以確保資料同步
-      await loadSubscriptions(true);
+      if (tracker.isLatest(id, token)) commit((prev) => replaceItem(prev, id, updatedSub));
+      bumpRefreshKey(SUBSCRIPTION_REFRESH_KEY);
       return updatedSub;
     } catch (err) {
       console.error("更新訂閱失敗:", err);
+      if (tracker.isLatest(id, token)) commit((prev) => replaceItem(prev, id, previous));
       throw err;
+    } finally {
+      tracker.finish(id, token);
     }
-  }, [loadSubscriptions]);
+  }, [commit, tracker]);
 
   // 更新訂閱（不重新載入，用於批量匯入）
   const updateSubscriptionSilent = useCallback(async (id: string, formData: SubscriptionFormData): Promise<Subscription | null> => {
@@ -120,18 +140,26 @@ export function useSubscriptions() {
     }
   }, []);
 
-  // 刪除訂閱
+  // 刪除訂閱：樂觀移除，失敗放回原位。
   const deleteSubscription = useCallback(async (id: string): Promise<boolean> => {
+    let removed: Subscription | undefined;
+    let index = -1;
+    commit((prev) => {
+      const result = removeItem(prev, id);
+      removed = result.removed;
+      index = result.index;
+      return result.list;
+    });
     try {
       await fetchApi(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, { method: "DELETE" });
-      // 重新載入以確保資料同步
-      await loadSubscriptions(true);
+      bumpRefreshKey(SUBSCRIPTION_REFRESH_KEY);
       return true;
     } catch (err) {
       console.error("刪除訂閱失敗:", err);
+      commit((prev) => restoreItem(prev, removed, index));
       throw err;
     }
-  }, [loadSubscriptions]);
+  }, [commit]);
 
   // 初始載入
   useEffect(() => {

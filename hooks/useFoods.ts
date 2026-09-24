@@ -6,6 +6,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { createWriteTracker, patchItem, replaceItem } from "@/lib/optimisticList";
 import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 
 // 全域快取
@@ -26,6 +27,7 @@ export function useFoods() {
   const [foods, setFoods] = useState<Food[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tracker = useRef(createWriteTracker()).current;
 
   // 從localStorage 讀取上次 CRUD 的時間戳
   const getRefreshKey = () => {
@@ -126,20 +128,31 @@ export function useFoods() {
 
   // 更新食品
   const updateFood = useCallback(async (id: string, formData: FoodFormData): Promise<Food | null> => {
+    // 樂觀更新：先改畫面，伺服器回應後換成正式資料，失敗回滾。
+    const token = tracker.begin(id);
+    let previous: Food | undefined;
+    commitFoods((prev) => {
+      const patched = patchItem(prev, id, formData as Partial<Food>);
+      previous = patched.previous;
+      return patched.list;
+    });
     try {
       const updatedFood = await fetchApi<Food>(`${API_ENDPOINTS.FOOD}/${id}`, {
         method: "PUT",
         body: JSON.stringify(formData),
       });
       setRefreshKey();
-      commitFoods((prev) => prev.map((f) => (f.$id === id ? updatedFood : f)));
+      if (tracker.isLatest(id, token)) commitFoods((prev) => replaceItem(prev, id, updatedFood));
       return updatedFood;
     } catch (err) {
       console.error("更新食品失敗:", err);
       console.error("錯誤詳情:", err instanceof Error ? err.message : err);
+      if (tracker.isLatest(id, token)) commitFoods((prev) => replaceItem(prev, id, previous));
       throw err;
+    } finally {
+      tracker.finish(id, token);
     }
-  }, [commitFoods]);
+  }, [commitFoods, tracker]);
 
   // 刪除食品
   const deleteFood = useCallback(async (id: string): Promise<boolean> => {
@@ -169,6 +182,8 @@ export function useFoods() {
     if (newAmount < 0) return false;
 
     // 樂觀更新：數量加減立即反映在畫面，不等 Appwrite 回應。
+    // 連點時只讓最後一次的回應／失敗改畫面，避免舊回應把數字跳回去。
+    const token = tracker.begin(food.$id);
     commitFoods((prev) => prev.map((f) => (f.$id === food.$id ? { ...f, amount: newAmount } : f)));
 
     try {
@@ -186,14 +201,18 @@ export function useFoods() {
       });
 
       setRefreshKey();
-      commitFoods((prev) => prev.map((f) => (f.$id === food.$id ? updatedFood : f)));
+      if (tracker.isLatest(food.$id, token)) commitFoods((prev) => replaceItem(prev, food.$id, updatedFood));
       return true;
     } catch {
       // 失敗回滾到原本數量。
-      commitFoods((prev) => prev.map((f) => (f.$id === food.$id ? { ...f, amount: food.amount } : f)));
+      if (tracker.isLatest(food.$id, token)) {
+        commitFoods((prev) => prev.map((f) => (f.$id === food.$id ? { ...f, amount: food.amount } : f)));
+      }
       return false;
+    } finally {
+      tracker.finish(food.$id, token);
     }
-  }, [commitFoods]);
+  }, [commitFoods, tracker]);
 
   // 初始載入
   useEffect(() => {

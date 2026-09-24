@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchApi } from "@/hooks/useApi";
 import { APPWRITE_CONFIG_CHANGED_EVENT } from "@/hooks/useAppwriteSetup";
 import { notifyDataRefresh } from "@/hooks/useRefreshKey";
+import { createWriteTracker, patchItem, removeItem, replaceItem, restoreItem, upsertItem } from "@/lib/optimisticList";
 
 /** Map an /api/xxx base URL to the shared refresh-key name used by dashboard & module listeners. */
 function refreshKeyForBaseUrl(baseUrl: string): string | null {
@@ -62,36 +63,71 @@ export function useManagementCrud<T extends { $id: string }>(baseUrl: string) {
     };
   }, [fetchAll]);
 
+  const tracker = useRef(createWriteTracker()).current;
+
   const write = useCallback(async (method: "POST" | "PUT" | "DELETE", id?: string, data?: Partial<T>) => {
     const currentAccount = accountRevision.current;
     // A previously started read must not overwrite this successful mutation.
     revision.current += 1;
+    const sameAccount = () => mounted.current && currentAccount === accountRevision.current;
+
+    // Optimistic UI: PUT / DELETE show up before Appwrite answers and roll back on failure.
+    // POST still waits, because the row needs the server-assigned $id.
+    const token = id ? tracker.begin(id) : 0;
+    let previous: T | undefined;
+    let removed: T | undefined;
+    let removedIndex = -1;
+    if (id && method === "PUT" && data) {
+      setItems((current) => {
+        const patched = patchItem(current, id, data);
+        previous = patched.previous;
+        return patched.list;
+      });
+    } else if (id && method === "DELETE") {
+      setItems((current) => {
+        const result = removeItem(current, id);
+        removed = result.removed;
+        removedIndex = result.index;
+        return result.list;
+      });
+    }
+
     let result: T;
+    let latest = true;
     try {
       result = await fetchApi<T>(id ? `${baseUrl}/${encodeURIComponent(id)}` : baseUrl, {
         method,
         cache: "no-store",
         ...(data ? { body: JSON.stringify(data) } : {}),
       });
+      latest = !id || tracker.isLatest(id, token);
+    } catch (err) {
+      if (sameAccount() && (!id || tracker.isLatest(id, token))) {
+        setItems((current) => method === "DELETE"
+          ? restoreItem(current, removed, removedIndex)
+          : id ? replaceItem(current, id, previous) : current);
+      }
+      throw err;
     } finally {
-      if (mounted.current && currentAccount === accountRevision.current) setLoading(false);
+      if (id) tracker.finish(id, token);
+      if (sameAccount()) setLoading(false);
     }
-    if (!mounted.current || currentAccount !== accountRevision.current) {
+    if (!sameAccount()) {
       throw new Error("Appwrite 設定已切換，請在原帳戶確認剛才的操作結果。");
     }
     revision.current += 1;
     setLoading(false);
     setError(null);
-    setItems((current) => method === "DELETE"
-      ? current.filter((item) => item.$id !== id)
-      : method === "PUT"
-        ? current.map((item) => item.$id === id ? result : item)
-        : [...current, result]);
+    if (method === "POST") {
+      setItems((current) => upsertItem(current, result));
+    } else if (method === "PUT" && id && latest) {
+      setItems((current) => replaceItem(current, id, result));
+    }
     // 讓首頁統計等跨模組彙整能即時收到變更。
     const refreshKey = refreshKeyForBaseUrl(baseUrl);
     if (refreshKey) notifyDataRefresh(refreshKey);
     return result;
-  }, [baseUrl]);
+  }, [baseUrl, tracker]);
 
   return {
     items, loading, error, fetchAll, accountVersion,

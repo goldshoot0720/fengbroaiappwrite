@@ -369,17 +369,28 @@ export default function BankManagement() {
     setSelectionMode(false);
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
-    loadBanks();
+    void loadBanks(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      if (editingId) {
-        await updateBank(editingId, form);
-      } else {
-        await createBank(form);
+    if (editingId) {
+      // 樂觀更新：列表已先套用變更，表單立即關閉；失敗時列表回滾並重新打開表單。
+      const savedId = editingId;
+      const savedForm = form;
+      resetForm();
+      try {
+        await updateBank(savedId, savedForm);
+      } catch {
+        setForm(savedForm);
+        setEditingId(savedId);
+        setIsFormOpen(true);
+        alert("更新失敗，已還原，請稍後再試");
       }
+      return;
+    }
+    try {
+      await createBank(form);
       resetForm();
     } catch {
       alert("操作失敗，請稍後再試");
@@ -470,7 +481,7 @@ export default function BankManagement() {
           })
         )
       );
-      await loadBanks();
+      await loadBanks(true);
       resetBulkAmountForm();
     } catch {
       setBulkAmountSaving(false);
@@ -496,14 +507,14 @@ export default function BankManagement() {
       ? currentDeposit + transactionAmountNumber
       : currentDeposit - transactionAmountNumber;
 
-    setTransactionSaving(true);
-
+    // 樂觀更新：金額立即反映在列表，視窗直接關閉；失敗時金額回滾並提示。
+    const bankName = selectedTransactionBank.name;
+    const pending = updateBank(selectedTransactionBank.$id, bankToFormData(selectedTransactionBank, { deposit: nextDeposit }));
+    resetTransactionForm();
     try {
-      await updateBank(selectedTransactionBank.$id, bankToFormData(selectedTransactionBank, { deposit: nextDeposit }));
-      resetTransactionForm();
+      await pending;
     } catch {
-      setTransactionSaving(false);
-      alert("更新銀行金額失敗，請稍後再試");
+      alert(`更新「${bankName}」金額失敗，已還原，請稍後再試`);
     }
   };
 
@@ -531,13 +542,17 @@ export default function BankManagement() {
   // 儲存行內編輯
   const handleInlineSave = async (bankId: string) => {
     if (!inlineEditingId) return;
+    // 樂觀更新：先收起行內編輯，失敗時回滾並重新打開原本的草稿。
+    const savedForm = inlineEditForm;
+    setInlineEditingId(null);
+    setInlineEditForm(INITIAL_BANK_FORM);
     try {
-      await updateBank(bankId, inlineEditForm);
-      setInlineEditingId(null);
-      setInlineEditForm(INITIAL_BANK_FORM);
+      await updateBank(bankId, savedForm);
     } catch (error) {
       console.error('Inline edit failed:', error);
-      alert('更新失敗，請稍後再試');
+      setInlineEditingId(bankId);
+      setInlineEditForm(savedForm);
+      alert('更新失敗，已還原，請稍後再試');
     }
   };
 
@@ -638,8 +653,8 @@ export default function BankManagement() {
     setImporting(false);
     setImportProgress({ current: 0, total: 0 });
     setImportPreview(null);
-    // 匯入完成後才重新載入一次
-    await loadBanks();
+    // 匯入完成後才重新載入一次（背景更新，不閃載入畫面）
+    await loadBanks(true);
     alert(`匯入完成！\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
   };
 

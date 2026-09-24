@@ -5,6 +5,7 @@ import { Article, ArticleFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
+import { createWriteTracker, patchItem, removeItem, replaceItem, restoreItem } from "@/lib/optimisticList";
 import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 
 // 全域快取
@@ -15,6 +16,7 @@ export function useArticles() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tracker = useRef(createWriteTracker()).current;
 
   const getRefreshKey = () => {
     if (typeof window === 'undefined') return '';
@@ -137,6 +139,8 @@ export function useArticles() {
 
   // 更新文章
   const updateArticle = useCallback(async (id: string, formData: ArticleFormData): Promise<Article | null> => {
+    const token = tracker.begin(id);
+    let previous: Article | undefined;
     try {
       // 轉換日期格式為 ISO datetime
       const dateTime = new Date(formData.newDate).toISOString();
@@ -166,6 +170,13 @@ export function useArticles() {
       if (formData.file3name && formData.file3name.trim()) dataToSend.file3name = formData.file3name;
       if (formData.file3type && formData.file3type.trim()) dataToSend.file3type = formData.file3type;
 
+      // 樂觀更新：先改畫面，伺服器回應後換成正式資料，失敗回滾。
+      commitArticles((prev) => {
+        const patched = patchItem(prev, id, dataToSend as Partial<Article>);
+        previous = patched.previous;
+        return patched.list;
+      });
+
       const res = await fetchApi<Article>(`${API_ENDPOINTS.ARTICLE}/${id}`, {
         method: "PUT",
         body: JSON.stringify(dataToSend),
@@ -173,24 +184,35 @@ export function useArticles() {
 
       const updatedArticle: Article = res;
       setRefreshKey();
-      commitArticles((prev) => prev.map((a) => (a.$id === id ? updatedArticle : a)));
+      if (tracker.isLatest(id, token)) commitArticles((prev) => replaceItem(prev, id, updatedArticle));
       return updatedArticle;
     } catch (err) {
       console.error("更新文章失敗:", err);
+      if (tracker.isLatest(id, token)) commitArticles((prev) => replaceItem(prev, id, previous));
       throw err;
+    } finally {
+      tracker.finish(id, token);
     }
-  }, [commitArticles]);
+  }, [commitArticles, tracker]);
 
   // 刪除文章
   const deleteArticle = useCallback(async (id: string): Promise<boolean> => {
+    // 樂觀刪除：先從畫面移除，失敗再放回去。
+    let removed: Article | undefined;
+    let index = -1;
+    commitArticles((prev) => {
+      const result = removeItem(prev, id);
+      removed = result.removed;
+      index = result.index;
+      return result.list;
+    });
     try {
       await fetchApi(`${API_ENDPOINTS.ARTICLE}/${id}`, { method: "DELETE" });
-
       setRefreshKey();
-      commitArticles((prev) => prev.filter((a) => a.$id !== id));
       return true;
     } catch (err) {
       console.error("刪除文章失敗:", err);
+      commitArticles((prev) => restoreItem(prev, removed, index));
       throw err;
     }
   }, [commitArticles]);

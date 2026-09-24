@@ -6,6 +6,7 @@ import { APPWRITE_CONFIG_CHANGED_EVENT } from "@/hooks/useAppwriteSetup";
 import { bumpRefreshKey, useRefreshKeyListener } from "@/hooks/useRefreshKey";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getDaysFromToday, getExpiryStatus } from "@/lib/formatters";
+import { createWriteTracker, patchItem, removeItem, replaceItem, restoreItem, upsertItem } from "@/lib/optimisticList";
 import { readEndpointCache, writeEndpointCache } from "@/lib/requestCache";
 import type { ShoppingItem } from "@/types";
 
@@ -81,32 +82,73 @@ export function useShoppingList() {
     };
   }, [fetchAll]);
 
+  const tracker = useRef(createWriteTracker()).current;
+
+  /** 更新清單並同步 session 快取，讓下次開啟直接上畫。 */
+  const commit = useCallback((updater: (current: ShoppingItem[]) => ShoppingItem[]) => {
+    setItems((current) => {
+      const sorted = sortByPlannedDate(updater(current));
+      writeEndpointCache(API_ENDPOINTS.SHOPPING_LIST, sorted);
+      return sorted;
+    });
+  }, []);
+
   const write = useCallback(async (
     method: "POST" | "PUT" | "DELETE",
     id?: string,
     data?: Partial<ShoppingItem>,
   ): Promise<ShoppingItem> => {
     revision.current += 1;
-    const result = await fetchApi<ShoppingItem>(
-      id ? `${API_ENDPOINTS.SHOPPING_LIST}/${encodeURIComponent(id)}` : API_ENDPOINTS.SHOPPING_LIST,
-      {
-        method,
-        cache: "no-store",
-        ...(data ? { body: JSON.stringify(data) } : {}),
-      },
-    );
+
+    // Optimistic UI：修改／刪除先反映在畫面，失敗再回滾；新增需要伺服器配發的 $id。
+    const token = id ? tracker.begin(id) : 0;
+    let previous: ShoppingItem | undefined;
+    let removed: ShoppingItem | undefined;
+    let removedIndex = -1;
+    if (id && method === "PUT" && data) {
+      commit((current) => {
+        const patched = patchItem(current, id, data);
+        previous = patched.previous;
+        return patched.list;
+      });
+    } else if (id && method === "DELETE") {
+      commit((current) => {
+        const result = removeItem(current, id);
+        removed = result.removed;
+        removedIndex = result.index;
+        return result.list;
+      });
+    }
+
+    let result: ShoppingItem;
+    let latest = true;
+    try {
+      result = await fetchApi<ShoppingItem>(
+        id ? `${API_ENDPOINTS.SHOPPING_LIST}/${encodeURIComponent(id)}` : API_ENDPOINTS.SHOPPING_LIST,
+        {
+          method,
+          cache: "no-store",
+          ...(data ? { body: JSON.stringify(data) } : {}),
+        },
+      );
+      latest = !id || tracker.isLatest(id, token);
+    } catch (err) {
+      if (mounted.current && (!id || tracker.isLatest(id, token))) {
+        commit((current) => method === "DELETE"
+          ? restoreItem(current, removed, removedIndex)
+          : id ? replaceItem(current, id, previous) : current);
+      }
+      throw err;
+    } finally {
+      if (id) tracker.finish(id, token);
+    }
     revision.current += 1;
     setError(null);
-    setItems((current) => {
-      const next = method === "DELETE"
-        ? current.filter((item) => item.$id !== id)
-        : method === "PUT"
-          ? current.map((item) => (item.$id === id ? result : item))
-          : [...current, result];
-      const sorted = sortByPlannedDate(next);
-      writeEndpointCache(API_ENDPOINTS.SHOPPING_LIST, sorted);
-      return sorted;
-    });
+    if (method === "POST") {
+      commit((current) => upsertItem(current, result));
+    } else if (method === "PUT" && id && latest) {
+      commit((current) => replaceItem(current, id, result));
+    }
     selfBump.current = true;
     try {
       bumpRefreshKey(SHOPPING_LIST_REFRESH_KEY);
@@ -114,7 +156,7 @@ export function useShoppingList() {
       selfBump.current = false;
     }
     return result;
-  }, []);
+  }, [commit, tracker]);
 
   const handleExternalRefresh = useCallback(() => {
     if (selfBump.current) return;

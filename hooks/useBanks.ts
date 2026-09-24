@@ -1,18 +1,33 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Bank, BankFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
+import { bumpRefreshKey } from "@/hooks/useRefreshKey";
+import { createWriteTracker, patchItem, removeItem, replaceItem, restoreItem, upsertItem } from "@/lib/optimisticList";
+
+const BANK_REFRESH_KEY = "bank_refresh_key";
+
+/** 按存款金額由高至低排序 */
+function sortBanks(list: Bank[]): Bank[] {
+  return list.sort((a, b) => (b.deposit || 0) - (a.deposit || 0));
+}
 
 export function useBanks() {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tracker = useRef(createWriteTracker()).current;
 
-  // 載入銀行資料（不使用快取）
-  const loadBanks = useCallback(async () => {
-    setLoading(true);
+  /** 本地清單更新後維持排序；寫入不再整張表重抓。 */
+  const commit = useCallback((updater: (prev: Bank[]) => Bank[]) => {
+    setBanks((prev) => sortBanks(updater(prev)));
+  }, []);
+
+  // 載入銀行資料（不使用快取）；silent 時保留目前畫面，不閃載入狀態。
+  const loadBanks = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       // 檢查 Appwrite 配置是否存在
@@ -27,10 +42,7 @@ export function useBanks() {
       }
       
       const resData = await fetchApi<Bank[]>(`/api/bank?t=${Date.now()}`);
-      let data: Bank[] = Array.isArray(resData) ? resData : [];
-      // 按存款金額由高至低排序
-      data = data.sort((a, b) => (b.deposit || 0) - (a.deposit || 0));
-      
+      const data = sortBanks(Array.isArray(resData) ? resData : []);
       setBanks(data);
       return data;
     } catch (err) {
@@ -39,7 +51,7 @@ export function useBanks() {
       console.error("載入銀行資料失敗:", err);
       return [];
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -59,17 +71,20 @@ export function useBanks() {
         method: "POST",
         body: JSON.stringify(sanitizedData),
       });
-      // 重新載入以確保資料同步
-      await loadBanks();
+      // 伺服器回傳即完整資料，直接插入本地清單。
+      commit((prev) => upsertItem(prev, newBank));
+      bumpRefreshKey(BANK_REFRESH_KEY);
       return newBank;
     } catch (err) {
       console.error("新增銀行失敗:", err);
       throw err;
     }
-  }, [loadBanks]);
+  }, [commit]);
 
   // 更新銀行
   const updateBank = useCallback(async (id: string, formData: BankFormData): Promise<Bank | null> => {
+    const token = tracker.begin(id);
+    let previous: Bank | undefined;
     try {
       // 對於更新操作，保留空字串以便清除欄位內容
       const sanitizedData = { ...formData };
@@ -88,32 +103,50 @@ export function useBanks() {
         sanitizedData.site = '';
       }
       
+      // 樂觀更新：先改畫面，伺服器回應後再換成正式資料，失敗回滾。
+      commit((prev) => {
+        const patched = patchItem(prev, id, sanitizedData as Partial<Bank>);
+        previous = patched.previous;
+        return patched.list;
+      });
+
       const updatedBank = await fetchApi<Bank>(`${API_ENDPOINTS.BANK}/${id}`, {
         method: "PUT",
         body: JSON.stringify(sanitizedData),
       });
-      // 重新載入以確保資料同步
-      await loadBanks();
+      if (tracker.isLatest(id, token)) commit((prev) => replaceItem(prev, id, updatedBank));
+      bumpRefreshKey(BANK_REFRESH_KEY);
       return updatedBank;
     } catch (err) {
       console.error("更新銀行失敗:", err);
+      if (tracker.isLatest(id, token)) commit((prev) => replaceItem(prev, id, previous));
       throw err;
+    } finally {
+      tracker.finish(id, token);
     }
-  }, [loadBanks]);
+  }, [commit, tracker]);
 
   // 刪除銀行
   const deleteBank = useCallback(async (id: string): Promise<boolean> => {
+    // 樂觀刪除：先從畫面移除，失敗再放回原位。
+    let removed: Bank | undefined;
+    let index = -1;
+    commit((prev) => {
+      const result = removeItem(prev, id);
+      removed = result.removed;
+      index = result.index;
+      return result.list;
+    });
     try {
       await fetchApi(`${API_ENDPOINTS.BANK}/${id}`, { method: "DELETE" });
-      
-      // 重新載入以確保資料同步
-      await loadBanks();
+      bumpRefreshKey(BANK_REFRESH_KEY);
       return true;
     } catch (err) {
       console.error("刪除銀行失敗:", err);
+      commit((prev) => restoreItem(prev, removed, index));
       throw err;
     }
-  }, [loadBanks]);
+  }, [commit]);
 
   // 初始載入
   useEffect(() => {

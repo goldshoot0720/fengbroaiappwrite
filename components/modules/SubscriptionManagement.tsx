@@ -1348,15 +1348,21 @@ export default function SubscriptionManagement() {
       return;
     }
     const savedId = inlineEditingId;
+    const savedForm = inlineEditForm;
+    // 樂觀更新：列表先套用變更並立即收起編輯；失敗時列表回滾並重新打開原本的草稿。
+    const pending = updateSubscription(savedId, {
+      ...savedForm,
+      price: Number(savedForm.price || 0),
+      currency: savedForm.currency || "TWD",
+      continue: savedForm.continue !== false,
+    });
+    closeInlineEdit(savedId);
     try {
-      await updateSubscription(savedId, {
-        ...inlineEditForm,
-        price: Number(inlineEditForm.price || 0),
-        currency: inlineEditForm.currency || "TWD",
-        continue: inlineEditForm.continue !== false,
-      });
-      closeInlineEdit(savedId);
+      await pending;
     } catch (saveError) {
+      setInlineEditingId(savedId);
+      setInlineEditForm(savedForm);
+      setIsInlineAdding(false);
       alert(saveError instanceof Error ? saveError.message : "更新失敗");
     }
   };
