@@ -4,6 +4,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus, convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey } from "@/hooks/useRefreshKey";
+import { readMemoryList, writeMemoryList } from "@/lib/memoryListCache";
 import { createWriteTracker, patchItem, removeItem, replaceItem, restoreItem, upsertItem } from "@/lib/optimisticList";
 
 const SUBSCRIPTION_REFRESH_KEY = "subscription_refresh_key";
@@ -33,14 +34,23 @@ function sortSubscriptions(list: Subscription[]): Subscription[] {
 }
 
 export function useSubscriptions() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 切換選單回來時直接用記憶體快取上畫，不再整頁載入。
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(
+    () => readMemoryList<Subscription>(API_ENDPOINTS.SUBSCRIPTION, SUBSCRIPTION_REFRESH_KEY)?.data ?? []
+  );
+  const [loading, setLoading] = useState(
+    () => !readMemoryList<Subscription>(API_ENDPOINTS.SUBSCRIPTION, SUBSCRIPTION_REFRESH_KEY)
+  );
   const [error, setError] = useState<string | null>(null);
   const tracker = useRef(createWriteTracker()).current;
 
   /** 本地清單更新後維持排序；寫入不再整張表重抓。 */
   const commit = useCallback((updater: (prev: Subscription[]) => Subscription[]) => {
-    setSubscriptions((prev) => sortSubscriptions(updater(prev)));
+    setSubscriptions((prev) => {
+      const next = sortSubscriptions(updater(prev));
+      writeMemoryList(API_ENDPOINTS.SUBSCRIPTION, next);
+      return next;
+    });
   }, []);
 
   // 載入訂閱資料（不使用快取）
@@ -52,6 +62,7 @@ export function useSubscriptions() {
     try {
       const resData = await fetchApi<Subscription[]>(`${API_ENDPOINTS.SUBSCRIPTION}?t=${Date.now()}`);
       const data = sortSubscriptions(Array.isArray(resData) ? resData : []);
+      writeMemoryList(API_ENDPOINTS.SUBSCRIPTION, data);
       setSubscriptions(data);
       return data;
     } catch (err) {
@@ -161,9 +172,11 @@ export function useSubscriptions() {
     }
   }, [commit]);
 
-  // 初始載入
+  // 初始載入：快取還新鮮就不打 Appwrite；舊了就先顯示快取、背景靜默更新。
   useEffect(() => {
-    loadSubscriptions();
+    const cached = readMemoryList<Subscription>(API_ENDPOINTS.SUBSCRIPTION, SUBSCRIPTION_REFRESH_KEY);
+    if (cached?.fresh) return;
+    void loadSubscriptions(!!cached);
   }, [loadSubscriptions]);
 
   // 計算統計資料

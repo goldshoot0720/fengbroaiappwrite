@@ -5,6 +5,7 @@ import { Bank, BankFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { fetchApi } from "@/hooks/useApi";
 import { bumpRefreshKey } from "@/hooks/useRefreshKey";
+import { readMemoryList, writeMemoryList } from "@/lib/memoryListCache";
 import { createWriteTracker, patchItem, removeItem, replaceItem, restoreItem, upsertItem } from "@/lib/optimisticList";
 
 const BANK_REFRESH_KEY = "bank_refresh_key";
@@ -15,14 +16,21 @@ function sortBanks(list: Bank[]): Bank[] {
 }
 
 export function useBanks() {
-  const [banks, setBanks] = useState<Bank[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 切換選單回來時直接用記憶體快取上畫，不再整頁載入。
+  const [banks, setBanks] = useState<Bank[]>(
+    () => readMemoryList<Bank>(API_ENDPOINTS.BANK, BANK_REFRESH_KEY)?.data ?? []
+  );
+  const [loading, setLoading] = useState(() => !readMemoryList<Bank>(API_ENDPOINTS.BANK, BANK_REFRESH_KEY));
   const [error, setError] = useState<string | null>(null);
   const tracker = useRef(createWriteTracker()).current;
 
   /** 本地清單更新後維持排序；寫入不再整張表重抓。 */
   const commit = useCallback((updater: (prev: Bank[]) => Bank[]) => {
-    setBanks((prev) => sortBanks(updater(prev)));
+    setBanks((prev) => {
+      const next = sortBanks(updater(prev));
+      writeMemoryList(API_ENDPOINTS.BANK, next);
+      return next;
+    });
   }, []);
 
   // 載入銀行資料（不使用快取）；silent 時保留目前畫面，不閃載入狀態。
@@ -43,6 +51,7 @@ export function useBanks() {
       
       const resData = await fetchApi<Bank[]>(`/api/bank?t=${Date.now()}`);
       const data = sortBanks(Array.isArray(resData) ? resData : []);
+      writeMemoryList(API_ENDPOINTS.BANK, data);
       setBanks(data);
       return data;
     } catch (err) {
@@ -148,9 +157,11 @@ export function useBanks() {
     }
   }, [commit]);
 
-  // 初始載入
+  // 初始載入：快取還新鮮就不打 Appwrite；舊了就先顯示快取、背景靜默更新。
   useEffect(() => {
-    loadBanks();
+    const cached = readMemoryList<Bank>(API_ENDPOINTS.BANK, BANK_REFRESH_KEY);
+    if (cached?.fresh) return;
+    void loadBanks(!!cached);
   }, [loadBanks]);
 
   // 計算統計資料

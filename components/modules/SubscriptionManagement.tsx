@@ -1717,7 +1717,8 @@ export default function SubscriptionManagement() {
 
     setImporting(false);
     setImportProgress({ current: importPreview.data.length, total: importPreview.data.length });
-    await loadSubscriptions();
+    // 背景更新清單，不閃整頁載入畫面。
+    await loadSubscriptions(true);
     const failureSummary = Array.from(failureReasons.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)

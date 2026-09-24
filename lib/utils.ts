@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { clearMemoryLists } from "@/lib/memoryListCache"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -259,6 +260,7 @@ export function clearAllCaches() {
   if ((window as any).__crudCache) {
     (window as any).__crudCache.clear();
   }
+  clearMemoryLists();
 
   // 3. 強制清除模組級快取（透過設定特殊 flag）
   const timestamp = Date.now().toString();
