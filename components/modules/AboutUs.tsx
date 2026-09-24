@@ -108,11 +108,23 @@ const DOC_GROUPS = [
       ["app/api/_lib/landtop.js", "地標網通品牌頁、商品頁與容量版本解析"],
       ["app/api/_lib/jyes.js", "傑昇通信價格總覽解析與手機比價來源"],
       ["hooks/useSubscriptions.ts", "訂閱資料存取、統計與到期資訊"],
+      ["lib/optimisticList.ts", "Optimistic UI 清單更新、回滾與連續寫入判斷"],
     ],
   },
 ];
 
 const RELEASE_ITEMS = [
+  {
+    date: "2026-09-24",
+    title: "Optimistic UI：編輯、刪除即時反映，切換選單不再重新載入",
+    bullets: [
+      "訂閱、銀行、試用／首購、重灌、額度、購物清單、筆記、食品：修改與刪除先更新畫面再等 Appwrite 回應，失敗自動回滾並提示。",
+      "訂閱與銀行寫入後不再整張表重抓，也不再閃整頁載入；銀行收入／支出、行內編輯與訂閱行內編輯按下儲存立即關閉，失敗時帶回草稿。",
+      "連續快速修改同一筆（例如食品數量 +/-）只採用最後一次的回應，數字不會被舊回應蓋回去。",
+      "切換選單回到訂閱／銀行時直接顯示記憶體快取：60 秒內不打 Appwrite，超過則先顯示再背景靜默更新；快取只存在分頁記憶體、依 Appwrite 帳戶分開。",
+      "重新掃描核心原始碼：399 檔、120,146 行（app / components / hooks / lib / types / scripts / tests）。",
+    ],
+  },
   {
     date: "2026-09-04",
     title: "比價、Tube 與金融個人清單改存 Appwrite 雲端",
