@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { fetchApi } from "@/hooks/useApi";
 import { useBulkSelection } from "@/hooks/useBulkSelection";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
+import { useRevealItem } from "@/hooks/useRevealItem";
 import { deleteByIds } from "@/lib/bulkSelection";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { buildReinstallCsv, parseReinstallCsv, reinstallImportKey } from "@/lib/reinstallCsv";
@@ -106,6 +107,8 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     remove,
     accountVersion,
   } = useManagementCrud<ReinstallSoftware>(API_ENDPOINTS.REINSTALL);
+  // 新增／修改後把該筆帶到頂端選單略下方
+  const revealItem = useRevealItem();
   const [query, setQuery] = useState("");
   const [systemFilter, setSystemFilter] = useState<SystemFilter>("all");
   const [softwareFilter, setSoftwareFilter] = useState<SoftwareFilter>("all");
@@ -264,10 +267,10 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     setActionError(null);
     try {
       const payload = form.licenseType === "none" ? { ...form, serial: "", viewPassword: "" } : form;
-      if (editingId) await update(editingId, payload);
-      else await create(payload);
+      const result = editingId ? await update(editingId, payload) : await create(payload);
       setRevealedIds(new Set());
       closeForm();
+      revealItem(result.$id);
     } catch (submitError) {
       setActionError(submitError instanceof Error ? submitError.message : "儲存失敗，請稍後再試。");
     } finally {
@@ -769,7 +772,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
               const hasSerial = item.licenseType === "paid_serial";
               const website = safeSoftwareUrl(item.site);
               return (
-                <article key={item.$id} className={cn("grid gap-4 px-4 py-5 sm:grid-cols-2 xl:items-center xl:px-5", reinstallRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
+                <article key={item.$id} data-reveal-id={item.$id} className={cn("grid gap-4 px-4 py-5 sm:grid-cols-2 xl:items-center xl:px-5", reinstallRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
                   {bulk.selectionMode ? (
                     <div className="flex items-center">
                       <SelectionCheckbox

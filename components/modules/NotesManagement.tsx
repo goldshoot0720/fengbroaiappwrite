@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatCard } from "@/components/ui/stat-card";
 import { useArticles } from "@/hooks/useArticles";
+import { useRevealItem } from "@/hooks/useRevealItem";
 import { fetchApi } from "@/hooks/useApi";
 import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { ArticleFormData, Article } from "@/types";
@@ -270,6 +271,8 @@ function ZipPreview({
 
 export default function NotesManagement() {
   const { articles, loading, error, stats, loadArticles, createArticle, updateArticle, deleteArticle } = useArticles();
+  // 新增／修改後把該筆帶到頂端選單略下方
+  const revealArticle = useRevealItem();
   const [form, setForm] = useState<ArticleFormData>(() => createInitialForm());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ArticleFormData>(() => createInitialForm());
@@ -619,9 +622,10 @@ export default function NotesManagement() {
 
       setUploadingFile(null);
       setUploadProgress(0);
-      await createArticle(formDataToSubmit);
+      const created = await createArticle(formDataToSubmit);
       resetForm();
       setIsFormCollapsed(true);
+      revealArticle(created?.$id);
     } catch (error) {
       setUploadingFile(null);
       setUploadProgress(0);
@@ -671,6 +675,7 @@ export default function NotesManagement() {
       setEditUploadingFile(null);
       setEditUploadProgress(0);
       await updateArticle(editingId, formDataToSubmit);
+      revealArticle(editingId);
       setEditingId(null);
       setEditSelectedFile1(null);
       setEditSelectedFile2(null);
@@ -2179,7 +2184,7 @@ export default function NotesManagement() {
               const attachmentCount = getAttachmentCount(article);
 
               return (
-                <div key={article.$id} className={cn(
+                <div key={article.$id} data-reveal-id={article.$id} className={cn(
                   "bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all",
                   noteViewMode === "list" && !isEditing && "rounded-[18px] px-5 py-4",
                   isPinned && "border-amber-300 bg-amber-50/40 dark:bg-amber-900/10",

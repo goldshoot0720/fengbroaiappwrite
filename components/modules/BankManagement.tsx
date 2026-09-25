@@ -37,6 +37,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useBanks } from "@/hooks/useBanks";
+import { useRevealItem } from "@/hooks/useRevealItem";
 import { BankFormData, Bank } from "@/types";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { formatCurrency } from "@/lib/formatters";
@@ -166,6 +167,8 @@ const BANK_CATEGORY_ORDER: readonly BankCategory[] = ["bank", "ticket", "points"
 
 export default function BankManagement() {
   const { banks, loading, error, loadBanks, createBank, updateBank, deleteBank } = useBanks();
+  // 新增／修改後把該筆帶到頂端選單略下方
+  const revealBank = useRevealItem();
   const [form, setForm] = useState<BankFormData>(INITIAL_BANK_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -379,6 +382,7 @@ export default function BankManagement() {
       const savedId = editingId;
       const savedForm = form;
       resetForm();
+      revealBank(savedId);
       try {
         await updateBank(savedId, savedForm);
       } catch {
@@ -390,8 +394,9 @@ export default function BankManagement() {
       return;
     }
     try {
-      await createBank(form);
+      const created = await createBank(form);
       resetForm();
+      revealBank(created?.$id);
     } catch {
       alert("操作失敗，請稍後再試");
     }
@@ -511,6 +516,7 @@ export default function BankManagement() {
     const bankName = selectedTransactionBank.name;
     const pending = updateBank(selectedTransactionBank.$id, bankToFormData(selectedTransactionBank, { deposit: nextDeposit }));
     resetTransactionForm();
+    revealBank(selectedTransactionBank.$id);
     try {
       await pending;
     } catch {
@@ -546,6 +552,7 @@ export default function BankManagement() {
     const savedForm = inlineEditForm;
     setInlineEditingId(null);
     setInlineEditForm(INITIAL_BANK_FORM);
+    revealBank(bankId);
     try {
       await updateBank(bankId, savedForm);
     } catch (error) {
@@ -862,7 +869,7 @@ export default function BankManagement() {
           ) : (
             <DataCardList>
               {visible.map((bank) => (
-                <DataCardItem key={bank.$id}>
+                <DataCardItem key={bank.$id} data-reveal-id={bank.$id}>
                   {inlineEditingId === bank.$id ? (
                     // 行內編輯模式
                     <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">

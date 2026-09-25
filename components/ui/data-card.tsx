@@ -7,7 +7,8 @@ interface DataCardProps {
   className?: string;
   highlight?: "expired" | "warning" | "normal";
   id?: string;
-  "data-subscription-id"?: string;
+  /** 新增／修改後捲動定位用，見 lib/revealItem.ts。 */
+  "data-reveal-id"?: string;
 }
 
 const highlightStyles = {
@@ -23,12 +24,12 @@ export function DataCard({
   className,
   highlight = "normal",
   id,
-  "data-subscription-id": dataSubscriptionId,
+  "data-reveal-id": dataRevealId,
 }: DataCardProps) {
   return (
     <div
       id={id}
-      data-subscription-id={dataSubscriptionId}
+      data-reveal-id={dataRevealId}
       className={cn(
         "overflow-hidden rounded-[20px] border shadow-[var(--shadow-soft)]",
         highlightStyles[highlight],
@@ -45,6 +46,8 @@ interface DataCardItemProps {
   className?: string;
   highlight?: "expired" | "warning" | "normal";
   onClick?: () => void;
+  /** 新增／修改後捲動定位用，見 lib/revealItem.ts。 */
+  "data-reveal-id"?: string;
 }
 
 export function DataCardItem({
@@ -52,12 +55,14 @@ export function DataCardItem({
   className,
   highlight = "normal",
   onClick,
+  "data-reveal-id": dataRevealId,
 }: DataCardItemProps) {
   const Wrapper = onClick ? "button" : "div";
 
   return (
     <Wrapper
       onClick={onClick}
+      data-reveal-id={dataRevealId}
       className={cn(
         "w-full p-4 text-left transition-colors sm:p-5",
         highlight === "expired" &&

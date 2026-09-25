@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { fetchApi } from "@/hooks/useApi";
 import { useBulkSelection } from "@/hooks/useBulkSelection";
 import { useManagementCrud } from "@/hooks/useManagementCrud";
+import { useRevealItem } from "@/hooks/useRevealItem";
 import { deleteByIds } from "@/lib/bulkSelection";
 import { API_ENDPOINTS } from "@/lib/constants";
 import {
@@ -285,6 +286,8 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
     remove,
     accountVersion,
   } = useManagementCrud<Quota>(API_ENDPOINTS.QUOTA);
+  // 新增／修改後把該筆帶到頂端選單略下方
+  const revealItem = useRevealItem();
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
@@ -557,6 +560,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
       const result = editingId ? await update(editingId, form) : await create(form);
       setExpandedServices((current) => new Set(current).add(serviceKey(result.name)));
       closeForm();
+      revealItem(result.$id);
     } catch (submitError) {
       setActionError(submitError instanceof Error ? submitError.message : "儲存失敗，請稍後再試。");
     } finally {
@@ -1247,7 +1251,7 @@ export default function QuotaManagement({ onNavigate }: QuotaManagementProps) {
                           })),
                         );
                         return (
-                          <div key={item.$id} className={cn("grid gap-4 px-4 py-4 sm:grid-cols-2 xl:items-start xl:px-5", quotaRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
+                          <div key={item.$id} data-reveal-id={item.$id} className={cn("grid gap-4 px-4 py-4 sm:grid-cols-2 xl:items-start xl:px-5", quotaRowCols, bulk.selectionMode && bulk.isSelected(item.$id) && "bg-destructive/5")}>
                             {bulk.selectionMode ? (
                               <div className="flex items-start pt-1">
                                 <SelectionCheckbox

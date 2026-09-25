@@ -12,6 +12,7 @@ import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useCrud, fetchApi } from "@/hooks/useApi";
+import { useRevealItem } from "@/hooks/useRevealItem";
 import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
@@ -86,6 +87,8 @@ const ROUTINE_VOICE_HELP =
 
 export default function RoutineManagement() {
   const { items: routines, loading, error, create, update, remove, fetchAll } = useCrud<Routine>(API_ENDPOINTS.ROUTINE);
+  // 新增／修改後把該筆帶到頂端選單略下方
+  const revealItem = useRevealItem();
   const [form, setForm] = useState<RoutineFormData>(INITIAL_FORM);
 
   // Extract unique existing names for "Select or Input" pattern
@@ -324,6 +327,7 @@ export default function RoutineManagement() {
         setIsFormOpen(false);
         setSelectedPhotoFile(null);
         setPhotoPreviewUrl("");
+        revealItem(success.$id);
       }
     } catch (err) {
       alert("操作失敗：" + (err instanceof Error ? err.message : "請稍後再試"));
@@ -376,6 +380,7 @@ export default function RoutineManagement() {
         ? await uploadPhotoToAppwrite(inlinePhotoFile)
         : inlineEditForm.photo;
       await update(routineId, { ...inlineEditForm, photo });
+      revealItem(routineId);
       setInlineEditingId(null);
       setInlineEditForm(INITIAL_FORM);
       setInlinePhotoFile(null);
@@ -1274,7 +1279,7 @@ export default function RoutineManagement() {
                         </TableHeader>
                         <TableBody>
                           {filteredRoutines.map((routine) => (
-                            <TableRow key={routine.$id}>
+                            <TableRow key={routine.$id} data-reveal-id={routine.$id}>
                               {inlineEditingId === routine.$id ? (
                                 // 行內編輯模式
                                 <>
@@ -1467,7 +1472,7 @@ export default function RoutineManagement() {
                   {viewMode === "cards" && (
                   <div className="space-y-4">
                     {filteredRoutines.map((routine) => (
-                      <DataCard key={routine.$id}>
+                      <DataCard key={routine.$id} data-reveal-id={routine.$id}>
                         {inlineEditingId === routine.$id ? (
                           // 行內編輯模式
                           <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">

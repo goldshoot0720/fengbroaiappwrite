@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useFoods, getFoodExpiryInfo } from "@/hooks/useFoods";
+import { useRevealItem } from "@/hooks/useRevealItem";
 import { fetchApi } from "@/hooks/useApi";
 import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
@@ -171,6 +172,8 @@ function getFoodFormExpiryInfo(form: FoodFormData, id = "") {
 
 export default function FoodManagement() {
   const { foods, loading, error, createFood, updateFood, deleteFood, updateAmount, loadFoods } = useFoods();
+  // 新增／修改後把該筆帶到頂端選單略下方
+  const revealFood = useRevealItem();
   const [form, setForm] = useState<FoodFormData>(INITIAL_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -582,8 +585,10 @@ export default function FoodManagement() {
 
       if (editingId) {
         await updateFood(editingId, formData);
+        revealFood(editingId);
       } else {
-        await createFood(formData);
+        const created = await createFood(formData);
+        revealFood(created?.$id);
       }
       resetForm();
     } catch (err) {
@@ -599,7 +604,7 @@ export default function FoodManagement() {
     }
 
     try {
-      await createFood({
+      const created = await createFood({
         ...quickAddForm,
         amount: quickAddForm.amount || 1,
         photo: quickAddForm.photo || "",
@@ -613,6 +618,7 @@ export default function FoodManagement() {
         todate: quickAddForm.todate || getSuggestedExpiryDate(7),
         shop: quickAddForm.shop || "",
       });
+      revealFood(created?.$id);
     } catch (err) {
       alert("快速新增失敗：" + (err instanceof Error ? err.message : "請稍後再試"));
     }
@@ -692,6 +698,7 @@ export default function FoodManagement() {
         ...inlineEditForm,
         photo: finalPhoto,
       });
+      revealFood(inlineEditingId);
       resetInlinePhotoState();
       setInlineEditingId(null);
       setInlineEditForm(INITIAL_FORM);
@@ -732,10 +739,11 @@ export default function FoodManagement() {
         finalPhoto = await uploadPhotoToAppwrite(inlineAddSelectedPhotoFile, "inlineAdd");
       }
 
-      await createFood({
+      const created = await createFood({
         ...inlineAddForm,
         photo: finalPhoto,
       });
+      revealFood(created?.$id);
       setIsInlineAdding(false);
       resetInlineAddPhotoState();
       setInlineAddForm(INITIAL_FORM);
@@ -2789,7 +2797,7 @@ function FoodTableRow({ food, onDelete, onDuplicate, onAmountChange, isEditing, 
 
   if (isEditing) {
     return (
-      <TableRow className="bg-blue-50 dark:bg-blue-900/20">
+      <TableRow data-reveal-id={food.$id} className="bg-blue-50 dark:bg-blue-900/20">
         <TableCell className="font-medium">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
@@ -2913,7 +2921,7 @@ function FoodTableRow({ food, onDelete, onDuplicate, onAmountChange, isEditing, 
   }
 
   return (
-    <TableRow className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/50 ${rowClass}`}>
+    <TableRow data-reveal-id={food.$id} className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/50 ${rowClass}`}>
       <TableCell className="font-medium">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -3228,7 +3236,7 @@ function FoodMobileCard({ food, onDelete, onDuplicate, onAmountChange, isEditing
 
   if (isEditing) {
     return (
-      <div className="p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 bg-blue-50 dark:bg-blue-900/20">
+      <div data-reveal-id={food.$id} className="p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 bg-blue-50 dark:bg-blue-900/20">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 w-12 shrink-0">名稱</span>
@@ -3349,7 +3357,7 @@ function FoodMobileCard({ food, onDelete, onDuplicate, onAmountChange, isEditing
   }
 
   return (
-    <div className={`w-full overflow-hidden p-3 min-[390px]:p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 ${isExpired ? "bg-red-50/50" : isExpiringSoon ? "bg-amber-50/50" : ""}`}>
+    <div data-reveal-id={food.$id} className={`w-full overflow-hidden p-3 min-[390px]:p-4 border-b last:border-0 border-gray-100 dark:border-gray-800 ${isExpired ? "bg-red-50/50" : isExpiringSoon ? "bg-amber-50/50" : ""}`}>
       <div className="flex gap-3 min-[390px]:gap-4 items-start">
         {isEditMode && (
           <button

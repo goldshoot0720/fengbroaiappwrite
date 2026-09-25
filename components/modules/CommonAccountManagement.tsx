@@ -7,6 +7,7 @@ import { Input, Textarea, DataCard, Button, SectionHeader, FormCard, FormActions
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SiteNamePicker } from "@/components/ui/site-name-picker";
 import { useCrud, fetchApi } from "@/hooks/useApi";
+import { useRevealItem } from "@/hooks/useRevealItem";
 import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
@@ -171,6 +172,8 @@ function summarizeEntry(siteName: string, note: string) {
 
 export default function CommonAccountManagement() {
   const { items: accounts, loading, fetchAll, create, update, remove, error } = useCrud<CommonAccount>(API_ENDPOINTS.COMMON_ACCOUNT);
+  // 新增／修改後把該筆帶到頂端選單略下方
+  const revealItem = useRevealItem();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -395,13 +398,12 @@ export default function CommonAccountManagement() {
     const payload = getPayload(sortedForm, isUpdate);
 
     try {
-      if (editingId) {
-        await update(editingId, payload);
-      } else {
-        await create(payload);
-      }
+      const saved = editingId
+        ? await update(editingId, payload)
+        : await create(payload);
       resetForm();
       fetchAll();
+      revealItem(saved?.$id);
     } catch (err) {
       console.error("Save failed:", err);
       alert("儲存失敗");
@@ -924,6 +926,7 @@ export default function CommonAccountManagement() {
       await update(account.$id, payload);
       setInlineEdit(null);
       fetchAll();
+      revealItem(account.$id);
     } catch (err) {
       console.error("Inline save failed:", err);
       alert("儲存失敗");
@@ -1542,7 +1545,7 @@ export default function CommonAccountManagement() {
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {filteredAccounts.map((account) => (
-            <DataCard key={account.$id} className={`flex flex-col h-full hover:shadow-lg transition-all duration-300 border-t-4 overflow-hidden group ${selectionMode && selectedIds.has(account.$id) ? 'border-t-red-500 ring-2 ring-red-300 dark:ring-red-800' : 'border-t-blue-500'}`}>
+            <DataCard key={account.$id} data-reveal-id={account.$id} className={`flex flex-col h-full hover:shadow-lg transition-all duration-300 border-t-4 overflow-hidden group ${selectionMode && selectedIds.has(account.$id) ? 'border-t-red-500 ring-2 ring-red-300 dark:ring-red-800' : 'border-t-blue-500'}`}>
               <div className="p-4 pr-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                   {selectionMode && (

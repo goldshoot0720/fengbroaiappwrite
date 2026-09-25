@@ -872,6 +872,22 @@ html[data-density="compact"] {
   }
 }
 
+/* 新增／修改後標示剛儲存的項目（lib/revealItem.ts） */
+@keyframes reveal-flash {
+  0%, 35% {
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 55%, transparent);
+    background-color: color-mix(in oklch, var(--accent) 12%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+    background-color: transparent;
+  }
+}
+
+.reveal-flash {
+  animation: reveal-flash 1.6s ease-out;
+}
+
 /* Scoped reduced-motion — never global * (Plyr/Monaco/PDF allowlisted) */
 @media (prefers-reduced-motion: reduce) {
   .transition-impeccable,
@@ -891,6 +907,10 @@ html[data-density="compact"] {
 
   .voice-listen-pulse {
     animation: none !important;
+  }
+
+  .reveal-flash {
+    animation-duration: 0.01ms !important;
   }
 
   html {

@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchApi } from "@/hooks/useApi";
+import { useRevealItem } from "@/hooks/useRevealItem";
+import { removeItem, restoreItem } from "@/lib/optimisticList";
 import { useBulkSelection } from "@/hooks/useBulkSelection";
 import {
   getShoppingItemExpiryInfo,
@@ -89,6 +91,8 @@ function NativeSelect({
 
 export default function ShoppingListManagement() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
+  // 新增／修改後把該筆帶到頂端選單略下方
+  const revealItem = useRevealItem();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -273,6 +277,7 @@ export default function ShoppingListManagement() {
       });
       bumpRefreshKey(SHOPPING_LIST_REFRESH_KEY);
       closeForm();
+      revealItem(result.$id);
     } catch (submitError) {
       setActionError(submitError instanceof Error ? submitError.message : "儲存失敗，請稍後再試。");
     } finally {
@@ -308,13 +313,22 @@ export default function ShoppingListManagement() {
     if (busy) return;
     setDeletingId(item.$id);
     setActionError(null);
+    // 樂觀刪除：先從畫面移除並關閉確認視窗，失敗再放回原位。
+    let removed: ShoppingItem | undefined;
+    let removedIndex = -1;
+    setItems((prev) => {
+      const result = removeItem(prev, item.$id);
+      removed = result.removed;
+      removedIndex = result.index;
+      return result.list;
+    });
+    setPendingDelete(null);
+    if (editingId === item.$id) closeForm();
     try {
       await fetchApi(`${API_ENDPOINTS.SHOPPING_LIST}/${encodeURIComponent(item.$id)}`, { method: "DELETE" });
-      setItems((prev) => prev.filter((current) => current.$id !== item.$id));
       bumpRefreshKey(SHOPPING_LIST_REFRESH_KEY);
-      setPendingDelete(null);
-      if (editingId === item.$id) closeForm();
     } catch (deleteError) {
+      setItems((prev) => restoreItem(prev, removed, removedIndex));
       setActionError(deleteError instanceof Error ? deleteError.message : "刪除失敗，請確認連線後再試一次。");
     } finally {
       setDeletingId(null);
@@ -816,7 +830,7 @@ export default function ShoppingListManagement() {
                 {filtered.map((item) => {
                   const info = getShoppingItemExpiryInfo(item);
                   return (
-                    <TableRow key={item.$id} className={bulk.selectionMode && bulk.isSelected(item.$id) ? "bg-destructive/5" : undefined}>
+                    <TableRow key={item.$id} data-reveal-id={item.$id} className={bulk.selectionMode && bulk.isSelected(item.$id) ? "bg-destructive/5" : undefined}>
                       {bulk.selectionMode ? (
                         <TableCell>
                           <SelectionCheckbox
@@ -910,7 +924,7 @@ export default function ShoppingListManagement() {
             {filtered.map((item) => {
               const info = getShoppingItemExpiryInfo(item);
               return (
-                <div key={item.$id} className={`surface-inset rounded-2xl p-4 ${bulk.selectionMode && bulk.isSelected(item.$id) ? "ring-2 ring-destructive/30" : ""}`}>
+                <div key={item.$id} data-reveal-id={item.$id} className={`surface-inset rounded-2xl p-4 ${bulk.selectionMode && bulk.isSelected(item.$id) ? "ring-2 ring-destructive/30" : ""}`}>
                   <div className="flex items-start justify-between gap-3">
                     {bulk.selectionMode ? (
                       <SelectionCheckbox

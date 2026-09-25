@@ -47,6 +47,7 @@ import {
 } from "@/lib/subscriptionSimilarity";
 import { subscriptionMatchesSearch, type SubscriptionSearchScope } from "@/lib/subscriptionSearch";
 import { Subscription, SubscriptionFormData } from "@/types";
+import { useRevealItem } from "@/hooks/useRevealItem";
 
 const INITIAL_FORM: SubscriptionFormData = emptySubscriptionForm();
 
@@ -542,26 +543,6 @@ function SubscriptionFormCard({
   );
 }
 
-/**
- * 將被編輯的訂閱列捲回視窗頂端。inline 編輯時該列會展開成很長的表單，
- * 使用者常捲到表單底部才按「儲存修改 / 取消」；表單關閉後捲動位置會留在
- * 該筆下方，此函式把還原後的列帶回視窗最上方。
- * 桌面表格列與手機卡片都帶 data-subscription-id，但同一時間只有可見的那份
- * 有實際佈局（另一份在 hidden breakpoint 內），因此用 getClientRects 挑可見者。
- */
-function scrollEditedSubscriptionIntoView(subscriptionId: string) {
-  const selector = `[data-subscription-id="${subscriptionId.replace(/"/g, '\\"')}"]`;
-  const visibleAnchor = Array.from(document.querySelectorAll<HTMLElement>(selector)).find(
-    (element) => element.getClientRects().length > 0
-  );
-  if (!visibleAnchor) return;
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  visibleAnchor.scrollIntoView({
-    behavior: reducedMotion ? "instant" : "smooth",
-    block: "start",
-  });
-}
-
 export default function SubscriptionManagement() {
   const {
     subscriptions,
@@ -582,7 +563,8 @@ export default function SubscriptionManagement() {
   const [activeSimilarityView, setActiveSimilarityView] = useState<ActiveSubscriptionSimilarityView | null>(null);
   const NO_MONTH_FILTER = "no-month";
   /** 關閉 inline 編輯表單後要捲回視窗頂端的訂閱 $id（儲存與取消皆適用） */
-  const [subscriptionRevealTarget, setSubscriptionRevealTarget] = useState<string | null>(null);
+  // 新增／修改（含取消編輯）後把該筆帶到頂端選單略下方
+  const revealSubscription = useRevealItem();
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
   const [inlineEditForm, setInlineEditForm] = useState<SubscriptionFormData>(INITIAL_FORM);
   const [isInlineAdding, setIsInlineAdding] = useState(false);
@@ -661,20 +643,6 @@ export default function SubscriptionManagement() {
       setTrashedSubscriptions([]);
     }
   }, []);
-
-  // 關閉 inline 編輯表單（儲存或取消）後，把原本那筆訂閱捲回視窗頂端
-  useEffect(() => {
-    if (!subscriptionRevealTarget) return;
-    // 等 React 完成「列縮回」與排序重算、瀏覽器完成新佈局後再捲動
-    const frame = requestAnimationFrame(() => {
-      const secondFrame = requestAnimationFrame(() => {
-        scrollEditedSubscriptionIntoView(subscriptionRevealTarget);
-        setSubscriptionRevealTarget(null);
-      });
-      return () => cancelAnimationFrame(secondFrame);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [subscriptionRevealTarget]);
 
   const CSV_HEADERS = [...SUBSCRIPTION_CSV_HEADERS];
 
@@ -828,7 +796,7 @@ export default function SubscriptionManagement() {
   const closeInlineEdit = (subscriptionId: string) => {
     setInlineEditingId(null);
     setInlineEditForm(INITIAL_FORM);
-    setSubscriptionRevealTarget(subscriptionId);
+    revealSubscription(subscriptionId);
   };
 
   const applyQuickFilter = (type: "all" | "expired" | "dueSoon" | "noDate" | "stopped" | "duplicates") => {
@@ -1328,7 +1296,7 @@ export default function SubscriptionManagement() {
       setInlineAddForm(INITIAL_FORM);
       // 關閉表單後把剛新增的訂閱捲回視窗頂端
       if (created?.$id) {
-        setSubscriptionRevealTarget(created.$id);
+        revealSubscription(created.$id);
       }
     } catch (saveError) {
       alert(saveError instanceof Error ? saveError.message : "新增失敗");
@@ -1377,6 +1345,7 @@ export default function SubscriptionManagement() {
         ...toSubscriptionForm(sub),
         nextdate: shiftDateByDays(baseDate, offsetDays),
       });
+      revealSubscription(sub.$id);
       // 若正在編輯同一筆，同步表單日期
       if (inlineEditingId === sub.$id) {
         setInlineEditForm((prev) => ({
@@ -1759,7 +1728,7 @@ export default function SubscriptionManagement() {
       return (
         <TableRow
           key={sub.$id}
-          data-subscription-id={sub.$id}
+          data-reveal-id={sub.$id}
           className="bg-blue-50/60 dark:bg-blue-900/10"
         >
           <TableCell colSpan={SUBSCRIPTION_TABLE_COL_SPAN}>
@@ -1779,7 +1748,7 @@ export default function SubscriptionManagement() {
     }
 
     return (
-      <TableRow key={sub.$id} data-subscription-id={sub.$id}>
+      <TableRow key={sub.$id} data-reveal-id={sub.$id}>
         <TableCell className="w-10">
           <button type="button" onClick={() => toggleSelect(sub.$id)} className="text-gray-500 hover:text-blue-600">
             {selectedIds.has(sub.$id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
@@ -2590,7 +2559,7 @@ export default function SubscriptionManagement() {
               }
 
               return (
-                <DataCard key={sub.$id} className="p-3" data-subscription-id={sub.$id}>
+                <DataCard key={sub.$id} className="p-3" data-reveal-id={sub.$id}>
                   <div className="flex items-start gap-3">
                     <button type="button" onClick={() => toggleSelect(sub.$id)} className="mt-1 text-gray-500 hover:text-blue-600">
                       {selectedIds.has(sub.$id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
