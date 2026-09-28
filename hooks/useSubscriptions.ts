@@ -3,6 +3,35 @@ import { Subscription, SubscriptionFormData } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatDate, getDaysFromToday, getExpiryStatus, convertToTWD } from "@/lib/formatters";
 import { fetchApi } from "@/hooks/useApi";
+import { isIntegerPriceError } from "@/lib/subscriptionFields";
+
+const MIGRATE_PRICE_MAX_STEPS = 40;
+const MIGRATE_PRICE_POLL_MS = 1500;
+
+/** 把舊表的 integer price 升級成 float；伺服器一次推進一步，這裡輪詢到完成。 */
+async function migratePriceToFloat() {
+  for (let i = 0; i < MIGRATE_PRICE_MAX_STEPS; i++) {
+    const result = await fetchApi<{ status: string; step: string }>(
+      `${API_ENDPOINTS.SUBSCRIPTION}/migrate-price`,
+      { method: "POST" }
+    );
+    if (result.status === "done") return;
+    console.info("[subscription] price → float:", result.step);
+    await new Promise((resolve) => setTimeout(resolve, MIGRATE_PRICE_POLL_MS));
+  }
+  throw new Error("金額欄位升級逾時，請稍後再試一次儲存。");
+}
+
+/** 寫入遇到「price 只收整數」時，先升級欄位再重試一次。 */
+async function writeWithFloatPrice<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (err) {
+    if (!isIntegerPriceError(err)) throw err;
+    await migratePriceToFloat();
+    return write();
+  }
+}
 
 export function useSubscriptions() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -59,11 +88,11 @@ export function useSubscriptions() {
   // 新增訂閱
   const createSubscription = useCallback(async (formData: SubscriptionFormData): Promise<Subscription | null> => {
     try {
-      const newSub = await fetchApi<Subscription>(API_ENDPOINTS.SUBSCRIPTION, {
+      const newSub = await writeWithFloatPrice(() => fetchApi<Subscription>(API_ENDPOINTS.SUBSCRIPTION, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
-      });
+      }));
       // 重新載入以確保資料同步
       await loadSubscriptions(true);
       return newSub;
@@ -76,11 +105,11 @@ export function useSubscriptions() {
   // 新增訂閱（不重新載入，用於批量匯入）
   const createSubscriptionSilent = useCallback(async (formData: SubscriptionFormData): Promise<Subscription | null> => {
     try {
-      const newSub = await fetchApi<Subscription>(API_ENDPOINTS.SUBSCRIPTION, {
+      const newSub = await writeWithFloatPrice(() => fetchApi<Subscription>(API_ENDPOINTS.SUBSCRIPTION, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
-      });
+      }));
       return newSub;
     } catch (err) {
       console.error("新增訂閱失敗:", err);
@@ -91,11 +120,11 @@ export function useSubscriptions() {
   // 更新訂閱
   const updateSubscription = useCallback(async (id: string, formData: SubscriptionFormData): Promise<Subscription | null> => {
     try {
-      const updatedSub = await fetchApi<Subscription>(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, {
+      const updatedSub = await writeWithFloatPrice(() => fetchApi<Subscription>(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
-      });
+      }));
       // 重新載入以確保資料同步
       await loadSubscriptions(true);
       return updatedSub;
@@ -108,11 +137,11 @@ export function useSubscriptions() {
   // 更新訂閱（不重新載入，用於批量匯入）
   const updateSubscriptionSilent = useCallback(async (id: string, formData: SubscriptionFormData): Promise<Subscription | null> => {
     try {
-      const updatedSub = await fetchApi<Subscription>(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, {
+      const updatedSub = await writeWithFloatPrice(() => fetchApi<Subscription>(`${API_ENDPOINTS.SUBSCRIPTION}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
-      });
+      }));
       return updatedSub;
     } catch (err) {
       console.error("更新訂閱失敗:", err);

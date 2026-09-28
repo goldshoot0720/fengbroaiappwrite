@@ -124,8 +124,9 @@ function analyzeSchema(expected, actual) {
         action: 'create'
       });
     } else {
-      // Attribute exists - check for differences
-      if (exp.type !== act.type) {
+      // Attribute exists - check for differences（Appwrite 把 float 回報成 double）
+      const actualType = act.type === 'double' ? 'float' : act.type;
+      if (exp.type !== actualType) {
         // Type mismatch - cannot auto-update
         changes.conflicts.push({
           key: exp.key,
@@ -198,6 +199,9 @@ async function autoUpdateSchema(databases, databaseId, collectionId, changes) {
           break;
         case 'integer':
           await databases.createIntegerAttribute(databaseId, collectionId, change.key, false);
+          break;
+        case 'float':
+          await databases.createFloatAttribute(databaseId, collectionId, change.key, false);
           break;
         case 'url':
           await databases.createUrlAttribute(databaseId, collectionId, change.key, false);

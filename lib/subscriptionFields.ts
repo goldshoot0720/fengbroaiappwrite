@@ -85,6 +85,12 @@ export function buildSubscriptionWritePayload(
   return payload;
 }
 
+/** Appwrite 舊表的 price 是 integer，寫入小數（如 USD 10.5）會回這個錯誤。 */
+export function isIntegerPriceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /attribute "price" has invalid format/i.test(message) && /integer/i.test(message);
+}
+
 export function detectSubscriptionCsvMode(headers: string[]): "full" | null {
   const normalized = headers.map((header) => header.trim());
   return normalized.length === SUBSCRIPTION_CSV_HEADERS.length

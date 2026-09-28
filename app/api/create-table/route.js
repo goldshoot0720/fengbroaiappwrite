@@ -92,7 +92,7 @@ const TABLE_SCHEMAS = {
     attributes: [
       { key: 'name', type: 'string', size: 100, required: true },
       { key: 'site', type: 'url', required: false },
-      { key: 'price', type: 'integer', required: false },
+      { key: 'price', type: 'float', required: false },
       { key: 'nextdate', type: 'datetime', required: false },
       { key: 'note', type: 'string', size: 3337, required: false },
       { key: 'account', type: 'string', size: 100, required: false },
@@ -356,6 +356,9 @@ export async function GET(request) {
                 case 'integer':
                   await databases.createIntegerAttribute(databaseId, collectionId, attr.key, attr.required);
                   break;
+                case 'float':
+                  await databases.createFloatAttribute(databaseId, collectionId, attr.key, attr.required);
+                  break;
                 case 'url':
                   await databases.createUrlAttribute(databaseId, collectionId, attr.key, attr.required);
                   break;
@@ -514,6 +517,9 @@ export async function POST(request) {
               break;
             case 'integer':
               await databases.createIntegerAttribute(databaseId, collectionId, attr.key, attr.required);
+              break;
+            case 'float':
+              await databases.createFloatAttribute(databaseId, collectionId, attr.key, attr.required);
               break;
             case 'url':
               await databases.createUrlAttribute(databaseId, collectionId, attr.key, attr.required);
