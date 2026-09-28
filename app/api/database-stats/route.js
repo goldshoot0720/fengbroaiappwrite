@@ -6,7 +6,12 @@ import { ADDITIVE_SETUP_TABLES } from "../../../lib/managementRecords";
 
 export const dynamic = 'force-dynamic';
 
-const normalizeExpectedType = (type) => (type === "url" ? "string" : type);
+// Appwrite 回報的型別：url 是 string，float 是 double。
+const normalizeExpectedType = (type) => {
+  if (type === "url") return "string";
+  if (type === "float") return "double";
+  return type;
+};
 
 // Keep database-stats aligned with the latest create-table schema.
 const TABLE_DEFINITIONS = Object.fromEntries(
