@@ -43,6 +43,8 @@ export async function GET(request) {
     response_type: "code",
     scope: DRIVE_SCOPE,
     access_type: "offline",
+    // Ask for drive.file only; merging this shared client's YouTube grants is rejected by Google.
+    include_granted_scopes: "false",
     // Without prompt=consent Google omits the refresh token on a re-grant.
     prompt: "consent",
     state,

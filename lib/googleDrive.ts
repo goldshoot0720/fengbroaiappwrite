@@ -31,6 +31,7 @@ type GoogleAccountsNamespace = {
     initTokenClient: (config: {
       client_id: string;
       scope: string;
+      include_granted_scopes?: boolean;
       callback: (response: GoogleTokenResponse) => void;
       error_callback?: (error: GoogleTokenError) => void;
     }) => GoogleTokenClient;
@@ -184,6 +185,10 @@ export async function requestGoogleDriveAccessToken(options?: { forcePrompt?: bo
       const tokenClient = window.google!.accounts!.oauth2.initTokenClient({
         client_id: clientId,
         scope: DRIVE_SCOPE,
+        // GIS defaults to re-requesting every scope this client was ever
+        // granted. The client is shared with apps holding YouTube scopes, and
+        // Google refuses drive.file together with those (400 invalid_request).
+        include_granted_scopes: false,
         callback: (response) => {
           if (response.error || !response.access_token) {
             reject(new Error(response.error || "取得 Google 授權失敗"));
