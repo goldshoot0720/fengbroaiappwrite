@@ -92,6 +92,16 @@ export function googleApiKeyProblem(value: string): string | null {
   return null;
 }
 
+/**
+ * The Cloud project number is the numeric prefix of a web OAuth client ID
+ * ("478443151087-xxxx.apps.googleusercontent.com"). Picker needs it as the
+ * app ID under the drive.file scope.
+ */
+export function googleProjectNumberFromClientId(clientId: string): string | null {
+  const match = /^(\d+)-/.exec(clientId.trim());
+  return match ? match[1] : null;
+}
+
 export function isGoogleDriveConfigured(): boolean {
   return Boolean(getGoogleClientId() && getGoogleApiKey());
 }
@@ -350,6 +360,8 @@ export async function pickBackupFromGoogleDrive(): Promise<GooglePickedFile | nu
         addView: (view: PickerView) => PickerBuilderInstance;
         setOAuthToken: (token: string) => PickerBuilderInstance;
         setDeveloperKey: (key: string) => PickerBuilderInstance;
+        setAppId: (appId: string) => PickerBuilderInstance;
+        setOrigin: (origin: string) => PickerBuilderInstance;
         setCallback: (cb: (data: PickerCallbackData) => void) => PickerBuilderInstance;
         build: () => { setVisible: (v: boolean) => void };
       };
@@ -364,10 +376,17 @@ export async function pickBackupFromGoogleDrive(): Promise<GooglePickedFile | nu
       const view = new picker.picker.DocsView(picker.picker.ViewId.DOCS)
         .setIncludeFolders(true)
         .setSelectFolderEnabled(false);
-      const instance = new picker.picker.PickerBuilder()
+      const builder = new picker.picker.PickerBuilder()
         .addView(view)
         .setOAuthToken(accessToken)
         .setDeveloperKey(apiKey)
+        // The API key's website restriction is checked against this origin.
+        .setOrigin(window.location.origin);
+      // drive.file only grants access to a picked file when Picker knows which
+      // Cloud project is asking; without it the download afterwards is a 404.
+      const projectNumber = googleProjectNumberFromClientId(getGoogleClientId());
+      if (projectNumber) builder.setAppId(projectNumber);
+      const instance = builder
         .setCallback((data) => {
           if (data.action === picker.picker.Action.PICKED) {
             const doc = data.docs?.[0];
