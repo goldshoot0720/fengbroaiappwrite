@@ -422,6 +422,9 @@ export default function SettingsManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...resendPayload,
+          // Once CRON_SECRET is set the route only lets cron in; the unlocked
+          // notification password is what proves this is the owner instead.
+          notificationPassword: resendPassword.trim(),
           resendFrom: resendConfig.fromEmail.trim() || RESEND_DEFAULT_FROM,
           endpoint: appwriteConfig.endpoint,
           projectId: appwriteConfig.projectId,

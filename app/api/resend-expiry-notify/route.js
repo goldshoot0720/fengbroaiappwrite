@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAppwrite } from "../_lib/appwriteClient";
+import { createAppwrite, getCollectionId } from "../_lib/appwriteClient";
 import { verifyAuth } from "../_lib/cronAuth";
 import { collectExpiryItems } from "../_lib/expiryCollector";
 import { getTaipeiDateKey } from "../../../lib/notifications/daysUntil";
@@ -8,6 +8,11 @@ import { loadResendConfig } from "../_lib/resendSettings";
 import { sendResendEmail } from "../_lib/resendEmail";
 import { validateResendConfigs } from "../../../lib/notifications/resolveResendConfig.mjs";
 import { RESEND_SLOT_COUNT } from "../../../lib/notifications/resendConfig";
+import {
+  NOTIFICATION_SETTINGS_COLLECTION,
+  NOTIFICATION_SETTINGS_DOCUMENT_ID,
+} from "../../../lib/notifications/notificationSettings";
+import { verifyNotificationPassword } from "../../../lib/notifications/passwordHash";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +152,28 @@ function buildEmail({ subscriptions, foods, banks, todayKey }) {
   return { subject: title, text, html };
 }
 
+/**
+ * 設定頁的「檢查/補寄」按鈕：設了 CRON_SECRET 之後 verifyAuth 只放行 Cron，
+ * 所以改由已解鎖的通知密碼證明是本人。
+ */
+async function notificationPasswordAuthorizes(databases, databaseId, password) {
+  if (!password) return false;
+  try {
+    const collectionId = await getCollectionId(databases, databaseId, NOTIFICATION_SETTINGS_COLLECTION, {
+      required: false,
+    });
+    if (!collectionId) return false;
+    const doc = await databases.getDocument({
+      databaseId,
+      collectionId,
+      documentId: NOTIFICATION_SETTINGS_DOCUMENT_ID,
+    });
+    return verifyNotificationPassword(String(password), doc?.passwordHash || "");
+  } catch {
+    return false;
+  }
+}
+
 async function handleResendExpiryNotify(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -158,11 +185,19 @@ async function handleResendExpiryNotify(request) {
     const hasManualCredentials =
       request.method === "POST" && hasManualResendKey && body.appwriteApiKey;
 
-    if (!hasManualCredentials && !verifyAuth(request)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { databases, databaseId } = createAppwrite(searchParams, body);
+
+    const authorized =
+      hasManualCredentials ||
+      verifyAuth(request) ||
+      (request.method === "POST" &&
+        (await notificationPasswordAuthorizes(databases, databaseId, body.notificationPassword)));
+    if (!authorized) {
+      return NextResponse.json(
+        { error: "Unauthorized：請先輸入通知密碼並解鎖，再按檢查/補寄。" },
+        { status: 401 }
+      );
+    }
     const { configs: resendConfigs } = await loadResendConfig(databases, databaseId, { searchParams, body });
 
     if (resendConfigs.length === 0) {
