@@ -722,11 +722,16 @@ html[data-density="compact"] {
    * shadow you have to look for. Blur is kept only where a surface genuinely
    * floats over scrolling content.
    */
+  /*
+   * No backdrop-filter here: it would make the panel the containing block for
+   * every position:fixed descendant, so each page's modals (匯入預覽 etc.)
+   * centred on the whole tall panel instead of the viewport. The fill is
+   * ~94% opaque over a flat page anyway, so the blur was invisible.
+   */
   .surface-panel {
     background: var(--panel-strong);
     border: 1px solid var(--line-soft);
     box-shadow: var(--shadow-soft);
-    backdrop-filter: blur(12px);
   }
 
   .surface-inset {
