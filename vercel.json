@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/menu-backup-cron",
-      "schedule": "0 19 * * *"
+      "schedule": "6 22 * * *"
     }
   ]
 }

@@ -5,12 +5,11 @@ import { collectExpiryItems } from "../_lib/expiryCollector";
 import { getTaipeiDateKey } from "../../../lib/notifications/daysUntil";
 import { NOTIFICATION_POLICY } from "../../../lib/notifications/policy";
 import { loadResendConfig } from "../_lib/resendSettings";
+import { sendResendEmail } from "../_lib/resendEmail";
 import { validateResendConfigs } from "../../../lib/notifications/resolveResendConfig.mjs";
 import { RESEND_SLOT_COUNT } from "../../../lib/notifications/resendConfig";
 
 export const dynamic = "force-dynamic";
-
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
 async function readBody(request) {
   if (request.method !== "POST") return {};
@@ -146,30 +145,6 @@ function buildEmail({ subscriptions, foods, banks, todayKey }) {
   `;
 
   return { subject: title, text, html };
-}
-
-async function sendResendEmail({ apiKey, from, to, subject, html, text, idempotencyKey }) {
-  const recipients = String(to)
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  if (!recipients.length) throw new Error("RESEND_TO_EMAIL is missing");
-
-  const response = await fetch(RESEND_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-    },
-    body: JSON.stringify({ from, to: recipients, subject, html, text }),
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload?.message || `Resend ${response.status}`);
-  }
-  return payload;
 }
 
 async function handleResendExpiryNotify(request) {
