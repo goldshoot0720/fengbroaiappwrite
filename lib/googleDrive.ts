@@ -10,7 +10,7 @@
 
 const GIS_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 const GAPI_SCRIPT_SRC = "https://apis.google.com/js/api.js";
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 /**
  * Backups live under OAuth/fengbroaiappwrite. Two levels, so the OAuth folder
  * can hold one subfolder per app instead of every app dropping files loose at
@@ -256,7 +256,7 @@ async function ensureFolder(accessToken: string, name: string, parentId: string)
  * gets created — that is the scope working as intended, not a bug to route
  * around by asking for broader access.
  */
-async function ensureBackupFolderId(accessToken: string): Promise<string> {
+export async function ensureBackupFolderId(accessToken: string): Promise<string> {
   let parentId = "root";
   for (const name of BACKUP_FOLDER_PATH) {
     parentId = await ensureFolder(accessToken, name, parentId);
@@ -264,12 +264,25 @@ async function ensureBackupFolderId(accessToken: string): Promise<string> {
   return parentId;
 }
 
-/** Uploads a backup blob into a "鋒兄備份" folder in the user's Drive. */
+/** Uploads a backup blob into the backup folder in the user's Drive. */
 export async function uploadBackupToGoogleDrive(
   blob: Blob,
   filename: string
 ): Promise<{ id: string; name: string }> {
   const accessToken = await requestGoogleDriveAccessToken();
+  return uploadBackupWithToken(accessToken, blob, filename);
+}
+
+/**
+ * Upload with an access token already in hand. The daily cron gets its token
+ * from a stored refresh token rather than the browser popup; both land in the
+ * same folder because both use the same OAuth client.
+ */
+export async function uploadBackupWithToken(
+  accessToken: string,
+  blob: Blob,
+  filename: string
+): Promise<{ id: string; name: string }> {
   const folderId = await ensureBackupFolderId(accessToken);
 
   const metadata = { name: filename, parents: [folderId] };

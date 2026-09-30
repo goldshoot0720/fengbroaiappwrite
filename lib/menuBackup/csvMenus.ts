@@ -1,49 +1,25 @@
 import { fetchApi } from "@/hooks/useApi";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { parseBankCsv, toBankCsvRow, BANK_CSV_HEADERS } from "@/lib/bankCsv";
-import {
-  buildFinanceCustomCsv,
-  mergeFinanceCustomInstruments,
-  parseFinanceCustomCsv,
-} from "@/lib/fengbroFinanceCsv";
-import {
-  buildFengbroNewsCsv,
-  mergeFengbroNewsSites,
-  parseFengbroNewsCsv,
-} from "@/lib/fengbroNewsCsv";
-import {
-  migrateFinanceGroup,
-  normalizeCustomFinanceInstrument,
-  normalizeFinanceRelatedLinks,
-  type CustomFinanceInstrument,
-} from "@/lib/fengbroFinanceCustom";
+import { parseBankCsv } from "@/lib/bankCsv";
+import { mergeFinanceCustomInstruments, parseFinanceCustomCsv } from "@/lib/fengbroFinanceCsv";
+import { mergeFengbroNewsSites, parseFengbroNewsCsv } from "@/lib/fengbroNewsCsv";
+import type { CustomFinanceInstrument } from "@/lib/fengbroFinanceCustom";
 import { FENGBRO_NEWS_SITES_KEY as NEWS_SITES_KEY, type FengbroNewsSiteConfig } from "@/lib/fengbroNewsSites";
-import {
-  buildFengbroTubeCsv,
-  mergeFengbroTubeChannels,
-  parseFengbroTubeCsv,
-} from "@/lib/fengbroTubeCsv";
+import { mergeFengbroTubeChannels, parseFengbroTubeCsv } from "@/lib/fengbroTubeCsv";
 import { toFengbroTubeChannelConfig, type FengbroTubeChannelConfig } from "@/lib/fengbroTubeChannels";
-import { buildLandtopHistoryCsv, parseLandtopHistoryCsv } from "@/lib/landtopHistoryCsv";
+import { parseLandtopHistoryCsv } from "@/lib/landtopHistoryCsv";
 import {
-  buildManualPriceCsv,
   mergeManualPriceProducts,
   parseManualPriceCsv,
   type ManualPriceCsvProduct,
 } from "@/lib/manualPriceCsv";
-import { buildQuotaCsv, parseQuotaCsv, quotaImportKey } from "@/lib/quotaCsv";
-import { buildReinstallCsv, parseReinstallCsv, reinstallImportKey } from "@/lib/reinstallCsv";
-import { buildShoppingCsv, parseShoppingCsv, shoppingImportKey } from "@/lib/shoppingCsv";
-import { buildTrialPurchaseCsv, parseTrialPurchaseCsv, trialPurchaseImportKey } from "@/lib/trialPurchaseCsv";
+import { parseQuotaCsv, quotaImportKey } from "@/lib/quotaCsv";
+import { parseReinstallCsv, reinstallImportKey } from "@/lib/reinstallCsv";
+import { parseShoppingCsv, shoppingImportKey } from "@/lib/shoppingCsv";
+import { parseTrialPurchaseCsv, trialPurchaseImportKey } from "@/lib/trialPurchaseCsv";
 import type { Bank, CommonAccount, Food, Quota, ReinstallSoftware, ShoppingItem, Subscription, TrialPurchase } from "@/types";
 import { csvMenus, type MenuBackupEntry } from "./catalog";
 import {
-  buildCommonAccountCsv,
-  buildFoodCsv,
-  buildMusicMetaCsv,
-  buildRoutineCsv,
-  buildSubscriptionCsv,
-  buildVideoMetaCsv,
   parseCommonAccountCsv,
   parseFoodCsv,
   parseMusicMetaCsv,
@@ -51,22 +27,9 @@ import {
   parseSubscriptionBackupCsv,
   parseVideoMetaCsv,
 } from "./simpleCsv";
+import { exportCsvMenuWith, financeFromDoc, type BackupProgressFn, type MenuJobResult } from "./csvExport";
 
-export type BackupProgressFn = (update: {
-  stage: string;
-  current: number;
-  total: number;
-  message: string;
-  menuId?: string;
-}) => void;
-
-export type MenuJobResult = {
-  id: string;
-  label: string;
-  status: "ok" | "skipped" | "error";
-  rows: number;
-  message?: string;
-};
+export type { BackupProgressFn, MenuJobResult } from "./csvExport";
 
 type NamedDoc = { $id: string; name?: string; title?: string; language?: string; file?: string; cover?: string; hash?: string };
 
@@ -118,28 +81,6 @@ async function upsertRows<T extends { $id: string }>(
 
 function byName(item: { name?: string }): string {
   return (item.name || "").trim().toLocaleLowerCase("zh-Hant");
-}
-
-function financeFromDoc(row: Record<string, unknown>): { id: string; instrument: CustomFinanceInstrument } | null {
-  const imageUrls = [row.imageUrl1, row.imageUrl2, row.imageUrl3]
-    .map((value) => (typeof value === "string" ? value.trim() : ""))
-    .filter(Boolean);
-  const relatedLinkLines = [row.linkUrl1, row.linkUrl2, row.linkUrl3]
-    .map((value) => (typeof value === "string" ? value.trim() : ""))
-    .filter(Boolean);
-  const instrument = normalizeCustomFinanceInstrument({
-    name: typeof row.name === "string" ? row.name : "",
-    symbol: typeof row.symbol === "string" ? row.symbol : "",
-    provider: row.provider === "yahoo" ? "yahoo" : "cnbc",
-    group: migrateFinanceGroup(row.group),
-    imageUrls,
-    youtubeUrl: typeof row.youtubeUrl === "string" ? row.youtubeUrl : "",
-    bilibiliUrl: typeof row.bilibiliUrl === "string" ? row.bilibiliUrl : "",
-    relatedLinks: normalizeFinanceRelatedLinks(relatedLinkLines.join("\n")),
-    featured: row.featured === true || row.featured === "true",
-  });
-  if (!instrument) return null;
-  return { id: String(row.$id || row.id || ""), instrument };
 }
 
 function financeKey(instrument: CustomFinanceInstrument): string {
@@ -194,87 +135,16 @@ function normalizeSubscriptionImportKey(item: {
   return `${name}::${account}`;
 }
 
-export async function exportCsvMenu(
+/** Browser export: reads through fetchApi (Appwrite config from localStorage). */
+export function exportCsvMenu(
   entry: MenuBackupEntry,
   onProgress?: BackupProgressFn,
 ): Promise<{ csv: string; rows: number }> {
-  onProgress?.({ stage: "export-csv", current: 0, total: 1, message: `讀取 ${entry.label}`, menuId: entry.id });
-
-  switch (entry.id) {
-    case "food": {
-      const items = await fetchList<Food>(API_ENDPOINTS.FOOD);
-      return { csv: buildFoodCsv(items), rows: items.length };
-    }
-    case "subscription": {
-      const items = await fetchList<Subscription>(API_ENDPOINTS.SUBSCRIPTION);
-      return { csv: buildSubscriptionCsv(items), rows: items.length };
-    }
-    case "trial-purchase": {
-      const items = await fetchList<TrialPurchase>(API_ENDPOINTS.TRIAL_PURCHASE);
-      return { csv: buildTrialPurchaseCsv(items), rows: items.length };
-    }
-    case "reinstall": {
-      const items = await fetchList<ReinstallSoftware>(API_ENDPOINTS.REINSTALL);
-      return { csv: buildReinstallCsv(items), rows: items.length };
-    }
-    case "quota": {
-      const items = await fetchList<Quota>(API_ENDPOINTS.QUOTA);
-      return { csv: buildQuotaCsv(items), rows: items.length };
-    }
-    case "shopping-list": {
-      const items = await fetchList<ShoppingItem>(API_ENDPOINTS.SHOPPING_LIST);
-      return { csv: buildShoppingCsv(items), rows: items.length };
-    }
-    case "common": {
-      const items = await fetchList<CommonAccount>(API_ENDPOINTS.COMMON_ACCOUNT);
-      return { csv: buildCommonAccountCsv(items), rows: items.length };
-    }
-    case "bank-stats": {
-      const items = await fetchList<Bank>(API_ENDPOINTS.BANK);
-      return { csv: [BANK_CSV_HEADERS.join(","), ...items.map(toBankCsvRow)].join("\n"), rows: items.length };
-    }
-    case "routine": {
-      const items = await fetchList<NamedDoc>(API_ENDPOINTS.ROUTINE);
-      return { csv: buildRoutineCsv(items as never), rows: items.length };
-    }
-    case "music": {
-      const items = await fetchList<NamedDoc>(API_ENDPOINTS.MUSIC);
-      return { csv: buildMusicMetaCsv(items as never), rows: items.length };
-    }
-    case "videos": {
-      const items = await fetchList<NamedDoc>(API_ENDPOINTS.VIDEO);
-      return { csv: buildVideoMetaCsv(items as never), rows: items.length };
-    }
-    case "price-compare": {
-      const items = await fetchList<ManualPriceCsvProduct>(API_ENDPOINTS.MANUAL_PRICE);
-      return { csv: buildManualPriceCsv(items), rows: items.length };
-    }
-    case "landtop": {
-      const payload = await fetchApi<{ rows?: unknown[] }>("/api/landtop/history", { cache: "no-store" });
-      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
-      return { csv: buildLandtopHistoryCsv(rows as never), rows: rows.length };
-    }
-    case "fengbro-tube": {
-      const items = await fetchList<NamedDoc>(API_ENDPOINTS.TUBE_CHANNEL);
-      const channels = items
-        .map((row) => toFengbroTubeChannelConfig(row))
-        .filter((channel): channel is FengbroTubeChannelConfig => Boolean(channel));
-      return { csv: buildFengbroTubeCsv(channels), rows: channels.length };
-    }
-    case "fengbro-finance": {
-      const items = await fetchList<NamedDoc>(API_ENDPOINTS.FINANCE_INSTRUMENT);
-      const instruments = items
-        .map((row) => financeFromDoc(row)?.instrument)
-        .filter((item): item is CustomFinanceInstrument => Boolean(item));
-      return { csv: buildFinanceCustomCsv(instruments), rows: instruments.length };
-    }
-    case "fengbro-news": {
-      const sites = loadNewsSites();
-      return { csv: buildFengbroNewsCsv(sites), rows: sites.length };
-    }
-    default:
-      throw new Error(`未知的 CSV 選單：${entry.id}`);
-  }
+  return exportCsvMenuWith(
+    entry,
+    { fetchJson: (url) => fetchApi(url, { cache: "no-store" }), newsSites: loadNewsSites },
+    onProgress,
+  );
 }
 
 export async function importCsvMenu(

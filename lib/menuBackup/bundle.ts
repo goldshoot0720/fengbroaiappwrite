@@ -19,6 +19,7 @@ import {
   type MenuBackupMode,
 } from "./catalog";
 import { exportCsvMenu, importCsvMenu, type BackupProgressFn, type MenuJobResult } from "./csvMenus";
+import { formatBackupReport } from "./csvExport";
 import { exportZipMenu, importZipMenu } from "./zipMenus";
 
 export type BundleRun = {
@@ -33,20 +34,6 @@ function downloadBlob(blob: Blob, filename: string) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
-}
-
-function formatReport(kind: MenuBackupMode, results: MenuJobResult[]): string {
-  const lines = [
-    "鋒兄選單備份",
-    `kind: ${kind}`,
-    `exportedAt: ${new Date().toISOString()}`,
-    "",
-  ];
-  for (const result of results) {
-    const status = result.status === "ok" ? "ok" : result.status;
-    lines.push(`${result.label} (${result.id}): ${status} ${result.rows} 筆${result.message ? ` — ${result.message}` : ""}`);
-  }
-  return lines.join("\n");
 }
 
 function summarize(results: MenuJobResult[]): string {
@@ -139,7 +126,7 @@ export async function exportMenuBundle(
   }
 
   zip.file(MANIFEST_NAME, JSON.stringify(buildManifest(kind, included), null, 2));
-  zip.file(REPORT_NAME, formatReport(kind, results));
+  zip.file(REPORT_NAME, formatBackupReport(kind, results));
   const blob = await zip.generateAsync({ type: "blob" });
   if (!options?.skipDownload) downloadBlob(blob, filename);
   return { kind, results, blob };
