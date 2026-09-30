@@ -10,6 +10,7 @@ import {
   EyeOff,
   KeyRound,
   Laptop,
+  ListChecks,
   Pencil,
   Plus,
   RefreshCw,
@@ -136,6 +137,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkTotal, setBulkTotal] = useState(0);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkSystemTarget, setBulkSystemTarget] = useState<ReinstallSystem | null>(null);
 
   useEffect(() => {
     setFormOpen(false);
@@ -211,7 +213,14 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   const windowsCount = items.filter((item) => item.system === "win").length;
   const macCount = items.filter((item) => item.system === "mac").length;
   const serialCount = items.filter((item) => item.licenseType === "paid_serial").length;
-  const busy = saving || deletingId !== null || importing || bulkDeleting;
+  const busy = saving || deletingId !== null || importing || bulkDeleting || bulkSystemTarget !== null;
+
+  const selectedItems = useMemo(
+    () => items.filter((item) => bulk.selectedIds.has(item.$id)),
+    [items, bulk.selectedIds],
+  );
+  const selectedWindowsCount = selectedItems.filter((item) => item.system !== "mac").length;
+  const selectedMacCount = selectedItems.filter((item) => item.system === "mac").length;
 
   const refresh = () => {
     setRevealedIds(new Set());
@@ -296,6 +305,31 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     bulk.clear();
     setBulkDeleteOpen(false);
     setBulkDeleteInput("");
+  };
+
+  // PUT replaces the whole record, so each one goes back in full with only the
+  // system changed — the same shape the edit form saves, serial included.
+  const handleBulkSystemChange = async (target: ReinstallSystem) => {
+    const targets = selectedItems.filter((item) => (item.system === "mac" ? "mac" : "win") !== target);
+    if (targets.length === 0 || busy) return;
+    const byId = new Map(targets.map((item) => [item.$id, item]));
+    setBulkSystemTarget(target);
+    setActionError(null);
+    const { failCount } = await deleteByIds(
+      targets.map((item) => item.$id),
+      (id) =>
+        fetchApi(`${API_ENDPOINTS.REINSTALL}/${encodeURIComponent(id)}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...toReinstallSoftwareForm(byId.get(id)!), system: target }),
+        }),
+    );
+    await fetchAll();
+    setBulkSystemTarget(null);
+    if (failCount > 0) {
+      setActionError(`有 ${failCount} 筆改系統失敗，請確認連線後再試。`);
+      return;
+    }
+    bulk.clear();
   };
 
   const handleDelete = async (item: ReinstallSoftware) => {
@@ -502,6 +536,45 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
             <Download />
             匯出 CSV
           </Button>
+          {bulk.selectionMode ? (
+            <>
+              {selectedWindowsCount > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleBulkSystemChange("mac")}
+                  disabled={loading || busy}
+                  title="把選取中的 Windows 軟體改成 Mac"
+                >
+                  <Laptop />
+                  {bulkSystemTarget === "mac" ? "改為 Mac 中…" : `改為 Mac (${selectedWindowsCount})`}
+                </Button>
+              ) : null}
+              {selectedMacCount > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleBulkSystemChange("win")}
+                  disabled={loading || busy}
+                  title="把選取中的 Mac 軟體改成 Windows"
+                >
+                  <Laptop />
+                  {bulkSystemTarget === "win" ? "改為 Windows 中…" : `改為 Windows (${selectedMacCount})`}
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={bulk.startSelection}
+              disabled={loading || busy || visibleIds.length === 0}
+              title="勾選多筆軟體，批次在 Windows 與 Mac 之間切換或刪除"
+            >
+              <ListChecks />
+              多選
+            </Button>
+          )}
           <BulkSelectionControls
             selectionMode={bulk.selectionMode}
             isAllSelected={bulk.isAllSelected}

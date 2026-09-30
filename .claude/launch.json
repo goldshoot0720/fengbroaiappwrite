@@ -21,6 +21,17 @@
         "4321"
       ],
       "port": 4321
+    },
+    {
+      "name": "dev-node",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": [
+        "node_modules/next/dist/bin/next",
+        "dev",
+        "--port",
+        "4322"
+      ],
+      "port": 4322
     }
   ]
 }

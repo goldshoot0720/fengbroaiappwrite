@@ -34,6 +34,11 @@ export function useBulkSelection(visibleIds: readonly string[]) {
     if (selected) setSelectionMode(true);
   }, []);
 
+  /** Shows the checkboxes with nothing ticked, for picking a few by hand. */
+  const startSelection = useCallback(() => {
+    setSelectionMode(true);
+  }, []);
+
   const clear = useCallback(() => {
     setSelectedIds(new Set());
     setSelectionMode(false);
@@ -49,6 +54,7 @@ export function useBulkSelection(visibleIds: readonly string[]) {
     selectAll,
     toggle,
     toggleMany,
+    startSelection,
     clear,
     isSelected,
   };
