@@ -59,6 +59,17 @@ import type {
 } from "@/types";
 
 type SystemFilter = "all" | ReinstallSystem;
+
+/** Unknown or empty values have always been treated as Windows. */
+function systemOf(item: { system?: string }): ReinstallSystem {
+  return item.system === "mac" || item.system === "win/mac" ? item.system : "win";
+}
+
+/** Win／Mac software is needed on both machines, so it counts for either one. */
+function runsOn(item: { system?: string }, platform: "win" | "mac"): boolean {
+  const system = systemOf(item);
+  return system === platform || system === "win/mac";
+}
 type SoftwareFilter = "all" | ReinstallSoftwareType;
 type SubscriptionFilter = "all" | "yes" | "no";
 
@@ -186,7 +197,8 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
       .filter((item) => {
         const matchesQuery = !normalizedQuery || [item.name, item.category, item.site, item.note]
           .some((value) => String(value || "").toLocaleLowerCase("zh-Hant").includes(normalizedQuery));
-        const matchesSystem = systemFilter === "all" || item.system === systemFilter;
+        const matchesSystem = systemFilter === "all"
+          || (systemFilter === "win/mac" ? systemOf(item) === "win/mac" : runsOn(item, systemFilter));
         const matchesSoftware = softwareFilter === "all" || item.softwareType === softwareFilter;
         const matchesSubscription = subscriptionFilter === "all"
           || (subscriptionFilter === "yes" && item.subscriptionSoftware)
@@ -210,8 +222,8 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     clearBulkSelection();
   }, [accountVersion, clearBulkSelection]);
 
-  const windowsCount = items.filter((item) => item.system === "win").length;
-  const macCount = items.filter((item) => item.system === "mac").length;
+  const windowsCount = items.filter((item) => runsOn(item, "win")).length;
+  const macCount = items.filter((item) => runsOn(item, "mac")).length;
   const serialCount = items.filter((item) => item.licenseType === "paid_serial").length;
   const busy = saving || deletingId !== null || importing || bulkDeleting || bulkSystemTarget !== null;
 
@@ -219,8 +231,9 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
     () => items.filter((item) => bulk.selectedIds.has(item.$id)),
     [items, bulk.selectedIds],
   );
-  const selectedWindowsCount = selectedItems.filter((item) => item.system !== "mac").length;
-  const selectedMacCount = selectedItems.filter((item) => item.system === "mac").length;
+  /** How many ticked items each 「改為…」 button would actually change. */
+  const changeableCount = (target: ReinstallSystem) =>
+    selectedItems.filter((item) => systemOf(item) !== target).length;
 
   const refresh = () => {
     setRevealedIds(new Set());
@@ -310,7 +323,7 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
   // PUT replaces the whole record, so each one goes back in full with only the
   // system changed — the same shape the edit form saves, serial included.
   const handleBulkSystemChange = async (target: ReinstallSystem) => {
-    const targets = selectedItems.filter((item) => (item.system === "mac" ? "mac" : "win") !== target);
+    const targets = selectedItems.filter((item) => systemOf(item) !== target);
     if (targets.length === 0 || busy) return;
     const byId = new Map(targets.map((item) => [item.$id, item]));
     setBulkSystemTarget(target);
@@ -538,30 +551,23 @@ export default function ReinstallManagement({ onNavigate }: ReinstallManagementP
           </Button>
           {bulk.selectionMode ? (
             <>
-              {selectedWindowsCount > 0 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void handleBulkSystemChange("mac")}
-                  disabled={loading || busy}
-                  title="把選取中的 Windows 軟體改成 Mac"
-                >
-                  <Laptop />
-                  {bulkSystemTarget === "mac" ? "改為 Mac 中…" : `改為 Mac (${selectedWindowsCount})`}
-                </Button>
-              ) : null}
-              {selectedMacCount > 0 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void handleBulkSystemChange("win")}
-                  disabled={loading || busy}
-                  title="把選取中的 Mac 軟體改成 Windows"
-                >
-                  <Laptop />
-                  {bulkSystemTarget === "win" ? "改為 Windows 中…" : `改為 Windows (${selectedMacCount})`}
-                </Button>
-              ) : null}
+              {REINSTALL_SYSTEM_OPTIONS.map((option) => {
+                const count = changeableCount(option.value);
+                if (count === 0) return null;
+                return (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleBulkSystemChange(option.value)}
+                    disabled={loading || busy}
+                    title={`把選取中的軟體改成 ${option.label}`}
+                  >
+                    <Laptop />
+                    {bulkSystemTarget === option.value ? `改為 ${option.label} 中…` : `改為 ${option.label} (${count})`}
+                  </Button>
+                );
+              })}
             </>
           ) : (
             <Button

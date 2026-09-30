@@ -84,6 +84,13 @@ const SYSTEM_ALIASES: Record<string, ReinstallSystem> = {
   osx: "mac",
   Mac: "mac",
   Macintosh: "mac",
+  "win/mac": "win/mac",
+  "mac/win": "win/mac",
+  "windows/mac": "win/mac",
+  "win／mac": "win/mac",
+  "win+mac": "win/mac",
+  both: "win/mac",
+  雙系統: "win/mac",
 };
 
 const SOFTWARE_TYPE_ALIASES: Record<string, ReinstallSoftwareType> = {

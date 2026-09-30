@@ -59,6 +59,7 @@ export const ALL_PURCHASE_STATUS_OPTIONS: ReadonlyArray<{ value: PurchaseStatus;
 export const REINSTALL_SYSTEM_OPTIONS: ReadonlyArray<{ value: ReinstallSystem; label: string }> = [
   { value: "win", label: "Windows" },
   { value: "mac", label: "Mac" },
+  { value: "win/mac", label: "Win／Mac" },
 ];
 
 export const REINSTALL_SOFTWARE_TYPE_OPTIONS: ReadonlyArray<{

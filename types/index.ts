@@ -132,7 +132,8 @@ export interface ShoppingItemFormData {
 }
 
 // 重灌軟體管理
-export type ReinstallSystem = "win" | "mac";
+/** "win/mac" = 兩個系統都要裝；Appwrite 欄位是長度 10 的字串，放得下。 */
+export type ReinstallSystem = "win" | "mac" | "win/mac";
 export type ReinstallSoftwareType = "trial" | "free" | "paid";
 export type ReinstallLicenseType = "none" | "paid_serial";
 export type ReinstallSubscriptionPeriodUnit = "year" | "month";

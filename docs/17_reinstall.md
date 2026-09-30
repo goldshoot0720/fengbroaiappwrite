@@ -22,7 +22,7 @@
 |---|---|---|
 | 服務名稱 | `name` | 必填，最多 100 字元 |
 | 分類 | `category` | 選填，最多 50 字元；可從已輸入過的分類選取或自行輸入新分類 |
-| 使用系統 | `system` | `win` Windows（預設）／`mac` Mac |
+| 使用系統 | `system` | `win` Windows（預設）／`mac` Mac／`win/mac` 兩個系統都要裝（篩選 Windows 或 Mac 時都會列出，摘要兩邊都計入） |
 | 軟體類型 | `softwareType` | `trial` 試用／`free` 免費（預設）／`paid` 付費 |
 | 訂閱制軟體 | `subscriptionSoftware` | 是否為訂閱制，預設否 |
 | 訂閱週期 | `subscriptionPeriod` | 訂閱制時為 `?年` 或 `?月`（例如 `1年`、`3月`）；非訂閱制時清空 |
@@ -50,7 +50,7 @@
 |---|---|---|
 | name | 服務名稱、軟體名稱 | 必填，最多 100 字元 |
 | category | 分類、類別 | 選填，最多 50 字元 |
-| system | 使用系統、系統 | `win`／Windows（預設）、`mac`／Mac |
+| system | 使用系統、系統 | `win`／Windows（預設）、`mac`／Mac、`win/mac`（也接受 `mac/win`、`both`、`雙系統`） |
 | softwareType | 軟體類型 | `trial`／試用、`free`／免費（預設）、`paid`／付費 |
 | licenseType | 授權方式 | `none`／無序號（預設）、`paid_serial`／付費序號 |
 | serial | 付費序號、序號 | 最多 500 字元；無序號時忽略 |
