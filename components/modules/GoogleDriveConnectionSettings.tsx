@@ -169,6 +169,11 @@ export function GoogleDriveConnectionSettings({
             {` ${BACKUP_FOLDER_LABEL} `}
             資料夾。
           </p>
+          <p className="mt-2 text-xs text-sky-700 dark:text-sky-300">
+            API 金鑰要與 OAuth 用戶端在同一個專案，並啟用 Google Picker API。若用「網站」限制金鑰，除了目前網域，
+            還要加上 https://docs.google.com/*（Picker 視窗從那裡查核金鑰），否則會出現「The API developer key is
+            invalid」。
+          </p>
 
           {loading ? (
             <p className="mt-3 flex items-center gap-2 text-xs text-sky-700 dark:text-sky-300">
