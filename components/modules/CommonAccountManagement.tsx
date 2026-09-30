@@ -12,6 +12,7 @@ import { API_ENDPOINTS } from "@/lib/constants";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { FaviconImage } from "@/components/ui/favicon-image";
 import { getExportFilename } from "@/lib/utils";
+import { parseCommonAccountCsv } from "@/lib/menuBackup/simpleCsv";
 
 // 常見網站名稱到 URL 的映射（用於 favicon 顯示）
 const SITE_URL_MAP: Record<string, string> = {
@@ -665,128 +666,10 @@ export default function CommonAccountManagement() {
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
-  // 解析完整 CSV（處理多行欄位）
-  const parseFullCSV = (text: string): string[][] => {
-    const rows: string[][] = [];
-    const cleanText = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    let currentRow: string[] = []; let currentField = ''; let inQuotes = false;
-    for (let i = 0; i < cleanText.length; i++) {
-      const char = cleanText[i];
-      if (inQuotes) {
-        if (char === '"') { if (cleanText[i + 1] === '"') { currentField += '"'; i++; } else { inQuotes = false; } }
-        else { currentField += char; }
-      } else {
-        if (char === '"') { inQuotes = true; }
-        else if (char === ',') { currentRow.push(currentField); currentField = ''; }
-        else if (char === '\n') {
-          currentRow.push(currentField);
-          if (currentRow.length > 0 && currentRow.some(f => f.trim())) { rows.push(currentRow); }
-          currentRow = []; currentField = '';
-        } else { currentField += char; }
-      }
-    }
-    if (currentField || currentRow.length > 0) {
-      currentRow.push(currentField);
-      if (currentRow.some(f => f.trim())) { rows.push(currentRow); }
-    }
-    return rows;
-  };
-
-  // 解析 CSV
+  // 解析 CSV（與鋒兄設定一鍵匯入共用；依表頭名稱對應，容許 Supabase 版多出的 photohash 欄）
   const parseCSV = (text: string): { data: CommonAccountFormData[], errors: string[] } => {
-    const errors: string[] = [];
-    const data: CommonAccountFormData[] = [];
-
-    const rows = parseFullCSV(text);
-
-    if (rows.length < 2) {
-      errors.push('CSV 檔案至少需要表頭和一行資料');
-      return { data, errors };
-    }
-
-    // 建立預期的表頭
-    const expectedHeaders = ['name'];
-    for (let i = 1; i <= 37; i++) {
-      const idx = i.toString().padStart(2, '0');
-      expectedHeaders.push(`site${idx}`, `note${idx}`);
-    }
-    const EXPECTED_COLUMN_COUNT = expectedHeaders.length; // 75 欄
-
-    // 解析表頭
-    const headerValues = rows[0].map(h => h.trim());
-
-    // 嚴格檢查表頭欄位數量
-    if (headerValues.length !== EXPECTED_COLUMN_COUNT) {
-      errors.push(`表頭欄位數量錯誤: 預期 ${EXPECTED_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
-      if (headerValues.length > EXPECTED_COLUMN_COUNT) {
-        errors.push(`→ 多了 ${headerValues.length - EXPECTED_COLUMN_COUNT} 欄（可能有多餘的逗號）`);
-      } else {
-        errors.push(`→ 少了 ${EXPECTED_COLUMN_COUNT - headerValues.length} 欄（可能缺少逗號）`);
-      }
-      return { data, errors };
-    }
-
-    // 檢查第一欄是否為 "name"
-    if (headerValues[0] !== 'name') {
-      errors.push(`第一欄必須是 "name"，實際為 "${headerValues[0]}"`);
-      return { data, errors };
-    }
-
-    // 嚴格檢查表頭名稱
-    for (let i = 0; i < expectedHeaders.length; i++) {
-      const expected = expectedHeaders[i];
-      const actual = headerValues[i] || '';
-      if (actual !== expected) {
-        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${expected}"，實際 "${actual}"`);
-        // 只顯示前 5 個錯誤
-        if (errors.length >= 5) {
-          errors.push('...更多表頭錯誤已省略');
-          break;
-        }
-      }
-    }
-
-    if (errors.length > 0) {
-      return { data, errors };
-    }
-
-    // 解析資料行
-    for (let i = 1; i < rows.length; i++) {
-      const values = rows[i];
-      const lineNum = i + 1;
-
-      // 嚴格檢查欄位數量
-      if (values.length !== EXPECTED_COLUMN_COUNT) {
-        if (values.length > EXPECTED_COLUMN_COUNT) {
-          errors.push(`第 ${lineNum} 行: 欄位過多 (預期 ${EXPECTED_COLUMN_COUNT}，實際 ${values.length})，多了 ${values.length - EXPECTED_COLUMN_COUNT} 欄`);
-        } else {
-          errors.push(`第 ${lineNum} 行: 欄位不足 (預期 ${EXPECTED_COLUMN_COUNT}，實際 ${values.length})，少了 ${EXPECTED_COLUMN_COUNT - values.length} 欄`);
-        }
-        continue;
-      }
-
-      // 檢查 name 欄位
-      if (!values[0] || !values[0].trim()) {
-        errors.push(`第 ${lineNum} 行: name 欄位不能為空`);
-        continue;
-      }
-
-      const formData: CommonAccountFormData = { name: values[0].trim() };
-
-      // 填充 site/note 欄位
-      for (let j = 1; j <= 37; j++) {
-        const idx = j.toString().padStart(2, '0');
-        const siteIndex = j * 2 - 1; // 1, 3, 5, ...
-        const noteIndex = j * 2;     // 2, 4, 6, ...
-
-        (formData as any)[`site${idx}`] = values[siteIndex]?.trim() || '';
-        (formData as any)[`note${idx}`] = values[noteIndex]?.trim() || '';
-      }
-
-      data.push(formData);
-    }
-
-    return { data, errors };
+    const { data, errors } = parseCommonAccountCsv(text);
+    return { errors, data: data.map((row) => ({ ...row, name: row.name })) };
   };
 
   // 處理檔案選擇

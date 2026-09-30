@@ -1,4 +1,4 @@
-import { buildCsv, parseFullCsv } from "@/lib/csvText";
+import { buildCsv, mapCsvHeader, parseFullCsv } from "@/lib/csvText";
 import {
   detectSubscriptionCsvMode,
   parseSubscriptionCsvRow,
@@ -49,9 +49,14 @@ export function commonAccountCsvHeaders(): string[] {
   return headers;
 }
 
+/**
+ * Every header in `headers` must be present (in any order); columns listed in
+ * `ignore` — extras other exports carry — are dropped.
+ */
 function parseExact(
   text: string,
   headers: readonly string[],
+  ignore: readonly string[] = [],
 ): { data: Record<string, string>[]; errors: string[] } {
   const errors: string[] = [];
   const data: Record<string, string>[] = [];
@@ -60,36 +65,25 @@ function parseExact(
     errors.push("CSV 檔案至少需要表頭和一行資料");
     return { data, errors };
   }
-  const headerValues = rows[0].map((header) => header.trim());
-  if (headerValues.length !== headers.length) {
-    errors.push(`表頭欄位數量錯誤: 預期 ${headers.length} 欄，實際 ${headerValues.length} 欄`);
-    return { data, errors };
-  }
-  for (let i = 0; i < headers.length; i++) {
-    if (headerValues[i] !== headers[i]) {
-      errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${headers[i]}"，實際 "${headerValues[i]}"`);
-      if (errors.length >= 5) {
-        errors.push("...更多錯誤已省略");
-        break;
-      }
-    }
-  }
-  if (errors.length > 0) return { data, errors };
+  const headerValues = rows[0];
+  const { index, errors: headerErrors } = mapCsvHeader(headerValues, { fields: headers, ignore, required: headers });
+  if (headerErrors.length > 0) return { data, errors: headerErrors };
 
+  const firstColumn = index.get(headers[0])!;
   for (let i = 1; i < rows.length; i++) {
     const values = rows[i];
-    if (values.length !== headers.length) {
+    if (values.length !== headerValues.length) {
       errors.push(`第 ${i + 1} 行: 欄位數量錯誤`);
       continue;
     }
-    if (!values[0]?.trim()) {
-      errors.push(`第 ${i + 1} 行: 第一欄不能為空`);
+    if (!values[firstColumn]?.trim()) {
+      errors.push(`第 ${i + 1} 行: ${headers[0]} 欄位不能為空`);
       continue;
     }
     const row: Record<string, string> = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index]?.trim() || "";
-    });
+    for (const header of headers) {
+      row[header] = values[index.get(header)!]?.trim() || "";
+    }
     data.push(row);
   }
   return { data, errors };
@@ -208,7 +202,8 @@ export function buildCommonAccountCsv(items: CommonAccount[]): string {
 
 export function parseCommonAccountCsv(text: string) {
   const headers = commonAccountCsvHeaders();
-  const parsed = parseExact(text, headers);
+  // 鋒兄 Supabase 版的常用匯出多一欄 photohash，這裡沒有對應欄位。
+  const parsed = parseExact(text, headers, ["photohash"]);
   return {
     errors: parsed.errors,
     data: parsed.data.map((row) => {

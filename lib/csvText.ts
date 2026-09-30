@@ -56,6 +56,58 @@ export function parseFullCsv(text: string): string[][] {
   return rows;
 }
 
+export type CsvHeaderSpec = {
+  /** Canonical field names, in export order. */
+  fields: readonly string[];
+  /** Other spellings of a field, e.g. the 鋒兄 Supabase app's Chinese labels. */
+  aliases?: Readonly<Record<string, string>>;
+  /** Columns other exports carry that have no field here; dropped silently. */
+  ignore?: readonly string[];
+  /** Fields that must be present in the header. */
+  required?: readonly string[];
+};
+
+/**
+ * Maps a header row onto canonical field names so a CSV imports regardless of
+ * column order, header case, or an alias spelling. Unknown columns are still
+ * errors: they usually mean the wrong file was picked.
+ * Returns field → column index; a column in `ignore` gets no entry.
+ */
+export function mapCsvHeader(
+  headerRow: readonly string[],
+  spec: CsvHeaderSpec,
+): { index: Map<string, number>; errors: string[] } {
+  const lookup = new Map<string, string>();
+  for (const field of spec.fields) lookup.set(field.toLowerCase(), field);
+  for (const [alias, field] of Object.entries(spec.aliases ?? {})) lookup.set(alias.toLowerCase(), field);
+  const ignored = new Set((spec.ignore ?? []).map((name) => name.toLowerCase()));
+
+  const index = new Map<string, number>();
+  const errors: string[] = [];
+  headerRow.forEach((raw, i) => {
+    const name = raw.trim();
+    const key = name.toLowerCase();
+    if (!name) {
+      errors.push(`表頭第 ${i + 1} 欄是空的（可能有多餘的逗號）`);
+    } else if (ignored.has(key)) {
+      // Known extra column from another export; nothing to store.
+    } else if (!lookup.has(key)) {
+      errors.push(`表頭第 ${i + 1} 欄無法辨識: "${name}"`);
+    } else {
+      const field = lookup.get(key)!;
+      if (index.has(field)) errors.push(`表頭第 ${i + 1} 欄重複: "${name}"`);
+      else index.set(field, i);
+    }
+  });
+
+  for (const field of spec.required ?? []) {
+    if (!index.has(field)) errors.push(`表頭缺少 "${field}" 欄`);
+  }
+
+  if (errors.length > 5) return { index, errors: [...errors.slice(0, 5), "...更多錯誤已省略"] };
+  return { index, errors };
+}
+
 export function withBom(csv: string): string {
   return csv.startsWith("\uFEFF") ? csv : `\uFEFF${csv}`;
 }

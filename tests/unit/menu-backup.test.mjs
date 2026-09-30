@@ -12,9 +12,11 @@ import {
 import {
   buildFoodCsv,
   commonAccountCsvHeaders,
+  parseCommonAccountCsv,
   parseFoodCsv,
   parseMusicMetaCsv,
 } from "../../lib/menuBackup/simpleCsv.ts";
+import { mapCsvHeader } from "../../lib/csvText.ts";
 
 describe("menu backup catalog", () => {
   it("lists CSV menus without ZIP-only media menus", () => {
@@ -89,6 +91,32 @@ describe("menu backup simple CSV", () => {
     assert.equal(headers[2], "note01");
     assert.equal(headers[73], "site37");
     assert.equal(headers[74], "note37");
+  });
+
+  it("imports the Supabase app's common-account CSV with its extra photohash column", () => {
+    const headers = [...commonAccountCsvHeaders(), "photohash"];
+    const values = headers.map((header) => (header === "name" ? "Google" : header === "site01" ? "https://google.com" : ""));
+    const parsed = parseCommonAccountCsv([headers.join(","), values.join(",")].join("\n"));
+    assert.deepEqual(parsed.errors, []);
+    assert.equal(parsed.data[0].name, "Google");
+    assert.equal(parsed.data[0].site01, "https://google.com");
+    assert.equal("photohash" in parsed.data[0], false);
+  });
+
+  it("still rejects common-account CSVs with unknown or missing columns", () => {
+    const headers = commonAccountCsvHeaders();
+    assert.ok(parseCommonAccountCsv([...headers, "bogus"].join(",") + "\nA").errors.length > 0);
+    assert.ok(parseCommonAccountCsv(headers.slice(0, -1).join(",") + "\nA").errors.length > 0);
+  });
+
+  it("maps CSV headers case-insensitively, skipping ignored columns and flagging stray commas", () => {
+    const spec = { fields: ["title", "newDate"], ignore: ["ref"], required: ["title"] };
+    const { index, errors } = mapCsvHeader(["title", "ref", "newdate"], spec);
+    assert.deepEqual(errors, []);
+    assert.equal(index.get("newDate"), 2);
+    assert.equal(index.has("ref"), false);
+    assert.match(mapCsvHeader(["title", ""], spec).errors[0], /多餘的逗號/);
+    assert.match(mapCsvHeader(["newDate"], spec).errors[0], /title/);
   });
 
   it("parses music metadata CSV", () => {

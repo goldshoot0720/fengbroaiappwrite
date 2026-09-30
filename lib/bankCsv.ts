@@ -1,9 +1,24 @@
 import type { Bank, BankFormData } from "@/types";
 import { toDateInputValue } from "@/lib/bankForm";
+import { mapCsvHeader } from "@/lib/csvText";
 
 export const BANK_CSV_HEADERS = ["name", "deposit", "site", "address", "withdrawals", "transfer", "activity", "card", "account", "note", "category", "expiry"];
 
-const EXPECTED_BANK_CSV_COLUMN_COUNT = BANK_CSV_HEADERS.length;
+/** 鋒兄 Supabase 版銀行匯出的中文表頭。 */
+const BANK_CSV_HEADER_ALIASES: Record<string, string> = {
+  銀行名稱: "name",
+  存款: "deposit",
+  "分行/網點": "site",
+  地址: "address",
+  提款: "withdrawals",
+  轉帳: "transfer",
+  "活動/備註": "activity",
+  卡號: "card",
+  帳號: "account",
+  備註: "note",
+  分類: "category",
+  有效期限: "expiry",
+};
 
 export function escapeCsvValue(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -41,25 +56,15 @@ export function parseBankCsv(text: string): { data: BankFormData[]; errors: stri
     return { data, errors };
   }
 
-  const headerValues = rows[0].map((header) => header.trim());
-  // 舊的備份欄位比較少（note、category、expiry 是後來才加的），
-  // 只要表頭是目前欄位的前綴就接受，缺的尾欄當空值。
-  if (headerValues.length > EXPECTED_BANK_CSV_COLUMN_COUNT) {
-    errors.push(`表頭欄位數量錯誤: 最多 ${EXPECTED_BANK_CSV_COLUMN_COUNT} 欄，實際 ${headerValues.length} 欄`);
-    return { data, errors };
-  }
-
-  for (let i = 0; i < headerValues.length; i++) {
-    if (headerValues[i] !== BANK_CSV_HEADERS[i]) {
-      errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${BANK_CSV_HEADERS[i]}"，實際 "${headerValues[i]}"`);
-      if (errors.length >= 5) {
-        errors.push("...更多錯誤已省略");
-        break;
-      }
-    }
-  }
-
-  if (errors.length > 0) return { data, errors };
+  const headerValues = rows[0];
+  // 依表頭名稱對應欄位：舊備份缺少的尾欄（note、category、expiry）當空值，
+  // 鋒兄 Supabase 版匯出的中文表頭也能直接匯入。
+  const { index, errors: headerErrors } = mapCsvHeader(headerValues, {
+    fields: BANK_CSV_HEADERS,
+    aliases: BANK_CSV_HEADER_ALIASES,
+    required: ["name"],
+  });
+  if (headerErrors.length > 0) return { data, errors: headerErrors };
 
   for (let i = 1; i < rows.length; i++) {
     const values = rows[i];
@@ -70,24 +75,30 @@ export function parseBankCsv(text: string): { data: BankFormData[]; errors: stri
       continue;
     }
 
-    if (!values[0]?.trim()) {
+    const text = (field: string) => {
+      const column = index.get(field);
+      return column === undefined ? "" : values[column]?.trim() || "";
+    };
+
+    const name = text("name");
+    if (!name) {
       errors.push(`第 ${lineNumber} 行: name 欄位不能為空`);
       continue;
     }
 
     data.push({
-      name: values[0].trim(),
-      deposit: parseFloat(values[1]) || 0,
-      site: values[2]?.trim() || "",
-      address: values[3]?.trim() || "",
-      withdrawals: parseFloat(values[4]) || 0,
-      transfer: parseFloat(values[5]) || 0,
-      activity: values[6]?.trim() || "",
-      card: values[7]?.trim() || "",
-      account: values[8]?.trim() || "",
-      note: values[9]?.trim() || "",
-      category: values[10]?.trim() || "",
-      expiry: values[11]?.trim() || "",
+      name,
+      deposit: parseFloat(text("deposit")) || 0,
+      site: text("site"),
+      address: text("address"),
+      withdrawals: parseFloat(text("withdrawals")) || 0,
+      transfer: parseFloat(text("transfer")) || 0,
+      activity: text("activity"),
+      card: text("card"),
+      account: text("account"),
+      note: text("note"),
+      category: text("category"),
+      expiry: text("expiry"),
     });
   }
 

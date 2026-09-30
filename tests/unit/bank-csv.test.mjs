@@ -47,6 +47,25 @@ describe("bank CSV", () => {
     assert.equal(data[0].expiry, "");
   });
 
+  it("accepts the Supabase app's Chinese headers", () => {
+    const csv = [
+      '"銀行名稱","存款","帳號","卡號","分行/網點","地址","提款","轉帳","活動/備註"',
+      '"玉山銀行","36","末五碼 12345","金融卡","https://www.esunbank.com","","1","2","https://event.example.com"',
+    ].join("\n");
+    const { data, errors } = parseBankCsv(csv);
+
+    assert.deepEqual(errors, []);
+    assert.equal(data[0].name, "玉山銀行");
+    assert.equal(data[0].deposit, 36);
+    assert.equal(data[0].account, "末五碼 12345");
+    assert.equal(data[0].card, "金融卡");
+    assert.equal(data[0].site, "https://www.esunbank.com");
+    assert.equal(data[0].withdrawals, 1);
+    assert.equal(data[0].transfer, 2);
+    assert.equal(data[0].activity, "https://event.example.com");
+    assert.equal(data[0].note, "");
+  });
+
   it("rejects a header that is not a prefix of the current columns", () => {
     const { errors } = parseBankCsv("name,deposit,site,bogus\nA,1,,x");
     assert.ok(errors.length > 0);

@@ -30,6 +30,7 @@ import {
 } from "@/lib/fileMultipart";
 import { FileText, Link as LinkIcon, File, Copy, Check, ChevronDown, Plus, Minus, Folder, FileIcon, Download, Upload, Archive, ArchiveRestore, Trash2, Sparkles, Pin, PinOff, Clock3, FolderOpen, BrainCircuit, RefreshCw, LayoutGrid, List } from "lucide-react";
 import { loadJSZip, type JSZipType } from "@/lib/loadJSZip";
+import { mapCsvHeader } from "@/lib/csvText";
 import { SkinSwitcher, type SkinOption } from "@/components/ui/skin-switcher";
 import { NotionWorkspace } from "@/components/modules/note-skins/NotionWorkspace";
 import { FaviconImage } from "@/components/ui/favicon-image";
@@ -295,7 +296,6 @@ export default function NotesManagement() {
   const [exportDebugMessages, setExportDebugMessages] = useState<string[]>([]);
   const exportAbortRef = useRef<AbortController | null>(null);
   const ZIP_CSV_HEADERS = ['title', 'content', 'category', 'newDate', 'url1', 'url2', 'url3', 'file1', 'file1name', 'file1type', 'file2', 'file2name', 'file2type', 'file3', 'file3name', 'file3type'];
-  const ZIP_CSV_COLUMN_COUNT = ZIP_CSV_HEADERS.length;
 
   // Select all / batch delete states
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1200,7 +1200,7 @@ export default function NotesManagement() {
     exportAbortRef.current?.abort();
   };
 
-  // RFC 4180 compliant CSV parser - 支援 16 欄（ZIP 格式）、7 欄（含分類）與 6 欄（舊 CSV 格式）
+  // RFC 4180 compliant CSV parser - 依表頭名稱對應欄位（ZIP、含分類 CSV、舊 CSV、Supabase 版匯出）
   const parseCSV = (text: string): { data: ArticleFormData[], errors: string[] } => {
     const errors: string[] = [];
     const data: ArticleFormData[] = [];
@@ -1259,63 +1259,48 @@ export default function NotesManagement() {
     }
 
     const headerValues = rows[0];
-    const columnCount = headerValues.length;
-
-    // 支援 16 欄（ZIP 格式）、7 欄（含分類）或 6 欄（舊 CSV 格式）
-    if (columnCount !== ZIP_CSV_COLUMN_COUNT && columnCount !== 7 && columnCount !== 6) {
-      errors.push(`表頭欄位數量錯誤: 預期 ${ZIP_CSV_COLUMN_COUNT} 欄、7 欄或 6 欄，實際 ${columnCount} 欄`);
-      return { data, errors };
-    }
-
-    const expectedHeaders = columnCount === ZIP_CSV_COLUMN_COUNT
-      ? ZIP_CSV_HEADERS
-      : columnCount === 7
-        ? ['title', 'content', 'category', 'newDate', 'url1', 'url2', 'url3']
-        : ['title', 'content', 'newDate', 'url1', 'url2', 'url3'];
-    for (let i = 0; i < expectedHeaders.length; i++) {
-      if (headerValues[i]?.trim() !== expectedHeaders[i]) {
-        errors.push(`表頭第 ${i + 1} 欄錯誤: 預期 "${expectedHeaders[i]}"，實際 "${headerValues[i]?.trim()}"`);
-        if (errors.length >= 5) { errors.push('...更多錯誤已省略'); break; }
-      }
-    }
-    if (errors.length > 0) return { data, errors };
+    // 依表頭名稱對應：ZIP（16 欄）、含分類 CSV（7 欄）、舊 CSV（6 欄）都只是欄位子集；
+    // 鋒兄 Supabase 版匯出的 newdate（小寫）與多出的 ref 欄也能直接匯入。
+    const { index, errors: headerErrors } = mapCsvHeader(headerValues, {
+      fields: ZIP_CSV_HEADERS,
+      ignore: ['ref'],
+      required: ['title', 'content'],
+    });
+    if (headerErrors.length > 0) return { data, errors: headerErrors };
 
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
       const lineNum = i + 1;
-      if (values.length !== columnCount) {
-        errors.push(`第 ${lineNum} 行: 欄位數量錯誤 (預期 ${columnCount} 欄，實際 ${values.length} 欄)`);
+      if (values.length !== headerValues.length) {
+        errors.push(`第 ${lineNum} 行: 欄位數量錯誤 (預期 ${headerValues.length} 欄，實際 ${values.length} 欄)`);
         continue;
       }
-      if (!values[0]?.trim()) {
+      const text = (field: string) => {
+        const column = index.get(field);
+        return column === undefined ? '' : values[column]?.trim() || '';
+      };
+      if (!text('title')) {
         errors.push(`第 ${lineNum} 行: title 欄位不能為空`);
         continue;
       }
-      const hasCategory = columnCount === ZIP_CSV_COLUMN_COUNT || columnCount === 7;
-      const categoryIndex = hasCategory ? 2 : -1;
-      const newDateIndex = hasCategory ? 3 : 2;
-      const url1Index = hasCategory ? 4 : 3;
-      const url2Index = hasCategory ? 5 : 4;
-      const url3Index = hasCategory ? 6 : 5;
-      const fileBaseIndex = 7;
 
       data.push({
-        title: values[0].trim(),
-        content: values[1]?.trim() || '',
-        category: hasCategory ? (values[categoryIndex]?.trim() || '') : '',
-        newDate: values[newDateIndex]?.trim() || getTodayInputDate(),
-        url1: values[url1Index]?.trim() || '',
-        url2: values[url2Index]?.trim() || '',
-        url3: values[url3Index]?.trim() || '',
-        file1: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex]?.trim() || '') : '',
-        file1name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 1]?.trim() || '') : '',
-        file1type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 2]?.trim() || '') : '',
-        file2: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 3]?.trim() || '') : '',
-        file2name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 4]?.trim() || '') : '',
-        file2type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 5]?.trim() || '') : '',
-        file3: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 6]?.trim() || '') : '',
-        file3name: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 7]?.trim() || '') : '',
-        file3type: columnCount === ZIP_CSV_COLUMN_COUNT ? (values[fileBaseIndex + 8]?.trim() || '') : ''
+        title: text('title'),
+        content: text('content'),
+        category: text('category'),
+        newDate: text('newDate') || getTodayInputDate(),
+        url1: text('url1'),
+        url2: text('url2'),
+        url3: text('url3'),
+        file1: text('file1'),
+        file1name: text('file1name'),
+        file1type: text('file1type'),
+        file2: text('file2'),
+        file2name: text('file2name'),
+        file2type: text('file2type'),
+        file3: text('file3'),
+        file3name: text('file3name'),
+        file3type: text('file3type'),
       });
     }
     return { data, errors };
