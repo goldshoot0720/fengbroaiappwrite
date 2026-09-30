@@ -102,6 +102,46 @@ export function googleProjectNumberFromClientId(clientId: string): string | null
   return match ? match[1] : null;
 }
 
+/**
+ * Picker's "The API developer key is invalid." hides the real cause. Asking a
+ * Google API with the key alone (no OAuth token) makes Google say why, and the
+ * browser attaches this site as the Referer exactly as it does for Picker.
+ * Sheets is used because it checks the key before asking for a login (Drive
+ * does not), and a key limited to Picker still gets a project-bearing
+ * API_KEY_SERVICE_BLOCKED back. Returns a message only for certain failures.
+ */
+export async function diagnoseGoogleApiKey(apiKey: string, clientId: string): Promise<string | null> {
+  let reason = "";
+  let consumer = "";
+  try {
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/x?fields=spreadsheetId&key=${encodeURIComponent(apiKey.trim())}`
+    );
+    const body = await res.json().catch(() => ({}));
+    type ErrorDetail = { "@type"?: string; reason?: string; metadata?: { consumer?: string } };
+    const details: ErrorDetail[] = body?.error?.details || [];
+    const info = details.find((d) => d["@type"]?.includes("ErrorInfo"));
+    reason = info?.reason || "";
+    consumer = info?.metadata?.consumer || "";
+  } catch {
+    return null; // Network trouble: let Picker try and report on its own.
+  }
+
+  const origin = window.location.origin;
+  if (reason === "API_KEY_INVALID") {
+    return "Google 回報這把 API Key 不存在或已刪除／輪替。請到 Google Cloud Console → 憑證 按「Show key」重新複製，貼到鋒兄設定後儲存。";
+  }
+  if (reason === "API_KEY_HTTP_REFERRER_BLOCKED") {
+    return `API Key 的網站限制不允許 ${origin}。請在 Website restrictions 加上 ${origin}/*（設定最多 5 分鐘生效）。`;
+  }
+  const keyProject = /projects\/(\d+)/.exec(consumer)?.[1];
+  const clientProject = googleProjectNumberFromClientId(clientId);
+  if (keyProject && clientProject && keyProject !== clientProject) {
+    return `API Key 屬於專案 ${keyProject}，但 OAuth Client ID 屬於專案 ${clientProject}。Picker 需要兩者在同一個 Google Cloud 專案：請到 Client ID 所在的專案啟用 Google Picker API 並建立 API Key。`;
+  }
+  return null;
+}
+
 export function isGoogleDriveConfigured(): boolean {
   return Boolean(getGoogleClientId() && getGoogleApiKey());
 }
@@ -350,6 +390,9 @@ export async function pickBackupFromGoogleDrive(): Promise<GooglePickedFile | nu
   const keyProblem = googleApiKeyProblem(apiKey);
   if (keyProblem) throw new Error(keyProblem);
   const accessToken = await requestGoogleDriveAccessToken();
+  // After the token request, so the popup still opens inside the user's click.
+  const diagnosis = await diagnoseGoogleApiKey(apiKey, getGoogleClientId());
+  if (diagnosis) throw new Error(diagnosis);
   await loadGooglePicker();
 
   return new Promise((resolve, reject) => {
