@@ -151,17 +151,17 @@ export async function uploadToAppwriteStorage(
   try {
     const client = createAppwriteClient();
     const storage = new Storage(client);
-    const response = await storage.createFile(
-      config.bucketId,
-      ID.unique(),
+    const response = await storage.createFile({
+      bucketId: config.bucketId,
+      fileId: ID.unique(),
       file,
-      [Permission.read(Role.any())],
-      onProgress
+      permissions: [Permission.read(Role.any())],
+      onProgress: onProgress
         ? (progress) => {
             onProgress(Math.min(100, Math.round(progress.progress || 0)));
           }
-        : undefined
-    );
+        : undefined,
+    });
 
     const category = trafficCategory || categoryFromFile(file);
     if (category) recordMediaTraffic(category, 'upload', file.size);
