@@ -56,6 +56,15 @@ function getUploadErrorMessage(error: any, file: File): string {
     return `檔案「${file.name}」大小為 ${formatFileSize(file.size)}，已超過目前 Appwrite 方案的單檔上傳限制。請改傳較小的檔案，或到 Appwrite Console 升級方案後再試。`;
   }
 
+  // Uploads go straight from the browser to Appwrite. When this site is not a
+  // registered Web platform, Appwrite answers 403 without CORS headers, so the
+  // browser only reports a bare network failure (Firefox: "NetworkError when
+  // attempting to fetch resource", Chrome: "Failed to fetch", Safari: "Load failed").
+  if (/networkerror|failed to fetch|load failed/.test(normalizedMessage)) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '目前網域';
+    return `無法連到 Appwrite Storage。最常見的原因是 ${host} 尚未登記為 Appwrite 專案的 Web 平台：請到 Appwrite Console → 專案 Overview → Platforms → Add platform → Web，主機名稱填 ${host}。若已登記，請確認網路連線。`;
+  }
+
   return rawMessage;
 }
 
