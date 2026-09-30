@@ -75,6 +75,23 @@ export function getGoogleApiKey(envFallback?: string): string {
   }
 }
 
+/**
+ * Google Picker only reports "The API developer key is invalid." for any bad
+ * key. The usual mix-up is pasting the OAuth client secret (GOCSPX-…) into
+ * the API Key field, so name that case explicitly.
+ */
+export function googleApiKeyProblem(value: string): string | null {
+  const key = value.trim();
+  if (!key) return null;
+  if (key.startsWith("GOCSPX-")) {
+    return "Google API Key 欄位填的是 OAuth 用戶端密碼（Client Secret，GOCSPX- 開頭），不是 API Key。請到 Google Cloud Console → 憑證 → 建立憑證 → API 金鑰，並啟用 Google Picker API。";
+  }
+  if (!key.startsWith("AIza")) {
+    return "Google API Key 格式不對：應以 AIza 開頭。請到 Google Cloud Console → 憑證 → API 金鑰 複製正確的值。";
+  }
+  return null;
+}
+
 export function isGoogleDriveConfigured(): boolean {
   return Boolean(getGoogleClientId() && getGoogleApiKey());
 }
@@ -320,6 +337,8 @@ export async function pickBackupFromGoogleDrive(): Promise<GooglePickedFile | nu
   if (!apiKey) {
     throw new Error("尚未設定 Google API Key，請先在鋒兄設定填入 NEXT_PUBLIC_GOOGLE_API_KEY");
   }
+  const keyProblem = googleApiKeyProblem(apiKey);
+  if (keyProblem) throw new Error(keyProblem);
   const accessToken = await requestGoogleDriveAccessToken();
   await loadGooglePicker();
 

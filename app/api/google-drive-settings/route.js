@@ -10,6 +10,7 @@ import {
   verifyAccessPin,
 } from "../_lib/accessPin";
 import { GOOGLE_DRIVE_SETTINGS_DOCUMENT_ID } from "../../../lib/notifications/notificationSettings";
+import { googleApiKeyProblem } from "../../../lib/googleDrive";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +142,8 @@ export async function PUT(request) {
     if (clientId.length > 300 || apiKey.length > 300) {
       return json({ error: "Client ID 或 API Key 過長（上限 300 字元）。" }, 400);
     }
+    const keyProblem = googleApiKeyProblem(apiKey);
+    if (keyProblem) return json({ error: keyProblem }, 400);
 
     const data = { googleClientId: clientId, googleApiKey: apiKey };
     if (doc) {
