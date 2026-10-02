@@ -8,7 +8,7 @@ export const MODULE_LABELS: Record<string, string> = {
   reinstall: "重灌",
   quota: "額度",
   food: "食品/商品",
-  "shopping-list": "購物清單",
+  "shopping-list": "鋒兄購物",
   common: "常用",
   "bank-stats": "銀行",
   notes: "筆記",
@@ -26,7 +26,7 @@ export const MODULE_LABELS: Record<string, string> = {
   "image-voice-video": "圖片+語音=影片",
   "image-format-convert": "PNG/JPEG",
   "video-merge": "影片合併",
-  "youtube-bilibili-convert": "YouTube/Bilibili",
+  "youtube-bilibili-convert": "Ｙ站Ｂ站",
   settings: "鋒兄設定",
   about: "鋒兄關於",
 };
