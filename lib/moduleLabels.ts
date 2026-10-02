@@ -8,6 +8,7 @@ export const MODULE_LABELS: Record<string, string> = {
   reinstall: "重灌",
   quota: "額度",
   food: "食品/商品",
+  udemy: "Udemy",
   "shopping-list": "鋒兄購物",
   common: "常用",
   "bank-stats": "銀行",

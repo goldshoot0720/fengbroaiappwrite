@@ -10,6 +10,7 @@ import {
   FileText,
   FolderOpen,
   Gauge,
+  GraduationCap,
   Home,
   Image as ImageIcon,
   Info,
@@ -90,6 +91,9 @@ const ShoppingListManagement = dynamic(
   () => import("@/components/modules/ShoppingListManagement"),
   { loading: ModuleFallback }
 );
+const UdemyManagement = dynamic(() => import("@/components/modules/UdemyManagement"), {
+  loading: ModuleFallback,
+});
 const TrialPurchaseManagement = dynamic(
   () => import("@/components/modules/TrialPurchaseManagement"),
   { loading: ModuleFallback }
@@ -150,6 +154,7 @@ const MENU_ITEMS: MenuItem[] = [
       { id: "reinstall", label: "重灌", icon: <Laptop size={18} /> },
       { id: "quota", label: "額度", icon: <Gauge size={18} /> },
       { id: "food", label: "食品/商品", icon: <Package size={18} /> },
+      { id: "udemy", label: "Udemy", icon: <GraduationCap size={18} /> },
       { id: "common", label: "常用", icon: <Star size={18} /> },
       { id: "bank-stats", label: "銀行", icon: <Building2 size={18} /> },
       { id: "notes", label: "筆記", icon: <FileText size={18} /> },
@@ -198,6 +203,7 @@ const APPWRITE_REQUIRED_MODULES = new Set([
   "quota",
   "food",
   "shopping-list",
+  "udemy",
   "notes",
   "common",
   "images",
@@ -313,6 +319,8 @@ export default function DashboardPage() {
         return <FoodManagement />;
       case "shopping-list":
         return <ShoppingListManagement />;
+      case "udemy":
+        return <UdemyManagement />;
       case "notes":
         return <NotesManagement />;
       case "common":

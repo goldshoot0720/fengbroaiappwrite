@@ -30,6 +30,7 @@ export async function startManagementFixture({ port = 0, seed = true, accountCou
     addCollection("reinstall");
     addCollection("quota");
     addCollection("shoppinglist");
+    addCollection("udemy");
     addCollection("tubechannel");
     addCollection("financeinstrument2");
     addDocument("tubechannel", { sourceUrl: "https://www.youtube.com/@henren778/videos", alias: "一个狠人" }, "tube-henren");

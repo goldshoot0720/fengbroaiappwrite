@@ -131,6 +131,38 @@ export interface ShoppingItemFormData {
   note?: string;
 }
 
+// 鋒兄 Udemy 課程
+export interface UdemyCourse {
+  $id: string;
+  name: string;
+  instructor?: string;
+  // 多個值以「,」或「、」分隔
+  language?: string;
+  framework?: string;
+  technology?: string;
+  watchedLectures?: number;
+  totalLectures?: number;
+  // 課程頁面「上次更新」日期（Udemy 只到月份，存成當月某天）
+  courseUpdatedAt?: string;
+  totalHours?: number;
+  completed?: boolean;
+  $createdAt?: string;
+  $updatedAt?: string;
+}
+
+export interface UdemyCourseFormData {
+  name: string;
+  instructor?: string;
+  language?: string;
+  framework?: string;
+  technology?: string;
+  watchedLectures?: number;
+  totalLectures?: number;
+  courseUpdatedAt?: string;
+  totalHours?: number;
+  completed?: boolean;
+}
+
 // 重灌軟體管理
 /** "win/mac" = 兩個系統都要裝；Appwrite 欄位是長度 10 的字串，放得下。 */
 export type ReinstallSystem = "win" | "mac" | "win/mac";

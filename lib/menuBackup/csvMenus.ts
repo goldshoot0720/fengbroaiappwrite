@@ -17,7 +17,8 @@ import { parseQuotaCsv, quotaImportKey } from "@/lib/quotaCsv";
 import { parseReinstallCsv, reinstallImportKey } from "@/lib/reinstallCsv";
 import { parseShoppingCsv, shoppingImportKey } from "@/lib/shoppingCsv";
 import { parseTrialPurchaseCsv, trialPurchaseImportKey } from "@/lib/trialPurchaseCsv";
-import type { Bank, CommonAccount, Food, Quota, ReinstallSoftware, ShoppingItem, Subscription, TrialPurchase } from "@/types";
+import { parseUdemyCsv, udemyImportKey } from "@/lib/udemyCsv";
+import type { Bank, CommonAccount, Food, Quota, ReinstallSoftware, ShoppingItem, Subscription, TrialPurchase, UdemyCourse } from "@/types";
 import { csvMenus, type MenuBackupEntry } from "./catalog";
 import {
   parseCommonAccountCsv,
@@ -259,6 +260,22 @@ export async function importCsvMenu(
           parsed.data as unknown as Array<Record<string, unknown>>,
           (item) => shoppingImportKey({ name: item.name }),
           (row) => shoppingImportKey({ name: String(row.name || "") }),
+          (current, total, name) => progress(`${entry.label} ${name}`, current, total),
+        );
+        return report(fail ? "error" : "ok", ok, fail ? `成功 ${ok}、失敗 ${fail}` : undefined);
+      }
+      case "udemy": {
+        const parsed = parseUdemyCsv(csv);
+        if (parsed.errors.length && parsed.data.length === 0) {
+          return report("error", 0, parsed.errors[0]);
+        }
+        const existing = await fetchList<UdemyCourse>(API_ENDPOINTS.UDEMY);
+        const { ok, fail } = await upsertRows(
+          API_ENDPOINTS.UDEMY,
+          existing,
+          parsed.data as unknown as Array<Record<string, unknown>>,
+          (item) => udemyImportKey({ name: item.name }),
+          (row) => udemyImportKey({ name: String(row.name || "") }),
           (current, total, name) => progress(`${entry.label} ${name}`, current, total),
         );
         return report(fail ? "error" : "ok", ok, fail ? `成功 ${ok}、失敗 ${fail}` : undefined);

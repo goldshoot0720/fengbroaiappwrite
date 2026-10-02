@@ -145,6 +145,7 @@ export async function initializeManagementTable(config, tableName, send = () => 
         switch (attr.type) {
           case "string": await databases.createStringAttribute({ ...params, size: attr.size }); break;
           case "integer": await databases.createIntegerAttribute({ ...params, min: 0 }); break;
+          case "float": await databases.createFloatAttribute({ ...params, min: 0 }); break;
           case "datetime": await databases.createDatetimeAttribute(params); break;
           case "url": await databases.createUrlAttribute(params); break;
           case "boolean": await databases.createBooleanAttribute({

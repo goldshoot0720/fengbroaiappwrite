@@ -32,8 +32,9 @@
 | 16 | [鋒兄重灌](./17_reinstall.md) | Windows／Mac 軟體、隱藏序號、查看密碼、訂閱週期與費用 | [17_reinstall.md](./17_reinstall.md) |
 | 17 | [鋒兄額度](./19_quota.md) | 依服務追蹤剩餘額度、比例與到期日；ChatGPT Plus 可自動帶入 | [19_quota.md](./19_quota.md) |
 | 18 | [鋒兄購物清單](./18_shopping_list.md) | 商品、預定購買日、價格（多幣別）、商店與取貨方式 | [18_shopping_list.md](./18_shopping_list.md) |
+| 19 | [鋒兄 Udemy](./20_udemy.md) | 課程、講師、程式語言／框架／技術、觀看堂數與觀看比重，可依多種方式分類 | [20_udemy.md](./20_udemy.md) |
 
-桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁（同一頁可切精簡待辦與完整儀表）；鋒兄管理包含訂閱、試用/首購、重灌、額度、食品、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、鋒兄購物、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、Ｙ站Ｂ站。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
+桌面主選單是水平 Top Nav：第一列為鋒兄首頁、鋒兄管理、鋒兄工具、設定；第二列依目前選取的主選單顯示葉模組。鋒兄首頁包含首頁（同一頁可切精簡待辦與完整儀表）；鋒兄管理包含訂閱、試用/首購、重灌、額度、食品/商品、Udemy、常用、銀行、筆記、音樂、圖片、影片、文件、播客、例行；鋒兄工具包含金融、新聞、比價、鋒兄購物、手機、Tube、圖片+語音=影片、PNG/JPEG、影片合併、Ｙ站Ｂ站。上表列出可點進的葉模組。手機維持底欄快捷 + 全部模組選單。
 
 ---
 
@@ -75,7 +76,7 @@
 
 ## 資料庫 Table 結構總覽
 
-設定頁可建立 **21** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall`／`quota`／`shoppinglist`／`tubechannel`／`financeinstrument2` 使用非破壞性初始化，重試會保留已有資料。`tubechannel2` 已作廢、改用 `tubechannel`；`financeinstrument` 已作廢、改用 `financeinstrument2`（不再保留舊 route）。
+設定頁可建立 **22** 個 collection。欄位數以 `TABLE_SCHEMAS` 為準。新增的 `trialpurchase`／`reinstall`／`quota`／`shoppinglist`／`udemy`／`tubechannel`／`financeinstrument2` 使用非破壞性初始化，重試會保留已有資料。`tubechannel2` 已作廢、改用 `tubechannel`；`financeinstrument` 已作廢、改用 `financeinstrument2`（不再保留舊 route）。
 
 | # | Collection 名稱 | 欄位數 | 對應模組 | 說明文件 |
 |---|----------------|--------|---------|---------|
@@ -98,8 +99,9 @@
 | 17 | reinstall | 12 | 鋒兄重灌 | [17_reinstall.md](./17_reinstall.md) |
 | 18 | quota | 14 | 鋒兄額度 | [19_quota.md](./19_quota.md) |
 | 19 | shoppinglist | 9 | 鋒兄購物清單 | [18_shopping_list.md](./18_shopping_list.md) |
-| 20 | tubechannel | 2 | 鋒兄Tube 頻道清單 | `/api/tubechannel` |
-| 21 | financeinstrument2 | 13 | 鋒兄金融自選標的 | `/api/financeinstrument2` |
+| 20 | udemy | 10 | 鋒兄 Udemy | [20_udemy.md](./20_udemy.md) |
+| 21 | tubechannel | 2 | 鋒兄Tube 頻道清單 | `/api/tubechannel` |
+| 22 | financeinstrument2 | 13 | 鋒兄金融自選標的 | `/api/financeinstrument2` |
 
 另有 Web Push 訂閱 collection，由 `/api/push-subscribe` 動態建立，不在一鍵建表清單裡。
 
@@ -128,6 +130,8 @@ docs/
 ├── 16_trial_purchase.md  # 服務／帳號試用與首購
 ├── 17_reinstall.md       # Win／Mac 重灌軟體與序號
 ├── 18_shopping_list.md   # 購物清單與預定購買日
+├── 19_quota.md           # 額度
+├── 20_udemy.md           # Udemy 課程與觀看進度
 ├── agents/               # 代理協作規則
 ├── design/               # UI/UX 設計稿
 └── research/             # 外部服務考證

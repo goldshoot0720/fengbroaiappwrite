@@ -21,7 +21,8 @@ import { buildQuotaCsv } from "@/lib/quotaCsv";
 import { buildReinstallCsv } from "@/lib/reinstallCsv";
 import { buildShoppingCsv } from "@/lib/shoppingCsv";
 import { buildTrialPurchaseCsv } from "@/lib/trialPurchaseCsv";
-import type { Bank, CommonAccount, Food, Quota, ReinstallSoftware, ShoppingItem, Subscription, TrialPurchase } from "@/types";
+import { buildUdemyCsv } from "@/lib/udemyCsv";
+import type { Bank, CommonAccount, Food, Quota, ReinstallSoftware, ShoppingItem, Subscription, TrialPurchase, UdemyCourse } from "@/types";
 import type { MenuBackupEntry, MenuBackupMode } from "./catalog";
 import {
   buildCommonAccountCsv,
@@ -136,6 +137,10 @@ export async function exportCsvMenuWith(
     case "shopping-list": {
       const items = await fetchList<ShoppingItem>(API_ENDPOINTS.SHOPPING_LIST);
       return { csv: buildShoppingCsv(items), rows: items.length };
+    }
+    case "udemy": {
+      const items = await fetchList<UdemyCourse>(API_ENDPOINTS.UDEMY);
+      return { csv: buildUdemyCsv(items), rows: items.length };
     }
     case "common": {
       const items = await fetchList<CommonAccount>(API_ENDPOINTS.COMMON_ACCOUNT);

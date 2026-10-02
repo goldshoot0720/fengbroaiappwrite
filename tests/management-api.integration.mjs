@@ -179,6 +179,40 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
     assert.equal(fixture.writes.length, beforeWrites);
   });
 
+  it("creates/edits/deletes Udemy courses with lecture progress, hours and completion", async () => {
+    const data = { name: "React 完整課程（測試）", instructor: "示範講師", language: "JavaScript、TypeScript",
+      framework: "React", technology: "Vite", watchedLectures: 12, totalLectures: 40,
+      courseUpdatedAt: "2025-08-01", totalHours: 48.5, completed: false };
+    const created = await api("/api/udemy", "POST", data);
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const id = created.body.$id;
+    assert.equal(created.body.courseUpdatedAt, "2025-08-01T00:00:00.000Z");
+    assert.equal(created.body.totalHours, 48.5);
+    assert.equal(created.body.language, "JavaScript、TypeScript");
+
+    const updated = await api(`/api/udemy/${id}`, "PUT", { ...data, watchedLectures: 40, completed: true, courseUpdatedAt: "" });
+    assert.equal(updated.status, 200, JSON.stringify(updated.body));
+    assert.equal(updated.body.watchedLectures, 40);
+    assert.equal(updated.body.completed, true);
+    assert.equal(updated.body.courseUpdatedAt, null);
+
+    assert.equal((await api(`/api/udemy/${id}`, "DELETE")).status, 200);
+    assert.equal((await api(`/api/udemy/${id}`, "DELETE")).status, 404);
+  });
+
+  it("rejects invalid Udemy fields before writing", async () => {
+    const beforeWrites = fixture.writes.length;
+    for (const data of [null, { name: "" },
+      { name: "test", watchedLectures: 11, totalLectures: 10 },
+      { name: "test", totalLectures: -1 },
+      { name: "test", totalHours: -0.5 },
+      { name: "test", courseUpdatedAt: "2025-02-30" },
+      { name: "test", completed: "maybe" }]) {
+      assert.equal((await api("/api/udemy", "POST", data)).status, 400);
+    }
+    assert.equal(fixture.writes.length, beforeWrites);
+  });
+
   it("creates/edits/deletes Tube channels and normalizes handles", async () => {
     const result = await api("/api/tubechannel");
     assert.equal(result.status, 200, JSON.stringify(result.body));
@@ -279,7 +313,7 @@ describe("management routes against isolated Appwrite HTTP fixture", () => {
   it("creates both tables privately and repeated setup preserves every existing document", async () => {
     const empty = await startManagementFixture({ seed: false });
     try {
-      for (const tableName of ["trialpurchase", "reinstall", "quota", "shoppinglist", "tubechannel", "financeinstrument2"]) {
+      for (const tableName of ["trialpurchase", "reinstall", "quota", "shoppinglist", "udemy", "tubechannel", "financeinstrument2"]) {
         const result = await api("/api/create-table", "POST", { tableName }, empty);
         assert.equal(result.status, 200, JSON.stringify(result.body));
         assert.equal(result.body.success, true);

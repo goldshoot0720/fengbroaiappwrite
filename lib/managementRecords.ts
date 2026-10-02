@@ -23,6 +23,8 @@ import type {
   TrialPurchase,
   TrialPurchaseFormData,
   TrialStatus,
+  UdemyCourse,
+  UdemyCourseFormData,
 } from "@/types";
 
 import { guessFinanceRelatedLinkLabel } from "@/lib/fengbroFinanceCustom";
@@ -207,6 +209,23 @@ export const MANAGEMENT_TABLE_SCHEMAS = {
       { key: "note", type: "string", size: 3337, required: false },
     ],
   },
+  // 鋒兄 Udemy：一筆代表一門課程與觀看進度
+  udemy: {
+    name: "udemy",
+    attributes: [
+      { key: "name", type: "string", size: 200, required: true },
+      { key: "instructor", type: "string", size: 200, required: false },
+      // 程式語言／框架／技術名稱：多個值以「,」或「、」分隔，分類時各自成群
+      { key: "language", type: "string", size: 200, required: false },
+      { key: "framework", type: "string", size: 200, required: false },
+      { key: "technology", type: "string", size: 200, required: false },
+      { key: "watchedLectures", type: "integer", required: false },
+      { key: "totalLectures", type: "integer", required: false },
+      { key: "courseUpdatedAt", type: "datetime", required: false },
+      { key: "totalHours", type: "float", required: false },
+      { key: "completed", type: "boolean", required: false, default: false },
+    ],
+  },
   tubechannel: {
     name: "tubechannel",
     attributes: [
@@ -249,6 +268,7 @@ export const ADDITIVE_SETUP_TABLES: readonly string[] = [
   "reinstall",
   "quota",
   "shoppinglist",
+  "udemy",
   "tubechannel",
   "financeinstrument2",
   "notificationsettings",
@@ -283,6 +303,15 @@ function asNonNegativeInteger(value: unknown, label: string): number {
   const parsed = Number(value);
   if ((typeof value !== "string" && typeof value !== "number") || !Number.isSafeInteger(parsed) || parsed < 0) {
     throw new Error(`${label}必須是 0 以上的整數`);
+  }
+  return parsed;
+}
+
+function asNonNegativeNumber(value: unknown, label: string): number {
+  if (value == null || value === "") return 0;
+  const parsed = Number(value);
+  if ((typeof value !== "string" && typeof value !== "number") || !Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${label}必須是 0 以上的數字`);
   }
   return parsed;
 }
@@ -852,5 +881,69 @@ export function buildFinanceInstrumentWritePayload(
   else if (mode === "update") payload.youtubeUrl = null;
   if (bilibiliUrl) payload.bilibiliUrl = bilibiliUrl;
   else if (mode === "update") payload.bilibiliUrl = null;
+  return payload;
+}
+
+// 鋒兄 Udemy：一筆代表一門課程；已觀看堂數不可超過課程總堂數
+export function emptyUdemyCourseForm(name = ""): UdemyCourseFormData {
+  return {
+    name,
+    instructor: "",
+    language: "",
+    framework: "",
+    technology: "",
+    watchedLectures: 0,
+    totalLectures: 0,
+    courseUpdatedAt: "",
+    totalHours: 0,
+    completed: false,
+  };
+}
+
+export function toUdemyCourseForm(source: UdemyCourse): UdemyCourseFormData {
+  return {
+    name: source.name || "",
+    instructor: source.instructor || "",
+    language: source.language || "",
+    framework: source.framework || "",
+    technology: source.technology || "",
+    watchedLectures: source.watchedLectures == null ? 0 : Number(source.watchedLectures),
+    totalLectures: source.totalLectures == null ? 0 : Number(source.totalLectures),
+    courseUpdatedAt: source.courseUpdatedAt ? source.courseUpdatedAt.slice(0, 10) : "",
+    totalHours: source.totalHours == null ? 0 : Number(source.totalHours),
+    completed: source.completed === true,
+  };
+}
+
+export function buildUdemyCourseWritePayload(
+  body: Record<string, unknown>,
+  mode: "create" | "update",
+): Record<string, unknown> {
+  validateBody(body);
+  const name = asText(body.name, "課程名稱", 200);
+  if (!name) throw new Error("請填寫課程名稱");
+
+  const watchedLectures = asNonNegativeInteger(body.watchedLectures, "已觀看堂數");
+  const totalLectures = asNonNegativeInteger(body.totalLectures, "課程總堂數");
+  if (totalLectures > 0 && watchedLectures > totalLectures) {
+    throw new Error("已觀看堂數不能超過課程總堂數");
+  }
+  const totalHours = asNonNegativeNumber(body.totalHours, "課程總時長");
+  const courseUpdatedAt = asOptionalDate(body.courseUpdatedAt);
+
+  const payload: Record<string, unknown> = {
+    name,
+    instructor: asText(body.instructor, "講師名稱", 200),
+    language: asText(body.language, "程式語言", 200),
+    framework: asText(body.framework, "框架", 200),
+    technology: asText(body.technology, "技術名稱", 200),
+    watchedLectures,
+    totalLectures,
+    totalHours: Math.round(totalHours * 100) / 100,
+    completed: asBoolean(body.completed, false, "課程已經完整收看"),
+  };
+
+  if (courseUpdatedAt) payload.courseUpdatedAt = courseUpdatedAt;
+  else if (mode === "update") payload.courseUpdatedAt = null;
   return payload;
 }
