@@ -709,10 +709,10 @@ export default function UdemyManagement() {
                         {bulk.selectionMode ? <TableHead className="w-[40px]"><span className="sr-only">選取</span></TableHead> : null}
                         <TableHead className="w-[26%]">課程名稱</TableHead>
                         <TableHead className="w-[13%]">講師名稱</TableHead>
-                        <TableHead className="w-[18%]">程式語言／框架／技術</TableHead>
+                        <TableHead className="w-[16%]">程式語言／框架／技術</TableHead>
                         <TableHead className="w-[17%]">已觀看堂數 / 總堂數</TableHead>
                         <TableHead className="w-[10%]">總時長</TableHead>
-                        <TableHead className="w-[8%]">上次更新</TableHead>
+                        <TableHead className="w-[10%]">課程上次更新</TableHead>
                         <TableHead className="w-[136px] text-right">操作</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -773,7 +773,7 @@ export default function UdemyManagement() {
                         <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                           <p className="tabular-nums text-foreground">{lecturesText(course)}</p>
                           <p className="flex items-center gap-1.5 tabular-nums text-muted-foreground"><Clock className="size-4 shrink-0" />{formatHours(course.totalHours)}</p>
-                          <p className="flex items-center gap-1.5 tabular-nums text-muted-foreground"><CalendarDays className="size-4 shrink-0" />更新 {formatUpdated(course.courseUpdatedAt)}</p>
+                          <p className="flex items-center gap-1.5 tabular-nums text-muted-foreground"><CalendarDays className="size-4 shrink-0" />課程上次更新 {formatUpdated(course.courseUpdatedAt)}</p>
                           <div>
                             <StatusBadge status={course.completed ? "success" : "normal"}>
                               {course.completed ? "已完整收看" : "尚未完整收看"}
