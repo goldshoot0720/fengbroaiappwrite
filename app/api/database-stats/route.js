@@ -4,6 +4,8 @@ import { createAppwrite, listCollectionsNamed, listEveryCollection, listTablesNa
 import { attributeHealth, buildCollectionStatsRow, normalizeCollection, pickNamedCollection } from "../../../lib/collectionStats";
 import { ADDITIVE_SETUP_TABLES } from "../../../lib/managementRecords";
 
+const sdk = require("node-appwrite");
+
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +94,44 @@ function compareSchema(expected, actual, tableName = 'unknown') {
   console.log(`[compareSchema:${tableName}] ✅ All attributes match!`);
   console.log(`========== [compareSchema:${tableName}] END ==========\n`);
   return true;
+}
+
+async function explainLookup(databases, databaseId) {
+  const lookup = {};
+  try {
+    const first = await databases.listCollections(
+      databaseId,
+      [sdk.Query.limit(100)],
+      undefined,
+      true,
+    );
+    const rows = first?.collections || first?.tables || [];
+    lookup.collectionsTotal = first?.total;
+    lookup.collectionsPage = rows.length;
+    lookup.collectionSite = rows
+      .filter((col) => /site/i.test(String(col?.name || "")))
+      .map((col) => col.name);
+    lookup.collectionKeys = Object.keys(first || {});
+  } catch (err) {
+    lookup.collectionsError = err?.message || String(err);
+  }
+  try {
+    const tablesDB = new sdk.TablesDB(databases.client);
+    const response = await tablesDB.listTables({
+      databaseId,
+      queries: [sdk.Query.limit(100)],
+      search: "sitevisit",
+      total: true,
+    });
+    const tables = response?.tables || response?.collections || [];
+    lookup.tablesTotal = response?.total;
+    lookup.tablesPage = tables.length;
+    lookup.tableNames = tables.map((table) => table?.name);
+    lookup.tableKeys = Object.keys(response || {});
+  } catch (err) {
+    lookup.tablesError = err?.message || String(err);
+  }
+  return lookup;
 }
 
 async function freshCollection(databases, databaseId, collection) {
@@ -199,12 +239,16 @@ export async function GET(request) {
     // 動態計算總欄位數
     const totalColumns = collectionsWithCounts.reduce((sum, col) => sum + col.columnCount, 0);
 
-    return NextResponse.json({
+    const body = {
       totalColumns,
       totalCollections: tableNames.length,
       collections: collectionsWithCounts,
       databaseId
-    });
+    };
+    if (searchParams.get("debug") === "1") {
+      body.lookup = await explainLookup(databases, databaseId);
+    }
+    return NextResponse.json(body);
   } catch (err) {
     console.error("GET /api/database-stats error:", err);
     return NextResponse.json(
