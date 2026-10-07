@@ -4,11 +4,31 @@ import { userAttributes } from "../../../lib/collectionStats.js";
  * Delete every collection with this name, including ones past Appwrite's
  * default 25-row page. A stuck column can reject the first delete; drop the
  * columns and try once more before reporting failure.
+ * A failed delete must stop the create. Continuing used to leave another
+ * empty sitevisit behind the one the console still shows with no columns.
  */
+export function createBlockedByCleanup(cleanup) {
+  const failures = cleanup?.failures || [];
+  if (failures.length === 0) return null;
+  const detail = failures
+    .map((item) => `${item.id || "unknown"}：${item.message || "刪除失敗"}`)
+    .join("；");
+  return `還有 ${failures.length} 個同名表刪不掉，已停止建立，避免再多一張空表。${detail}`;
+}
+
+export async function discardCollection(databases, databaseId, collection) {
+  try {
+    await deleteOne(databases, databaseId, collection);
+    return null;
+  } catch (err) {
+    return err?.message || String(err);
+  }
+}
+
 export async function deleteNamedCollections(databases, databaseId, tableName, options = {}) {
   const collections = Array.isArray(options.collections)
     ? options.collections
-    : await (await import("./appwriteClient.js")).listEveryCollection(databases, databaseId);
+    : await collectionsForDelete(databases, databaseId, tableName);
   const matches = collections.filter((col) => col?.name === tableName);
   const failures = [];
   let removed = 0;
@@ -23,6 +43,17 @@ export async function deleteNamedCollections(databases, databaseId, tableName, o
   }
 
   return { removed, failures, matched: matches.length };
+}
+
+async function collectionsForDelete(databases, databaseId, tableName) {
+  const client = await import("./appwriteClient.js");
+  try {
+    const named = await client.listCollectionsNamed(databases, databaseId, [tableName]);
+    if (named.length > 0) return named;
+  } catch {
+    // The name filter can be rejected by an older SDK. The full list is the fallback.
+  }
+  return client.listEveryCollection(databases, databaseId);
 }
 
 async function deleteOne(databases, databaseId, col) {

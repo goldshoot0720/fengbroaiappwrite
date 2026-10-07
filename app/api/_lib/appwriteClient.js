@@ -4,6 +4,7 @@
  * - Caches collection lookups per database to avoid listCollections on every request
  */
 
+import { collectPages } from "../../../lib/collectionPage.js";
 import { pickNamedCollection } from "../../../lib/collectionStats.js";
 
 const sdk = require("node-appwrite");
@@ -12,8 +13,6 @@ const sdk = require("node-appwrite");
 const COLLECTION_CACHE_TTL_MS = 5 * 60_000;
 /** 過期但仍可先用的上限：先回舊值，背景重新整理（stale-while-revalidate）。 */
 const COLLECTION_CACHE_STALE_MS = 30 * 60_000;
-/** listCollections 一頁筆數；Appwrite 預設只回 25 筆，表多時會漏找。 */
-const COLLECTION_PAGE_SIZE = 100;
 /** @type {Map<string, { expires: number, staleUntil: number, byName: Map<string, any>, list: any[] }>} */
 const collectionCache = new Map();
 /** 同一把鍵的 listCollections 在飛行中只發一次（首頁同時打十幾支 API 時很關鍵）。 */
@@ -193,32 +192,46 @@ function collectionCacheKey(databases, databaseId) {
   return `${config.endpoint || ""}|${config.project || ""}|${databaseId}`;
 }
 
-export async function listEveryCollection(databases, databaseId) {
-  const list = [];
-  let offset = 0;
-  // 分頁抓完所有 collection；舊版 SDK 不支援 queries 參數時退回單次呼叫。
-  while (true) {
-    let response;
-    try {
-      response = await databases.listCollections(databaseId, [
-        sdk.Query.limit(COLLECTION_PAGE_SIZE),
-        sdk.Query.offset(offset),
-      ]);
-    } catch (err) {
-      if (offset === 0 && /query|limit|offset/i.test(String(err?.message || ""))) {
-        response = await databases.listCollections(databaseId);
-        list.push(...(response.collections || []));
-        break;
-      }
-      throw err;
-    }
-    const page = response.collections || [];
-    list.push(...page);
-    if (page.length < COLLECTION_PAGE_SIZE) break;
-    if (typeof response.total === "number" && list.length >= response.total) break;
-    offset += page.length;
+async function listCollectionPage(databases, databaseId, queries) {
+  try {
+    return await databases.listCollections(databaseId, queries, undefined, true);
+  } catch (err) {
+    if (!/query|limit|offset|total/i.test(String(err?.message || ""))) throw err;
+    return databases.listCollections(databaseId, queries);
   }
-  return list;
+}
+
+export async function listEveryCollection(databases, databaseId) {
+  // Keep going when the server caps a page at 25 while total is larger.
+  // Stopping on the short page hid every sitevisit past the first 25.
+  return collectPages((page) =>
+    listCollectionPage(databases, databaseId, [
+      sdk.Query.limit(page.limit),
+      sdk.Query.offset(page.offset),
+    ]),
+  );
+}
+
+/** Exact-name lookup, paged, so a duplicate past the first inventory page is still found. */
+export async function listCollectionsNamed(databases, databaseId, names) {
+  const found = [];
+  for (const name of names) {
+    let rows = [];
+    try {
+      rows = await collectPages((page) =>
+        listCollectionPage(databases, databaseId, [
+          sdk.Query.equal("name", [name]),
+          sdk.Query.limit(page.limit),
+          sdk.Query.offset(page.offset),
+        ]),
+      );
+    } catch (err) {
+      console.error(`listCollectionsNamed ${name}:`, err?.message || err);
+      continue;
+    }
+    found.push(...rows.filter((col) => col?.name === name));
+  }
+  return found;
 }
 
 function refreshCollections(databases, databaseId, key) {

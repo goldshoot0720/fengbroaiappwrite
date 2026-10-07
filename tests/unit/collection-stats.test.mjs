@@ -6,7 +6,7 @@ import {
   showsCreateButton,
   showsRebuildButton,
 } from "../../lib/collectionStats.js";
-import { deleteNamedCollections, waitUntilAttributesReady } from "../../app/api/_lib/collectionInventory.js";
+import { createBlockedByCleanup, deleteNamedCollections, waitUntilAttributesReady } from "../../app/api/_lib/collectionInventory.js";
 
 const sitevisitAttrs = (status) => [
   { key: "count", type: "integer", status },
@@ -34,6 +34,48 @@ describe("sitevisit settings row", () => {
     assert.equal(row.attributesPending, true);
     assert.equal(showsCreateButton(row), false);
     assert.equal(showsRebuildButton(row), true);
+  });
+
+  it("treats a not-available read as columns still starting, and keeps a real read error", () => {
+    const pending = buildCollectionStatsRow({
+      name: "sitevisit",
+      collection: {
+        $id: "6ac5fea300114606b542",
+        name: "sitevisit",
+        attributes: sitevisitAttrs("available"),
+      },
+      documentsError: true,
+      readError: 'Attribute "count" is not available. Please try again later.',
+    });
+    assert.equal(pending.attributesPending, true);
+    assert.equal(pending.documentsError, false);
+    assert.equal(showsRebuildButton(pending), true);
+    assert.match(pending.readError, /not available/);
+
+    const blocked = buildCollectionStatsRow({
+      name: "sitevisit",
+      collection: {
+        $id: "6ac5fea300114606b542",
+        name: "sitevisit",
+        attributes: sitevisitAttrs("available"),
+      },
+      documentsError: true,
+      readError: "Server Error",
+    });
+    assert.equal(blocked.documentsError, true);
+    assert.equal(blocked.attributesPending, false);
+    assert.equal(blocked.readError, "Server Error");
+    assert.equal(showsCreateButton(blocked), false);
+  });
+
+  it("stops a new create when an old same-named table cannot be deleted", () => {
+    assert.equal(createBlockedByCleanup({ removed: 1, failures: [] }), null);
+    const message = createBlockedByCleanup({
+      removed: 0,
+      failures: [{ id: "6abf6c5b00145975e47b", message: "Server Error" }],
+    });
+    assert.match(message, /6abf6c5b00145975e47b/);
+    assert.match(message, /已停止建立/);
   });
 
   it("still offers 建立 only when the table is missing", () => {

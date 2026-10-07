@@ -54,6 +54,7 @@ interface CollectionStats {
   attributesPending?: boolean;
   attributesFailed?: boolean;
   documentsError?: boolean;
+  readError?: string;
   schemaMismatch?: boolean;
   schemaDetails?: {
     toAdd: any[];
@@ -1230,6 +1231,11 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                           {col.collectionId && (
                             <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                               ID: <span className="font-mono">{col.collectionId}</span>
+                            </div>
+                          )}
+                          {col.readError && (
+                            <div className="mt-1 max-w-md text-xs text-red-600 dark:text-red-400" title={col.readError}>
+                              {col.readError}
                             </div>
                           )}
                         </div>

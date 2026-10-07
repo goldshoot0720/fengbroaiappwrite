@@ -4,7 +4,7 @@ import { clearCollectionCache } from "../_lib/appwriteClient";
 // Deletes, column creation, and the ready wait exceed the platform default
 // and the stream was cut at 0/4 with no error frame.
 export const maxDuration = 60;
-import { deleteNamedCollections, waitUntilAttributesReady } from "../_lib/collectionInventory";
+import { createBlockedByCleanup, deleteNamedCollections, discardCollection, waitUntilAttributesReady } from "../_lib/collectionInventory";
 import { deleteManagementTable, initializeManagementTable } from "../_lib/managementTables";
 import { MANAGEMENT_TABLE_SCHEMAS, RETIRED_TABLES } from "../../../lib/managementRecords";
 
@@ -313,12 +313,11 @@ export async function GET(request) {
           send({ type: 'progress', step: 'cleanup', message: `已刪除 ${cleanup.removed} 個舊的 ${tableName}` });
           await new Promise(resolve => setTimeout(resolve, 500));
         }
-        if (cleanup.failures.length > 0) {
-          send({
-            type: 'progress',
-            step: 'cleanup',
-            message: `有 ${cleanup.failures.length} 個舊表刪不掉，會改用新建的表。`,
-          });
+        const blocked = createBlockedByCleanup(cleanup);
+        if (blocked) {
+          send({ type: 'error', message: blocked });
+          controller.close();
+          return;
         }
 
         // Send start message
@@ -401,7 +400,16 @@ export async function GET(request) {
         }
 
         if (attributeError) {
-          send({ type: 'error', message: attributeError, collectionId });
+          const discardError = await discardCollection(databases, databaseId, {
+            $id: collectionId,
+            attributes: schema.attributes.map((attr) => ({ key: attr.key })),
+          });
+          clearCollectionCache(databaseId);
+          send({
+            type: 'error',
+            message: discardError ? `${attributeError}（新建的表也刪不掉：${discardError}）` : attributeError,
+            collectionId: discardError ? collectionId : undefined,
+          });
           controller.close();
           return;
         }
@@ -417,7 +425,16 @@ export async function GET(request) {
           },
         );
         if (!ready.ok) {
-          send({ type: 'error', message: ready.error, collectionId });
+          const discardError = await discardCollection(databases, databaseId, ready.collection || {
+            $id: collectionId,
+            attributes: schema.attributes.map((attr) => ({ key: attr.key })),
+          });
+          clearCollectionCache(databaseId);
+          send({
+            type: 'error',
+            message: discardError ? `${ready.error}（新建的表也刪不掉：${discardError}）` : ready.error,
+            collectionId: discardError ? collectionId : undefined,
+          });
           controller.close();
           return;
         }
@@ -524,8 +541,9 @@ export async function POST(request) {
     if (cleanup.removed > 0) {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
-    if (cleanup.failures.length > 0) {
-      console.error(`Could not delete every old ${tableName}:`, cleanup.failures);
+    const blocked = createBlockedByCleanup(cleanup);
+    if (blocked) {
+      return NextResponse.json({ success: false, error: blocked }, { status: 409 });
     }
 
     const collection = await databases.createCollection(
@@ -582,7 +600,16 @@ export async function POST(request) {
         }
       }
       if (attributeError) {
-        return NextResponse.json({ success: false, error: attributeError, collectionId }, { status: 500 });
+        const discardError = await discardCollection(databases, databaseId, {
+          $id: collectionId,
+          attributes: schema.attributes.map((attr) => ({ key: attr.key })),
+        });
+        clearCollectionCache(databaseId);
+        return NextResponse.json({
+          success: false,
+          error: discardError ? `${attributeError}（新建的表也刪不掉：${discardError}）` : attributeError,
+          collectionId: discardError ? collectionId : undefined,
+        }, { status: 500 });
       }
       await new Promise(resolve => setTimeout(resolve, postDelay));
     }
@@ -594,7 +621,16 @@ export async function POST(request) {
       schema.attributes.map((attr) => attr.key),
     );
     if (!ready.ok) {
-      return NextResponse.json({ success: false, error: ready.error, collectionId }, { status: 500 });
+      const discardError = await discardCollection(databases, databaseId, ready.collection || {
+        $id: collectionId,
+        attributes: schema.attributes.map((attr) => ({ key: attr.key })),
+      });
+      clearCollectionCache(databaseId);
+      return NextResponse.json({
+        success: false,
+        error: discardError ? `${ready.error}（新建的表也刪不掉：${discardError}）` : ready.error,
+        collectionId: discardError ? collectionId : undefined,
+      }, { status: 500 });
     }
 
     return NextResponse.json({

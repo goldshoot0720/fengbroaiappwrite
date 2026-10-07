@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { TABLE_SCHEMAS } from "../create-table/route";
-import { createAppwrite, listEveryCollection } from "../_lib/appwriteClient";
+import { createAppwrite, listCollectionsNamed, listEveryCollection } from "../_lib/appwriteClient";
 import { attributeHealth, buildCollectionStatsRow, pickNamedCollection } from "../../../lib/collectionStats";
 import { ADDITIVE_SETUP_TABLES } from "../../../lib/managementRecords";
 
@@ -94,6 +94,23 @@ function compareSchema(expected, actual, tableName = 'unknown') {
   return true;
 }
 
+async function freshCollection(databases, databaseId, collection) {
+  if (!collection?.$id) return collection;
+  try {
+    const fresh = await databases.getCollection(databaseId, collection.$id);
+    if (!fresh) return collection;
+    return {
+      ...collection,
+      ...fresh,
+      name: collection.name || fresh.name,
+      attributes: fresh.attributes || collection.attributes,
+    };
+  } catch (err) {
+    console.error(`[${collection.name}] getCollection failed:`, err?.message || err);
+    return collection;
+  }
+}
+
 // GET /api/database-stats
 export async function GET(request) {
   try {
@@ -102,15 +119,19 @@ export async function GET(request) {
 
     // Page through every collection. The default page is 25, so a rebuilt
     // sitevisit past that page never replaced the row the settings list showed.
-    const allCollections = await listEveryCollection(databases, databaseId);
-
-    // Keep the settings inventory in lock-step with the schemas that can be created.
+    let allCollections = await listEveryCollection(databases, databaseId);
     const tableNames = Object.keys(TABLE_SCHEMAS);
-    
+    const missingNames = tableNames.filter((name) => !pickNamedCollection(allCollections, name));
+    if (missingNames.length > 0) {
+      const named = await listCollectionsNamed(databases, databaseId, missingNames);
+      if (named.length > 0) allCollections = allCollections.concat(named);
+    }
+
     // Get each collection's column count and document count dynamically
     const collectionsWithCounts = await Promise.all(
       tableNames.map(async (name) => {
-        const collection = pickNamedCollection(allCollections, name);
+        const listed = pickNamedCollection(allCollections, name);
+        const collection = await freshCollection(databases, databaseId, listed);
         const fallbackColumns = TABLE_DEFINITIONS[name];
 
         if (!collection) {
@@ -163,6 +184,7 @@ export async function GET(request) {
             name,
             collection,
             documentsError: true,
+            readError: err?.message || String(err),
             schemaMismatch: !compareSchema(expectedSchema, actualSchema, name),
           });
         }
