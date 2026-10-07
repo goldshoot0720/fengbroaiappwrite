@@ -4,6 +4,8 @@
  * - Caches collection lookups per database to avoid listCollections on every request
  */
 
+import { pickNamedCollection } from "../../../lib/collectionStats.js";
+
 const sdk = require("node-appwrite");
 
 /** 新鮮期：期間內直接用快取，不打 Appwrite。 */
@@ -191,7 +193,7 @@ function collectionCacheKey(databases, databaseId) {
   return `${config.endpoint || ""}|${config.project || ""}|${databaseId}`;
 }
 
-async function fetchAllCollections(databases, databaseId) {
+export async function listEveryCollection(databases, databaseId) {
   const list = [];
   let offset = 0;
   // 分頁抓完所有 collection；舊版 SDK 不支援 queries 參數時退回單次呼叫。
@@ -223,7 +225,7 @@ function refreshCollections(databases, databaseId, key) {
   const pending = collectionInflight.get(key);
   if (pending) return pending;
 
-  const request = fetchAllCollections(databases, databaseId)
+  const request = listEveryCollection(databases, databaseId)
     .then((list) => {
       const byName = new Map();
       for (const col of list) {
@@ -266,9 +268,11 @@ async function loadCollections(databases, databaseId, { force = false } = {}) {
 }
 
 function findCollection(entry, name) {
+  const picked = pickNamedCollection(entry.list, name);
+  if (picked) return picked;
+
   const normalizedName = String(name).toLowerCase();
   const exact =
-    entry.list.find((c) => c.name === name) ||
     entry.list.find((c) => c.$id === name) ||
     entry.byName.get(normalizedName);
   if (exact) return exact;

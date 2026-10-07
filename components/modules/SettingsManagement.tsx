@@ -33,6 +33,7 @@ import {
 } from "@/lib/notifications/selfCheck";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { ADDITIVE_SETUP_TABLES } from "@/lib/managementRecords";
+import { showsCreateButton, showsRebuildButton } from "@/lib/collectionStats";
 import { fetchApi } from "@/hooks/useApi";
 import packageJson from "@/package.json";
 import { MenuBackupSettings } from "@/components/modules/MenuBackupSettings";
@@ -49,6 +50,9 @@ interface CollectionStats {
   documentCount: number;
   collectionId?: string;
   error?: boolean;
+  attributesPending?: boolean;
+  attributesFailed?: boolean;
+  documentsError?: boolean;
   schemaMismatch?: boolean;
   schemaDetails?: {
     toAdd: any[];
@@ -790,6 +794,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               });
             }, 10000);
             clearAllCaches(); // 清除所有模組快取
+            fetchStats();
             
             // 如果是在批次模式中，且還有後續表格，處理下一個而不重新整理
             if (bulkModeRef.current && bulkQueueRef.current.length > 0) {
@@ -807,7 +812,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
 
             // 批次或單一操作結束後的清理與確認
             setTimeout(() => {
-              fetchStats(); // 重新載入資料庫統計
+              fetchStats();
               setCreating(null);
               const wasInBulk = bulkModeRef.current; // 保存當前狀態
               setBulkMode(false); // 重設批次模式
@@ -859,6 +864,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
     setCreating(null);
     setBulkMode(false);
     bulkModeRef.current = false;
+    fetchStats();
   };
 
   const handleCountOrphanedFiles = async () => {
@@ -1157,17 +1163,24 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               </div>
               <div className="space-y-2 text-sm">
                 {dbStats.collections && dbStats.collections.map(col => {
-                  // 綠燈: 有資料, 黃燈: 無資料, 紅燈: Table不存在
-                  const statusColor = col.error 
-                    ? "bg-red-500" 
-                    : col.documentCount > 0 
-                      ? "bg-green-500" 
+                  // 綠燈: 有資料, 黃燈: 無資料或欄位就緒中, 紅燈: 不存在或欄位失敗
+                  const blocked = Boolean(col.attributesFailed || col.documentsError);
+                  const statusColor = col.error || blocked
+                    ? "bg-red-500"
+                    : col.documentCount > 0
+                      ? "bg-green-500"
                       : "bg-yellow-500";
-                  const statusTitle = col.error 
-                    ? "Table 不存在" 
-                    : col.documentCount > 0 
-                      ? "Table 存在且有資料" 
-                      : "Table 存在但無資料";
+                  const statusTitle = col.error
+                    ? "Table 不存在"
+                    : col.attributesFailed
+                      ? "欄位建立失敗"
+                      : col.attributesPending
+                        ? "欄位尚未就緒"
+                        : col.documentsError
+                          ? "Table 存在但讀取失敗"
+                          : col.documentCount > 0
+                            ? "Table 存在且有資料"
+                            : "Table 存在但無資料";
                   return (
                     <div key={col.name} className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-800 last:border-0">
                       <div className="flex items-start gap-2">
@@ -1194,7 +1207,13 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                       <div className="flex items-center gap-2">
                         <span className="text-gray-400">{col.columnCount} 欄位</span>
                         <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">{col.documentCount} 筆</span>
-                        {col.error && (
+                        {col.attributesPending && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400">欄位就緒中</span>
+                        )}
+                        {col.attributesFailed && (
+                          <span className="text-xs text-red-600 dark:text-red-400">欄位失敗</span>
+                        )}
+                        {showsCreateButton(col) && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1206,6 +1225,22 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                               <Loader2 size={12} className="animate-spin" />
                             ) : (
                               <><Plus size={12} /> 建立</>
+                            )}
+                          </Button>
+                        )}
+                        {showsRebuildButton(col) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-xs text-orange-600 border-orange-300 hover:bg-orange-50"
+                            onClick={() => handleCreateTable(col.name, true)}
+                            disabled={creating === col.name}
+                            title={statusTitle}
+                          >
+                            {creating === col.name ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              "重建"
                             )}
                           </Button>
                         )}
@@ -1255,7 +1290,7 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
                             </Button>
                           </>
                         )}
-                        {!col.schemaMismatch && !col.error && (
+                        {!col.schemaMismatch && !showsCreateButton(col) && !showsRebuildButton(col) && (
                           <span className="text-xs text-green-600 dark:text-green-400" title="結構一致">
                             ✔️
                           </span>

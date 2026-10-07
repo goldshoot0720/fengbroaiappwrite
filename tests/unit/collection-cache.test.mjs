@@ -68,6 +68,24 @@ describe("collection lookup cache", () => {
     await assert.rejects(getCollectionId(db, "main", "nope"), /not found/);
   });
 
+  it("prefers a ready duplicate over a newer stuck table", async () => {
+    const db = makeDatabases([
+      {
+        $id: "stuck",
+        name: "sitevisit",
+        $updatedAt: "2026-10-07T15:40:00.000Z",
+        attributes: [{ key: "count", status: "failed" }],
+      },
+      {
+        $id: "ready",
+        name: "sitevisit",
+        $updatedAt: "2026-10-07T15:38:00.000Z",
+        attributes: [{ key: "count", status: "available" }],
+      },
+    ]);
+    assert.equal(await getCollectionId(db, "main", "sitevisit"), "ready");
+  });
+
   it("clearCollectionCache(databaseId) drops every connection's entry", async () => {
     const db = makeDatabases([named("food")]);
     await getCollectionId(db, "main", "food");

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { TABLE_SCHEMAS } from "../create-table/route";
-import { createAppwrite } from "../_lib/appwriteClient";
+import { createAppwrite, listEveryCollection } from "../_lib/appwriteClient";
+import { attributeHealth, buildCollectionStatsRow, pickNamedCollection } from "../../../lib/collectionStats";
 import { ADDITIVE_SETUP_TABLES } from "../../../lib/managementRecords";
 
 
@@ -98,89 +99,72 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const { databases, databaseId } = createAppwrite(searchParams);
-    
-    // List all collections in the database
-    const allCollections = await databases.listCollections(databaseId);
-    
-    // Create a map of collection name -> collection object
-    // If multiple collections have the same name, use the most recently updated one
-    const collectionMap = {};
-    allCollections.collections.forEach(col => {
-      if (!collectionMap[col.name] || col.$updatedAt > collectionMap[col.name].$updatedAt) {
-        collectionMap[col.name] = col;
-      }
-    });
-    
+
+    // Page through every collection. The default page is 25, so a rebuilt
+    // sitevisit past that page never replaced the row the settings list showed.
+    const allCollections = await listEveryCollection(databases, databaseId);
+
     // Keep the settings inventory in lock-step with the schemas that can be created.
     const tableNames = Object.keys(TABLE_SCHEMAS);
     
     // Get each collection's column count and document count dynamically
     const collectionsWithCounts = await Promise.all(
       tableNames.map(async (name) => {
-        const collection = collectionMap[name];
-        
+        const collection = pickNamedCollection(allCollections, name);
+        const fallbackColumns = TABLE_DEFINITIONS[name];
+
         if (!collection) {
-          // Collection doesn't exist - use fallback from TABLE_DEFINITIONS
-          const fallbackColumns = TABLE_DEFINITIONS[name];
-          return {
+          return buildCollectionStatsRow({
             name,
-            columnCount: fallbackColumns ? fallbackColumns.length : 0,
-            documentCount: 0,
-            error: true,
-            schemaMismatch: false
-          };
+            collection: null,
+            fallbackColumnCount: fallbackColumns ? fallbackColumns.length : 0,
+          });
         }
-        
+
+        const health = attributeHealth(collection);
+        // Columns still processing make listDocuments throw. That used to set
+        // error and paint the red 建立 button on a table that already has an id.
+        if (health.pending || health.failed) {
+          return buildCollectionStatsRow({ name, collection });
+        }
+
         try {
-          // 動態計算：從 collection.attributes 取得實際欄位數
-          const columnCount = collection.attributes ? collection.attributes.length : 0;
-          
-          // Check schema mismatch
           const expectedSchema = TABLE_DEFINITIONS[name];
-          // Filter out attributes that are not yet available (still processing)
-          // AND filter out system attributes (starting with $)
-          const actualSchema = (collection.attributes || []).filter(attr => 
+          const actualSchema = (collection.attributes || []).filter(attr =>
             (attr.status === 'available' || !attr.status) && !attr.key.startsWith('$')
           );
-          
+
           console.log(`\n[${name}] Checking schema...`);
           console.log(`[${name}] Collection ID: ${collection.$id}`);
           console.log(`[${name}] Total attributes: ${collection.attributes?.length || 0} (${actualSchema.length} available)`);
-          
-          // Log first attribute for debugging
+
           if (actualSchema.length > 0) {
             console.log(`[${name}] Sample attribute:`, JSON.stringify(actualSchema[0], null, 2));
           }
-          
+
           const schemaMismatch = !compareSchema(expectedSchema, actualSchema, name);
-          
           console.log(`[${name}] Final result: schemaMismatch = ${schemaMismatch}\n`);
-          
-          // Get document count
+
           const docs = await databases.listDocuments(databaseId, collection.$id);
-          
-          return {
+
+          return buildCollectionStatsRow({
             name,
-            collectionId: collection.$id,
-            columnCount,
+            collection,
             documentCount: docs.total,
-            schemaMismatch
-          };
+            schemaMismatch,
+          });
         } catch (err) {
-          // 如果查詢失敗，使用 collection.attributes.length 作為 fallback
-          const columnCount = collection.attributes ? collection.attributes.length : 0;
+          console.error(`[${name}] listDocuments failed:`, err?.message || err);
           const expectedSchema = TABLE_DEFINITIONS[name];
-          const actualSchema = collection.attributes || [];
-          const schemaMismatch = !compareSchema(expectedSchema, actualSchema, name);
-          
-          return {
+          const actualSchema = (collection.attributes || []).filter(attr =>
+            (attr.status === 'available' || !attr.status) && !String(attr.key || '').startsWith('$')
+          );
+          return buildCollectionStatsRow({
             name,
-            collectionId: collection.$id,
-            columnCount,
-            documentCount: 0,
-            error: true,
-            schemaMismatch
-          };
+            collection,
+            documentsError: true,
+            schemaMismatch: !compareSchema(expectedSchema, actualSchema, name),
+          });
         }
       })
     );

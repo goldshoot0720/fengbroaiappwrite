@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearCollectionCache } from "../_lib/appwriteClient";
+import { deleteNamedCollections, waitUntilAttributesReady } from "../_lib/collectionInventory";
 import { deleteManagementTable, initializeManagementTable } from "../_lib/managementTables";
 import { MANAGEMENT_TABLE_SCHEMAS, RETIRED_TABLES } from "../../../lib/managementRecords";
 
@@ -292,32 +293,28 @@ export async function GET(request) {
 
         const databases = new sdk.Databases(client);
 
-        // Check if collection exists and delete if rebuild is requested
+        // Delete every same-named collection, including ones past the first
+        // 25-row page. Swallowing a failed delete used to leave the old id in
+        // the settings list while this request reported a brand-new id.
+        let cleanup;
         try {
-          // List all collections to find any with matching name
-          const allCollections = await databases.listCollections(databaseId);
-          const existingCollections = allCollections.collections.filter(col => col.name === tableName);
-          
-          if (existingCollections.length > 0) {
-            // Delete all existing collections with this name
-            send({ type: 'progress', step: 'cleanup', message: `Found ${existingCollections.length} existing ${tableName} collection(s), deleting...` });
-            
-            for (const col of existingCollections) {
-              try {
-                await databases.deleteCollection(databaseId, col.$id);
-                send({ type: 'progress', step: 'cleanup', message: `Deleted collection ${col.$id}` });
-              } catch (delErr) {
-                console.error(`Failed to delete collection ${col.$id}:`, delErr);
-              }
-            }
-            
-            // Wait a bit for Appwrite to process deletions
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
+          cleanup = await deleteNamedCollections(databases, databaseId, tableName);
         } catch (err) {
           send({ type: 'error', message: `Failed to check existing collections: ${err.message}` });
           controller.close();
           return;
+        }
+        clearCollectionCache(databaseId);
+        if (cleanup.removed > 0) {
+          send({ type: 'progress', step: 'cleanup', message: `已刪除 ${cleanup.removed} 個舊的 ${tableName}` });
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        if (cleanup.failures.length > 0) {
+          send({
+            type: 'progress',
+            step: 'cleanup',
+            message: `有 ${cleanup.failures.length} 個舊表刪不掉，會改用新建的表。`,
+          });
         }
 
         // Send start message
@@ -344,6 +341,7 @@ export async function GET(request) {
         // Create attributes (longer delay for large collections to avoid rate limits)
         const total = schema.attributes.length;
         const delay = total > 30 ? 500 : 200;
+        let attributeError = null;
         for (let i = 0; i < total; i++) {
           const attr = schema.attributes[i];
           let success = false;
@@ -377,11 +375,12 @@ export async function GET(request) {
                 send({ type: 'progress', step: 'attribute', current: i + 1, total, percent: Math.round(((i + 1) / total) * 100), attribute: attr.key, message: `${attr.key} rate limited, retrying... (${attempt + 1}/3)` });
                 await new Promise(resolve => setTimeout(resolve, 2000));
               } else {
-                send({ type: 'warning', attribute: attr.key, message: err.message });
+                attributeError = `欄位 ${attr.key} 建立失敗：${err.message}`;
                 success = true;
               }
             }
           }
+          if (attributeError) break;
           send({
             type: 'progress',
             step: 'attribute',
@@ -392,6 +391,25 @@ export async function GET(request) {
             message: `Creating ${attr.key} (${i + 1}/${total})`
           });
           await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        if (attributeError) {
+          send({ type: 'error', message: attributeError, collectionId });
+          controller.close();
+          return;
+        }
+
+        send({ type: 'progress', step: 'ready', message: `等待 ${tableName} 欄位就緒...`, collectionId, percent: 100 });
+        const ready = await waitUntilAttributesReady(
+          databases,
+          databaseId,
+          collectionId,
+          schema.attributes.map((attr) => attr.key),
+        );
+        if (!ready.ok) {
+          send({ type: 'error', message: ready.error, collectionId });
+          controller.close();
+          return;
         }
 
         // Complete
@@ -469,26 +487,13 @@ export async function POST(request) {
 
     const databases = new sdk.Databases(client);
 
-    // Delete all existing collections with this name
-    try {
-      const allCollections = await databases.listCollections(databaseId);
-      const existingCollections = allCollections.collections.filter(col => col.name === tableName);
-      
-      for (const col of existingCollections) {
-        try {
-          await databases.deleteCollection(databaseId, col.$id);
-          console.log(`Deleted existing collection ${col.$id} (${tableName})`);
-        } catch (delErr) {
-          console.error(`Failed to delete collection ${col.$id}:`, delErr);
-        }
-      }
-      
-      if (existingCollections.length > 0) {
-        // Wait for deletions to complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    } catch (err) {
-      console.error('Error checking/deleting existing collections:', err);
+    const cleanup = await deleteNamedCollections(databases, databaseId, tableName);
+    clearCollectionCache(databaseId);
+    if (cleanup.removed > 0) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    if (cleanup.failures.length > 0) {
+      console.error(`Could not delete every old ${tableName}:`, cleanup.failures);
     }
 
     const collection = await databases.createCollection(
@@ -509,6 +514,7 @@ export async function POST(request) {
     const postDelay = schema.attributes.length > 30 ? 500 : 200;
     for (const attr of schema.attributes) {
       let success = false;
+      let attributeError = null;
       for (let attempt = 0; attempt < 3 && !success; attempt++) {
         try {
           switch (attr.type) {
@@ -538,12 +544,25 @@ export async function POST(request) {
           } else if (attempt < 2 && (err.code === 429 || err.message?.includes('rate'))) {
             await new Promise(resolve => setTimeout(resolve, 2000));
           } else {
-            console.error(`Failed to create ${attr.key}:`, err.message);
+            attributeError = `欄位 ${attr.key} 建立失敗：${err.message}`;
             success = true;
           }
         }
       }
+      if (attributeError) {
+        return NextResponse.json({ success: false, error: attributeError, collectionId }, { status: 500 });
+      }
       await new Promise(resolve => setTimeout(resolve, postDelay));
+    }
+
+    const ready = await waitUntilAttributesReady(
+      databases,
+      databaseId,
+      collectionId,
+      schema.attributes.map((attr) => attr.key),
+    );
+    if (!ready.ok) {
+      return NextResponse.json({ success: false, error: ready.error, collectionId }, { status: 500 });
     }
 
     return NextResponse.json({
