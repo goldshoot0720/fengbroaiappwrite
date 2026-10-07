@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildCollectionStatsRow,
+  normalizeCollection,
   pickNamedCollection,
   showsCreateButton,
   showsRebuildButton,
@@ -76,6 +77,20 @@ describe("sitevisit settings row", () => {
     });
     assert.match(message, /6abf6c5b00145975e47b/);
     assert.match(message, /已停止建立/);
+  });
+
+  it("counts Tables API columns when the old attributes array is empty", () => {
+    const collection = normalizeCollection({
+      $id: "6abf6c5b00145975e47b",
+      name: "sitevisit",
+      attributes: [],
+      columns: sitevisitAttrs("available"),
+    });
+    const row = buildCollectionStatsRow({ name: "sitevisit", collection });
+    assert.equal(row.columnCount, 4);
+    assert.equal(row.error, false);
+    assert.equal(showsCreateButton(row), false);
+    assert.equal(showsRebuildButton(row), false);
   });
 
   it("still offers 建立 only when the table is missing", () => {

@@ -5,7 +5,7 @@
  */
 
 import { collectPages } from "../../../lib/collectionPage.js";
-import { pickNamedCollection } from "../../../lib/collectionStats.js";
+import { normalizeCollection, pickNamedCollection } from "../../../lib/collectionStats.js";
 
 const sdk = require("node-appwrite");
 
@@ -192,44 +192,105 @@ function collectionCacheKey(databases, databaseId) {
   return `${config.endpoint || ""}|${config.project || ""}|${databaseId}`;
 }
 
-async function listCollectionPage(databases, databaseId, queries) {
+async function listCollectionPage(databases, databaseId, queries, search) {
   try {
-    return await databases.listCollections(databaseId, queries, undefined, true);
+    return await databases.listCollections(databaseId, queries, search, true);
   } catch (err) {
     if (!/query|limit|offset|total/i.test(String(err?.message || ""))) throw err;
-    return databases.listCollections(databaseId, queries);
+    return databases.listCollections(databaseId, queries, search);
   }
 }
 
+function pageOf(response) {
+  const rows = response?.collections || response?.tables || [];
+  return {
+    total: response?.total,
+    collections: rows.map(normalizeCollection),
+  };
+}
+
 export async function listEveryCollection(databases, databaseId) {
-  // Keep going when the server caps a page at 25 while total is larger.
-  // Stopping on the short page hid every sitevisit past the first 25.
-  return collectPages((page) =>
+  // Keep going when the server caps a page at 25, or reports total 0,
+  // while more tables still exist. Stopping there hid sitevisit.
+  const list = await collectPages((page) =>
     listCollectionPage(databases, databaseId, [
       sdk.Query.limit(page.limit),
       sdk.Query.offset(page.offset),
-    ]),
+    ]).then(pageOf),
   );
+  return list;
+}
+
+async function rowsNamed(fetchPage, name) {
+  const rows = await collectPages(fetchPage);
+  return rows.filter((col) => col?.name === name);
 }
 
 /** Exact-name lookup, paged, so a duplicate past the first inventory page is still found. */
 export async function listCollectionsNamed(databases, databaseId, names) {
   const found = [];
   for (const name of names) {
-    let rows = [];
     try {
-      rows = await collectPages((page) =>
-        listCollectionPage(databases, databaseId, [
-          sdk.Query.equal("name", [name]),
-          sdk.Query.limit(page.limit),
-          sdk.Query.offset(page.offset),
-        ]),
+      const equalRows = await rowsNamed(
+        (page) =>
+          listCollectionPage(databases, databaseId, [
+            sdk.Query.equal("name", [name]),
+            sdk.Query.limit(page.limit),
+            sdk.Query.offset(page.offset),
+          ]).then(pageOf),
+        name,
       );
+      if (equalRows.length > 0) {
+        found.push(...equalRows);
+        continue;
+      }
     } catch (err) {
       console.error(`listCollectionsNamed ${name}:`, err?.message || err);
-      continue;
     }
-    found.push(...rows.filter((col) => col?.name === name));
+    try {
+      const searched = await rowsNamed(
+        (page) =>
+          listCollectionPage(
+            databases,
+            databaseId,
+            [sdk.Query.limit(page.limit), sdk.Query.offset(page.offset)],
+            name,
+          ).then(pageOf),
+        name,
+      );
+      found.push(...searched);
+    } catch (err) {
+      console.error(`listCollections search ${name}:`, err?.message || err);
+    }
+  }
+  return found;
+}
+
+/** Console tables live on TablesDB. The deprecated collections list can miss them. */
+export async function listTablesNamed(databases, databaseId, names) {
+  const tablesDB = new sdk.TablesDB(databases.client);
+  const found = [];
+  for (const name of names) {
+    try {
+      const rows = await rowsNamed(
+        (page) =>
+          tablesDB
+            .listTables({
+              databaseId,
+              queries: [
+                sdk.Query.equal("name", [name]),
+                sdk.Query.limit(page.limit),
+                sdk.Query.offset(page.offset),
+              ],
+              total: true,
+            })
+            .then(pageOf),
+        name,
+      );
+      found.push(...rows);
+    } catch (err) {
+      console.error(`listTablesNamed ${name}:`, err?.message || err);
+    }
   }
   return found;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { TABLE_SCHEMAS } from "../create-table/route";
-import { createAppwrite, listCollectionsNamed, listEveryCollection } from "../_lib/appwriteClient";
-import { attributeHealth, buildCollectionStatsRow, pickNamedCollection } from "../../../lib/collectionStats";
+import { createAppwrite, listCollectionsNamed, listEveryCollection, listTablesNamed } from "../_lib/appwriteClient";
+import { attributeHealth, buildCollectionStatsRow, normalizeCollection, pickNamedCollection } from "../../../lib/collectionStats";
 import { ADDITIVE_SETUP_TABLES } from "../../../lib/managementRecords";
 
 
@@ -97,14 +97,14 @@ function compareSchema(expected, actual, tableName = 'unknown') {
 async function freshCollection(databases, databaseId, collection) {
   if (!collection?.$id) return collection;
   try {
-    const fresh = await databases.getCollection(databaseId, collection.$id);
+    const fresh = normalizeCollection(await databases.getCollection(databaseId, collection.$id));
     if (!fresh) return collection;
-    return {
+    return normalizeCollection({
       ...collection,
       ...fresh,
       name: collection.name || fresh.name,
       attributes: fresh.attributes || collection.attributes,
-    };
+    });
   } catch (err) {
     console.error(`[${collection.name}] getCollection failed:`, err?.message || err);
     return collection;
@@ -125,6 +125,11 @@ export async function GET(request) {
     if (missingNames.length > 0) {
       const named = await listCollectionsNamed(databases, databaseId, missingNames);
       if (named.length > 0) allCollections = allCollections.concat(named);
+    }
+    const stillMissing = tableNames.filter((name) => !pickNamedCollection(allCollections, name));
+    if (stillMissing.length > 0) {
+      const tables = await listTablesNamed(databases, databaseId, stillMissing);
+      if (tables.length > 0) allCollections = allCollections.concat(tables);
     }
 
     // Get each collection's column count and document count dynamically

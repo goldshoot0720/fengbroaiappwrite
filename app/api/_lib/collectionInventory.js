@@ -53,6 +53,12 @@ async function collectionsForDelete(databases, databaseId, tableName) {
   } catch {
     // The name filter can be rejected by an older SDK. The full list is the fallback.
   }
+  try {
+    const tables = await client.listTablesNamed(databases, databaseId, [tableName]);
+    if (tables.length > 0) return tables;
+  } catch {
+    // TablesDB is unavailable on this SDK. The collections list is the fallback.
+  }
   return client.listEveryCollection(databases, databaseId);
 }
 
