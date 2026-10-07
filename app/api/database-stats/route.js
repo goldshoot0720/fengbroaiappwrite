@@ -198,19 +198,20 @@ export async function GET(request) {
           console.log(`[${name}] Collection ID: ${collection.$id}`);
           console.log(`[${name}] Total attributes: ${collection.attributes?.length || 0} (${actualSchema.length} available)`);
 
-          if (actualSchema.length > 0) {
-            console.log(`[${name}] Sample attribute:`, JSON.stringify(actualSchema[0], null, 2));
-          }
-
           const schemaMismatch = !compareSchema(expectedSchema, actualSchema, name);
           console.log(`[${name}] Final result: schemaMismatch = ${schemaMismatch}\n`);
 
-          const docs = await databases.listDocuments(databaseId, collection.$id);
+          // A raw attribute can contain BigInt. JSON.stringify throws
+          // "Do not know how to serialize a BigInt" and used to mark the new
+          // sitevisit row as unreadable even though the rows API succeeds.
+          const docs = await databases.listDocuments(databaseId, collection.$id, [
+            sdk.Query.limit(1),
+          ]);
 
           return buildCollectionStatsRow({
             name,
             collection,
-            documentCount: docs.total,
+            documentCount: Number(docs.total ?? 0),
             schemaMismatch,
           });
         } catch (err) {
