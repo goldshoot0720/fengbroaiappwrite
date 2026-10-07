@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { clearCollectionCache } from "../_lib/appwriteClient";
+
+// Deletes, column creation, and the ready wait exceed the platform default
+// and the stream was cut at 0/4 with no error frame.
+export const maxDuration = 60;
 import { deleteNamedCollections, waitUntilAttributesReady } from "../_lib/collectionInventory";
 import { deleteManagementTable, initializeManagementTable } from "../_lib/managementTables";
 import { MANAGEMENT_TABLE_SCHEMAS, RETIRED_TABLES } from "../../../lib/managementRecords";
@@ -320,18 +324,21 @@ export async function GET(request) {
         // Send start message
         send({ type: 'start', tableName, totalColumns: schema.attributes.length });
 
-        // Create collection
+        // Create collection. A comment frame every few seconds keeps the
+        // stream from looking idle while Appwrite accepts the new table.
         send({ type: 'progress', step: 'collection', message: `Creating ${tableName} collection...` });
-        const collection = await databases.createCollection(
-          databaseId,
-          sdk.ID.unique(),
-          tableName,
-          [
-            sdk.Permission.read(sdk.Role.any()),
-            sdk.Permission.create(sdk.Role.any()),
-            sdk.Permission.update(sdk.Role.any()),
-            sdk.Permission.delete(sdk.Role.any()),
-          ]
+        const collection = await withHeartbeat(send, `Creating ${tableName} collection...`, () =>
+          databases.createCollection(
+            databaseId,
+            sdk.ID.unique(),
+            tableName,
+            [
+              sdk.Permission.read(sdk.Role.any()),
+              sdk.Permission.create(sdk.Role.any()),
+              sdk.Permission.update(sdk.Role.any()),
+              sdk.Permission.delete(sdk.Role.any()),
+            ]
+          )
         );
 
         clearCollectionCache(databaseId);
@@ -405,6 +412,9 @@ export async function GET(request) {
           databaseId,
           collectionId,
           schema.attributes.map((attr) => attr.key),
+          {
+            onTick: () => send({ type: 'progress', step: 'ready', message: `等待 ${tableName} 欄位就緒...`, collectionId, percent: 100 }),
+          },
         );
         if (!ready.ok) {
           send({ type: 'error', message: ready.error, collectionId });
@@ -422,19 +432,41 @@ export async function GET(request) {
         controller.close();
 
       } catch (err) {
-        send({ type: 'error', message: err.message });
-        controller.close();
+        try {
+          send({ type: 'error', message: err?.message || String(err) });
+        } catch {
+          // The stream is already closed.
+        }
+        try {
+          controller.close();
+        } catch {
+          // Already closed.
+        }
       }
     }
   });
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
     },
   });
+}
+
+function withHeartbeat(send, message, work) {
+  const timer = setInterval(() => {
+    try {
+      send({ type: 'progress', step: 'wait', message });
+    } catch {
+      // The client has already gone.
+    }
+  }, 2000);
+  return Promise.resolve()
+    .then(work)
+    .finally(() => clearInterval(timer));
 }
 
 // POST /api/create-table - Non-streaming endpoint (kept for backward compatibility)

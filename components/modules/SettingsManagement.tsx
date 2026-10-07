@@ -34,6 +34,7 @@ import {
 import { API_ENDPOINTS } from "@/lib/constants";
 import { ADDITIVE_SETUP_TABLES } from "@/lib/managementRecords";
 import { showsCreateButton, showsRebuildButton } from "@/lib/collectionStats";
+import { disconnectMessage, parseSseBuffer } from "@/lib/createTableStream";
 import { fetchApi } from "@/hooks/useApi";
 import packageJson from "@/package.json";
 import { MenuBackupSettings } from "@/components/modules/MenuBackupSettings";
@@ -744,11 +745,33 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
       if (config.databaseId) params.set('_database', config.databaseId);
       if (config.apiKey) params.set('_key', config.apiKey);
       
-      const eventSource = new EventSource(`/api/create-table?${params.toString()}`);
-      
-      eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
+      // fetch, not EventSource: a closed stream fires onerror and the browser
+      // reconnects, which starts a second create and hides the server error.
+      const response = await fetch(`/api/create-table?${params.toString()}`, {
+        headers: { Accept: "text/event-stream" },
+        cache: "no-store",
+      });
+      if (!response.ok || !response.body) {
+        const text = await response.text().catch(() => "");
+        throw new Error(text || `連線失敗 (${response.status})`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let rest = "";
+      let terminal = false;
+      const applyEvent = (data: {
+        type?: string;
+        tableName?: string;
+        totalColumns?: number;
+        step?: string;
+        current?: number;
+        percent?: number;
+        attribute?: string;
+        message?: string;
+        collectionId?: string;
+      }) => {
+        if (data.type === "error" || data.type === "complete") terminal = true;
         switch (data.type) {
           case 'start':
             setProgress(prev => prev ? {
@@ -769,8 +792,9 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
             } else {
               setProgress(prev => prev ? {
                 ...prev,
-                message: data.message,
-                collectionId: data.collectionId
+                message: data.message ?? prev.message,
+                ...(data.collectionId ? { collectionId: data.collectionId } : {}),
+                ...(typeof data.percent === "number" ? { percent: data.percent } : {}),
               } : null);
             }
             break;
@@ -782,7 +806,6 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               message: data.message,
               collectionId: data.collectionId
             } : null);
-            eventSource.close();
             // Mark this table as recently created
             setRecentlyCreated(prev => new Set(prev).add(tableName));
             // Auto-remove from recently created after 10 seconds
@@ -836,26 +859,33 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               isError: true,
               message: `錯誤: ${data.message}`
             } : null);
-            eventSource.close();
             break;
         }
       };
 
-      eventSource.onerror = () => {
-        setProgress(prev => prev ? {
-          ...prev,
-          isError: true,
-          message: '連線失敗'
-        } : null);
-        eventSource.close();
-      };
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const parsed = parseSseBuffer(rest, decoder.decode(value, { stream: true }));
+        rest = parsed.rest;
+        for (const data of parsed.events) applyEvent(data);
+      }
+      if (!terminal) {
+        setProgress((prev) => {
+          const message = disconnectMessage(prev);
+          if (!message || !prev) return prev;
+          return { ...prev, isError: true, message };
+        });
+        setCreating(null);
+      }
 
     } catch (err) {
       setProgress(prev => prev ? {
         ...prev,
         isError: true,
-        message: `錯誤: ${err}`
+        message: `錯誤: ${err instanceof Error ? err.message : String(err)}`
       } : null);
+      setCreating(null);
     }
   };
 

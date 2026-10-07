@@ -75,6 +75,7 @@ export async function waitUntilAttributesReady(databases, databaseId, collection
       return !attr.status || attr.status === "available";
     });
     if (ready) return { ok: true, collection: last };
+    options.onTick?.({ elapsed: Date.now() - started });
 
     if (Date.now() - started >= timeoutMs) {
       return { ok: false, collection: last, error: "欄位尚未就緒。請稍後重新整理；若這列仍顯示重建，再按一次。" };
