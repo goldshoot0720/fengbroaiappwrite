@@ -108,10 +108,7 @@ async function explainLookup(databases, databaseId) {
     const rows = first?.collections || first?.tables || [];
     lookup.collectionsTotal = first?.total;
     lookup.collectionsPage = rows.length;
-    lookup.collectionSite = rows
-      .filter((col) => /site/i.test(String(col?.name || "")))
-      .map((col) => col.name);
-    lookup.collectionKeys = Object.keys(first || {});
+    lookup.collectionNames = rows.map((col) => col?.name);
   } catch (err) {
     lookup.collectionsError = err?.message || String(err);
   }
@@ -120,14 +117,11 @@ async function explainLookup(databases, databaseId) {
     const response = await tablesDB.listTables({
       databaseId,
       queries: [sdk.Query.limit(100)],
-      search: "sitevisit",
       total: true,
     });
-    const tables = response?.tables || response?.collections || [];
+    const tables = response?.tables || [];
     lookup.tablesTotal = response?.total;
-    lookup.tablesPage = tables.length;
     lookup.tableNames = tables.map((table) => table?.name);
-    lookup.tableKeys = Object.keys(response || {});
   } catch (err) {
     lookup.tablesError = err?.message || String(err);
   }
