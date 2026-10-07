@@ -777,18 +777,18 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
           case 'start':
             setProgress(prev => prev ? {
               ...prev,
-              totalColumns: data.totalColumns,
-              message: `開始建立 ${data.tableName} (${data.totalColumns} 欄位)`
+              totalColumns: data.totalColumns ?? prev.totalColumns,
+              message: `開始建立 ${data.tableName ?? prev.tableName} (${data.totalColumns ?? prev.totalColumns} 欄位)`
             } : null);
             break;
           case 'progress':
             if (data.step === 'attribute') {
               setProgress(prev => prev ? {
                 ...prev,
-                currentColumn: data.current,
-                percent: data.percent,
-                currentAttribute: data.attribute,
-                message: data.message
+                currentColumn: data.current ?? prev.currentColumn,
+                percent: data.percent ?? prev.percent,
+                currentAttribute: data.attribute ?? prev.currentAttribute,
+                message: data.message ?? prev.message
               } : null);
             } else {
               setProgress(prev => prev ? {
@@ -804,8 +804,8 @@ RESEND_FROM_EMAIL=${resendConfig.fromEmail}`;
               ...prev,
               percent: 100,
               isComplete: true,
-              message: data.message,
-              collectionId: data.collectionId
+              message: data.message ?? prev.message,
+              ...(data.collectionId ? { collectionId: data.collectionId } : {}),
             } : null);
             // Mark this table as recently created
             setRecentlyCreated(prev => new Set(prev).add(tableName));

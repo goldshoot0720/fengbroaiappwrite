@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { clearCollectionCache } from "../_lib/appwriteClient";
+import { createBlockedByCleanup, deleteNamedCollections, discardCollection, waitUntilAttributesReady } from "../_lib/collectionInventory";
+import { deleteManagementTable, initializeManagementTable } from "../_lib/managementTables";
+import { MANAGEMENT_TABLE_SCHEMAS, RETIRED_TABLES } from "../../../lib/managementRecords";
 
 // Deletes, column creation, and the ready wait exceed the platform default
 // and the stream was cut at 0/4 with no error frame.
 export const maxDuration = 60;
-import { createBlockedByCleanup, deleteNamedCollections, discardCollection, waitUntilAttributesReady } from "../_lib/collectionInventory";
-import { deleteManagementTable, initializeManagementTable } from "../_lib/managementTables";
-import { MANAGEMENT_TABLE_SCHEMAS, RETIRED_TABLES } from "../../../lib/managementRecords";
 
 function retiredTableResponse(tableName) {
   const replacement = RETIRED_TABLES[tableName];
