@@ -3591,7 +3591,7 @@ function FengbroFinanceSection({
                                 {bandLabel && (
                                   <span
                                     className={`rounded-full border bg-white px-2 py-0.5 text-[11px] font-semibold ${bandTag === "band-high" ? "border-rose-200 text-rose-700" : "border-sky-200 text-sky-700"}`}
-                                    title={`近 ${BAND_WEEKS} 週週收盤區間`}
+                                    title={`前 ${BAND_WEEKS} 週週收盤區間（不含本週那根還沒收盤的 K）`}
                                   >
                                     {bandLabel}
                                   </span>
@@ -3686,7 +3686,7 @@ function FengbroFinanceSection({
                                     )}
                                   </div>
                                 </div>
-                                {/* 26W（波段）高低：由最近一年週線的最後 26 週算出 */}
+                                {/* 26W（波段）高低：最近一年週線的前 26 週（不含本週） */}
                                 <div className="rounded-xl bg-white/70 px-3 py-2 border border-dashed border-slate-200">
                                   <p className="text-muted-foreground">26W High</p>
                                   <div className="flex items-end justify-between">
@@ -3909,7 +3909,7 @@ function FengbroFinanceSection({
                               {bandLabel && (
                                 <span
                                   className={`rounded-full border bg-white px-2.5 py-1 text-xs font-semibold ${bandTag === "band-high" ? "border-rose-200 text-rose-700" : "border-sky-200 text-sky-700"}`}
-                                  title={`近 ${BAND_WEEKS} 週週收盤區間`}
+                                  title={`前 ${BAND_WEEKS} 週週收盤區間（不含本週那根還沒收盤的 K）`}
                                 >
                                   {bandLabel}
                                 </span>

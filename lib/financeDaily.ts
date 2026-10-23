@@ -124,10 +124,14 @@ export function buildDailyComparisons(
 /* ── 波段（26 週）高低 ─────────────────────────────────────────────
  *
  * 52W 高低是 API 給的（含盤中價），但沒有 26 週版本。這裡用卡片上那條
- * 「最近一年走勢」的週線資料自己算：取最後 26 週的週收盤最高／最低。
+ * 「最近一年走勢」的週線資料自己算：取最近 26 週的週收盤最高／最低。
  *
  * 注意這是**週收盤**基準，不是盤中最低，所以數值會比真實的 26 週盤中低點高一些；
  * 徽章文字寫「創波段新低 26W」，語意就是「跌破近半年的週收盤區間」。
+ *
+ * **最後一根 K 一定要排除**：Yahoo 的週線會帶「本週還沒收盤」那一根，它的收盤價
+ * 就等於現價。把它算進來，波段低點就被現價自己定義了 —— KOSPI 5,505.21 對上
+ * 同一根 K 的 5,505.20996（浮點誤差），`price <= low` 永遠不成立，徽章一個都亮不了。
  */
 
 export const BAND_WEEKS = 26;
@@ -141,7 +145,7 @@ export type FinanceBandRange = {
 
 export type FinanceBandTag = "band-high" | "band-low" | null;
 
-/** 從週線資料取最近 26 週的最高／最低週收盤。 */
+/** 從週線資料取最近 26 週（不含本週那根還沒收盤的 K）的最高／最低週收盤。 */
 export function bandRangeFromHistory(
   points: Array<{ date: string; price: number | null }> | null | undefined,
   weeks: number = BAND_WEEKS
@@ -156,9 +160,11 @@ export function bandRangeFromHistory(
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
   if (sorted.length === 0) return empty;
 
-  const latestDate = String(sorted[sorted.length - 1].date);
+  // 只有一根時沒得排除，直接用它。
+  const completed = sorted.length > 1 ? sorted.slice(0, -1) : sorted;
+  const latestDate = String(completed[completed.length - 1].date);
   const cutoff = addDaysToDateKey(latestDate, -weeks * 7);
-  const window = cutoff ? sorted.filter((point) => String(point.date) >= cutoff) : sorted;
+  const window = cutoff ? completed.filter((point) => String(point.date) >= cutoff) : completed;
   if (window.length === 0) return empty;
 
   let high: number | null = null;
@@ -173,7 +179,11 @@ export function bandRangeFromHistory(
 /**
  * 波段徽章。已經破了 52 週高低就不重複標 —— 52W 是更強的說法，
  * 兩個一起亮只會讓人以為是兩件事。
+ *
+ * 容差 0.05%：現價是券商給的兩位小數，週收盤是浮點數，差幾厘不該讓徽章消失。
  */
+export const BAND_TOLERANCE_RATIO = 0.0005;
+
 export function getBandTag(
   price: number | null | undefined,
   band: FinanceBandRange,
@@ -181,7 +191,7 @@ export function getBandTag(
 ): FinanceBandTag {
   if (typeof price !== "number" || !Number.isFinite(price)) return null;
   if (tag52 === "new-high" || tag52 === "new-low") return null;
-  if (band.high != null && price >= band.high) return "band-high";
-  if (band.low != null && price <= band.low) return "band-low";
+  if (band.high != null && price >= band.high * (1 - BAND_TOLERANCE_RATIO)) return "band-high";
+  if (band.low != null && price <= band.low * (1 + BAND_TOLERANCE_RATIO)) return "band-low";
   return null;
 }

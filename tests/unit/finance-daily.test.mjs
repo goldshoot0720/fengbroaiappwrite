@@ -157,8 +157,20 @@ describe("bandRangeFromHistory (26 週波段)", () => {
     points[0] = { ...points[0], price: 1 };
     const range = bandRangeFromHistory(points);
     assert.ok(range.low > 1, `low 應排除 26 週前的異常值，實際 ${range.low}`);
-    assert.equal(range.high, 139);
+    // 最後一根（本週還沒收盤）也會被排除，所以最高只到 138。
+    assert.equal(range.high, 138);
     assert.ok(range.weeks >= 26 && range.weeks <= 27, `weeks=${range.weeks}`);
+  });
+
+  it("excludes the in-progress week so the current price cannot define the band", () => {
+    // 回歸測試：KOSPI 現價 5,505.21，本週那根 K 的收盤是 5,505.20996，
+    // 把本週算進去時 low 就等於現價，浮點差讓 price <= low 永遠不成立。
+    const points = weekly("2026-05-01", 26, 125);
+    points[points.length - 1] = { ...points[points.length - 1], price: 50 };
+    const range = bandRangeFromHistory(points);
+    assert.equal(range.low, 125, `low 應是上一週的 125，實際 ${range.low}`);
+    assert.equal(range.high, 149);
+    assert.equal(getBandTag(50, range, null), "band-low");
   });
 
   it("keeps a low that sits inside the 26-week window", () => {
@@ -172,8 +184,10 @@ describe("bandRangeFromHistory (26 週波段)", () => {
     const range = bandRangeFromHistory([
       { date: "2026-10-20", price: 300 },
       { date: "2026-10-06", price: 100 },
+      { date: "2026-10-27", price: 400 },
       { date: "2026-10-13", price: 200 },
     ]);
+    // 10-27 是最後一根（本週），排除後區間是 10-06 ~ 10-20。
     assert.equal(range.high, 300);
     assert.equal(range.low, 100);
   });
