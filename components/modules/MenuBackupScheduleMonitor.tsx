@@ -196,8 +196,9 @@ export function MenuBackupScheduleMonitor() {
       </div>
 
       <p className="mt-1 text-xs text-sky-700 dark:text-sky-300">
-        雲端硬碟備份由 Vercel 排程在{BACKUP_SCHEDULE_TIME_LABEL}檢查一次；選 3 天以上時，
-        未滿間隔會自動跳過，滿間隔的當天才上傳。失敗會用 Resend 寄信通知。
+        雲端硬碟備份由 Vercel 排程在{BACKUP_SCHEDULE_TIME_LABEL}檢查一次（實際觸發時間由 Vercel
+        排定，可能晚至 07:06）；選 3 天以上時，未滿間隔會自動跳過，滿間隔的當天才上傳。
+        失敗會用 Resend 寄信通知。
       </p>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -260,8 +261,8 @@ export function MenuBackupScheduleMonitor() {
               {!state.enabled
                 ? "已關閉"
                 : state.dueToday
-                  ? "今天（06:06 之後）"
-                  : `${describeBackupDate(state.nextRunDate, state.todayKey)} 06:06`}
+                  ? "今天 06:06–07:06"
+                  : `${describeBackupDate(state.nextRunDate, state.todayKey)} 06:06–07:06`}
             </dd>
           </div>
         </dl>
