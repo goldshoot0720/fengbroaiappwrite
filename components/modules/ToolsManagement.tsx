@@ -45,9 +45,13 @@ import {
   parseFinanceCustomCsv,
 } from "@/lib/fengbroFinanceCsv";
 import {
+  BAND_WEEKS,
+  bandRangeFromHistory,
   buildDailyComparisons,
+  getBandTag,
   isIndexName,
   toDailyItem,
+  type FinanceBandTag,
   type FinanceDailyComparison,
   type FinanceDailySnapshot,
 } from "@/lib/financeDaily";
@@ -891,8 +895,15 @@ function getFinanceGroupLabel(group: FengbroFinanceQuote["group"] | FinanceCusto
 }
 
 function getFinanceRecordLabel(tag: FinanceRecordTag) {
-  if (tag === "new-high") return "\u5275\u65b0\u9ad8";
-  if (tag === "new-low") return "\u5275\u65b0\u4f4e";
+  if (tag === "new-high") return "創新高 52W";
+  if (tag === "new-low") return "創新低 52W";
+  return "";
+}
+
+/** 波段（26 週）徽章文字；沒有歷史資料或已破 52W 時回空字串。 */
+function getFinanceBandLabel(tag: FinanceBandTag) {
+  if (tag === "band-high") return "創波段新高 26W";
+  if (tag === "band-low") return "創波段新低 26W";
   return "";
 }
 
@@ -3516,6 +3527,12 @@ function FengbroFinanceSection({
                       };
                       const isUp = (quote.change || 0) >= 0;
                       const recordLabel = getFinanceRecordLabel(quote.recordTag);
+                      const bandTag = getBandTag(
+                        quote.price,
+                        bandRangeFromHistory(quote.historyRanges?.["1y"]),
+                        quote.recordTag
+                      );
+                      const bandLabel = getFinanceBandLabel(bandTag);
                       const isBearMarket = isFinanceBearMarketFrom52WHigh(quote);
                       return (
                         <div
@@ -3572,6 +3589,14 @@ function FengbroFinanceSection({
                                 {recordLabel && (
                                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-sky-50 text-sky-700 border-sky-200"}`}>
                                     {recordLabel}
+                                  </span>
+                                )}
+                                {bandLabel && (
+                                  <span
+                                    className={`rounded-full border bg-white px-2 py-0.5 text-[11px] font-semibold ${bandTag === "band-high" ? "border-rose-200 text-rose-700" : "border-sky-200 text-sky-700"}`}
+                                    title={`近 ${BAND_WEEKS} 週週收盤區間`}
+                                  >
+                                    {bandLabel}
                                   </span>
                                 )}
                                 {isBearMarket && (
@@ -3692,12 +3717,12 @@ function FengbroFinanceSection({
                                       </span>
                                       {daily.newHigh && (
                                         <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-700">
-                                          創新高
+                                          今日創新高 52W
                                         </span>
                                       )}
                                       {daily.newLow && (
                                         <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 font-semibold text-sky-700">
-                                          創新低
+                                          今日創新低 52W
                                         </span>
                                       )}
                                     </div>
@@ -3791,6 +3816,12 @@ function FengbroFinanceSection({
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {quotes.map((quote) => {
                     const recordLabel = getFinanceRecordLabel(quote.recordTag);
+                    const bandTag = getBandTag(
+                      quote.price,
+                      bandRangeFromHistory(quote.historyRanges?.["1y"]),
+                      quote.recordTag
+                    );
+                    const bandLabel = getFinanceBandLabel(bandTag);
                     const isUp = (quote.change || 0) >= 0;
                     const isBearMarket = isFinanceBearMarketFrom52WHigh(quote);
                     const canEditQuote = Boolean(findCustomInstrumentByQuoteId(quote.id));
@@ -3854,6 +3885,14 @@ function FengbroFinanceSection({
                               {recordLabel && (
                                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-sky-50 text-sky-700 border border-sky-200"}`}>
                                   {recordLabel}
+                                </span>
+                              )}
+                              {bandLabel && (
+                                <span
+                                  className={`rounded-full border bg-white px-2.5 py-1 text-xs font-semibold ${bandTag === "band-high" ? "border-rose-200 text-rose-700" : "border-sky-200 text-sky-700"}`}
+                                  title={`近 ${BAND_WEEKS} 週週收盤區間`}
+                                >
+                                  {bandLabel}
                                 </span>
                               )}
                               {isBearMarket && (

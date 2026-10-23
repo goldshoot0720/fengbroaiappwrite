@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  bandRangeFromHistory,
   buildDailyComparisons,
   compareDailyItems,
   findSnapshotItem,
+  getBandTag,
   isIndexName,
   toDailyItem,
 } from "../../lib/financeDaily.ts";
@@ -126,5 +128,78 @@ describe("buildDailyComparisons", () => {
     assert.equal(findSnapshotItem(previous, "kospi")?.high52, 9000);
     assert.equal(findSnapshotItem(previous, "missing"), null);
     assert.equal(findSnapshotItem(null, "sox"), null);
+  });
+});
+
+describe("bandRangeFromHistory (26 週波段)", () => {
+  const weekly = (startISO, count, base) =>
+    Array.from({ length: count }, (_, i) => {
+      const date = new Date(`${startISO}T00:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + i * 7);
+      return { date: date.toISOString().slice(0, 10), price: base + i };
+    });
+
+  it("returns empty when there is no history", () => {
+    assert.deepEqual(bandRangeFromHistory(null), { high: null, low: null, weeks: 0 });
+    assert.deepEqual(bandRangeFromHistory([]), { high: null, low: null, weeks: 0 });
+  });
+
+  it("uses a single point as both high and low", () => {
+    const range = bandRangeFromHistory([{ date: "2026-10-20", price: 500 }]);
+    assert.equal(range.high, 500);
+    assert.equal(range.low, 500);
+    assert.equal(range.weeks, 1);
+  });
+
+  it("ignores points older than 26 weeks", () => {
+    // 40 週的資料，第 1 筆是刻意壓低的異常值；它已超出 26 週，不該被算進波段低點。
+    const points = weekly("2026-01-06", 40, 100);
+    points[0] = { ...points[0], price: 1 };
+    const range = bandRangeFromHistory(points);
+    assert.ok(range.low > 1, `low 應排除 26 週前的異常值，實際 ${range.low}`);
+    assert.equal(range.high, 139);
+    assert.ok(range.weeks >= 26 && range.weeks <= 27, `weeks=${range.weeks}`);
+  });
+
+  it("keeps a low that sits inside the 26-week window", () => {
+    const points = weekly("2026-01-06", 40, 100);
+    points[points.length - 10] = { ...points[points.length - 10], price: 5 };
+    const range = bandRangeFromHistory(points);
+    assert.equal(range.low, 5);
+  });
+
+  it("sorts unordered points by date", () => {
+    const range = bandRangeFromHistory([
+      { date: "2026-10-20", price: 300 },
+      { date: "2026-10-06", price: 100 },
+      { date: "2026-10-13", price: 200 },
+    ]);
+    assert.equal(range.high, 300);
+    assert.equal(range.low, 100);
+  });
+});
+
+describe("getBandTag", () => {
+  const band = { high: 900, low: 500, weeks: 26 };
+
+  it("stays quiet when the 52-week badge already fired", () => {
+    assert.equal(getBandTag(1000, band, "new-high"), null);
+    assert.equal(getBandTag(400, band, "new-low"), null);
+  });
+
+  it("flags a band high inside the 52-week range", () => {
+    assert.equal(getBandTag(900, band, null), "band-high");
+  });
+
+  it("flags a band low inside the 52-week range", () => {
+    assert.equal(getBandTag(500, band, null), "band-low");
+  });
+
+  it("stays quiet in between", () => {
+    assert.equal(getBandTag(700, band, null), null);
+  });
+
+  it("needs a price", () => {
+    assert.equal(getBandTag(null, band, null), null);
   });
 });

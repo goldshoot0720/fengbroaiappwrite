@@ -7,6 +7,8 @@
  * 這個數字就會被推上去，之後拉回也不會消失。
  */
 
+import { addDaysToDateKey } from "./taipeiDate";
+
 export type FinanceDailyItem = {
   id: string;
   name: string;
@@ -117,4 +119,69 @@ export function buildDailyComparisons(
     if (comparison) result[item.id] = comparison;
   }
   return result;
+}
+
+/* ── 波段（26 週）高低 ─────────────────────────────────────────────
+ *
+ * 52W 高低是 API 給的（含盤中價），但沒有 26 週版本。這裡用卡片上那條
+ * 「最近一年走勢」的週線資料自己算：取最後 26 週的週收盤最高／最低。
+ *
+ * 注意這是**週收盤**基準，不是盤中最低，所以數值會比真實的 26 週盤中低點高一些；
+ * 徽章文字寫「創波段新低 26W」，語意就是「跌破近半年的週收盤區間」。
+ */
+
+export const BAND_WEEKS = 26;
+
+export type FinanceBandRange = {
+  high: number | null;
+  low: number | null;
+  /** 實際納入計算的週數，資料不足時會小於 BAND_WEEKS。 */
+  weeks: number;
+};
+
+export type FinanceBandTag = "band-high" | "band-low" | null;
+
+/** 從週線資料取最近 26 週的最高／最低週收盤。 */
+export function bandRangeFromHistory(
+  points: Array<{ date: string; price: number | null }> | null | undefined,
+  weeks: number = BAND_WEEKS
+): FinanceBandRange {
+  const empty = { high: null, low: null, weeks: 0 };
+  if (!Array.isArray(points) || points.length === 0) return empty;
+
+  const sorted = [...points]
+    .filter((point): point is { date: string; price: number } =>
+      Boolean(point) && typeof point.price === "number" && Number.isFinite(point.price)
+    )
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (sorted.length === 0) return empty;
+
+  const latestDate = String(sorted[sorted.length - 1].date);
+  const cutoff = addDaysToDateKey(latestDate, -weeks * 7);
+  const window = cutoff ? sorted.filter((point) => String(point.date) >= cutoff) : sorted;
+  if (window.length === 0) return empty;
+
+  let high: number | null = null;
+  let low: number | null = null;
+  for (const point of window) {
+    if (high == null || point.price > high) high = point.price;
+    if (low == null || point.price < low) low = point.price;
+  }
+  return { high, low, weeks: window.length };
+}
+
+/**
+ * 波段徽章。已經破了 52 週高低就不重複標 —— 52W 是更強的說法，
+ * 兩個一起亮只會讓人以為是兩件事。
+ */
+export function getBandTag(
+  price: number | null | undefined,
+  band: FinanceBandRange,
+  tag52: "new-high" | "new-low" | null
+): FinanceBandTag {
+  if (typeof price !== "number" || !Number.isFinite(price)) return null;
+  if (tag52 === "new-high" || tag52 === "new-low") return null;
+  if (band.high != null && price >= band.high) return "band-high";
+  if (band.low != null && price <= band.low) return "band-low";
+  return null;
 }
