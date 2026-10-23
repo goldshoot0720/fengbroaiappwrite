@@ -119,6 +119,8 @@ export const API_ENDPOINTS = {
   GOOGLE_DRIVE_SETTINGS: "/api/google-drive-settings",
   /** 排程備份的頻率與最近一次結果（GET／PUT），POST 可立即跑一次 */
   MENU_BACKUP_SCHEDULE: "/api/menu-backup-schedule",
+  /** 指數每日 52 週高低記錄：GET 讀、POST 寫（一天一筆） */
+  FINANCE_DAILY: "/api/fengbro-finance/daily",
   SHOPPING_LIST: "/api/shopping-list",
   UDEMY: "/api/udemy",
   BANK: "/api/bank",

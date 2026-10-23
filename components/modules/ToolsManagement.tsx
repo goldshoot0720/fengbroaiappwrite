@@ -45,6 +45,13 @@ import {
   parseFinanceCustomCsv,
 } from "@/lib/fengbroFinanceCsv";
 import {
+  buildDailyComparisons,
+  isIndexName,
+  toDailyItem,
+  type FinanceDailyComparison,
+  type FinanceDailySnapshot,
+} from "@/lib/financeDaily";
+import {
   buildFengbroTubeCsv,
   mergeFengbroTubeChannels,
   parseFengbroTubeCsv,
@@ -2424,6 +2431,7 @@ function FengbroFinanceSection({
   result,
   loading,
   error,
+  dailyComparisons,
   defaultInstruments,
   selectedDefaultInstrumentIds,
   onAddDefaultInstrument,
@@ -2447,6 +2455,8 @@ function FengbroFinanceSection({
   result: FengbroFinanceResult | null;
   loading: boolean;
   error: string;
+  /** 指數每日記錄的比較結果，key 是標的 id；沒有記錄時是空物件 */
+  dailyComparisons: Record<string, FinanceDailyComparison>;
   defaultInstruments: DefaultFinanceInstrumentSummary[];
   selectedDefaultInstrumentIds: string[];
   onAddDefaultInstrument: (id: string) => void;
@@ -3657,6 +3667,44 @@ function FengbroFinanceSection({
                                 </div>
                               </div>
 
+                              {/* 每日記錄：上次的 52W 高低 + 今天有沒有破 */}
+                              {(() => {
+                                const daily = dailyComparisons[quote.id];
+                                if (!daily) return null;
+                                if (daily.previousHigh52 == null && daily.previousLow52 == null) return null;
+                                return (
+                                  <div className="mt-2 rounded-xl border border-slate-100 bg-white/70 px-3 py-2 text-[11px]">
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                      <span className="text-muted-foreground">
+                                        上次（{daily.previousDateKey.slice(5)}）
+                                      </span>
+                                      <span>
+                                        最高{" "}
+                                        <span className="font-semibold tabular-nums">
+                                          {formatFinanceNumber(daily.previousHigh52, 2)}
+                                        </span>
+                                      </span>
+                                      <span>
+                                        最低{" "}
+                                        <span className="font-semibold tabular-nums">
+                                          {formatFinanceNumber(daily.previousLow52, 2)}
+                                        </span>
+                                      </span>
+                                      {daily.newHigh && (
+                                        <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-700">
+                                          創新高
+                                        </span>
+                                      )}
+                                      {daily.newLow && (
+                                        <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 font-semibold text-sky-700">
+                                          創新低
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
                               <FinanceFibonacciRetracementPanel quote={quote} />
 
                               {/* 走勢圖（最近一年） */}
@@ -4157,6 +4205,8 @@ export default function ToolsManagement({
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
   const financeResultRef = useRef<FengbroFinanceResult | null>(null);
   const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
+  /** 指數每日記錄：上一次記錄的 52 週高低，以及今天有沒有創新高／新低 */
+  const [financeDaily, setFinanceDaily] = useState<Record<string, FinanceDailyComparison>>({});
   // 鋒兄金融目前無內建預設標的；全以 financeinstrument2 自訂標的為主。
   const [selectedDefaultFinanceInstrumentIds, setSelectedDefaultFinanceInstrumentIds] = useState<string[]>(
     DEFAULT_FINANCE_INSTRUMENT_IDS
@@ -4655,6 +4705,36 @@ export default function ToolsManagement({
     }
   }, [activeTab, tubeLoadedOnce, tubeLoading, loadTube]);
 
+  /**
+   * 把今天看到的指數 52 週高低寫進每日記錄，並拿上一次的記錄算「有沒有創新高／新低」。
+   *
+   * 只記指數（名稱含「指數」或 Index）；同一天重複呼叫只會覆蓋當天那一筆。
+   * 記錄失敗不影響看盤，所以整個流程吞掉錯誤。
+   */
+  const syncFinanceDaily = useCallback(async (quotes: FengbroFinanceQuote[]) => {
+    const items = quotes
+      .filter((quote) => isIndexName(quote.displayName || quote.name))
+      .map((quote) => toDailyItem(quote))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (items.length === 0) return;
+
+    try {
+      const response = await fetch(API_ENDPOINTS.FINANCE_DAILY, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      if (!response.ok) return;
+      const data = (await response.json()) as {
+        today: FinanceDailySnapshot | null;
+        previous: FinanceDailySnapshot | null;
+      };
+      setFinanceDaily(buildDailyComparisons(data.previous, data.today?.items || items));
+    } catch {
+      // 每日記錄是加分項，失敗就當今天沒有「上次」可比。
+    }
+  }, []);
+
   const loadFinance = useCallback(async () => {
     setFinanceLoadedOnce(true);
     setFinanceLoading(true);
@@ -4698,12 +4778,13 @@ export default function ToolsManagement({
       if (!response.ok) throw new Error(data.error || "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
       financeResultRef.current = data;
       setFinanceResult(data);
+      void syncFinanceDaily(data.quotes || []);
     } catch (error) {
       setFinanceError(error instanceof Error ? error.message : "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
     } finally {
       setFinanceLoading(false);
     }
-  }, [customFinanceInstruments, featuredFinanceQuoteIds, selectedDefaultFinanceInstrumentIds]);
+  }, [customFinanceInstruments, featuredFinanceQuoteIds, selectedDefaultFinanceInstrumentIds, syncFinanceDaily]);
 
   const clearCustomFinanceForm = useCallback(() => {
     setEditingCustomFinanceKey(null);
@@ -5592,6 +5673,7 @@ export default function ToolsManagement({
           result={financeResult}
           loading={financeLoading}
           error={financeError}
+          dailyComparisons={financeDaily}
           defaultInstruments={DEFAULT_FINANCE_INSTRUMENTS}
           selectedDefaultInstrumentIds={selectedDefaultFinanceInstrumentIds}
           onAddDefaultInstrument={handleAddDefaultFinanceInstrument}
