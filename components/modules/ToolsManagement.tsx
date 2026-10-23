@@ -5113,6 +5113,12 @@ export default function ToolsManagement({
     (targetInstrument: CustomFinanceInstrument) => {
       const targetKey = getCustomFinanceInstrumentKey(targetInstrument);
       const quoteId = buildCustomFinanceQuoteId(targetInstrument.provider, targetInstrument.symbol);
+      // 單筆刪除沒有復原，先確認一次；名稱空白時用代號，避免出現「確定要刪除「」嗎？」
+      const label = (targetInstrument.name || "").trim() || targetInstrument.symbol;
+      const confirmed = window.confirm(
+        `確定要刪除「${label}」嗎？\n\n這筆自訂標的（含圖片網址與外部連結）會一併移除，無法復原。`
+      );
+      if (!confirmed) return;
       setCustomFinanceInstruments((currentInstruments) =>
         currentInstruments.filter((instrument) => getCustomFinanceInstrumentKey(instrument) !== targetKey)
       );
