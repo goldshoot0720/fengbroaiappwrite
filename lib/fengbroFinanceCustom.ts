@@ -422,13 +422,28 @@ const JAPAN_YAHOO_LOCAL_DISPLAY_NAME: Record<string, string> = {
 };
 
 /**
+ * CNBC 用前導點代表指數（.SOX／.KS11／.N225），Yahoo 用 ^（^SOX）。
+ * 少數代號兩邊不一致，列在這裡；其餘前導點一律換成 ^。
+ */
+const CNBC_INDEX_TO_CHART_SYMBOL: Record<string, string> = {
+  ".SPX": "^GSPC", // 標普 500：Yahoo 是 ^GSPC，不是 ^SPX
+  ".COMP": "^IXIC",
+};
+
+/**
  * Symbol to use with Yahoo chart API (query1.finance.yahoo.com).
- * Japan-local index codes (e.g. 998407.O) map to global codes (^N225).
+ *
+ * 三種來源都要轉：日本 Yahoo 的當地代碼（998407.O → ^N225）、CNBC 的前導點指數
+ * （.SOX → ^SOX），其餘原樣回傳。沒轉的話 Yahoo 直接 404，走勢圖與 26 週波段
+ * 都會是空的 —— 這是 2026-10-23 三個指數「Yahoo Finance history 404」的原因。
  */
 export function resolveYahooChartSymbol(symbol: string): string {
   const s = symbol.trim().toUpperCase();
   if (!s) return s;
-  return JAPAN_YAHOO_LOCAL_TO_CHART_SYMBOL[s] || s;
+  const mapped = JAPAN_YAHOO_LOCAL_TO_CHART_SYMBOL[s];
+  if (mapped) return mapped;
+  if (s.startsWith(".")) return CNBC_INDEX_TO_CHART_SYMBOL[s] || `^${s.slice(1)}`;
+  return s;
 }
 
 /** True when symbol is a Japan Yahoo-only local index code. */
