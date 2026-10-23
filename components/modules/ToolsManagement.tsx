@@ -398,7 +398,7 @@ const PRIMARY_TOOL_TABS: { id: ToolsTab; label: string; subtitle?: string }[] = 
 /** 上方選單「鋒兄子工具」— 獨立群組，不出現在鋒兄工具頁分頁列 */
 const SUB_TOOL_TABS: { id: ToolsTab; label: string; subtitle?: string }[] = [
   { id: "fengbro-tube", label: "鋒兄Tube" },
-  { id: "fengbro-finance", label: "\u92d2\u5144\u91d1\u878d" },
+  { id: "fengbro-finance", label: "鋒兄金融 ２０２６～２０２７" },
   { id: "fengbro-news", label: "鋒兄新聞" },
 ];
 
@@ -3392,7 +3392,7 @@ function FengbroFinanceSection({
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700/80">FengBro Finance</p>
-              <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄金融</h3>
+              <h3 className="mt-1 text-2xl font-semibold text-foreground">鋒兄金融 ２０２６～２０２７</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 自訂指數／股票報價監控；CSV 會一併匯出／匯入圖片網址（含 Appwrite Storage），觸及新高或新低時自動標註。
               </p>

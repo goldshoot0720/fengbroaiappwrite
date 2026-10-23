@@ -67,7 +67,7 @@ const MODULES = [
   { num: 21, name: "影片合併", category: "工具", desc: "多段影片合併" },
   { num: 22, name: "YT / B站轉 MP3/MP4", category: "工具", desc: "YouTube / Bilibili 下載轉檔" },
   { num: 23, name: "鋒兄Tube", category: "子工具", desc: "頻道最新影片與倒台指數" },
-  { num: 24, name: "鋒兄金融", category: "子工具", desc: "CNBC / Yahoo 報價與自訂標的 CSV" },
+  { num: 24, name: "鋒兄金融 ２０２６～２０２７", category: "子工具", desc: "CNBC / Yahoo 報價與自訂標的 CSV" },
   { num: 25, name: "鋒兄新聞", category: "子工具", desc: "鎖定網站焦點、人口統計與便當等面板" },
 ];
 
