@@ -55,6 +55,7 @@ import {
   type FinanceDailyComparison,
   type FinanceDailySnapshot,
 } from "@/lib/financeDaily";
+import { getFinanceIndexEmoji } from "@/lib/financeIndexIcon";
 import {
   buildFengbroTubeCsv,
   mergeFengbroTubeChannels,
@@ -3527,6 +3528,7 @@ function FengbroFinanceSection({
                       };
                       const isUp = (quote.change || 0) >= 0;
                       const recordLabel = getFinanceRecordLabel(quote.recordTag);
+                      const indexEmoji = getFinanceIndexEmoji(quote);
                       const band = bandRangeFromHistory(quote.historyRanges?.["1y"]);
                       const bandTag = getBandTag(quote.price, band, quote.recordTag);
                       const bandLabel = getFinanceBandLabel(bandTag);
@@ -3549,7 +3551,14 @@ function FengbroFinanceSection({
                             <p className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${cfg.accentClass} opacity-80`}>
                               {cfg.subtitle}
                             </p>
-                            <h4 className="mt-1 text-lg font-semibold text-foreground leading-tight">{cfg.title}</h4>
+                            <h4 className="mt-1 text-lg font-semibold text-foreground leading-tight">
+                              {indexEmoji ? (
+                                <span className="mr-1.5 align-[-2px]" aria-hidden>
+                                  {indexEmoji}
+                                </span>
+                              ) : null}
+                              {cfg.title}
+                            </h4>
                             {(quote.localLabel ||
                               recordLabel ||
                               isBearMarket ||
@@ -3835,6 +3844,7 @@ function FengbroFinanceSection({
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {quotes.map((quote) => {
                     const recordLabel = getFinanceRecordLabel(quote.recordTag);
+                    const indexEmoji = getFinanceIndexEmoji(quote);
                     const bandTag = getBandTag(
                       quote.price,
                       bandRangeFromHistory(quote.historyRanges?.["1y"]),
@@ -3854,7 +3864,14 @@ function FengbroFinanceSection({
                         <div className="flex flex-col gap-3">
                           <div className={`min-w-0 ${canEditQuote ? "pr-10" : ""}`}>
                             <div className="flex flex-wrap items-center gap-2">
-                              <h5 className="font-semibold text-foreground">{getFinanceQuoteTitle(quote)}</h5>
+                              <h5 className="font-semibold text-foreground">
+                                {indexEmoji ? (
+                                  <span className="mr-1.5" aria-hidden>
+                                    {indexEmoji}
+                                  </span>
+                                ) : null}
+                                {getFinanceQuoteTitle(quote)}
+                              </h5>
                               {quote.localLabel && (
                                 <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
                                   {quote.localLabel}

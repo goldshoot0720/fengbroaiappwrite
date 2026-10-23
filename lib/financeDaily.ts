@@ -8,6 +8,7 @@
  */
 
 import { addDaysToDateKey } from "./taipeiDate";
+import { isFinanceIndex } from "./financeIndexIcon";
 
 export type FinanceDailyItem = {
   id: string;
@@ -33,9 +34,9 @@ export type FinanceDailyComparison = {
   newLow: boolean;
 };
 
-/** 只記指數：名稱含「指數」或 Index（費城半導體指數、KOSPI Index、Nikkei 225 Index…）。 */
+/** 只記指數：判斷交給 lib/financeIndexIcon.ts，全站用同一份定義。 */
 export function isIndexName(name: string | null | undefined): boolean {
-  return /指數|index/i.test(String(name || ""));
+  return isFinanceIndex({ name });
 }
 
 function toNumberOrNull(value: unknown): number | null {
