@@ -2523,19 +2523,19 @@ interface TableProps {
 function DesktopTable({ foods, onDelete, onDuplicate, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
-      <div className="hidden lg:block">
+      <div className="hidden min-[1100px]:block">
         <EmptyState emoji="📦" title="暫無食品資料" description="點擊上方表單新增第一個食品" />
       </div>
     );
   }
 
   return (
-    <div className="hidden lg:block overflow-x-auto">
+    <div className="hidden min-[1100px]:block overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="bg-gray-50/50 dark:bg-gray-700/50">
             <TableHead className="font-semibold">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 名稱
                 <Button
                   type="button"
@@ -2984,14 +2984,14 @@ function FoodTableRow({ food, onDelete, onDuplicate, onAmountChange, isEditing, 
 function MobileList({ foods, onDelete, onDuplicate, onAmountChange, inlineEditingId, inlineEditForm, setInlineEditForm, onInlineEdit, onInlineSave, onInlineCancel, onInlinePhotoFileSelect, inlinePhotoPreviewUrl, inlinePhotoUploading, isEditMode, setIsEditMode, selectedIds, toggleSelect, isAllSelected, toggleSelectAll, deleteSelected, isInlineAdding, inlineAddForm, setInlineAddForm, onInlineAddPhotoFileSelect, inlineAddPhotoPreviewUrl, inlineAddPhotoUploading, onInlineAddSave, onInlineAddCancel, startInlineAdd }: TableProps) {
   if (foods.length === 0) {
     return (
-      <div className="lg:hidden">
+      <div className="min-[1100px]:hidden">
         <EmptyState emoji="📦" title="暫無食品資料" description="點擊上方表單新增第一個食品" />
       </div>
     );
   }
 
   return (
-    <div className="lg:hidden px-1 overflow-x-hidden">
+    <div className="min-[1100px]:hidden px-1 overflow-x-hidden">
       <div className="mb-3 flex items-center gap-2 flex-wrap">
         <span className="font-semibold text-gray-700 dark:text-gray-300">食品列表</span>
         <Button
