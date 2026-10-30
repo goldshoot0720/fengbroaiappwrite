@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { TABLE_SCHEMAS as CREATE_TABLE_SCHEMAS } from "../create-table/route";
-import { createAppwrite } from "../_lib/appwriteClient";
+import { createAppwrite, listEveryCollection } from "../_lib/appwriteClient";
 
 
 export const dynamic = 'force-dynamic';
@@ -32,8 +32,9 @@ export async function POST(request) {
     }
 
     // Get all collections with this name
-    const allCollections = await databases.listCollections(databaseId);
-    const existingCollections = allCollections.collections.filter(col => col.name === tableName);
+    // 一定要分頁列全部：listCollections 預設 25 筆，第 26 張之後的表會被當成「不存在」。
+    const allCollections = await listEveryCollection(databases, databaseId);
+    const existingCollections = allCollections.filter(col => col.name === tableName);
 
     if (existingCollections.length === 0) {
       return NextResponse.json({
