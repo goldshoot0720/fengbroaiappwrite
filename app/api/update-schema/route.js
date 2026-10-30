@@ -60,6 +60,13 @@ export async function POST(request) {
       success: true,
       action: 'compatible',
       analysis,
+      // 實際欄位原樣回傳：對不上時要能直接看到 key／type／size，不用進 Appwrite 主控台翻。
+      actual: actualAttributes.map((attr) => ({
+        key: attr.key,
+        type: attr.type,
+        size: attr.size,
+        required: attr.required,
+      })),
       message: `Keeping existing ${tableName} schema; no attributes were added.`
     });
 
