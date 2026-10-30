@@ -105,6 +105,15 @@ const TABLE_SCHEMAS = {
       { key: 'continue', type: 'boolean', required: false, default: true }
     ]
   },
+  // 排程／執行紀錄：名稱（哪支 cron 或哪個任務）、日期時間、備註（結果或補充說明）
+  cron: {
+    name: "cron",
+    attributes: [
+      { key: 'name', type: 'string', size: 100, required: true },
+      { key: 'dateTime', type: 'datetime', required: false },
+      { key: 'note', type: 'string', size: 3337, required: false }
+    ]
+  },
   ...MANAGEMENT_TABLE_SCHEMAS,
   image: {
     name: "image",
