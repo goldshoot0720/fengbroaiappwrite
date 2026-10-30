@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearCollectionCache } from "../_lib/appwriteClient";
-import { createBlockedByCleanup, deleteNamedCollections, discardCollection, waitUntilAttributesReady } from "../_lib/collectionInventory";
+import { createBlockedByCleanup, deleteNamedCollections, deleteTableOrCollection, discardCollection, waitUntilAttributesReady } from "../_lib/collectionInventory";
 import { deleteManagementTable, initializeManagementTable } from "../_lib/managementTables";
 import { MANAGEMENT_TABLE_SCHEMAS, RETIRED_TABLES } from "../../../lib/managementRecords";
 
@@ -105,13 +105,14 @@ const TABLE_SCHEMAS = {
       { key: 'continue', type: 'boolean', required: false, default: true }
     ]
   },
-  // 排程／執行紀錄：名稱（哪支 cron 或哪個任務）、日期時間、備註（結果或補充說明）
+  // 排程／執行紀錄。欄位對齊 2026-10-30 在 Appwrite 主控台手動建的那張表
+  // （name 128／datetime 32 字串／remark 255），不要改成 note，否則每次檢查都會標成不一致。
   cron: {
     name: "cron",
     attributes: [
-      { key: 'name', type: 'string', size: 100, required: true },
-      { key: 'dateTime', type: 'datetime', required: false },
-      { key: 'note', type: 'string', size: 3337, required: false }
+      { key: 'name', type: 'string', size: 128, required: true },
+      { key: 'datetime', type: 'string', size: 32, required: true },
+      { key: 'remark', type: 'string', size: 255, required: true }
     ]
   },
   ...MANAGEMENT_TABLE_SCHEMAS,
@@ -498,7 +499,7 @@ function withHeartbeat(send, message, work) {
 // POST /api/create-table - Non-streaming endpoint (kept for backward compatibility)
 export async function POST(request) {
   try {
-    const { tableName, rebuild, deleteOnly } = await request.json();
+    const { tableName, rebuild, deleteOnly, tableId } = await request.json();
     const retired = retiredTableResponse(tableName);
     if (retired) return retired;
 
@@ -544,6 +545,14 @@ export async function POST(request) {
       .setKey(apiKey);
 
     const databases = new sdk.Databases(client);
+    databases.$credentials = { endpoint, projectId, apiKey, databaseId };
+
+    // 只刪指定的那一張（依 id）：清掉重建失敗留下的同名空表，不會動到其他同名表。
+    if ((deleteOnly === true || deleteOnly === "1") && tableId) {
+      await deleteTableOrCollection(databases, databaseId, tableId);
+      clearCollectionCache(databaseId);
+      return NextResponse.json({ success: true, deletedTableId: tableId });
+    }
 
     const cleanup = await deleteNamedCollections(databases, databaseId, tableName);
     clearCollectionCache(databaseId);
