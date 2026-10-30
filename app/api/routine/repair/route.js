@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { deleteTableOrCollection } from "../../_lib/collectionInventory";
 
 const sdk = require('node-appwrite');
 
@@ -27,7 +28,7 @@ export async function GET(request) {
     log.push(`Found ${routineCollections.length} routine collection(s)`);
 
     for (const col of routineCollections) {
-      await databases.deleteCollection(databaseId, col.$id);
+      await deleteTableOrCollection(databases, databaseId, col.$id);
       log.push(`Deleted collection ${col.$id}`);
     }
 

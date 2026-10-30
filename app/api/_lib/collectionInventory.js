@@ -62,9 +62,66 @@ async function collectionsForDelete(databases, databaseId, tableName) {
   return client.listEveryCollection(databases, databaseId);
 }
 
+/**
+ * 新版 Appwrite 把 database 標成 TablesDB 之後，舊的 collections API 只能「建」不能「刪」：
+ *
+ *   Database 'xxx' is a TablesDB database, so the deprecated collections API cannot
+ *   delete its tables. Use DELETE /v1/tablesdb/{database}/tables/{table} instead.
+ *
+ * 沒處理的話，任何「重建」都會卡在刪不掉同名表 —— 2026-10-30 建 cron 表就是這樣失敗的。
+ */
+function isTablesDbOnlyDatabase(error) {
+  const message = String(error?.message || "");
+  return /TablesDB database/i.test(message) && /collections API/i.test(message);
+}
+
+function clientCredentials(databases) {
+  const attached = databases?.$credentials || {};
+  const config = databases?.client?.config || {};
+  return {
+    endpoint: attached.endpoint || config.endpoint || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT,
+    projectId: attached.projectId || config.project || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID,
+    apiKey: attached.apiKey || config.key || process.env.NEXT_PUBLIC_APPWRITE_API_KEY,
+  };
+}
+
+/** 走 TablesDB REST 刪表；404 視為已經刪掉。 */
+async function deleteTableViaTablesDb(databases, databaseId, tableId) {
+  const { endpoint, projectId, apiKey } = clientCredentials(databases);
+  if (!endpoint || !projectId || !apiKey) {
+    throw new Error("缺少 Appwrite 連線設定，無法用 TablesDB 刪表");
+  }
+  const response = await fetch(`${endpoint}/tablesdb/${databaseId}/tables/${tableId}`, {
+    method: "DELETE",
+    headers: {
+      "X-Appwrite-Project": projectId,
+      "X-Appwrite-Key": apiKey,
+      "X-Appwrite-Response-Format": "1.7.0",
+    },
+    cache: "no-store",
+  });
+  if (response.ok || response.status === 404) return;
+  const body = await response.text().catch(() => "");
+  throw new Error(`TablesDB 刪表失敗（HTTP ${response.status}）${body.slice(0, 200)}`);
+}
+
+/**
+ * 刪掉一張表：先走舊的 collections API，遇到 TablesDB 專用資料庫再改用 REST 端點。
+ * 其他錯誤原樣往上丟，呼叫端才知道要清欄位重試。
+ */
+export async function deleteTableOrCollection(databases, databaseId, collectionId) {
+  try {
+    await databases.deleteCollection(databaseId, collectionId);
+    return;
+  } catch (error) {
+    if (!isTablesDbOnlyDatabase(error)) throw error;
+  }
+  await deleteTableViaTablesDb(databases, databaseId, collectionId);
+}
+
 async function deleteOne(databases, databaseId, col) {
   try {
-    await databases.deleteCollection(databaseId, col.$id);
+    await deleteTableOrCollection(databases, databaseId, col.$id);
   } catch {
     for (const attr of userAttributes(col)) {
       try {
@@ -73,7 +130,7 @@ async function deleteOne(databases, databaseId, col) {
         // The column may already be gone. The collection delete below is the check.
       }
     }
-    await databases.deleteCollection(databaseId, col.$id);
+    await deleteTableOrCollection(databases, databaseId, col.$id);
   }
 }
 

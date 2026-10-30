@@ -143,9 +143,13 @@ export function createAppwrite(source = null, optionsOrSecondary = {}) {
   const client = new sdk.Client().setEndpoint(endpoint).setProject(projectId);
   if (apiKey) client.setKey(apiKey);
 
+  const databases = new sdk.Databases(client);
+  // 讓下游 helper（例如 TablesDB 刪表）不必再從 client 內部撈金鑰。
+  databases.$credentials = { endpoint, projectId, apiKey, databaseId };
+
   return {
     client,
-    databases: new sdk.Databases(client),
+    databases,
     storage: new sdk.Storage(client),
     databaseId,
     bucketId,

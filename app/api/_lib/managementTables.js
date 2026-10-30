@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Client, Databases, ID, Query } from "node-appwrite";
 import { createAppwrite, clearCollectionCache } from "./appwriteClient";
 import { listAllDocuments } from "./listAllDocuments";
+import { deleteTableOrCollection } from "./collectionInventory";
 import { MANAGEMENT_TABLE_SCHEMAS } from "../../../lib/managementRecords";
 
 function tableError(message, status) {
@@ -115,7 +116,7 @@ export async function deleteManagementTable(config, tableName) {
   const databaseId = config.databaseId;
   const collection = await findManagementTable(databases, databaseId, tableName);
   if (!collection) return 0;
-  await databases.deleteCollection({ databaseId, collectionId: collection.$id });
+  await deleteTableOrCollection(databases, databaseId, collection.$id);
   clearCollectionCache(databaseId);
   return 1;
 }
