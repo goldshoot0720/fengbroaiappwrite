@@ -3845,11 +3845,8 @@ function FengbroFinanceSection({
                   {quotes.map((quote) => {
                     const recordLabel = getFinanceRecordLabel(quote.recordTag);
                     const indexEmoji = getFinanceIndexEmoji(quote);
-                    const bandTag = getBandTag(
-                      quote.price,
-                      bandRangeFromHistory(quote.historyRanges?.["1y"]),
-                      quote.recordTag
-                    );
+                    const band = bandRangeFromHistory(quote.historyRanges?.["1y"]);
+                    const bandTag = getBandTag(quote.price, band, quote.recordTag);
                     const bandLabel = getFinanceBandLabel(bandTag);
                     const isUp = (quote.change || 0) >= 0;
                     const isBearMarket = isFinanceBearMarketFrom52WHigh(quote);
@@ -4045,6 +4042,35 @@ function FengbroFinanceSection({
                                   {typeof quote.price === "number" && typeof quote.low52 === "number" && quote.low52 > 0 && (
                                     <span className={`text-[10px] font-bold ${quote.price >= quote.low52 ? 'text-emerald-600' : 'text-red-500'}`}>
                                       {quote.price >= quote.low52 ? '+' : ''}{((quote.price - quote.low52) / quote.low52 * 100).toFixed(2)}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {/* 26W（波段）高低：個股與指數同一套，最近一年週線的前 26 週（不含本週） */}
+                              <div
+                                className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2"
+                                title={`前 ${BAND_WEEKS} 週週收盤區間（不含本週那根還沒收盤的 K）`}
+                              >
+                                <p className="text-muted-foreground">26W High</p>
+                                <div className="flex items-end justify-between">
+                                  <p className="mt-1 font-semibold">{formatFinanceNumber(band.high, 2)}</p>
+                                  {typeof quote.price === "number" && band.high != null && band.high > 0 && (
+                                    <span className={`text-[10px] font-bold ${quote.price >= band.high ? 'text-emerald-600' : 'text-red-500'}`}>
+                                      {quote.price >= band.high ? '+' : ''}{((quote.price - band.high) / band.high * 100).toFixed(2)}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div
+                                className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2"
+                                title={`前 ${BAND_WEEKS} 週週收盤區間（不含本週那根還沒收盤的 K）`}
+                              >
+                                <p className="text-muted-foreground">26W Low</p>
+                                <div className="flex items-end justify-between">
+                                  <p className="mt-1 font-semibold">{formatFinanceNumber(band.low, 2)}</p>
+                                  {typeof quote.price === "number" && band.low != null && band.low > 0 && (
+                                    <span className={`text-[10px] font-bold ${quote.price >= band.low ? 'text-emerald-600' : 'text-red-500'}`}>
+                                      {quote.price >= band.low ? '+' : ''}{((quote.price - band.low) / band.low * 100).toFixed(2)}%
                                     </span>
                                   )}
                                 </div>
