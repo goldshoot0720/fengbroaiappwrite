@@ -431,6 +431,28 @@ const CNBC_INDEX_TO_CHART_SYMBOL: Record<string, string> = {
 };
 
 /**
+ * CNBC 的商品／加密貨幣代號和 Yahoo 完全對不上（BTC.CM=、@LCO.1 直接丟給 Yahoo 會 404）。
+ * 沒轉的話 26 週高低永遠是「--」，走勢圖也空白。
+ */
+const CNBC_ASSET_TO_CHART_SYMBOL: Record<string, string> = {
+  "BTC.CM=": "BTC-USD",
+  "ETH.CM=": "ETH-USD",
+  "XRP.CM=": "XRP-USD",
+  "LTC.CM=": "LTC-USD",
+  "BCH.CM=": "BCH-USD",
+  "DOGE.CM=": "DOGE-USD",
+  "SOL.CM=": "SOL-USD",
+  "@LCO.1": "BZ=F", // 布蘭特原油
+  "@CL.1": "CL=F", // 西德州原油
+  "@NG.1": "NG=F", // 天然氣
+  "@GC.1": "GC=F", // 黃金
+  "@SI.1": "SI=F", // 白銀
+  "@HG.1": "HG=F", // 銅
+  "@PL.1": "PL=F", // 鉑金
+  "@PA.1": "PA=F", // 鈀金
+};
+
+/**
  * Symbol to use with Yahoo chart API (query1.finance.yahoo.com).
  *
  * 三種來源都要轉：日本 Yahoo 的當地代碼（998407.O → ^N225）、CNBC 的前導點指數
@@ -442,6 +464,8 @@ export function resolveYahooChartSymbol(symbol: string): string {
   if (!s) return s;
   const mapped = JAPAN_YAHOO_LOCAL_TO_CHART_SYMBOL[s];
   if (mapped) return mapped;
+  const assetMapped = CNBC_ASSET_TO_CHART_SYMBOL[s];
+  if (assetMapped) return assetMapped;
   if (s.startsWith(".")) return CNBC_INDEX_TO_CHART_SYMBOL[s] || `^${s.slice(1)}`;
   return s;
 }

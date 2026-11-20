@@ -20,6 +20,20 @@ describe("resolveYahooChartSymbol", () => {
     assert.equal(resolveYahooChartSymbol("998407.O"), "^N225");
   });
 
+  it("maps CNBC crypto codes to Yahoo crypto pairs", () => {
+    // BTC.CM= 直接查 Yahoo 會 404，26 週高低因此永遠是「--」。
+    assert.equal(resolveYahooChartSymbol("BTC.CM="), "BTC-USD");
+    assert.equal(resolveYahooChartSymbol("ETH.CM="), "ETH-USD");
+    assert.equal(resolveYahooChartSymbol("SOL.CM="), "SOL-USD");
+  });
+
+  it("maps CNBC commodity codes to Yahoo futures", () => {
+    assert.equal(resolveYahooChartSymbol("@LCO.1"), "BZ=F");
+    assert.equal(resolveYahooChartSymbol("@CL.1"), "CL=F");
+    assert.equal(resolveYahooChartSymbol("@GC.1"), "GC=F");
+    assert.equal(resolveYahooChartSymbol("@SI.1"), "SI=F");
+  });
+
   it("leaves ordinary tickers untouched", () => {
     assert.equal(resolveYahooChartSymbol("AAPL"), "AAPL");
     assert.equal(resolveYahooChartSymbol("2330.TW"), "2330.TW");
