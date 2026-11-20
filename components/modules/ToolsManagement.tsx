@@ -3482,16 +3482,14 @@ function FengbroFinanceSection({
         {!error && loading && !result && (
           <div className="order-2 space-y-6 p-4 sm:p-6">
             {renderFinanceControls()}
-            {/* 首次載入用骨架佔位，直接長成最終版型，避免文字提示閃一下又換成卡片 */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden>
-              {Array.from({ length: 3 }).map((_, idx) => (
-                <div
-                  key={idx}
-                  className="h-[196px] animate-pulse rounded-[20px] border border-emerald-100 bg-emerald-50/60"
-                />
-              ))}
+            {/* 載入期間不鋪卡片也不鋪骨架：等報價全部到齊才一次渲染，
+                只留一條細進度條，避免「中間畫面 → 正式內容」的二次視覺。 */}
+            <div className="flex min-h-[360px] items-start justify-center pt-16" role="status" aria-live="polite">
+              <div className="h-1 w-40 overflow-hidden rounded-full bg-emerald-100">
+                <div className="h-full w-1/2 animate-pulse rounded-full bg-emerald-500" />
+              </div>
+              <span className="sr-only">正在載入報價</span>
             </div>
-            <span className="sr-only">正在讀取精選焦點與金融報價…</span>
           </div>
         )}
 
@@ -4845,29 +4843,46 @@ export default function ToolsManagement({
    * 只記指數（名稱含「指數」或 Index）；同一天重複呼叫只會覆蓋當天那一筆。
    * 記錄失敗不影響看盤，所以整個流程吞掉錯誤。
    */
-  const syncFinanceDaily = useCallback(async (quotes: FengbroFinanceQuote[]) => {
-    const items = quotes
-      .filter((quote) => isIndexName(quote.displayName || quote.name))
-      .map((quote) => toDailyItem(quote))
-      .filter((item): item is NonNullable<typeof item> => Boolean(item));
-    if (items.length === 0) return;
+  const buildFinanceDailyItems = useCallback(
+    (quotes: FengbroFinanceQuote[]) =>
+      quotes
+        .filter((quote) => isIndexName(quote.displayName || quote.name))
+        .map((quote) => toDailyItem(quote))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    []
+  );
 
+  /** 只讀「今天」與「上一次」的記錄；和報價請求並行，兩者到齊才一起渲染。 */
+  const fetchFinanceDailySnapshot = useCallback(async () => {
     try {
-      const response = await fetch(API_ENDPOINTS.FINANCE_DAILY, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
-      });
-      if (!response.ok) return;
-      const data = (await response.json()) as {
+      const response = await fetch(API_ENDPOINTS.FINANCE_DAILY, { cache: "no-store" });
+      if (!response.ok) return null;
+      return (await response.json()) as {
         today: FinanceDailySnapshot | null;
         previous: FinanceDailySnapshot | null;
       };
-      setFinanceDaily(buildDailyComparisons(data.previous, data.today?.items || items));
     } catch {
-      // 每日記錄是加分項，失敗就當今天沒有「上次」可比。
+      return null;
     }
   }, []);
+
+  /** 把今天看到的 52 週高低寫進記錄；純背景，不影響畫面。 */
+  const writeFinanceDailySnapshot = useCallback(
+    async (quotes: FengbroFinanceQuote[]) => {
+      const items = buildFinanceDailyItems(quotes);
+      if (items.length === 0) return;
+      try {
+        await fetch(API_ENDPOINTS.FINANCE_DAILY, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+        });
+      } catch {
+        // 每日記錄是加分項，失敗就算了。
+      }
+    },
+    [buildFinanceDailyItems]
+  );
 
   const loadFinance = useCallback(async () => {
     setFinanceLoadedOnce(true);
@@ -4875,6 +4890,9 @@ export default function ToolsManagement({
     setFinanceError("");
     financeLoadSignatureRef.current = financeRequestSignature;
     try {
+      // 每日記錄與報價同時發出，兩份資料都到齊才一起 setState：
+      // 卡片不會先出現、再長出「上次最高／最低」那一塊。
+      const dailySnapshotPromise = fetchFinanceDailySnapshot();
       // 冷啟動時與完整請求「並行」預抓精選焦點，但不先上屏：
       // 只有完整請求失敗才拿它當備援，避免先渲染精選、再渲染完整清單的兩次渲染。
       const featuredSelected = featuredFinanceQuoteIds.filter((id) =>
@@ -4916,27 +4934,45 @@ export default function ToolsManagement({
         // 完整請求失敗時才退回精選焦點資料，使用者仍然只看到一次渲染。
         await featuredFallbackPromise;
         if (featuredFallbackBox.current) {
-          financeResultRef.current = featuredFallbackBox.current;
-          setFinanceResult(featuredFallbackBox.current);
-          void syncFinanceDaily(featuredFallbackBox.current.quotes || []);
+          const fallback = featuredFallbackBox.current;
+          const fallbackItems = buildFinanceDailyItems(fallback.quotes || []);
+          const dailySnapshot = await dailySnapshotPromise;
+          if (dailySnapshot) {
+            setFinanceDaily(
+              buildDailyComparisons(dailySnapshot.previous, dailySnapshot.today?.items || fallbackItems)
+            );
+          }
+          financeResultRef.current = fallback;
+          setFinanceResult(fallback);
+          void writeFinanceDailySnapshot(fallback.quotes || []);
           return;
         }
         throw new Error(data.error || "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
       }
+      const dailyItems = buildFinanceDailyItems(data.quotes || []);
+      const dailySnapshot = await dailySnapshotPromise;
+      if (dailySnapshot) {
+        // 與 setFinanceResult 在同一個同步區塊，React 會合併成一次渲染。
+        setFinanceDaily(
+          buildDailyComparisons(dailySnapshot.previous, dailySnapshot.today?.items || dailyItems)
+        );
+      }
       financeResultRef.current = data;
       setFinanceResult(data);
-      void syncFinanceDaily(data.quotes || []);
+      void writeFinanceDailySnapshot(data.quotes || []);
     } catch (error) {
       setFinanceError(error instanceof Error ? error.message : "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
     } finally {
       setFinanceLoading(false);
     }
   }, [
+    buildFinanceDailyItems,
     customFinanceInstruments,
     featuredFinanceQuoteIds,
+    fetchFinanceDailySnapshot,
     financeRequestSignature,
     selectedDefaultFinanceInstrumentIds,
-    syncFinanceDaily,
+    writeFinanceDailySnapshot,
   ]);
 
   const clearCustomFinanceForm = useCallback(() => {
