@@ -129,3 +129,6 @@ next-env.d.ts
 
 # agent scratch space
 /scratchpad/
+
+# WorkBuddy 本機工作區資料（記憶、暫存），不進版控
+.workbuddy-ai/
