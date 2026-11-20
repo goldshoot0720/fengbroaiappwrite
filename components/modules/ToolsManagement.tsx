@@ -7,6 +7,7 @@ import { DataCard } from "@/components/ui/data-card";
 import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
 import { BulkSelectionControls, SelectionCheckbox } from "@/components/ui/bulk-selection-controls";
 import { Button } from "@/components/ui/button";
+import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useBulkSelection } from "@/hooks/useBulkSelection";
 import { RecentSearchInput } from "@/components/ui/recent-search-input";
 import {
@@ -3482,14 +3483,8 @@ function FengbroFinanceSection({
         {!error && loading && !result && (
           <div className="order-2 space-y-6 p-4 sm:p-6">
             {renderFinanceControls()}
-            {/* 載入期間不鋪卡片也不鋪骨架：等報價全部到齊才一次渲染，
-                只留一條細進度條，避免「中間畫面 → 正式內容」的二次視覺。 */}
-            <div className="flex min-h-[360px] items-start justify-center pt-16" role="status" aria-live="polite">
-              <div className="h-1 w-40 overflow-hidden rounded-full bg-emerald-100">
-                <div className="h-full w-1/2 animate-pulse rounded-full bg-emerald-500" />
-              </div>
-              <span className="sr-only">正在載入報價</span>
-            </div>
+            {/* 比照訂閱模組的載入樣式；等報價與每日記錄都到齊才一次渲染內容 */}
+            <FullPageLoading text="載入金融資料中..." />
           </div>
         )}
 
