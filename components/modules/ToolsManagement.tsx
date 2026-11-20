@@ -3480,14 +3480,6 @@ function FengbroFinanceSection({
           <div className="order-2 m-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
         )}
 
-        {!error && loading && !result && (
-          <div className="order-2 space-y-6 p-4 sm:p-6">
-            {renderFinanceControls()}
-            {/* 比照訂閱模組的載入樣式；等報價與每日記錄都到齊才一次渲染內容 */}
-            <FullPageLoading text="載入金融資料中..." />
-          </div>
-        )}
-
         {!error && result && (
           <div className="order-2 space-y-6 p-4 sm:p-6">
             {groupedQuotes.length > 0 && (
@@ -4311,8 +4303,7 @@ export default function ToolsManagement({
   const [financeLoading, setFinanceLoading] = useState(false);
   const [financeError, setFinanceError] = useState("");
   const [financeResult, setFinanceResult] = useState<FengbroFinanceResult | null>(null);
-  const financeResultRef = useRef<FengbroFinanceResult | null>(null);
-  const [financeLoadedOnce, setFinanceLoadedOnce] = useState(false);
+  const [financeRefreshVersion, setFinanceRefreshVersion] = useState(0);
   /** 指數每日記錄：上一次記錄的 52 週高低，以及今天有沒有創新高／新低 */
   const [financeDaily, setFinanceDaily] = useState<Record<string, FinanceDailyComparison>>({});
   // 鋒兄金融目前無內建預設標的；全以 financeinstrument2 自訂標的為主。
@@ -4342,24 +4333,14 @@ export default function ToolsManagement({
     loadVersion: financeLoadVersion,
   } = financeSync;
 
-  // 報價請求的「輸入簽名」：自選清單／預設標的完全相同時就不必重抓。
-  // 雲端清單剛回填時常與本地內容一致，比對簽名可省掉一次載入，避免第二次渲染。
-  // 注意：featured 只影響前端排序與精選區塊，不影響要抓哪些標的，故不列入簽名。
-  const financeRequestSignature = useMemo(
-    () =>
-      JSON.stringify([
-        selectedDefaultFinanceInstrumentIds,
-        customFinanceInstruments.map((instrument) => [
-          instrument.provider,
-          instrument.symbol,
-          instrument.name,
-          instrument.imageUrl ?? "",
-          Boolean(instrument.featured),
-        ]),
-      ]),
-    [customFinanceInstruments, selectedDefaultFinanceInstrumentIds]
-  );
-  const financeLoadSignatureRef = useRef("");
+  const financeQuery = useMemo(() => {
+    const pinnedDefaults = featuredFinanceQuoteIds.filter((id) => selectedDefaultFinanceInstrumentIds.includes(id));
+    const otherDefaults = selectedDefaultFinanceInstrumentIds.filter((id) => !pinnedDefaults.includes(id));
+    const params = new URLSearchParams({ defaults: JSON.stringify([...pinnedDefaults, ...otherDefaults]) });
+    if (customFinanceInstruments.length) params.set("custom", JSON.stringify(customFinanceInstruments));
+    return params.toString();
+  }, [customFinanceInstruments, featuredFinanceQuoteIds, selectedDefaultFinanceInstrumentIds]);
+  const lastFinanceRequest = useRef<{ query: string; version: number } | null>(null);
 
   // 雲端載入／遷移後，精選焦點以「自選標的的 featured 旗標」重算（保留非 custom 的預設 pin）。
   useEffect(() => {
@@ -4848,9 +4829,9 @@ export default function ToolsManagement({
   );
 
   /** 只讀「今天」與「上一次」的記錄；和報價請求並行，兩者到齊才一起渲染。 */
-  const fetchFinanceDailySnapshot = useCallback(async () => {
+  const fetchFinanceDailySnapshot = useCallback(async (signal: AbortSignal) => {
     try {
-      const response = await fetch(API_ENDPOINTS.FINANCE_DAILY, { cache: "no-store" });
+      const response = await fetch(API_ENDPOINTS.FINANCE_DAILY, { cache: "no-store", signal });
       if (!response.ok) return null;
       return (await response.json()) as {
         today: FinanceDailySnapshot | null;
@@ -4879,94 +4860,52 @@ export default function ToolsManagement({
     [buildFinanceDailyItems]
   );
 
-  const loadFinance = useCallback(async () => {
-    setFinanceLoadedOnce(true);
+  const financeListReady = appwriteSetup.hasDatabaseConfig && financeLoadVersion > 0;
+  useEffect(() => {
+    if (activeTab !== "fengbro-finance" || !financeListReady) return;
+    const last = lastFinanceRequest.current;
+    if (last?.query === financeQuery && last.version === financeRefreshVersion) return;
+
+    lastFinanceRequest.current = null;
+    const controller = new AbortController();
+    const { signal } = controller;
     setFinanceLoading(true);
     setFinanceError("");
-    financeLoadSignatureRef.current = financeRequestSignature;
-    try {
-      // 每日記錄與報價同時發出，兩份資料都到齊才一起 setState：
-      // 卡片不會先出現、再長出「上次最高／最低」那一塊。
-      const dailySnapshotPromise = fetchFinanceDailySnapshot();
-      // 冷啟動時與完整請求「並行」預抓精選焦點，但不先上屏：
-      // 只有完整請求失敗才拿它當備援，避免先渲染精選、再渲染完整清單的兩次渲染。
-      const featuredSelected = featuredFinanceQuoteIds.filter((id) =>
-        selectedDefaultFinanceInstrumentIds.includes(id)
-      );
-      const alreadyHasQuotes = (financeResultRef.current?.quotes.length ?? 0) > 0;
-      const featuredFallbackBox: { current: FengbroFinanceResult | null } = { current: null };
-      const featuredFallbackPromise =
-        !alreadyHasQuotes && featuredSelected.length > 0
-          ? (async () => {
-              try {
-                const featuredParams = new URLSearchParams();
-                featuredParams.set("defaults", JSON.stringify(featuredSelected));
-                const featuredResponse = await fetch(`/api/fengbro-finance?${featuredParams.toString()}`);
-                const featuredData = (await featuredResponse.json()) as FengbroFinanceResult & { error?: string };
-                if (featuredResponse.ok) featuredFallbackBox.current = featuredData;
-              } catch {
-                // 精選備援失敗就忽略，等完整請求結果
-              }
-            })()
-          : Promise.resolve();
-
-      const params = new URLSearchParams();
-      const featuredDefaultSet = new Set(
-        featuredFinanceQuoteIds.filter((id) => selectedDefaultFinanceInstrumentIds.includes(id))
-      );
-      // 精選預設 id 排前面
-      const orderedDefaults = [
-        ...featuredFinanceQuoteIds.filter((id) => selectedDefaultFinanceInstrumentIds.includes(id)),
-        ...selectedDefaultFinanceInstrumentIds.filter((id) => !featuredDefaultSet.has(id)),
-      ];
-      params.set("defaults", JSON.stringify(orderedDefaults));
-      if (customFinanceInstruments.length > 0) {
-        params.set("custom", JSON.stringify(customFinanceInstruments));
-      }
-      const response = await fetch(`/api/fengbro-finance${params.size ? `?${params.toString()}` : ""}`);
-      const data = (await response.json()) as FengbroFinanceResult & { error?: string };
-      if (!response.ok) {
-        // 完整請求失敗時才退回精選焦點資料，使用者仍然只看到一次渲染。
-        await featuredFallbackPromise;
-        if (featuredFallbackBox.current) {
-          const fallback = featuredFallbackBox.current;
-          const fallbackItems = buildFinanceDailyItems(fallback.quotes || []);
-          const dailySnapshot = await dailySnapshotPromise;
-          if (dailySnapshot) {
-            setFinanceDaily(
-              buildDailyComparisons(dailySnapshot.previous, dailySnapshot.today?.items || fallbackItems)
-            );
-          }
-          financeResultRef.current = fallback;
-          setFinanceResult(fallback);
-          void writeFinanceDailySnapshot(fallback.quotes || []);
-          return;
+    async function loadFinance() {
+      try {
+        const [data, dailySnapshot] = await Promise.all([
+          fetch(`/api/fengbro-finance?${financeQuery}`, { signal }).then(async (response) => {
+            const data = (await response.json()) as FengbroFinanceResult & { error?: string };
+            if (!response.ok) throw new Error(data.error || "鋒兄金融讀取失敗");
+            return data;
+          }),
+          fetchFinanceDailySnapshot(signal),
+        ]);
+        if (signal.aborted) return;
+        const comparisons = dailySnapshot
+          ? buildDailyComparisons(dailySnapshot.previous, dailySnapshot.today?.items ?? buildFinanceDailyItems(data.quotes))
+          : {};
+        setFinanceDaily(comparisons);
+        setFinanceResult(data);
+        void writeFinanceDailySnapshot(data.quotes);
+      } catch (error) {
+        if (!signal.aborted) setFinanceError(error instanceof Error ? error.message : "鋒兄金融讀取失敗");
+      } finally {
+        if (!signal.aborted) {
+          lastFinanceRequest.current = { query: financeQuery, version: financeRefreshVersion };
+          setFinanceLoading(false);
         }
-        throw new Error(data.error || "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
       }
-      const dailyItems = buildFinanceDailyItems(data.quotes || []);
-      const dailySnapshot = await dailySnapshotPromise;
-      if (dailySnapshot) {
-        // 與 setFinanceResult 在同一個同步區塊，React 會合併成一次渲染。
-        setFinanceDaily(
-          buildDailyComparisons(dailySnapshot.previous, dailySnapshot.today?.items || dailyItems)
-        );
-      }
-      financeResultRef.current = data;
-      setFinanceResult(data);
-      void writeFinanceDailySnapshot(data.quotes || []);
-    } catch (error) {
-      setFinanceError(error instanceof Error ? error.message : "\u92d2\u5144\u91d1\u878d\u8b80\u53d6\u5931\u6557");
-    } finally {
-      setFinanceLoading(false);
     }
+    void loadFinance();
+    return () => controller.abort();
   }, [
+    activeTab,
     buildFinanceDailyItems,
-    customFinanceInstruments,
-    featuredFinanceQuoteIds,
     fetchFinanceDailySnapshot,
-    financeRequestSignature,
-    selectedDefaultFinanceInstrumentIds,
+    financeListReady,
+    financeQuery,
+    financeRefreshVersion,
     writeFinanceDailySnapshot,
   ]);
 
@@ -5068,7 +5007,6 @@ export default function ToolsManagement({
         group: normalizedInstrument.group,
       })
     );
-    setFinanceLoadedOnce(false);
   }, [customFinanceDraft, editingCustomFinanceKey, setCustomFinanceInstruments]);
 
   const handleEditCustomFinanceInstrument = useCallback((instrument: CustomFinanceInstrument) => {
@@ -5157,7 +5095,6 @@ export default function ToolsManagement({
           });
 
           setFinanceError("");
-          setFinanceLoadedOnce(false);
           const warn =
             errors.length > 0
               ? `\n警告 ${errors.length}：${errors.slice(0, 5).join("\n")}${errors.length > 5 ? "\n…" : ""}`
@@ -5204,18 +5141,15 @@ export default function ToolsManagement({
       const nextIds = new Set([...currentIds, id]);
       return DEFAULT_FINANCE_INSTRUMENT_IDS.filter((defaultId) => nextIds.has(defaultId));
     });
-    setFinanceLoadedOnce(false);
   }, []);
 
   const handleDeleteDefaultFinanceInstrument = useCallback((id: string) => {
     setSelectedDefaultFinanceInstrumentIds((currentIds) => currentIds.filter((currentId) => currentId !== id));
     setFeaturedFinanceQuoteIds((currentIds) => currentIds.filter((currentId) => currentId !== id));
-    setFinanceLoadedOnce(false);
   }, []);
 
   const handleResetDefaultFinanceInstruments = useCallback(() => {
     setSelectedDefaultFinanceInstrumentIds(DEFAULT_FINANCE_INSTRUMENT_IDS);
-    setFinanceLoadedOnce(false);
   }, []);
 
   const handleDeleteCustomFinanceInstrument = useCallback(
@@ -5235,7 +5169,6 @@ export default function ToolsManagement({
       if (editingCustomFinanceKey === targetKey) {
         clearCustomFinanceForm();
       }
-      setFinanceLoadedOnce(false);
     },
     [clearCustomFinanceForm, editingCustomFinanceKey, setCustomFinanceInstruments]
   );
@@ -5253,28 +5186,9 @@ export default function ToolsManagement({
       if (editingCustomFinanceKey && keys.has(editingCustomFinanceKey)) {
         clearCustomFinanceForm();
       }
-      setFinanceLoadedOnce(false);
     },
     [clearCustomFinanceForm, editingCustomFinanceKey, setCustomFinanceInstruments]
   );
-
-  // 雲端自選標的載入完成後，只有在清單真的和畫面上不同時才重抓。
-  // 剛進頁面時遠端回填的內容通常和本地一致，重抓只會多一次載入與第二次渲染。
-  const lastHandledFinanceSignatureRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (financeLoadVersion === 0 || activeTab !== "fengbro-finance") return;
-    if (lastHandledFinanceSignatureRef.current === financeRequestSignature) return;
-    lastHandledFinanceSignatureRef.current = financeRequestSignature;
-    if (financeLoadSignatureRef.current === financeRequestSignature) return;
-    setFinanceLoadedOnce(false);
-  }, [activeTab, financeLoadVersion, financeRequestSignature]);
-
-  useEffect(() => {
-    if (activeTab === "fengbro-finance" && !financeLoadedOnce && !financeLoading) {
-      void loadFinance();
-    }
-  }, [activeTab, financeLoadedOnce, financeLoading, loadFinance]);
-
 
   const handleResolve = async (overrideUrl?: string) => {
     const url = (overrideUrl ?? targetUrl).trim();
@@ -5376,8 +5290,17 @@ export default function ToolsManagement({
         ) : null}
       </DataCard>
 
-      {cloudRequired && !appwriteSetup.hasDatabaseConfig ? (
+      {activeTab === "fengbro-finance" && !appwriteSetup.checked ? (
+        <FullPageLoading text="載入金融資料中..." />
+      ) : cloudRequired && !appwriteSetup.hasDatabaseConfig ? (
         <ToolsAppwriteSetupRequired onNavigate={() => onNavigate?.("settings")} />
+      ) : activeTab === "fengbro-finance" && !financeListReady && financeSyncState === "error" ? (
+        <DataCard>
+          <p role="alert">無法載入金融自選清單。</p>
+          <Button onClick={financeSync.refresh}>重新載入</Button>
+        </DataCard>
+      ) : activeTab === "fengbro-finance" && (!financeListReady || (!financeResult && !financeError)) ? (
+        <FullPageLoading text="載入金融資料中..." />
       ) : (
         <>
           {activeTab === "fengbro-tube" && tubeSyncState !== "idle" && (
@@ -5885,7 +5808,7 @@ export default function ToolsManagement({
           onToggleFeaturedQuoteId={handleToggleFeaturedFinanceQuoteId}
           onExportCustomCsv={handleExportFinanceCustomCsv}
           onImportCustomCsv={handleImportFinanceCustomCsv}
-          onRefresh={() => void loadFinance()}
+          onRefresh={() => setFinanceRefreshVersion((version) => version + 1)}
         />
       )}
         </>

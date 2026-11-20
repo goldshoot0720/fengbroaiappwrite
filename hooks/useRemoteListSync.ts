@@ -111,6 +111,7 @@ export function useRemoteListSync<T>(
 
   const loadRemote = useCallback(() => {
     if (!cloudReadyRef.current || !enabledRef.current) return;
+    setSyncState((state) => state === "error" ? "idle" : state);
     const revision = ++loadRevision.current;
     void (async () => {
       try {
@@ -155,11 +156,10 @@ export function useRemoteListSync<T>(
         setItemsState(remoteItems);
         setSyncState("idle");
         setLoadVersion((value) => value + 1);
-      } catch (err) {
+      } catch {
         if (revision !== loadRevision.current) return;
         // Table 尚未建立或離線：保留本機資料繼續編輯，不阻斷操作。
         setSyncState("error");
-        throw err;
       }
     })();
   }, [endpoint, loadLocal, localId, migrateLocalWhenRemoteEmpty, remoteDocId, signature, toLocal]);
