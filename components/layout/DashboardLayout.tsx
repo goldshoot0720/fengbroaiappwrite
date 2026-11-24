@@ -670,11 +670,11 @@ function BrandBlock({
           className={cn(
             "text-[var(--muted-foreground)]",
             compact
-              ? "text-xs font-medium leading-none"
-              : "truncate text-sm font-medium"
+              ? "whitespace-nowrap text-xs font-medium leading-none"
+              : "truncate whitespace-nowrap text-sm font-medium"
           )}
         >
-          FengBro
+          Feng Bro AI
         </p>
         {compact ? null : (
           <h1 className="truncate text-lg font-semibold leading-6 tracking-tight text-[var(--foreground)]">
