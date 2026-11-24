@@ -1066,7 +1066,7 @@ export function GlobalVoiceCommandPanel({
       {open && (
         <div
           id="global-voice-command-panel"
-          className="w-full rounded-[18px] border border-[var(--line-strong)] bg-white/92 p-4 shadow-[0_24px_80px_rgba(17,24,39,0.18)] backdrop-blur-xl dark:bg-gray-950/92"
+          className="w-full rounded-[18px] border border-[var(--line-strong)] bg-[var(--card)] p-4 shadow-[var(--shadow-dock)]"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1076,9 +1076,9 @@ export function GlobalVoiceCommandPanel({
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-950 dark:text-gray-100">語音 CRUD 管理</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    目前：{currentModuleName} · 說完自動結束 · Ctrl+Shift+V
-                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">目前：{currentModuleName}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">說完自動結束</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Ctrl+Shift+V</p>
                 </div>
               </div>
             </div>
@@ -1140,7 +1140,7 @@ export function GlobalVoiceCommandPanel({
           )}
 
           <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-6 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-            <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-gray-400">狀態</div>
+            <div className="text-xs font-medium text-[var(--muted-foreground)]">狀態</div>
             <div className="mt-0.5">{feedback}</div>
           </div>
 
@@ -1184,7 +1184,7 @@ export function GlobalVoiceCommandPanel({
           </div>
 
           <div className="mt-2 rounded-2xl border border-gray-200 bg-white/70 p-2 dark:border-gray-800 dark:bg-gray-900/60">
-            <div className="mb-1 px-1 text-[11px] font-medium tracking-[0.08em] text-gray-400">
+            <div className="mb-1 px-1 text-xs font-medium text-[var(--muted-foreground)]">
               目前頁面快捷
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -1231,6 +1231,7 @@ export function GlobalVoiceCommandPanel({
 
       <Button
         type="button"
+        variant={isListening ? "destructive" : "outline"}
         title="語音 CRUD 管理（Ctrl+Shift+V）"
         aria-expanded={open}
         aria-controls="global-voice-command-panel"
@@ -1247,11 +1248,7 @@ export function GlobalVoiceCommandPanel({
           setFeedback(HELP_HINT);
           if (getVoicePreferences().autoStartGlobal) start();
         }}
-        className={`rounded-full px-4 py-6 text-white shadow-[var(--shadow-dock)] ${
-          isListening
-            ? "bg-red-600 hover:bg-red-700"
-            : "bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--accent-strong)]"
-        }`}
+        className="rounded-full px-4 py-6 shadow-[var(--shadow-soft)]"
       >
         <Mic className={`mr-2 h-5 w-5 ${isListening ? "animate-pulse" : ""}`} />
         {isListening ? `聆聽中 ${formatRecordingClock(elapsedMs)}` : open ? "收起語音管理" : "語音 CRUD 管理"}

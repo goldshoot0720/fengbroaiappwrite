@@ -67,7 +67,7 @@ export default function RootLayout({
         {/* FOUC-safe theme + density boot */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('ui-theme')||'system';var d=localStorage.getItem('ui-density')||'comfortable';var r=document.documentElement;r.classList.remove('light','dark');if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.classList.add(t);if(d==='compact'||d==='comfortable'){r.dataset.density=d;}else{r.dataset.density='comfortable';}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('ui-theme')||'system';var d=localStorage.getItem('ui-density')||'comfortable';var r=document.documentElement;r.classList.remove('light','dark');if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.classList.add(t);r.dataset.theme=t;if(d==='compact'||d==='comfortable'){r.dataset.density=d;}else{r.dataset.density='comfortable';}}catch(e){}})();`,
           }}
         />
       </head>

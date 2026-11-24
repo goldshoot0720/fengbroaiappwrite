@@ -1,3 +1,10 @@
+/* Hallmark · checked: 2026-11-24 · genre: editorial (inferred)
+ * shape: app screen · floor: 0 FAIL · fixed: 9 (10a, 26a, 30a, 33, 40, 48, 54, 56, 67) · structural: 0 printed
+ * built: the project · redesign: polish · v2.0.0
+ * finish-review: subagent · 5 findings · 5 resolved · gap: none */
+/* Hallmark · dismissed 74 · home status rows keep red amber and emerald for expiry and capacity, not a brand swatch */
+/* Hallmark · answered F18 · theme and density icon buttons on the console measure 38px from the 106.25 percent root, inside the 32 to 40 app control range */
+/* Hallmark · dropped 2026, 2027 · gate 66 names the version credit beside the design-mode toggles */
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -35,7 +42,7 @@
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 999px;
-  background: oklch(0.7 0.13 42);
+  background: var(--accent);
   animation: codebase-firecracker-spark 850ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -421,7 +428,7 @@
   --destructive: oklch(0.545 0.175 27);
   --border: oklch(0.892 0.008 90);
   --input: oklch(0.915 0.007 90);
-  --ring: oklch(0.68 0.125 42);
+  --ring: oklch(0.42 0.11 42);
 
   --success: oklch(0.47 0.09 155);
   --success-foreground: oklch(0.98 0.01 155);
@@ -451,10 +458,13 @@
   --line-soft: rgba(61, 56, 47, 0.09);
   --line-strong: rgba(61, 56, 47, 0.15);
   --accent-strong: oklch(0.585 0.14 41);
-  /* Hairline-first elevation: a tight contact shadow plus a wide, faint lift */
-  --shadow-soft: 0 1px 2px rgba(45, 40, 32, 0.04), 0 10px 28px rgba(45, 40, 32, 0.05);
-  --shadow-strong: 0 2px 6px rgba(45, 40, 32, 0.06), 0 20px 56px rgba(45, 40, 32, 0.1);
-  --shadow-dock: 0 -1px 2px rgba(45, 40, 32, 0.04), 0 12px 36px rgba(45, 40, 32, 0.1);
+  --scrim: rgba(28, 24, 20, 0.4);
+  --grid-line: rgba(61, 56, 47, 0.05);
+  --video-scrim: linear-gradient(to top, rgba(28, 22, 18, 0.82), rgba(28, 22, 18, 0.4), transparent);
+  /* Hairline elevation. Blur stays under 24px so the edge is the border, not a glow. */
+  --shadow-soft: 0 1px 2px rgba(45, 40, 32, 0.06);
+  --shadow-strong: 0 2px 8px rgba(45, 40, 32, 0.08);
+  --shadow-dock: 0 -1px 2px rgba(45, 40, 32, 0.08);
 
   /* Density (comfortable default) */
   --pad-panel: 1.25rem;
@@ -493,7 +503,7 @@ html[data-density="compact"] {
   --table-row-min: 2.25rem;
 }
 
-.dark {
+html[data-theme="dark"] {
   --background: oklch(0.212 0.005 90);
   --foreground: oklch(0.945 0.005 92);
   --card: oklch(0.258 0.005 90);
@@ -540,9 +550,11 @@ html[data-density="compact"] {
   --line-soft: rgba(245, 240, 230, 0.09);
   --line-strong: rgba(245, 240, 230, 0.15);
   --accent-strong: oklch(0.755 0.13 42);
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.28), 0 12px 32px rgba(0, 0, 0, 0.22);
-  --shadow-strong: 0 2px 6px rgba(0, 0, 0, 0.32), 0 24px 64px rgba(0, 0, 0, 0.34);
-  --shadow-dock: 0 -1px 2px rgba(0, 0, 0, 0.3), 0 14px 40px rgba(0, 0, 0, 0.36);
+  --scrim: rgba(12, 10, 8, 0.62);
+  --grid-line: rgba(245, 240, 230, 0.035);
+  --shadow-soft: 0 1px 2px rgba(12, 10, 8, 0.45);
+  --shadow-strong: 0 2px 8px rgba(12, 10, 8, 0.5);
+  --shadow-dock: 0 -1px 2px rgba(12, 10, 8, 0.5);
 }
 
 @layer base {
@@ -551,31 +563,32 @@ html[data-density="compact"] {
   }
 
   html {
+    overflow-x: clip;
     scroll-behavior: smooth;
     /* Comfortable default; compact density keeps tighter chrome but same type */
     font-size: 106.25%; /* 17px when browser default is 16px */
   }
 
   body {
+    overflow-x: clip;
     @apply bg-background text-foreground text-base;
     font-family: var(--font-geist-sans, "Segoe UI Variable Text"), "PingFang TC",
       "Microsoft JhengHei", sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
     text-rendering: optimizeLegibility;
     line-height: 1.65;
-    background-image: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.4),
-      rgba(255, 255, 255, 0)
-    );
   }
 
-  .dark body {
-    background-image: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.025),
-      rgba(255, 255, 255, 0)
-    );
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  :disabled,
+  [aria-disabled="true"] {
+    background: var(--muted);
+    color: var(--muted-foreground);
+    cursor: not-allowed;
   }
 
   h1,
@@ -584,6 +597,7 @@ html[data-density="compact"] {
   h4 {
     font-family: var(--font-display, "Iowan Old Style", "Palatino Linotype", "Noto Serif TC", serif);
     letter-spacing: -0.02em;
+    text-wrap: balance;
   }
 
   button,
@@ -657,8 +671,6 @@ html[data-density="compact"] {
   .text-micro {
     font-size: 0.75rem;
     line-height: 1.125rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
   }
 
   .tabular-nums {
@@ -677,11 +689,7 @@ html[data-density="compact"] {
 
     .surface-panel {
       border-radius: 0.875rem;
-      box-shadow: 0 1px 2px rgba(45, 40, 32, 0.04), 0 6px 18px rgba(45, 40, 32, 0.05);
-    }
-
-    .dark .surface-panel {
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 24px rgba(0, 0, 0, 0.24);
+      box-shadow: var(--shadow-soft);
     }
   }
 
@@ -743,27 +751,19 @@ html[data-density="compact"] {
     background: var(--panel-strong);
     border: 1px solid var(--line-strong);
     box-shadow: var(--shadow-soft);
-    backdrop-filter: blur(12px);
   }
 
   .surface-floating {
     background: var(--panel-strong);
     border: 1px solid var(--line-strong);
     box-shadow: var(--shadow-dock);
-    backdrop-filter: blur(20px);
   }
 
   .ambient-grid {
     background-image:
-      linear-gradient(to right, rgba(61, 56, 47, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(61, 56, 47, 0.05) 1px, transparent 1px);
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
     background-size: 32px 32px;
-  }
-
-  .dark .ambient-grid {
-    background-image:
-      linear-gradient(to right, rgba(245, 240, 230, 0.035) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(245, 240, 230, 0.035) 1px, transparent 1px);
   }
 
   .transition-impeccable {
@@ -809,11 +809,12 @@ html[data-density="compact"] {
   }
 
   .gradient-bg {
-    background: linear-gradient(135deg, oklch(0.7 0.13 42) 0%, oklch(0.56 0.14 38) 100%);
+    background: var(--accent);
   }
 
   .glass-effect {
-    @apply border border-black/6 bg-white/70 backdrop-blur-xl dark:border-white/8 dark:bg-white/5;
+    border: 1px solid var(--line-strong);
+    background: var(--card);
   }
 
   .line-clamp-1 {
@@ -849,17 +850,11 @@ html[data-density="compact"] {
 
   .video-controls {
     @apply absolute bottom-0 left-0 right-0 p-2 sm:p-4;
-    background: linear-gradient(
-      to top,
-      rgba(0, 0, 0, 0.8) 0%,
-      rgba(0, 0, 0, 0.4) 50%,
-      transparent 100%
-    );
+    background: var(--video-scrim);
   }
 
   .video-progress {
     @apply relative h-1 cursor-pointer rounded-full bg-white/20 sm:h-2;
-    transition: height var(--duration-fast) var(--ease-out);
   }
 
   .video-progress:hover {

@@ -1,0 +1,23 @@
+{
+  "scanned": "2026-11-24",
+  "findings": {
+    "fonts": "Sans fallback stack via --font-geist-sans (Segoe UI Variable Text, PingFang TC, Microsoft JhengHei); display Iowan Old Style / Palatino / Noto Serif TC (app/globals.css L351-353, L397). No next/font import in app/layout.tsx.",
+    "palette": "OKLCH warm paper, ink, clay accent on :root and .dark (app/globals.css L397-446). Tailwind gray/slate/zinc/neutral/stone remapped to warm paper (L61-120).",
+    "motion": "tw-animate-css; custom durations --duration-instant through --duration-slow and --ease-out (app/globals.css L466-472). No framer-motion.",
+    "spacing": "Tailwind v4 @theme type scale 13/15/17; density tokens --pad-panel, --gap-stack, --table-row-min (app/globals.css L337-347, L459-464).",
+    "framework": "Next.js 16.3 canary, React 19, Tailwind 4, App Router, single route app/page.tsx with module switcher.",
+    "brand": "PRODUCT.md: Calm · Editorial · Gold. No design.md, no .hallmark/brand-spec.md.",
+    "scope_signal": "Household console (dashboard, tables, forms). App screen, not a marketing page."
+  },
+  "preserve": [
+    "clay/gold OKLCH palette and warm-paper neutrals",
+    "display serif and CJK sans stack",
+    "density scale and module wiring",
+    "PRODUCT.md brand: calm, editorial, gold"
+  ],
+  "introduce": [
+    "Hallmark floor on the chosen surface",
+    "stamp, tokens, sloplint",
+    "removal of generated tells (tracked-caps labels, eyebrows) where the depth allows"
+  ]
+}

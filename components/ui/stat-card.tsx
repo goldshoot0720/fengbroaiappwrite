@@ -18,7 +18,6 @@ export function StatCard({
   value,
   icon: Icon,
   iconElement,
-  gradient = "from-[#d97757] via-[#c46a4c] to-[#a9553a]",
   className,
   onClick,
 }: StatCardProps) {
@@ -28,21 +27,15 @@ export function StatCard({
     <Wrapper
       onClick={onClick}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-[var(--line-soft)] bg-[var(--panel-soft)] p-4 text-left shadow-[var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 sm:p-5 lg:p-6",
+        "group relative overflow-hidden rounded-2xl border border-[var(--line-soft)] bg-[var(--card)] p-4 text-left shadow-[var(--shadow-soft)] transition-impeccable sm:p-5 lg:p-6",
         onClick &&
-          "cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-strong)]",
+          "cursor-pointer hover:bg-[var(--panel-strong)]",
         className
       )}
     >
-      <div
-        className={cn(
-          "absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-gradient-to-r opacity-90",
-          gradient
-        )}
-      />
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          <p className="text-sm text-[var(--muted-foreground)]">
             {title}
           </p>
           <p className="tabular-nums mt-3 break-words font-display text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">

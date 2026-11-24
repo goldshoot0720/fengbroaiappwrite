@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, ArrowDown, List, Plus } from "lucide-react";
+import { ArrowUp, ArrowDown, List } from "lucide-react";
 
 interface QuickNavItem {
   id: string;
@@ -90,8 +90,8 @@ export default function EnhancedScrollNavigation({
     >
       {/* 快速導航選單 */}
       {showQuickNav && quickNavItems.length > 0 && (
-        <div className="pointer-events-auto bg-white/95 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-xl p-2 mb-2 min-w-[200px] max-w-[250px] sm:min-w-[220px]">
-          <div className="text-xs font-medium text-gray-500 px-3 py-2 border-b border-gray-100">
+        <div className="pointer-events-auto mb-2 min-w-[200px] max-w-[250px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2 shadow-[var(--shadow-soft)] sm:min-w-[220px]">
+          <div className="border-b border-[var(--line-soft)] px-3 py-2 text-xs font-medium text-[var(--muted-foreground)]">
             快速導航
           </div>
           <div className="py-1 max-h-60 overflow-y-auto">
@@ -112,12 +112,12 @@ export default function EnhancedScrollNavigation({
         {/* 滾動進度指示器（僅顯示，不攔截點擊） */}
         {showProgress && (
           <div className="pointer-events-none relative">
-            <div className="w-14 h-14 rounded-full bg-white/95 backdrop-blur-sm border border-gray-200 shadow-lg flex items-center justify-center">
-              <div className="text-xs font-semibold text-gray-700">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-soft)]">
+              <div className="text-xs font-semibold text-[var(--foreground)]">
                 {Math.round(scrollProgress)}%
               </div>
             </div>
-            <svg className="absolute inset-0 w-14 h-14 -rotate-90">
+            <svg className="absolute inset-0 h-14 w-14 -rotate-90" aria-hidden="true">
               <circle
                 cx="28"
                 cy="28"
@@ -125,7 +125,7 @@ export default function EnhancedScrollNavigation({
                 stroke="currentColor"
                 strokeWidth="2"
                 fill="none"
-                className="text-gray-200"
+                className="text-[var(--line-strong)]"
               />
               <circle
                 cx="28"
@@ -136,7 +136,7 @@ export default function EnhancedScrollNavigation({
                 fill="none"
                 strokeDasharray={`${2 * Math.PI * 24}`}
                 strokeDashoffset={`${2 * Math.PI * 24 * (1 - scrollProgress / 100)}`}
-                className="text-blue-500 transition-all duration-300"
+                className="text-[var(--accent)]"
                 strokeLinecap="round"
               />
             </svg>
@@ -151,10 +151,10 @@ export default function EnhancedScrollNavigation({
               onClick={() => setShowQuickNav(!showQuickNav)}
               size="sm"
               variant={showQuickNav ? "default" : "outline"}
-              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full transition-all duration-200 hover:scale-110 active:scale-95 touch-manipulation ${
-                showQuickNav 
-                  ? "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg shadow-purple-500/25" 
-                  : "bg-white/95 backdrop-blur-sm border-gray-200 hover:bg-gray-50 shadow-lg"
+              className={`h-12 w-12 touch-manipulation rounded-full transition-impeccable active:scale-[0.97] sm:h-14 sm:w-14 ${
+                showQuickNav
+                  ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[var(--shadow-soft)]"
+                  : "border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] shadow-[var(--shadow-soft)] hover:bg-[var(--panel-strong)]"
               }`}
               title="快速導航選單"
             >
@@ -167,7 +167,7 @@ export default function EnhancedScrollNavigation({
             <Button
               onClick={scrollToTop}
               size="sm"
-              className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:scale-110 active:scale-95 touch-manipulation"
+              className="group h-12 w-12 touch-manipulation rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[var(--shadow-soft)] transition-impeccable active:scale-[0.97] sm:h-14 sm:w-14"
               title="跳轉至頂部"
             >
               <ArrowUp size={18} className="group-hover:-translate-y-0.5 transition-transform duration-200" />
@@ -179,7 +179,7 @@ export default function EnhancedScrollNavigation({
             <Button
               onClick={scrollToBottom}
               size="sm"
-              className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg shadow-gray-500/25 transition-all duration-200 hover:scale-110 active:scale-95 touch-manipulation"
+              className="group h-12 w-12 touch-manipulation rounded-full bg-[var(--secondary)] text-[var(--secondary-foreground)] shadow-[var(--shadow-soft)] transition-impeccable active:scale-[0.97] sm:h-14 sm:w-14"
               title="跳轉至底部"
             >
               <ArrowDown size={18} className="group-hover:translate-y-0.5 transition-transform duration-200" />

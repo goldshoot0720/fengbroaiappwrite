@@ -38,17 +38,14 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 function applyThemeClass(theme: Theme) {
   const root = window.document.documentElement;
   root.classList.remove("light", "dark");
-
-  if (theme === "system") {
-    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-      .matches
-      ? "dark"
-      : "light";
-    root.classList.add(systemTheme);
-    return;
-  }
-
-  root.classList.add(theme);
+  const resolved =
+    theme === "system"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
+      : theme;
+  root.classList.add(resolved);
+  root.dataset.theme = resolved;
 }
 
 function applyDensity(density: Density) {

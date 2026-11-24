@@ -7,7 +7,7 @@ import { useMediaTraffic } from "@/lib/mediaTraffic";
 import { claimMediaTrafficHomepageAlert, formatMediaTrafficGiB, type MediaTrafficAlertPolicy } from "@/lib/mediaTrafficAlert";
 import { useNotificationPermission } from "@/hooks/useNotificationPermission";
 import { useExpiryNotifications, sendExpiryOsNotifications } from "@/hooks/useExpiryNotifications";
-import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, Server, FileVideo, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X, BadgePercent, Laptop, Gauge, ShoppingCart } from "lucide-react";
+import { Package, CreditCard, AlertTriangle, TrendingUp, DollarSign, FileVideo, Image, Music, HardDrive, FileText, Star, Building2, ChevronDown, ChevronUp, CalendarClock, Mic, Bell, X, BadgePercent, Laptop, Gauge, ShoppingCart } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataCard } from "@/components/ui/data-card";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
@@ -424,7 +424,7 @@ function DashboardFullView(props: {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-orange-900 dark:text-orange-100">
-                🔔 有 {stats.subscriptionsExpiring3Days} 項訂閱將在 3 天內到期
+                有 {stats.subscriptionsExpiring3Days} 項訂閱將在 3 天內到期
               </p>
               <ul className="mt-2 space-y-1 max-h-36 overflow-y-auto">
                 {[...stats.subscriptionsExpiring3DaysList]
@@ -568,7 +568,7 @@ function HomeTaskBoard({
               key={action.moduleId}
               type="button"
               onClick={() => onNavigate(action.moduleId)}
-              className="group flex min-h-24 items-center gap-3 rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] px-4 text-left transition-impeccable hover:-translate-y-0.5 hover:bg-[color:var(--panel-strong)] hover:shadow-[var(--shadow-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+              className="group flex min-h-24 items-center gap-3 rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] px-4 text-left transition-impeccable hover:bg-[color:var(--panel-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)]/18 text-[var(--accent-strong)]">
                 {action.icon}
@@ -587,25 +587,17 @@ function HomeTaskBoard({
 
 export function AppwriteSetupEmptyState({ onNavigate }: { onNavigate: () => void }) {
   return (
-    <DataCard className="overflow-hidden border-[var(--line-strong)] bg-[color-mix(in_oklab,var(--accent)_8%,var(--card))] p-0">
-      <div className="flex flex-col gap-5 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[color-mix(in_oklab,var(--accent)_20%,var(--card))] text-[var(--accent-strong)]">
-            <Server size={22} />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent-strong)]">Setup Required</p>
-            <h2 className="mt-2 text-2xl font-semibold text-foreground">尚未設定 Appwrite</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              首頁已暫停自動載入音樂、影片、圖片、播客、Storage 統計與到期檢查，避免未設定時連續產生 500。完成 endpoint、project、database、API key 與 bucket 設定後，儀表板會恢復同步。
-            </p>
-          </div>
-        </div>
-        <Button onClick={onNavigate} className="shrink-0 gap-2">
-          前往鋒兄設定
-        </Button>
+    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="min-w-0">
+        <h2 className="text-2xl font-semibold text-foreground">尚未設定 Appwrite</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          首頁已暫停自動載入音樂、影片、圖片、播客、Storage 統計與到期檢查，避免未設定時連續產生 500。完成 endpoint、project、database、API key 與 bucket 設定後，儀表板會恢復同步。
+        </p>
       </div>
-    </DataCard>
+      <Button onClick={onNavigate} className="shrink-0 gap-2">
+        前往鋒兄設定
+      </Button>
+    </div>
   );
 }
 
@@ -1142,7 +1134,7 @@ function AlertItemList({
 // 警告區塊
 function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["stats"] }) {
   return (
-    <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 sm:p-6">
+    <div className="rounded-2xl border border-[var(--destructive)]/30 bg-[color-mix(in_oklab,var(--destructive)_10%,var(--card))] p-4 sm:p-6">
       <div className="flex items-center gap-3 mb-4">
         <AlertTriangle className="text-red-600 dark:text-red-400 shrink-0" size={24} />
         <div>
@@ -1154,7 +1146,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
         {stats.expiredFoods > 0 && (
           <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
             <p className="font-medium text-red-700 dark:text-red-300">
-              ⚠️ 有 {stats.expiredFoods} 項食品已過期
+              有 {stats.expiredFoods} 項食品已過期
             </p>
             <AlertItemList items={stats.expiredFoodsList} isExpired tone="red" />
           </div>
@@ -1162,7 +1154,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
         {stats.foodsExpiring7Days > 0 && (
           <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
             <p className="font-medium text-orange-700 dark:text-orange-300">
-              📅 有 {stats.foodsExpiring7Days} 項食品將在 7 天內過期
+              有 {stats.foodsExpiring7Days} 項食品將在 7 天內過期
             </p>
             <AlertItemList items={stats.foodsExpiring7DaysList} tone="orange" />
           </div>
@@ -1170,7 +1162,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
         {stats.overdueSubscriptions > 0 && (
           <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
             <p className="font-medium text-red-700 dark:text-red-300">
-              💳 有 {stats.overdueSubscriptions} 項訂閱已逾期付款
+              有 {stats.overdueSubscriptions} 項訂閱已逾期付款
             </p>
             <AlertItemList items={stats.overdueSubscriptionsList} isExpired tone="red" />
           </div>
@@ -1178,7 +1170,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
         {stats.subscriptionsExpiring3Days > 0 && (
           <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
             <p className="font-medium text-orange-700 dark:text-orange-300">
-              🔔 有 {stats.subscriptionsExpiring3Days} 項訂閱將在 3 天內到期
+              有 {stats.subscriptionsExpiring3Days} 項訂閱將在 3 天內到期
             </p>
             <AlertItemList items={stats.subscriptionsExpiring3DaysList} tone="orange" />
           </div>
@@ -1186,7 +1178,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
         {stats.trialPurchasesExpiring3Days > 0 && (
           <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
             <p className="font-medium text-amber-700 dark:text-amber-300">
-              🧪 有 {stats.trialPurchasesExpiring3Days} 項試用／首購將在 3 天內到期
+              有 {stats.trialPurchasesExpiring3Days} 項試用／首購將在 3 天內到期
             </p>
             <AlertItemList items={stats.trialPurchasesExpiring3DaysList} tone="orange" />
           </div>
@@ -1194,7 +1186,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
         {(stats.quotaAccountsExpiring3Days > 0 || stats.quotaAiExpiringTodayOrTomorrow > 0) && (
           <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
             <p className="font-medium text-amber-700 dark:text-amber-300">
-              🎯 有 {stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow} 項額度接近到期
+              有 {stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow} 項額度接近到期
             </p>
             <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto border-t border-black/5 dark:border-white/10 pt-2">
               {[...stats.quotaAccountsExpiring3DaysList, ...stats.quotaAiExpiringSoonList]
@@ -1216,7 +1208,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
         {stats.shoppingItemsExpiring3Days > 0 && (
           <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
             <p className="font-medium text-teal-700 dark:text-teal-300">
-              🛒 有 {stats.shoppingItemsExpiring3Days} 項購物將在 3 天內到預定購買日
+              有 {stats.shoppingItemsExpiring3Days} 項購物將在 3 天內到預定購買日
             </p>
             <AlertItemList items={stats.shoppingItemsExpiring3DaysList} tone="orange" />
           </div>
@@ -1224,7 +1216,7 @@ function AlertSection({ stats }: { stats: ReturnType<typeof useDashboardStats>["
         {stats.banksExpiring7Days > 0 && (
           <div className="rounded-xl bg-white/60 dark:bg-black/20 p-3">
             <p className="font-medium text-blue-700 dark:text-blue-300">
-              🏦 有 {stats.banksExpiring7Days} 項銀行／票證／點數將在 7 天內到期
+              有 {stats.banksExpiring7Days} 項銀行／票證／點數將在 7 天內到期
             </p>
             <AlertItemList items={stats.banksExpiring7DaysList} tone="orange" />
           </div>
@@ -1271,7 +1263,6 @@ function MediaStorageStats({ stats, traffic, setupRequired, onNavigate }: { stat
   };
 
   const usageColor = stats.usagePercentage > 80 ? 'text-red-600 dark:text-red-400' : stats.usagePercentage > 50 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400';
-  const progressColor = stats.usagePercentage > 80 ? 'bg-red-500' : stats.usagePercentage > 50 ? 'bg-orange-500' : 'bg-green-500';
   const isOverStorageLimit = !setupRequired && stats.storageLimit > 0 && stats.totalSize >= stats.storageLimit;
   const capacityTiers = [
     { label: '1 GB', limit: oneGiB },
@@ -1297,8 +1288,8 @@ function MediaStorageStats({ stats, traffic, setupRequired, onNavigate }: { stat
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
-            <HardDrive className="text-purple-600 dark:text-purple-400" size={20} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--accent)_16%,var(--card))]">
+            <HardDrive className="text-[var(--accent-strong)]" size={20} />
           </div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">多媒體儲存統計</h2>
         </div>
@@ -1390,12 +1381,12 @@ function MediaStorageStats({ stats, traffic, setupRequired, onNavigate }: { stat
                 {formatBytes(stats.totalSize)} / {formatBytes(stats.storageLimit)} ({stats.usagePercentage.toFixed(1)}%)
               </span>
             </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-              <div
-                className={`${progressColor} h-3 rounded-full transition-all duration-300`}
-                style={{ width: `${Math.min(stats.usagePercentage, 100)}%` }}
-              />
-            </div>
+            <progress
+              className={`block h-3 w-full overflow-clip rounded-full ${stats.usagePercentage > 80 ? "[accent-color:var(--destructive)]" : stats.usagePercentage > 50 ? "[accent-color:var(--warning)]" : "[accent-color:var(--success)]"}`}
+              max={100}
+              value={Math.min(stats.usagePercentage, 100)}
+              aria-label="累積容量"
+            />
             {isOverStorageLimit ? (
               <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                 File Storage 已超過 1.8GB，上傳已停用。請手動刪除 Appwrite Storage 檔案，直到容量低於 1.8GB 以下。
@@ -1484,26 +1475,16 @@ function MediaStorageStats({ stats, traffic, setupRequired, onNavigate }: { stat
 }
 
 // 多媒體統計卡片
-function MediaStatCard({ icon: Icon, title, count, size, color }: { icon: any; title: string; count: number; size: string; color: string }) {
-  const colorMap: Record<string, { bg: string; text: string }> = {
-    blue: { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' },
-    indigo: { bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-600 dark:text-indigo-400' },
-    purple: { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-600 dark:text-purple-400' },
-    green: { bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-600 dark:text-green-400' },
-    orange: { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-600 dark:text-orange-400' },
-  };
-
-  const colors = colorMap[color];
-
+function MediaStatCard({ icon: Icon, title, count, size }: { icon: any; title: string; count: number; size: string; color?: string }) {
   return (
-    <div className={`${colors.bg} p-4 rounded-xl border border-transparent`}>
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className={colors.text} size={20} />
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</span>
+    <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--card)] p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <Icon className="text-[var(--accent-strong)]" size={20} />
+        <span className="text-sm font-medium text-[var(--foreground)]">{title}</span>
       </div>
       <div className="space-y-1">
-        <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{count}</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">容量: {size}</p>
+        <p className="text-xl font-semibold tabular-nums text-[var(--foreground)]">{count}</p>
+        <p className="text-xs text-[var(--muted-foreground)]">容量: {size}</p>
       </div>
     </div>
   );

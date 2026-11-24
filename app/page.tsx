@@ -402,9 +402,6 @@ function NotFoundModule() {
   return (
     <section className="space-y-5">
       <div className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-          Module Missing
-        </p>
         <h1 className="font-display text-3xl font-semibold text-[var(--foreground)]">
           找不到對應模組
         </h1>

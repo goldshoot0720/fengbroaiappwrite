@@ -103,7 +103,7 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!isSidebarOpen) return;
     const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = "clip";
     return () => {
       document.body.style.overflow = previous;
     };
@@ -182,8 +182,6 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <AmbientBackdrop />
-
       <div className="relative z-10 flex min-h-screen">
         {/* Tablet left icon rail (768–1023px) */}
         <TabletRailNav
@@ -194,7 +192,7 @@ export default function DashboardLayout({
           isMenuOpen={isSidebarOpen}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col md:pl-[4.75rem] lg:pl-0">
           {/* Desktop horizontal top nav */}
           <DesktopTopNav
             activeLabel={activeLabel}
@@ -245,7 +243,6 @@ export default function DashboardLayout({
                   <div className="mb-5 flex flex-col gap-3 border-b border-[var(--line-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-[var(--foreground)]">語音 CRUD 管理</p>
-                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">快速導覽與操作目前頁面</p>
                     </div>
                     <GlobalVoiceCommandPanel
                       currentModule={currentModule}
@@ -388,7 +385,7 @@ function DesktopTopNav({
   return (
     <header
       id="desktop-top-nav"
-      className="sticky top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/95 backdrop-blur-xl lg:block"
+      className="top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[var(--card)] lg:sticky lg:block"
     >
       <div className="mx-auto flex h-14 max-w-[1680px] items-center gap-1.5 px-2 sm:gap-2 sm:px-3 xl:gap-3 xl:px-5">
         <BrandBlock compact title={activeLabel} />
@@ -411,7 +408,7 @@ function DesktopTopNav({
         <DesignModeCluster />
       </div>
 
-      {subItems.length > 0 ? (
+      {subItems.length > 1 ? (
         <div className="border-t border-[var(--line-soft)] bg-[color:var(--panel-soft)]/55">
           <nav
             aria-label="子導覽"
@@ -458,10 +455,10 @@ function TabletRailNav({
   return (
     <aside
       aria-label="模組導覽"
-      className="sticky top-0 z-[var(--z-sidebar)] hidden h-screen w-[4.75rem] shrink-0 flex-col border-r border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] backdrop-blur-xl md:flex lg:hidden"
+      className="fixed top-0 left-0 z-[var(--z-sidebar)] hidden h-screen w-[4.75rem] shrink-0 flex-col border-r border-[var(--line-soft)] bg-[var(--card)] pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] md:flex lg:hidden"
     >
       <div className="flex h-14 shrink-0 items-center justify-center border-b border-[var(--line-soft)]">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_4px_12px_rgba(199,149,65,0.18)]">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--accent-strong)] text-[var(--accent-foreground)] shadow-[var(--shadow-soft)]">
           <Command size={14} />
         </div>
       </div>
@@ -490,7 +487,7 @@ function TabletRailNav({
               <span className="flex size-6 items-center justify-center [&_svg]:size-[18px]">
                 {item.icon}
               </span>
-              <span className="line-clamp-2 w-full text-[10px] font-medium leading-tight">
+              <span className="line-clamp-2 w-full text-[11px] font-medium leading-tight">
                 {shortModuleLabel(primary)}
               </span>
             </button>
@@ -515,7 +512,7 @@ function TabletRailNav({
           <span className="flex size-6 items-center justify-center">
             <LayoutGrid size={18} />
           </span>
-          <span className="text-[10px] font-medium leading-tight">全部</span>
+          <span className="text-[11px] font-medium leading-tight">全部</span>
         </button>
       </div>
     </aside>
@@ -536,7 +533,7 @@ function TabletTopBar({
   const { subItems } = useTopNavState(menuItems, currentModule, onModuleChange);
 
   return (
-    <header className="sticky top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/95 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:block lg:hidden">
+    <header className="top-0 z-[var(--z-sticky)] hidden border-b border-[var(--line-soft)] bg-[var(--card)] pt-[env(safe-area-inset-top)] md:sticky md:block lg:static lg:hidden">
       <div className="flex h-14 items-center justify-between gap-3 px-4">
         <h1 className="truncate text-base font-semibold leading-6 tracking-tight text-[var(--foreground)]">
           {activeLabel}
@@ -544,7 +541,7 @@ function TabletTopBar({
         <DesignModeCluster />
       </div>
 
-      {subItems.length > 0 ? (
+      {subItems.length > 1 ? (
         <div className="border-t border-[var(--line-soft)] bg-[color:var(--panel-soft)]/55">
           <nav
             aria-label="子導覽"
@@ -637,15 +634,12 @@ function TopNavTab({
 
 function DesignModeCluster() {
   return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-[var(--line-strong)] bg-white/60 px-1 py-1 dark:bg-white/5">
+    <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-[var(--line-strong)] bg-white/60 px-2 py-2 dark:bg-white/5">
       <ThemeToggleCompact />
       <DensityToggleCompact />
       <div className="hidden min-w-0 pr-1.5 leading-none xl:block">
-        <p className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-          Design Mode
-        </p>
-        <p className="text-xs font-medium leading-tight text-[var(--foreground)]">
-          Impeccable 2026~2027
+        <p className="whitespace-nowrap text-xs font-medium text-[var(--muted-foreground)]">
+          Design mode
         </p>
       </div>
     </div>
@@ -663,10 +657,10 @@ function BrandBlock({
     <div className={cn("flex min-w-0 items-center gap-2", compact && "shrink-0")}>
       <div
         className={cn(
-          "flex shrink-0 items-center justify-center bg-[linear-gradient(145deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)]",
+          "flex shrink-0 items-center justify-center bg-[var(--accent-strong)] text-[var(--accent-foreground)] shadow-[var(--shadow-soft)]",
           compact
-            ? "size-8 rounded-lg shadow-[0_4px_12px_rgba(199,149,65,0.18)]"
-            : "size-9 rounded-xl shadow-[0_8px_20px_rgba(199,149,65,0.2)]"
+            ? "size-8 rounded-lg"
+            : "size-9 rounded-xl"
         )}
       >
         <Command size={compact ? 14 : 16} />
@@ -674,10 +668,10 @@ function BrandBlock({
       <div className={cn("min-w-0", compact && "hidden lg:block")}>
         <p
           className={cn(
-            "uppercase text-[var(--muted-foreground)]",
+            "text-[var(--muted-foreground)]",
             compact
-              ? "text-[10px] font-medium leading-none tracking-[0.16em]"
-              : "truncate text-xs font-medium tracking-[0.16em]"
+              ? "text-xs font-medium leading-none"
+              : "truncate text-sm font-medium"
           )}
         >
           FengBro
@@ -696,15 +690,6 @@ function BrandBlock({
 // Ambient backdrop
 // ─────────────────────────────────────────────
 
-function AmbientBackdrop() {
-  return (
-    <>
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(217,119,87,0.10),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(217,119,87,0.06),transparent_26%),linear-gradient(180deg,rgba(250,249,245,0.96),rgba(243,241,235,0.96))] dark:bg-[radial-gradient(circle_at_top_left,rgba(217,119,87,0.10),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(217,119,87,0.05),transparent_24%),linear-gradient(180deg,rgba(38,38,36,0.97),rgba(30,30,29,0.98))]" />
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-48 bg-[linear-gradient(180deg,rgba(255,255,255,0.42),transparent)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]" />
-    </>
-  );
-}
-
 // ─────────────────────────────────────────────
 // Mobile Header
 // ─────────────────────────────────────────────
@@ -719,7 +704,7 @@ function MobileHeader({
   onToggle: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[color:var(--panel-veil)]/92 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:hidden">
+    <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[var(--card)] pt-[env(safe-area-inset-top)] md:static md:hidden">
       <div className="mx-auto flex h-14 max-w-[1680px] items-center justify-between gap-3 px-3">
         <BrandBlock title={activeLabel} />
         <div className="flex shrink-0 items-center gap-1.5">
@@ -870,7 +855,7 @@ function MobileMenuSheet({
       <button
         type="button"
         aria-label="關閉選單背景"
-        className="absolute inset-0 bg-[rgba(17,23,20,0.4)] backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[var(--scrim)]"
         onClick={onClose}
       />
       <aside
@@ -878,7 +863,7 @@ function MobileMenuSheet({
         role="dialog"
         aria-modal="true"
         aria-label="全部模組"
-        className="surface-floating absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,720px)] flex-col rounded-t-2xl border-b-0 p-0 shadow-[0_-16px_48px_rgba(0,0,0,0.16)] animate-in slide-in-from-bottom-8 duration-300 ease-out"
+        className="surface-floating absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,720px)] flex-col rounded-t-2xl border-b-0 p-0 shadow-[var(--shadow-dock)] animate-in slide-in-from-bottom-8 duration-300 ease-out"
       >
         <div className="flex flex-col items-center px-4 pt-3">
           <span
@@ -920,7 +905,7 @@ function MobileMenuSheet({
                     className={cn(
                       "flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-2xl border px-1.5 py-2.5 text-center transition-impeccable active:scale-[0.97]",
                       isActive
-                        ? "border-transparent bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[var(--accent-foreground)] shadow-[0_10px_24px_rgba(199,149,65,0.2)]"
+                        ? "border-transparent bg-[var(--accent)] text-[var(--accent-foreground)]"
                         : "border-[var(--line-soft)] bg-[color:var(--panel-soft)] text-[var(--muted-foreground)]"
                     )}
                   >
@@ -1012,7 +997,7 @@ function getSleepWarning() {
       label: "\u8acb\u5165\u7761",
       range: "00:00 - 02:59",
       className:
-        "border-amber-300 bg-amber-50 text-amber-900 shadow-[0_18px_44px_rgba(217,119,6,0.14)]",
+        "border-amber-300 bg-amber-50 text-amber-900 shadow-[var(--shadow-soft)]",
       iconClassName: "bg-amber-100 text-amber-700",
     };
   }
@@ -1022,7 +1007,7 @@ function getSleepWarning() {
       label: "\u8acb\u5165\u7761",
       range: "03:00 - 06:59",
       className:
-        "border-red-300 bg-red-50 text-red-900 shadow-[0_18px_44px_rgba(220,38,38,0.14)]",
+        "border-red-300 bg-red-50 text-red-900 shadow-[var(--shadow-soft)]",
       iconClassName: "bg-red-100 text-red-700",
     };
   }
