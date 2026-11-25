@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import AppwriteSetupEmptyState from "./AppwriteSetupEmptyState";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useMediaStats } from "@/hooks/useMediaStats";
 import { useMediaTraffic } from "@/lib/mediaTraffic";
@@ -49,8 +50,7 @@ interface EnhancedDashboardProps {
 export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }: EnhancedDashboardProps) {
   const [activeView, setActiveView] = useState<"summary" | "full">("summary");
   const showFullPane = activeView === "full";
-  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired } = useDashboardStats(showFullPane);
-  const { stats: mediaStats, loading: mediaLoading, error: mediaError, setupRequired: mediaSetupRequired } = useMediaStats(showFullPane);
+  const { stats, loading, error: dashboardError, setupRequired: dashboardSetupRequired, refresh: refreshDashboard } = useDashboardStats(showFullPane);
   const {
     permission: notificationPermission,
     permissionDismissed,
@@ -201,17 +201,14 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
         <DashboardFullView
           title={title}
           stats={stats}
-          mediaStats={mediaStats}
-          mediaSetupRequired={mediaSetupRequired}
           traffic={traffic}
           financeAlerts={financeAlerts}
           financeAlertsDismissed={financeAlertsDismissed}
           handleDismissFinanceAlerts={handleDismissFinanceAlerts}
           onNavigate={onNavigate}
           loading={loading}
-          mediaLoading={mediaLoading}
           dashboardError={dashboardError}
-          mediaError={mediaError}
+          onRetry={refreshDashboard}
           tubeRecentVideos={tubeRecentVideos}
           tubeNoticeDismissed={tubeNoticeDismissed}
           handleDismissTubeNotice={handleDismissTubeNotice}
@@ -233,6 +230,9 @@ export default function EnhancedDashboard({ onNavigate, title = "鋒兄首頁" }
           />
           {trafficAlert ? <MediaTrafficHomepageAlert policy={trafficAlert} total={traffic.total} /> : null}
           <HomeTaskBoard
+            loading={loading}
+            error={dashboardError}
+            onRetry={refreshDashboard}
             onNavigate={onNavigate}
             stats={stats}
             onShowFullDashboard={() => setActiveView("full")}
@@ -283,17 +283,14 @@ function DashboardViewToggle({
 function DashboardFullView(props: {
   title: string;
   stats: ReturnType<typeof useDashboardStats>["stats"];
-  mediaStats: ReturnType<typeof useMediaStats>["stats"];
-  mediaSetupRequired: boolean;
   traffic: ReturnType<typeof useMediaTraffic>;
   financeAlerts: FinanceAlertNotice[];
   financeAlertsDismissed: boolean;
   handleDismissFinanceAlerts: () => void;
   onNavigate: (moduleId: string) => void;
   loading: boolean;
-  mediaLoading: boolean;
   dashboardError: string | null;
-  mediaError: string | null;
+  onRetry: () => void;
   tubeRecentVideos: FengbroTubeRecentVideo[];
   tubeNoticeDismissed: boolean;
   handleDismissTubeNotice: () => void;
@@ -307,17 +304,14 @@ function DashboardFullView(props: {
   const {
     title,
     stats,
-    mediaStats,
-    mediaSetupRequired,
     traffic,
     financeAlerts,
     financeAlertsDismissed,
     handleDismissFinanceAlerts,
     onNavigate,
     loading,
-    mediaLoading,
     dashboardError,
-    mediaError,
+    onRetry,
     tubeRecentVideos,
     tubeNoticeDismissed,
     handleDismissTubeNotice,
@@ -329,29 +323,8 @@ function DashboardFullView(props: {
     dismissBanner,
   } = props;
 
-  const error = dashboardError || mediaError;
-
-  if (loading || mediaLoading) return <FullPageLoading text="載入統計數據中..." />;
-
-  const needsAttention =
-    stats.foodsExpiring7Days > 0 ||
-    stats.subscriptionsExpiring3Days > 0 ||
-    stats.expiredFoods > 0 ||
-    stats.overdueSubscriptions > 0 ||
-    stats.trialPurchasesExpiring3Days > 0 ||
-    stats.quotaAccountsExpiring3Days > 0 ||
-    stats.quotaAiExpiringTodayOrTomorrow > 0 ||
-    stats.shoppingItemsExpiring3Days > 0 ||
-    stats.banksExpiring7Days > 0;
-
   return (
     <div className="space-y-4 lg:space-y-6">
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-600 dark:text-red-400 whitespace-pre-line">
-          {error}
-        </div>
-      )}
-
       <FinanceAlertsNoticeCard
         alerts={financeAlerts}
         dismissed={financeAlertsDismissed}
@@ -379,7 +352,7 @@ function DashboardFullView(props: {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <button
-                onClick={() => onNavigate("tools")}
+                onClick={() => onNavigate("fengbro-tube")}
                 className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 查看
@@ -403,6 +376,69 @@ function DashboardFullView(props: {
 
       <PageTitle title={title} description="鋒兄管理資訊系統 - 數據匯總與分析" />
 
+      {loading ? <FullPageLoading text="載入管理統計中…" /> : dashboardError ? (
+        <StatsError message={dashboardError} onRetry={onRetry} />
+      ) : (
+        <DashboardManagementStats stats={stats} onNavigate={onNavigate} />
+      )}
+      <DashboardMediaSection traffic={traffic} onNavigate={onNavigate} />
+    </div>
+  );
+}
+
+function StatsError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="space-y-2 rounded-xl border border-[var(--line-strong)] p-4">
+      <p role="status" className="text-sm">統計暫時無法載入。</p>
+      <p className="break-words text-sm text-muted-foreground">{message}</p>
+      <Button variant="outline" className="min-h-11" onClick={onRetry}>重新載入</Button>
+    </div>
+  );
+}
+
+function DashboardMediaSection({ traffic, onNavigate }: {
+  traffic: ReturnType<typeof useMediaTraffic>;
+  onNavigate: (id: string) => void;
+}) {
+  const { stats, loading, error, setupRequired, refresh } = useMediaStats();
+  if (loading) return <FullPageLoading text="載入媒體統計中…" />;
+  if (error) return <StatsError message={error} onRetry={refresh} />;
+  return (
+    <>
+      <MediaStorageStats stats={stats} traffic={traffic} setupRequired={setupRequired} onNavigate={onNavigate} />
+      {!setupRequired && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+          <StatCard title="音樂總數" value={stats.totalMusic} icon={Music} />
+          <StatCard title="文件總數" value={stats.totalDocuments} icon={FileText} />
+          <StatCard title="播客總數" value={stats.totalPodcasts} icon={Mic} />
+        </div>
+      )}
+    </>
+  );
+}
+
+function getDashboardAttention(stats: ReturnType<typeof useDashboardStats>["stats"]) {
+  const items = [
+    { label: "已過期食品", value: stats.expiredFoods, moduleId: "food" },
+    { label: "7 天內食品", value: stats.foodsExpiring7Days, moduleId: "food" },
+    { label: "逾期訂閱", value: stats.overdueSubscriptions, moduleId: "subscription" },
+    { label: "3 天內扣款", value: stats.subscriptionsExpiring3Days, moduleId: "subscription" },
+    { label: "試用/首購 3 天內", value: stats.trialPurchasesExpiring3Days, moduleId: "trial-purchase" },
+    { label: "額度接近到期", value: stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow, moduleId: "quota" },
+    { label: "3 天內要買", value: stats.shoppingItemsExpiring3Days, moduleId: "shopping-list" },
+    { label: "票證/點數 7 天內到期", value: stats.banksExpiring7Days, moduleId: "bank-stats" },
+  ].filter((item) => item.value > 0);
+  return { items, total: items.reduce((sum, item) => sum + item.value, 0) };
+}
+
+function DashboardManagementStats({ stats, onNavigate }: {
+  stats: ReturnType<typeof useDashboardStats>["stats"];
+  onNavigate: (id: string) => void;
+}) {
+  const { total: totalAttention } = getDashboardAttention(stats);
+
+  return (
+    <>
       {/* 詳細統計區域 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         <FoodStatsCard stats={stats} onNavigate={onNavigate} />
@@ -412,9 +448,6 @@ function DashboardFullView(props: {
         <ShoppingListStatsCard stats={stats} onNavigate={onNavigate} />
       </div>
 
-      {/* 多媒體儲存統計 */}
-      <MediaStorageStats stats={mediaStats} traffic={traffic} setupRequired={mediaSetupRequired} onNavigate={onNavigate} />
-      
       {/* 訂閱到期提醒 */}
       {stats.subscriptionsExpiring3Days > 0 && (
         <DataCard className="border border-orange-200/80 bg-orange-50 p-4 dark:border-orange-800/60 dark:bg-orange-900/20">
@@ -466,20 +499,13 @@ function DashboardFullView(props: {
         <StatCard title="訂閱服務" value={stats.totalSubscriptions} icon={CreditCard} />
         <StatCard title="年費總計" value={formatCurrency(stats.totalAnnualFee)} icon={DollarSign} />
         <StatCard title="食品項目" value={stats.totalFoods} icon={Package} />
-        <StatCard title="需要關注" value={stats.foodsExpiring7Days + stats.subscriptionsExpiring3Days + stats.trialPurchasesExpiring3Days + stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow + stats.shoppingItemsExpiring3Days + stats.banksExpiring7Days} icon={AlertTriangle} gradient="from-[var(--warning)] to-[var(--chart-5)]" />
+        <StatCard title="需要關注" value={totalAttention} icon={AlertTriangle} gradient="from-[var(--warning)] to-[var(--chart-5)]" />
       </div>
 
       {/* 其他統計 */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
         <StatCard title="筆記總數" value={stats.totalArticles} icon={FileText} />
         <StatCard title="常用帳號總數" value={stats.totalCommonAccounts} icon={Star} />
-      </div>
-
-      {/* 多媒體統計 */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <StatCard title="音樂總數" value={mediaStats.totalMusic} icon={Music} />
-        <StatCard title="文件總數" value={mediaStats.totalDocuments} icon={FileText} />
-        <StatCard title="播客總數" value={mediaStats.totalPodcasts} icon={Mic} />
       </div>
 
       {/* 銀行統計 + 例行統計 */}
@@ -491,8 +517,8 @@ function DashboardFullView(props: {
       </div>
 
       {/* 提醒和建議 */}
-      {needsAttention && <AlertSection stats={stats} />}
-    </div>
+      {totalAttention > 0 && <AlertSection stats={stats} />}
+    </>
   );
 }
 
@@ -500,22 +526,22 @@ function HomeTaskBoard({
   onNavigate,
   stats,
   onShowFullDashboard,
+  loading,
+  error,
+  onRetry,
 }: {
   onNavigate: (moduleId: string) => void;
   stats: ReturnType<typeof useDashboardStats>["stats"];
-  onShowFullDashboard?: () => void;
+  onShowFullDashboard: () => void;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
 }) {
-  const attentionItems = [
-    { label: "已過期食品", value: stats.expiredFoods, moduleId: "food" },
-    { label: "7 天內食品", value: stats.foodsExpiring7Days, moduleId: "food" },
-    { label: "逾期訂閱", value: stats.overdueSubscriptions, moduleId: "subscription" },
-    { label: "3 天內扣款", value: stats.subscriptionsExpiring3Days, moduleId: "subscription" },
-    { label: "試用/首購 3 天內", value: stats.trialPurchasesExpiring3Days, moduleId: "trial-purchase" },
-    { label: "額度接近到期", value: stats.quotaAccountsExpiring3Days + stats.quotaAiExpiringTodayOrTomorrow, moduleId: "quota" },
-    { label: "3 天內要買", value: stats.shoppingItemsExpiring3Days, moduleId: "shopping-list" },
-    { label: "票證/點數 7 天內到期", value: stats.banksExpiring7Days, moduleId: "bank-stats" },
-  ];
-  const totalAttention = attentionItems.reduce((total, item) => total + item.value, 0);
+  const { items: attentionItems, total: totalAttention } = getDashboardAttention(stats);
+  let attentionStatus = totalAttention > 0 ? `目前有 ${totalAttention} 項需要注意。` : "目前沒有緊急項目。";
+  if (error) attentionStatus = "暫時無法確認待辦項目。";
+  if (loading) attentionStatus = "正在確認到期與扣款項目…";
+
   const quickActions = [
     { label: "鋒兄訂閱", description: "管理扣款與到期日", moduleId: "subscription", icon: <CreditCard size={18} /> },
     { label: "鋒兄試用／首購", description: "依服務展開帳號、狀態與 CSV", moduleId: "trial-purchase", icon: <BadgePercent size={18} /> },
@@ -533,29 +559,31 @@ function HomeTaskBoard({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-display text-2xl font-semibold text-[var(--foreground)]">今日待處理</h2>
-            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              {totalAttention > 0 ? `目前有 ${totalAttention} 項需要注意。` : "目前沒有緊急項目。"}
+            <p role="status" className="mt-1 text-sm text-[var(--muted-foreground)]">
+              {attentionStatus}
             </p>
           </div>
-          {onShowFullDashboard ? (
-            <Button variant="outline" onClick={onShowFullDashboard} className="min-h-11 shrink-0 rounded-xl">
-              查看完整儀表
-            </Button>
-          ) : null}
+          {error && !loading ? (
+            <Button variant="outline" onClick={onRetry} className="min-h-11 shrink-0">重新載入待辦</Button>
+          ) : (
+            <Button variant="outline" onClick={onShowFullDashboard} className="min-h-11 shrink-0">查看完整儀表</Button>
+          )}
         </div>
-        <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          {attentionItems.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => onNavigate(item.moduleId)}
-              className="flex min-h-16 items-center justify-between rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] px-4 text-left transition-impeccable hover:bg-[color:var(--panel-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
-            >
-              <span className="text-sm text-[var(--muted-foreground)]">{item.label}</span>
-              <span className="text-xl font-semibold tabular-nums text-[var(--foreground)]">{item.value}</span>
-            </button>
-          ))}
-        </div>
+        {!loading && !error && totalAttention > 0 && (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {attentionItems.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => onNavigate(item.moduleId)}
+                className="flex min-h-16 items-center justify-between rounded-xl border border-[var(--line-soft)] bg-[color:var(--panel-soft)] px-4 text-left transition-impeccable hover:bg-[color:var(--panel-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+              >
+                <span className="text-sm text-[var(--muted-foreground)]">{item.label}</span>
+                <span className="text-xl font-semibold tabular-nums text-[var(--foreground)]">{item.value}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </DataCard>
 
       <section aria-labelledby="home-quick-actions-title">
@@ -581,22 +609,6 @@ function HomeTaskBoard({
           ))}
         </div>
       </section>
-    </div>
-  );
-}
-
-export function AppwriteSetupEmptyState({ onNavigate }: { onNavigate: () => void }) {
-  return (
-    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-      <div className="min-w-0">
-        <h2 className="text-2xl font-semibold text-foreground">尚未設定 Appwrite</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          首頁已暫停自動載入音樂、影片、圖片、播客、Storage 統計與到期檢查，避免未設定時連續產生 500。完成 endpoint、project、database、API key 與 bucket 設定後，儀表板會恢復同步。
-        </p>
-      </div>
-      <Button onClick={onNavigate} className="shrink-0 gap-2">
-        前往鋒兄設定
-      </Button>
     </div>
   );
 }

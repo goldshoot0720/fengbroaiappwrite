@@ -31,6 +31,7 @@ import {
   Wrench,
   Youtube,
 } from "lucide-react";
+import AppwriteSetupEmptyState from "@/components/modules/AppwriteSetupEmptyState";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { hasRequiredAppwriteConfig } from "@/lib/utils";
@@ -47,19 +48,14 @@ function normalizeStoredModule(stored: string): string {
 }
 
 const ModuleFallback = () => (
-  <div className="flex min-h-[40vh] items-center justify-center">
-    <LoadingSpinner />
+  <div role="status" className="flex min-h-[40vh] items-center justify-center">
+    <LoadingSpinner text="正在開啟模組…" />
   </div>
 );
 
 // Lazy-load heavy modules so initial dashboard JS stays small.
 const EnhancedDashboard = dynamic(
   () => import("@/components/modules/EnhancedDashboard"),
-  { loading: ModuleFallback }
-);
-const AppwriteSetupEmptyState = dynamic(
-  () =>
-    import("@/components/modules/EnhancedDashboard").then((m) => m.AppwriteSetupEmptyState),
   { loading: ModuleFallback }
 );
 const AboutUs = dynamic(() => import("@/components/modules/AboutUs"), {

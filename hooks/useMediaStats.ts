@@ -124,7 +124,8 @@ export function useMediaStats(enabled = true) {
   const loadStats = useCallback(async () => {
     const requestId = ++requestSequence.current;
 
-    if (!enabled || !configChecked || !hasStorageConfig) {
+    if (enabled && !configChecked) return;
+    if (!enabled || !hasStorageConfig) {
       if (requestId === requestSequence.current) {
         setLoading(false);
         setError(null);

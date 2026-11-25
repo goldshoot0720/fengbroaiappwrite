@@ -216,7 +216,8 @@ async function loadTable<T>(
 ): Promise<TableLoadResult<T>> {
   try {
     const result = await fetchApi<T[]>(api, { signal });
-    return { data: Array.isArray(result) ? result : [], missingError: null };
+    if (!Array.isArray(result)) throw new Error("收到的資料格式不正確");
+    return { data: result, missingError: null };
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       return { data: [], missingError: null };
@@ -225,8 +226,7 @@ async function loadTable<T>(
     if (message.includes("不存在")) {
       return { data: [], missingError: message };
     }
-    console.error(`Failed to load ${api}:`, err);
-    return { data: [], missingError: null };
+    throw err;
   }
 }
 
@@ -270,6 +270,7 @@ export function useDashboardStats(includeExtended = true) {
   const { checked: appwriteSetupChecked, hasDatabaseConfig } = useAppwriteSetup();
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
+  const [resolvedMode, setResolvedMode] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
   const requestSequence = useRef(0);
@@ -295,6 +296,7 @@ export function useDashboardStats(includeExtended = true) {
     );
     if (cached) {
       setStats(cached);
+      setResolvedMode(includeExtended);
       setLoading(false);
     } else {
       setLoading(true);
@@ -558,6 +560,7 @@ export function useDashboardStats(includeExtended = true) {
     } finally {
       if (requestId === requestSequence.current) {
         activeRequest.current = null;
+        setResolvedMode(includeExtended);
         setLoading(false);
       }
     }
@@ -584,5 +587,5 @@ export function useDashboardStats(includeExtended = true) {
   useRefreshKeyListener("bank_refresh_key", loadStats, refreshEnabled);
   useRefreshKeyListener("routine_refresh_key", loadStats, refreshEnabled && includeExtended);
 
-  return { stats, loading, error, setupRequired };
+  return { stats, loading: loading || resolvedMode !== includeExtended, error, setupRequired, refresh: loadStats };
 }

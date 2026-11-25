@@ -7,9 +7,10 @@ import {
   Command,
   LayoutGrid,
   Menu,
-  X,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ModulePicker from "./ModulePicker";
 import { BirthdayEasterEgg } from "@/components/ui/birthday-easter-egg";
 import {
   DensityToggleCompact,
@@ -88,26 +89,21 @@ export default function DashboardLayout({
   onModuleChange,
   menuItems,
 }: DashboardLayoutProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   useEffect(() => {
-    const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 768);
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.shiftKey) return;
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
+      if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) return;
+      if (event.target instanceof HTMLElement &&
+          (event.target.isContentEditable || event.target.closest("input, textarea, select"))) return;
+      event.preventDefault();
+      setIsPickerOpen(true);
     };
-    checkScreenSize();
-    window.addEventListener("resize", checkScreenSize);
-    return () => window.removeEventListener("resize", checkScreenSize);
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
   }, []);
-
-  useEffect(() => {
-    if (!isSidebarOpen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "clip";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [isSidebarOpen]);
 
   const activeItem = useMemo(
     () => findMenuItem(menuItems, currentModule),
@@ -121,8 +117,6 @@ export default function DashboardLayout({
   useEffect(() => {
     document.title = activeLabel === "首頁" ? "鋒兄AI Appwrite" : `${activeLabel} · 鋒兄AI Appwrite`;
   }, [activeLabel]);
-
-  const leafItems = useMemo(() => flattenLeafMenuItems(menuItems), [menuItems]);
 
   const primaryTabs = useMemo(() => {
     return MOBILE_PRIMARY_TAB_IDS.map((id) => {
@@ -141,17 +135,8 @@ export default function DashboardLayout({
     currentModule as (typeof MOBILE_PRIMARY_TAB_IDS)[number]
   );
 
-  const toggleSidebar = useCallback(() => {
-    setIsSidebarOpen((prev) => !prev);
-  }, []);
-
-  const closeSidebar = useCallback(() => {
-    setIsSidebarOpen(false);
-  }, []);
-
-  const openSidebar = useCallback(() => {
-    setIsSidebarOpen(true);
-  }, []);
+  const openPicker = () => setIsPickerOpen(true);
+  const closePicker = () => setIsPickerOpen(false);
 
   // 點進某個子選單時，順便記住它是哪個分類（鋒兄管理／鋒兄工具／…）最後用的一個，
   // 好讓下次點回該分類時直接回到這裡，而不是永遠跳去分類裡的第一項。
@@ -164,22 +149,6 @@ export default function DashboardLayout({
     [menuItems, onModuleChange]
   );
 
-  const handleMenuClick = useCallback(
-    (moduleId: string) => {
-      navigateWithSubmenuHistory(moduleId);
-      if (isMobile) closeSidebar();
-    },
-    [closeSidebar, isMobile, navigateWithSubmenuHistory]
-  );
-
-  const handlePrimaryTabClick = useCallback(
-    (moduleId: string) => {
-      navigateWithSubmenuHistory(moduleId);
-      closeSidebar();
-    },
-    [closeSidebar, navigateWithSubmenuHistory]
-  );
-
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="relative z-10 flex min-h-screen">
@@ -187,18 +156,20 @@ export default function DashboardLayout({
         <TabletRailNav
           currentModule={currentModule}
           menuItems={menuItems}
-          onModuleChange={handleMenuClick}
-          onMoreClick={openSidebar}
-          isMenuOpen={isSidebarOpen}
+          onModuleChange={navigateWithSubmenuHistory}
+          onMoreClick={openPicker}
+          isMenuOpen={isPickerOpen}
         />
 
         <div className="flex min-w-0 flex-1 flex-col md:pl-[4.75rem] lg:pl-0">
           {/* Desktop horizontal top nav */}
           <DesktopTopNav
+            onOpenPicker={openPicker}
+            isPickerOpen={isPickerOpen}
             activeLabel={activeLabel}
             currentModule={currentModule}
             menuItems={menuItems}
-            onModuleChange={handleMenuClick}
+            onModuleChange={navigateWithSubmenuHistory}
           />
 
           {/* Tablet slim top bar (768–1023px) */}
@@ -206,25 +177,24 @@ export default function DashboardLayout({
             activeLabel={activeLabel}
             currentModule={currentModule}
             menuItems={menuItems}
-            onModuleChange={handleMenuClick}
+            onModuleChange={navigateWithSubmenuHistory}
           />
 
           {/* Mobile header bar */}
           <MobileHeader
             activeLabel={activeLabel}
-            isSidebarOpen={isSidebarOpen}
-            onToggle={toggleSidebar}
+            isPickerOpen={isPickerOpen}
+            onOpenPicker={openPicker}
           />
 
-          {/* Full-screen menu sheet (phone + tablet) */}
-          {isSidebarOpen && (
-            <MobileMenuSheet
+          {isPickerOpen && (
+            <ModulePicker
+              menuItems={menuItems}
               currentModule={currentModule}
-              leafItems={leafItems}
-              onClose={closeSidebar}
-              onNavigateLeaf={(id) => {
+              onClose={closePicker}
+              onNavigate={(id) => {
+                closePicker();
                 navigateWithSubmenuHistory(id);
-                closeSidebar();
               }}
             />
           )}
@@ -260,20 +230,16 @@ export default function DashboardLayout({
           {/* Mobile bottom nav (phone only) */}
           <MobileBottomNav
             currentModule={currentModule}
-            isMenuOpen={isSidebarOpen}
+            isMenuOpen={isPickerOpen}
             isPrimaryTabActive={isPrimaryTabActive}
-            onMoreClick={openSidebar}
-            onTabClick={handlePrimaryTabClick}
+            onMoreClick={openPicker}
+            onTabClick={navigateWithSubmenuHistory}
             tabs={primaryTabs}
           />
         </div>
       </div>
 
-      <div
-        className={cn(isSidebarOpen && "pointer-events-none hidden")}
-        {...(isSidebarOpen ? { inert: true as unknown as boolean } : {})}
-        aria-hidden={isSidebarOpen ? true : undefined}
-      >
+      <div>
         <DeferredMediaQueues />
         <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-[var(--z-voice)] flex max-w-[min(560px,calc(100vw-1rem))] flex-col items-end gap-2 sm:bottom-6 sm:right-4 md:bottom-6">
           <EnhancedScrollNavigation showThreshold={200} showProgress quickNavItems={[]} docked />
@@ -366,11 +332,15 @@ function useTopNavState(
 }
 
 function DesktopTopNav({
+  onOpenPicker,
+  isPickerOpen,
   activeLabel,
   currentModule,
   menuItems,
   onModuleChange,
 }: {
+  onOpenPicker: () => void;
+  isPickerOpen: boolean;
   activeLabel: string;
   currentModule: string;
   menuItems: MenuItem[];
@@ -405,6 +375,18 @@ function DesktopTopNav({
             );
           })}
         </nav>
+        <Button
+          variant="ghost"
+          onClick={onOpenPicker}
+          aria-expanded={isPickerOpen}
+          aria-haspopup="dialog"
+          aria-controls="module-picker"
+          aria-keyshortcuts="Control+K Meta+K"
+          title="搜尋模組（Ctrl K 或 ⌘ K）"
+          className="min-h-11 shrink-0 gap-2"
+        >
+          <Search size={16} /> 搜尋模組
+        </Button>
         <DesignModeCluster />
       </div>
 
@@ -500,7 +482,8 @@ function TabletRailNav({
           type="button"
           onClick={onMoreClick}
           aria-expanded={isMenuOpen}
-          aria-controls="mobile-sidebar"
+          aria-haspopup="dialog"
+          aria-controls="module-picker"
           aria-label="全部模組"
           className={cn(
             "flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-center transition-impeccable active:scale-[0.97]",
@@ -696,12 +679,12 @@ function BrandBlock({
 
 function MobileHeader({
   activeLabel,
-  isSidebarOpen,
-  onToggle,
+  isPickerOpen,
+  onOpenPicker,
 }: {
   activeLabel: string;
-  isSidebarOpen: boolean;
-  onToggle: () => void;
+  isPickerOpen: boolean;
+  onOpenPicker: () => void;
 }) {
   return (
     <header className="sticky top-0 z-[var(--z-sticky)] border-b border-[var(--line-soft)] bg-[var(--card)] pt-[env(safe-area-inset-top)] md:static md:hidden">
@@ -712,13 +695,14 @@ function MobileHeader({
           <Button
             variant="ghost"
             size="icon"
-            onClick={onToggle}
-            aria-expanded={isSidebarOpen}
-            aria-controls="mobile-sidebar"
-            aria-label={isSidebarOpen ? "關閉選單" : "開啟選單"}
+            onClick={onOpenPicker}
+            aria-expanded={isPickerOpen}
+            aria-haspopup="dialog"
+            aria-controls="module-picker"
+            aria-label="開啟選單"
             className="size-11 rounded-full border border-[var(--line-strong)] bg-[color:var(--panel-strong)] text-[var(--foreground)] hover:bg-[color:var(--panel-soft)]"
           >
-            {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+            <Menu size={18} />
           </Button>
         </div>
       </div>
@@ -793,7 +777,8 @@ function MobileBottomNav({
           type="button"
           onClick={onMoreClick}
           aria-expanded={isMenuOpen}
-          aria-controls="mobile-sidebar"
+          aria-haspopup="dialog"
+          aria-controls="module-picker"
           aria-label="更多模組"
           className={cn(
             "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 transition-impeccable active:scale-[0.97]",
@@ -824,112 +809,6 @@ function MobileBottomNav({
         </button>
       </div>
     </nav>
-  );
-}
-
-// ─────────────────────────────────────────────
-// Mobile Menu Sheet
-// ─────────────────────────────────────────────
-
-function MobileMenuSheet({
-  currentModule,
-  leafItems,
-  onClose,
-  onNavigateLeaf,
-}: {
-  currentModule: string;
-  leafItems: MenuItem[];
-  onClose: () => void;
-  onNavigateLeaf: (moduleId: string) => void;
-}) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-[var(--z-drawer-open)] lg:hidden">
-      <button
-        type="button"
-        aria-label="關閉選單背景"
-        className="absolute inset-0 bg-[var(--scrim)]"
-        onClick={onClose}
-      />
-      <aside
-        id="mobile-sidebar"
-        role="dialog"
-        aria-modal="true"
-        aria-label="全部模組"
-        className="surface-floating absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,720px)] flex-col rounded-t-2xl border-b-0 p-0 shadow-[var(--shadow-dock)] animate-in slide-in-from-bottom-8 duration-300 ease-out"
-      >
-        <div className="flex flex-col items-center px-4 pt-3">
-          <span
-            aria-hidden
-            className="mb-3 h-1 w-10 rounded-full bg-[var(--line-strong)]"
-          />
-          <div className="flex w-full items-center justify-between gap-3 pb-3">
-            <div className="min-w-0">
-              <p className="truncate text-lg font-semibold tracking-tight text-[var(--foreground)]">
-                全部模組
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <DensityToggleCompact />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onClose}
-                aria-label="關閉選單"
-                className="size-11 rounded-full border border-[var(--line-strong)]"
-              >
-                <X size={18} />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <section aria-label="快捷網格" className="pb-2">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-              {leafItems.map((item) => {
-                const isActive = currentModule === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onNavigateLeaf(item.id)}
-                    aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-2xl border px-1.5 py-2.5 text-center transition-impeccable active:scale-[0.97]",
-                      isActive
-                        ? "border-transparent bg-[var(--accent)] text-[var(--accent-foreground)]"
-                        : "border-[var(--line-soft)] bg-[color:var(--panel-soft)] text-[var(--muted-foreground)]"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex size-8 items-center justify-center rounded-xl border",
-                        isActive
-                          ? "border-white/25 bg-white/12"
-                          : "border-[var(--line-soft)] bg-white/70 text-[var(--foreground)] dark:bg-white/5"
-                      )}
-                    >
-                      {item.icon}
-                    </span>
-                    <span className="line-clamp-2 w-full text-[11px] font-medium leading-tight">
-                      {shortModuleLabel(item.label)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-      </aside>
-    </div>
   );
 }
 
@@ -982,12 +861,6 @@ function findMenuItem(items: MenuItem[], targetId: string): MenuItem | undefined
     if (child) return child;
   }
   return undefined;
-}
-
-function flattenLeafMenuItems(items: MenuItem[]): MenuItem[] {
-  return items.flatMap((item) =>
-    item.children?.length ? flattenLeafMenuItems(item.children) : item
-  );
 }
 
 function getSleepWarning() {
