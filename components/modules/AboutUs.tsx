@@ -114,6 +114,14 @@ const DOC_GROUPS = [
 
 const RELEASE_ITEMS = [
   {
+    date: "2026-11-25",
+    title: "核心原始碼統計更新",
+    bullets: [
+      "本次統計包含 435 個檔案，共 125,185 行。與 10 月 21 日相比，增加 19 個檔案、2,272 行。",
+      "在「系統架構」分頁可查看各語言的行數與檔案數。",
+    ],
+  },
+  {
     date: "2026-10-21",
     title: "核心原始碼重新統計",
     bullets: [
@@ -436,7 +444,7 @@ function AboutBanner() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MetricCard label="模組數" value={String(MODULE_COUNT)} detail="日常工作台、工具、子工具" />
           <MetricCard label="文件頁" value="18+" detail="模組文件、使用手冊、架構文件" />
-          <MetricCard label="程式碼行數" value={codebaseStats.totalLines.toLocaleString()} detail={`共 ${codebaseStats.totalFiles} 檔，核心原始碼（app / components / hooks / lib…）`} />
+          <MetricCard label="程式碼行數" value={codebaseStats.totalLines.toLocaleString("zh-TW")} detail={`${codebaseStats.snapshotDate} 統計，共 ${codebaseStats.totalFiles} 個核心原始碼檔案`} />
           <MetricCard label="技術骰架" value="AI CRUD" detail="統一摘要卡、搜尋、批次操作與 AI 建議" />
           <MetricCard label="網站營運天數" value={daysLabel} detail={daysDetail} />
           <MetricCard label="進站人次" value={visitLabel} detail={visitDetail} />
