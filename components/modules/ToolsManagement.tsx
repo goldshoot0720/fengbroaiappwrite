@@ -377,13 +377,16 @@ const financeSessionBadges = {
   pre: { label: "盤前 Pre-Market", color: "border-amber-200 bg-amber-50 text-amber-800" },
   regular: { label: "盤中", color: "border-slate-200 bg-slate-50 text-slate-700" },
   post: { label: "盤後 After-Hours", color: "border-violet-200 bg-violet-50 text-violet-800" },
-  closed: { label: "休市", color: "border-slate-300 bg-slate-100 text-slate-800" },
+  upcoming: { label: "未開盤", color: "border-slate-200 bg-slate-50 text-slate-700" },
+  break: { label: "盤中暫停交易", color: "border-amber-200 bg-amber-50 text-amber-800" },
+  ended: { label: "已收盤", color: "border-slate-200 bg-slate-50 text-slate-700" },
+  holiday: { label: "休市", color: "border-slate-300 bg-slate-100 text-slate-800" },
 };
 
-function FinanceSessionBadge({ quote }: { quote: Pick<FengbroFinanceQuote, "marketSession" | "marketState"> }) {
-  const session = quote.marketSession || (quote.marketState === "CLOSED" ? "closed" : "");
-  if (!session) return null;
-  const { label, color } = financeSessionBadges[session];
+function FinanceSessionBadge({ session }: { session?: FinanceMarketSession }) {
+  const badge = session && financeSessionBadges[session];
+  if (!badge) return null;
+  const { label, color } = badge;
   return <span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>{label}</span>;
 }
 
@@ -3605,7 +3608,7 @@ function FengbroFinanceSection({
                                 ) : null}
                                 {cfg.title}
                               </h4>
-                              <FinanceSessionBadge quote={quote} />
+                              <FinanceSessionBadge session={quote.marketSession} />
                             </div>
                             {(quote.localLabel ||
                               recordLabel ||
@@ -3891,7 +3894,7 @@ function FengbroFinanceSection({
                                   {quote.localLabel}
                                 </span>
                               )}
-                              <FinanceSessionBadge quote={quote} />
+                              <FinanceSessionBadge session={quote.marketSession} />
                               {quote.periodLabel && (
                                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                                   {quote.periodLabel}

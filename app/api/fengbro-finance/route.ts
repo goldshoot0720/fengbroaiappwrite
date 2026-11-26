@@ -652,7 +652,7 @@ async function fetchMisInstrument(instrument: FinanceInstrument, lookupSession: 
     change != null && previousClose ? (change / previousClose) * 100 : null;
 
   const marketSession = await lookupSession("TW");
-  const marketState = marketSession.toUpperCase();
+  const marketState = marketSession === "regular" ? "REGULAR" : marketSession ? "CLOSED" : "";
 
   const tradeDate = asText(record.d); // YYYYMMDD
   const tradeTime = asText(record.t); // HH:mm:ss
