@@ -1,3 +1,4 @@
+import { asNumber, pickNumber, getYahooSessionChange } from "@/lib/financeQuoteChange";
 import { NextResponse } from "next/server";
 import {
   buildCnbcQuoteSourceUrl,
@@ -299,25 +300,8 @@ function getDefaultFinanceInstruments(request: Request) {
   }
 }
 
-function asNumber(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string") return null;
-  const cleaned = value.replace(/[$,%\s,]/g, "");
-  if (!cleaned || cleaned === "--" || cleaned.toUpperCase() === "N/A") return null;
-  const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function asText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function pickNumber(record: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const value = asNumber(record[key]);
-    if (value != null) return value;
-  }
-  return null;
 }
 
 function pickText(record: Record<string, unknown>, keys: string[]) {
@@ -640,6 +624,7 @@ async function fetchInstrument(instrument: FinanceInstrument) {
     price,
     change: pickNumber(quote, ["change", "net_change"]),
     changePercent: pickNumber(quote, ["change_pct", "change_percent", "pctchange"]),
+    exchangeCountry: pickText(quote, ["countryCode"]).toUpperCase(),
     currency: pickText(quote, ["currencyCode", "currency"]) || "",
     high52,
     low52,
@@ -834,16 +819,10 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
 
   // Latest regular-session price from quote meta only (not 1y history series).
   const regularPrice = pickNumber(meta, ["regularMarketPrice"]);
-  // Session previous close only — never chartPreviousClose from multi-month ranges.
-  const previousClose = pickNumber(meta, ["regularMarketPreviousClose", "previousClose"]);
+  const { previousClose, change: regularChange, changePercent: regularChangePercent } =
+    getYahooSessionChange(regularPrice, meta);
   const high52 = pickNumber(meta, ["fiftyTwoWeekHigh"]);
   const low52 = pickNumber(meta, ["fiftyTwoWeekLow"]);
-  const regularChange =
-    pickNumber(meta, ["regularMarketChange"]) ??
-    (regularPrice != null && previousClose != null ? regularPrice - previousClose : null);
-  const regularChangePercent =
-    pickNumber(meta, ["regularMarketChangePercent"]) ??
-    (regularChange != null && previousClose ? (regularChange / previousClose) * 100 : null);
   const marketState = pickText(meta, ["marketState"]).toUpperCase();
 
   let preMarketPrice = pickNumber(meta, ["preMarketPrice"]);
@@ -957,6 +936,7 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
     low52,
     dayHigh,
     dayLow,
+    exchangeTimezone: pickText(meta, ["exchangeTimezoneName"]),
     marketState: marketState || "",
     marketSession,
     preMarketPrice,

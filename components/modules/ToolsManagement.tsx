@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Pencil, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
+import { financeChangeClass, formatFinanceChange } from "@/lib/financeQuoteChange";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
 import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
@@ -305,6 +306,8 @@ type FengbroFinanceQuote = {
   imageUrl?: string;
   imageUrls?: string[];
   group: FinanceCustomGroup;
+  exchangeTimezone?: string;
+  exchangeCountry?: string;
   provider?: "cnbc" | "yahoo" | "multpl" | "mis";
   price: number | null;
   change: number | null;
@@ -702,6 +705,41 @@ function formatFinanceNumber(value: number | null | undefined, maximumFractionDi
   }).format(value);
 }
 
+type FinanceMarket = Pick<FengbroFinanceQuote, "group" | "symbol" | "exchangeTimezone" | "exchangeCountry">;
+
+function FinanceChange({ quote, points, percent }: {
+  quote: FinanceMarket;
+  points?: number | null;
+  percent?: number | null;
+}) {
+  return (
+    <div className="text-right text-xs font-semibold tabular-nums">
+      <p className={financeChangeClass(quote, points)}>{formatFinanceChange(points)}</p>
+      <p className={financeChangeClass(quote, percent)}>{formatFinanceChange(percent, true)}</p>
+    </div>
+  );
+}
+
+function FinanceDistance({ quote, reference }: { quote: FengbroFinanceQuote; reference: number | null }) {
+  if (quote.price == null || reference == null || reference <= 0) return null;
+  const percent = (quote.price - reference) / reference * 100;
+  return <span className={`text-[10px] font-bold ${financeChangeClass(quote, percent)}`}>{formatFinanceChange(percent, true)}</span>;
+}
+
+const quoteTimeFormat = new Intl.DateTimeFormat("zh-TW", {
+  timeZone: "Asia/Taipei", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
+
+function FinancePriceLabel({ lastUpdated }: { lastUpdated: string }) {
+  const time = Date.parse(lastUpdated);
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs text-muted-foreground">
+      <span>最新價</span>
+      {Number.isFinite(time) && <time dateTime={new Date(time).toISOString()}>報價 {quoteTimeFormat.format(time)}（台北）</time>}
+    </div>
+  );
+}
+
 /** Standard Fibonacci retracement ratios (0% low → 100% high). */
 const FIBONACCI_RETRACEMENT_RATIOS = [
   { ratio: 0, label: "0%" },
@@ -767,7 +805,7 @@ function buildFibonacciRetracementLevels(
 function FinanceFibonacciRetracementPanel({
   quote,
 }: {
-  quote: Pick<FengbroFinanceQuote, "high52" | "low52" | "price" | "currency" | "id" | "symbol">;
+  quote: FengbroFinanceQuote;
 }) {
   const levels = useMemo(() => {
     if (typeof quote.high52 !== "number" || typeof quote.low52 !== "number") return null;
@@ -868,18 +906,10 @@ function FinanceFibonacciRetracementPanel({
                     </td>
                     <td
                       className={`px-2.5 py-1.5 tabular-nums ${
-                        level.vsPricePct == null
-                          ? "text-muted-foreground"
-                          : level.vsPricePct > 0
-                            ? "text-emerald-700"
-                            : level.vsPricePct < 0
-                              ? "text-red-600"
-                              : "text-muted-foreground"
+                        financeChangeClass(quote, level.vsPricePct)
                       }`}
                     >
-                      {level.vsPricePct == null
-                        ? "--"
-                        : `${level.vsPricePct >= 0 ? "+" : ""}${level.vsPricePct.toFixed(2)}%`}
+                      {formatFinanceChange(level.vsPricePct, true)}
                     </td>
                   </tr>
                 );
@@ -1192,11 +1222,11 @@ function FinanceHistoryChart({
       earliest,
       latest,
       changePercent,
-      isUp: latest.price >= earliest.price,
+      change: latest.price - earliest.price,
       gradientId: `financeHistoryArea-${quote.id}-${rangeKey}`,
       referenceLines,
     };
-  }, [quote.historyRanges, quote.id, quote.high52, quote.low52, quote.referenceLevels, rangeKey]);
+  }, [quote.historyRanges, quote.id, quote.referenceLevels, rangeKey]);
 
   if (!chart) {
     return (
@@ -1206,6 +1236,7 @@ function FinanceHistoryChart({
     );
   }
 
+  const trendClass = financeChangeClass(quote, chart.change);
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,0.98))]">
       <div className="flex items-center justify-between gap-3 px-3 pt-3 text-xs">
@@ -1215,17 +1246,17 @@ function FinanceHistoryChart({
             {chart.earliest.date.slice(0, 7)} - {chart.latest.date.slice(0, 7)}
           </p>
         </div>
-        <div className={`text-right font-semibold ${chart.isUp ? "text-emerald-700" : "text-red-600"}`}>
-          <p>{chart.changePercent != null ? `${chart.changePercent >= 0 ? "+" : ""}${formatFinanceNumber(chart.changePercent, 2)}%` : "--"}</p>
+        <div className={`text-right font-semibold ${trendClass}`}>
+          <p>{formatFinanceChange(chart.changePercent, true)}</p>
           <p className="text-[11px] font-medium text-muted-foreground">
             {formatFinanceNumber(chart.minPrice, 2)} / {formatFinanceNumber(chart.maxPrice, 2)}
           </p>
         </div>
       </div>
-      <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-28 w-full">
+      <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className={`h-28 w-full ${trendClass}`}>
         <defs>
           <linearGradient id={chart.gradientId} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={chart.isUp ? "rgba(16,185,129,0.30)" : "rgba(239,68,68,0.28)"} />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
             <stop offset="100%" stopColor="rgba(255,255,255,0)" />
           </linearGradient>
         </defs>
@@ -1257,7 +1288,7 @@ function FinanceHistoryChart({
         <path
           d={chart.linePath}
           fill="none"
-          stroke={chart.isUp ? "rgb(5,150,105)" : "rgb(220,38,38)"}
+          stroke="currentColor"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="3"
@@ -3525,7 +3556,6 @@ function FengbroFinanceSection({
                         bgClass: "bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))]",
                         borderClass: "border-amber-200",
                       };
-                      const isUp = (quote.change || 0) >= 0;
                       const recordLabel = getFinanceRecordLabel(quote.recordTag);
                       const indexEmoji = getFinanceIndexEmoji(quote);
                       const band = bandRangeFromHistory(quote.historyRanges?.["1y"]);
@@ -3573,15 +3603,10 @@ function FengbroFinanceSection({
                                     typeof quote.price === "number" && level.value > 0
                                       ? ((quote.price - level.value) / level.value) * 100
                                       : null;
-                                  const broken = vsPct != null && vsPct < 0;
                                   return (
                                     <span
                                       key={`${level.label}-${level.value}`}
-                                      className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                                        broken
-                                          ? "border-rose-300 bg-rose-50 text-rose-800"
-                                          : "border-amber-300 bg-amber-50 text-amber-900"
-                                      }`}
+                                      className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${financeChangeClass(quote, vsPct)}`}
                                       title={level.label}
                                     >
                                       {level.label}
@@ -3592,13 +3617,13 @@ function FengbroFinanceSection({
                                   );
                                 })}
                                 {recordLabel && (
-                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-sky-50 text-sky-700 border-sky-200"}`}>
+                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${financeChangeClass(quote, quote.recordTag === "new-high" ? 1 : -1)}`}>
                                     {recordLabel}
                                   </span>
                                 )}
                                 {bandLabel && (
                                   <span
-                                    className={`rounded-full border bg-white px-2 py-0.5 text-[11px] font-semibold ${bandTag === "band-high" ? "border-rose-200 text-rose-700" : "border-sky-200 text-sky-700"}`}
+                                    className={`rounded-full border bg-white px-2 py-0.5 text-[11px] font-semibold ${financeChangeClass(quote, bandTag === "band-high" ? 1 : -1)}`}
                                     title={`前 ${BAND_WEEKS} 週週收盤區間（不含本週那根還沒收盤的 K）`}
                                   >
                                     {bandLabel}
@@ -3627,7 +3652,7 @@ function FengbroFinanceSection({
                               />
                               <div className={`grid gap-2 ${quote.preMarketPrice != null || quote.postMarketPrice != null ? "grid-cols-2" : "grid-cols-1"}`}>
                                 <div className="rounded-xl border border-slate-100 bg-white/70 px-3 py-2">
-                                  <p className="text-xs text-muted-foreground">最新價</p>
+                                  <FinancePriceLabel lastUpdated={quote.lastUpdated} />
                                   <div className="mt-0.5 flex items-end justify-between gap-2">
                                     <p className="text-2xl font-bold text-foreground tabular-nums">
                                       {formatFinanceNumber(quote.price, 2)}
@@ -3635,10 +3660,7 @@ function FengbroFinanceSection({
                                         <span className="ml-1 text-xs font-medium text-muted-foreground">{quote.currency}</span>
                                       )}
                                     </p>
-                                    <div className={`text-right text-xs font-semibold tabular-nums ${isUp ? "text-emerald-700" : "text-red-600"}`}>
-                                      <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.change, 2)}</p>
-                                      <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.changePercent, 2)}%</p>
-                                    </div>
+                                    <FinanceChange quote={quote} points={quote.change} percent={quote.changePercent} />
                                   </div>
                                 </div>
                                 {quote.preMarketPrice != null && (
@@ -3648,10 +3670,7 @@ function FengbroFinanceSection({
                                       <p className="text-2xl font-bold text-amber-950 tabular-nums">
                                         {formatFinanceNumber(quote.preMarketPrice, 2)}
                                       </p>
-                                      <div className={`text-right text-xs font-semibold tabular-nums ${(quote.preMarketChange || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                                        <p>{(quote.preMarketChange || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.preMarketChange, 2)}</p>
-                                        <p>{(quote.preMarketChangePercent || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.preMarketChangePercent, 2)}%</p>
-                                      </div>
+                                      <FinanceChange quote={quote} points={quote.preMarketChange} percent={quote.preMarketChangePercent} />
                                     </div>
                                   </div>
                                 )}
@@ -3662,10 +3681,7 @@ function FengbroFinanceSection({
                                       <p className="text-2xl font-bold text-violet-950 tabular-nums">
                                         {formatFinanceNumber(quote.postMarketPrice, 2)}
                                       </p>
-                                      <div className={`text-right text-xs font-semibold tabular-nums ${(quote.postMarketChange || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                                        <p>{(quote.postMarketChange || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.postMarketChange, 2)}</p>
-                                        <p>{(quote.postMarketChangePercent || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.postMarketChangePercent, 2)}%</p>
-                                      </div>
+                                      <FinanceChange quote={quote} points={quote.postMarketChange} percent={quote.postMarketChangePercent} />
                                     </div>
                                   </div>
                                 )}
@@ -3676,22 +3692,14 @@ function FengbroFinanceSection({
                                   <p className="text-muted-foreground">52W High</p>
                                   <div className="flex items-end justify-between">
                                     <p className="mt-0.5 font-semibold">{formatFinanceNumber(quote.high52, 2)}</p>
-                                    {typeof quote.price === "number" && typeof quote.high52 === "number" && quote.high52 > 0 && (
-                                      <span className={`text-[10px] font-bold ${quote.price >= quote.high52 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                        {quote.price >= quote.high52 ? '+' : ''}{((quote.price - quote.high52) / quote.high52 * 100).toFixed(2)}%
-                                      </span>
-                                    )}
+                                    <FinanceDistance quote={quote} reference={quote.high52} />
                                   </div>
                                 </div>
                                 <div className="rounded-xl bg-white/70 px-3 py-2 border border-slate-100">
                                   <p className="text-muted-foreground">52W Low</p>
                                   <div className="flex items-end justify-between">
                                     <p className="mt-0.5 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
-                                    {typeof quote.price === "number" && typeof quote.low52 === "number" && quote.low52 > 0 && (
-                                      <span className={`text-[10px] font-bold ${quote.price >= quote.low52 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                        {quote.price >= quote.low52 ? '+' : ''}{((quote.price - quote.low52) / quote.low52 * 100).toFixed(2)}%
-                                      </span>
-                                    )}
+                                    <FinanceDistance quote={quote} reference={quote.low52} />
                                   </div>
                                 </div>
                                 {/* 26W（波段）高低：最近一年週線的前 26 週（不含本週） */}
@@ -3699,22 +3707,14 @@ function FengbroFinanceSection({
                                   <p className="text-muted-foreground">26W High</p>
                                   <div className="flex items-end justify-between">
                                     <p className="mt-0.5 font-semibold">{formatFinanceNumber(band.high, 2)}</p>
-                                    {typeof quote.price === "number" && band.high != null && band.high > 0 && (
-                                      <span className={`text-[10px] font-bold ${quote.price >= band.high ? 'text-emerald-600' : 'text-red-500'}`}>
-                                        {quote.price >= band.high ? '+' : ''}{((quote.price - band.high) / band.high * 100).toFixed(2)}%
-                                      </span>
-                                    )}
+                                    <FinanceDistance quote={quote} reference={band.high} />
                                   </div>
                                 </div>
                                 <div className="rounded-xl bg-white/70 px-3 py-2 border border-dashed border-slate-200">
                                   <p className="text-muted-foreground">26W Low</p>
                                   <div className="flex items-end justify-between">
                                     <p className="mt-0.5 font-semibold">{formatFinanceNumber(band.low, 2)}</p>
-                                    {typeof quote.price === "number" && band.low != null && band.low > 0 && (
-                                      <span className={`text-[10px] font-bold ${quote.price >= band.low ? 'text-emerald-600' : 'text-red-500'}`}>
-                                        {quote.price >= band.low ? '+' : ''}{((quote.price - band.low) / band.low * 100).toFixed(2)}%
-                                      </span>
-                                    )}
+                                    <FinanceDistance quote={quote} reference={band.low} />
                                   </div>
                                 </div>
                               </div>
@@ -3743,12 +3743,12 @@ function FengbroFinanceSection({
                                         </span>
                                       </span>
                                       {daily.newHigh && (
-                                        <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-700">
+                                        <span className={`rounded-full border px-2 py-0.5 font-semibold ${financeChangeClass(quote, 1)}`}>
                                           今日創新高 52W
                                         </span>
                                       )}
                                       {daily.newLow && (
-                                        <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 font-semibold text-sky-700">
+                                        <span className={`rounded-full border px-2 py-0.5 font-semibold ${financeChangeClass(quote, -1)}`}>
                                           今日創新低 52W
                                         </span>
                                       )}
@@ -3847,7 +3847,6 @@ function FengbroFinanceSection({
                     const band = bandRangeFromHistory(quote.historyRanges?.["1y"]);
                     const bandTag = getBandTag(quote.price, band, quote.recordTag);
                     const bandLabel = getFinanceBandLabel(bandTag);
-                    const isUp = (quote.change || 0) >= 0;
                     const isBearMarket = isFinanceBearMarketFrom52WHigh(quote);
                     const canEditQuote = Boolean(findCustomInstrumentByQuoteId(quote.id));
                     return (
@@ -3896,15 +3895,10 @@ function FengbroFinanceSection({
                                   typeof quote.price === "number" && level.value > 0
                                     ? ((quote.price - level.value) / level.value) * 100
                                     : null;
-                                const broken = vsPct != null && vsPct < 0;
                                 return (
                                   <span
                                     key={`${level.label}-${level.value}`}
-                                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                                      broken
-                                        ? "border-rose-300 bg-rose-50 text-rose-800"
-                                        : "border-amber-300 bg-amber-50 text-amber-900"
-                                    }`}
+                                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${financeChangeClass(quote, vsPct)}`}
                                     title={level.label}
                                   >
                                     {level.label}
@@ -3915,13 +3909,13 @@ function FengbroFinanceSection({
                                 );
                               })}
                               {recordLabel && (
-                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${quote.recordTag === "new-high" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-sky-50 text-sky-700 border border-sky-200"}`}>
+                                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${financeChangeClass(quote, quote.recordTag === "new-high" ? 1 : -1)}`}>
                                   {recordLabel}
                                 </span>
                               )}
                               {bandLabel && (
                                 <span
-                                  className={`rounded-full border bg-white px-2.5 py-1 text-xs font-semibold ${bandTag === "band-high" ? "border-rose-200 text-rose-700" : "border-sky-200 text-sky-700"}`}
+                                  className={`rounded-full border bg-white px-2.5 py-1 text-xs font-semibold ${financeChangeClass(quote, bandTag === "band-high" ? 1 : -1)}`}
                                   title={`前 ${BAND_WEEKS} 週週收盤區間（不含本週那根還沒收盤的 K）`}
                                 >
                                   {bandLabel}
@@ -3981,16 +3975,13 @@ function FengbroFinanceSection({
                           <>
                             <div className={`mt-4 grid gap-2 ${quote.preMarketPrice != null || quote.postMarketPrice != null ? "grid-cols-2" : "grid-cols-1"}`}>
                               <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                                <p className="text-xs text-muted-foreground">最新價</p>
+                                <FinancePriceLabel lastUpdated={quote.lastUpdated} />
                                 <div className="mt-1 flex items-end justify-between gap-2">
                                   <p className="text-2xl font-semibold text-foreground tabular-nums">
                                     {formatFinanceNumber(quote.price, 2)}
                                     {quote.currency ? <span className="ml-1 text-xs font-medium text-muted-foreground">{quote.currency}</span> : null}
                                   </p>
-                                  <div className={`text-right text-xs font-semibold tabular-nums ${isUp ? "text-emerald-700" : "text-red-600"}`}>
-                                    <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.change, 2)}</p>
-                                    <p>{isUp ? "+" : ""}{formatFinanceNumber(quote.changePercent, 2)}%</p>
-                                  </div>
+                                  <FinanceChange quote={quote} points={quote.change} percent={quote.changePercent} />
                                 </div>
                               </div>
                               {quote.preMarketPrice != null && (
@@ -4000,10 +3991,7 @@ function FengbroFinanceSection({
                                     <p className="text-2xl font-semibold text-amber-950 tabular-nums">
                                       {formatFinanceNumber(quote.preMarketPrice, 2)}
                                     </p>
-                                    <div className={`text-right text-xs font-semibold tabular-nums ${(quote.preMarketChange || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                                      <p>{(quote.preMarketChange || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.preMarketChange, 2)}</p>
-                                      <p>{(quote.preMarketChangePercent || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.preMarketChangePercent, 2)}%</p>
-                                    </div>
+                                    <FinanceChange quote={quote} points={quote.preMarketChange} percent={quote.preMarketChangePercent} />
                                   </div>
                                 </div>
                               )}
@@ -4014,10 +4002,7 @@ function FengbroFinanceSection({
                                     <p className="text-2xl font-semibold text-violet-950 tabular-nums">
                                       {formatFinanceNumber(quote.postMarketPrice, 2)}
                                     </p>
-                                    <div className={`text-right text-xs font-semibold tabular-nums ${(quote.postMarketChange || 0) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                                      <p>{(quote.postMarketChange || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.postMarketChange, 2)}</p>
-                                      <p>{(quote.postMarketChangePercent || 0) >= 0 ? "+" : ""}{formatFinanceNumber(quote.postMarketChangePercent, 2)}%</p>
-                                    </div>
+                                    <FinanceChange quote={quote} points={quote.postMarketChange} percent={quote.postMarketChangePercent} />
                                   </div>
                                 </div>
                               )}
@@ -4027,22 +4012,14 @@ function FengbroFinanceSection({
                                 <p className="text-muted-foreground">52W High</p>
                                 <div className="flex items-end justify-between">
                                   <p className="mt-1 font-semibold">{formatFinanceNumber(quote.high52, 2)}</p>
-                                  {typeof quote.price === "number" && typeof quote.high52 === "number" && quote.high52 > 0 && (
-                                    <span className={`text-[10px] font-bold ${quote.price >= quote.high52 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                      {quote.price >= quote.high52 ? '+' : ''}{((quote.price - quote.high52) / quote.high52 * 100).toFixed(2)}%
-                                    </span>
-                                  )}
+                                  <FinanceDistance quote={quote} reference={quote.high52} />
                                 </div>
                               </div>
                               <div className="rounded-xl bg-slate-50 px-3 py-2">
                                 <p className="text-muted-foreground">52W Low</p>
                                 <div className="flex items-end justify-between">
                                   <p className="mt-1 font-semibold">{formatFinanceNumber(quote.low52, 2)}</p>
-                                  {typeof quote.price === "number" && typeof quote.low52 === "number" && quote.low52 > 0 && (
-                                    <span className={`text-[10px] font-bold ${quote.price >= quote.low52 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                      {quote.price >= quote.low52 ? '+' : ''}{((quote.price - quote.low52) / quote.low52 * 100).toFixed(2)}%
-                                    </span>
-                                  )}
+                                  <FinanceDistance quote={quote} reference={quote.low52} />
                                 </div>
                               </div>
                               {/* 26W（波段）高低：個股與指數同一套，最近一年週線的前 26 週（不含本週） */}
@@ -4053,11 +4030,7 @@ function FengbroFinanceSection({
                                 <p className="text-muted-foreground">26W High</p>
                                 <div className="flex items-end justify-between">
                                   <p className="mt-1 font-semibold">{formatFinanceNumber(band.high, 2)}</p>
-                                  {typeof quote.price === "number" && band.high != null && band.high > 0 && (
-                                    <span className={`text-[10px] font-bold ${quote.price >= band.high ? 'text-emerald-600' : 'text-red-500'}`}>
-                                      {quote.price >= band.high ? '+' : ''}{((quote.price - band.high) / band.high * 100).toFixed(2)}%
-                                    </span>
-                                  )}
+                                  <FinanceDistance quote={quote} reference={band.high} />
                                 </div>
                               </div>
                               <div
@@ -4067,11 +4040,7 @@ function FengbroFinanceSection({
                                 <p className="text-muted-foreground">26W Low</p>
                                 <div className="flex items-end justify-between">
                                   <p className="mt-1 font-semibold">{formatFinanceNumber(band.low, 2)}</p>
-                                  {typeof quote.price === "number" && band.low != null && band.low > 0 && (
-                                    <span className={`text-[10px] font-bold ${quote.price >= band.low ? 'text-emerald-600' : 'text-red-500'}`}>
-                                      {quote.price >= band.low ? '+' : ''}{((quote.price - band.low) / band.low * 100).toFixed(2)}%
-                                    </span>
-                                  )}
+                                  <FinanceDistance quote={quote} reference={band.low} />
                                 </div>
                               </div>
                             </div>
