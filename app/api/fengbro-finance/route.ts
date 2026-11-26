@@ -1,3 +1,4 @@
+import { cnbcIndexSession, createMarketSessionLookup, yahooQuoteSession, type MarketSessionLookup } from "@/lib/financeMarketSession";
 import { asNumber, pickNumber, getYahooSessionChange } from "@/lib/financeQuoteChange";
 import { NextResponse } from "next/server";
 import {
@@ -317,36 +318,18 @@ function nearlyEqual(left: number, right: number) {
   return Math.abs(left - right) <= tolerance;
 }
 
-/** Asia/Taipei calendar parts for market session / ROC date windows. */
+/** Asia/Taipei calendar month for ROC date windows. */
 function getTaipeiNowParts() {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Taipei",
     year: "numeric",
     month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    weekday: "short",
-    hourCycle: "h23",
   }).formatToParts(new Date());
   const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
   return {
     year: Number(get("year")),
     month: Number(get("month")),
-    day: Number(get("day")),
-    hour: Number(get("hour")),
-    minute: Number(get("minute")),
-    weekday: get("weekday"),
   };
-}
-
-function getTwMarketSessionFromTaipei(): "pre" | "regular" | "closed" {
-  const { hour, minute, weekday } = getTaipeiNowParts();
-  if (weekday === "Sat" || weekday === "Sun") return "closed";
-  const mins = hour * 60 + minute;
-  if (mins < 9 * 60) return "pre";
-  if (mins < 13 * 60 + 30) return "regular";
-  return "closed";
 }
 
 /** Gregorian YYYY-MM-DD → ROC yyy/MM/dd (民國年). */
@@ -576,7 +559,7 @@ async function fetchYahooHistoryRanges(instrument: FinanceInstrument) {
   return { historyRanges, historyErrors };
 }
 
-async function fetchInstrument(instrument: FinanceInstrument) {
+async function fetchInstrument(instrument: FinanceInstrument, lookupSession: MarketSessionLookup) {
   const params = new URLSearchParams({
     symbols: instrument.symbol,
     requestMethod: "quick",
@@ -625,6 +608,7 @@ async function fetchInstrument(instrument: FinanceInstrument) {
     change: pickNumber(quote, ["change", "net_change"]),
     changePercent: pickNumber(quote, ["change_pct", "change_percent", "pctchange"]),
     exchangeCountry: pickText(quote, ["countryCode"]).toUpperCase(),
+    marketSession: await cnbcIndexSession(quote, lookupSession),
     currency: pickText(quote, ["currencyCode", "currency"]) || "",
     high52,
     low52,
@@ -639,7 +623,7 @@ async function fetchInstrument(instrument: FinanceInstrument) {
  * Live quote for Taiwan OTC / 櫃買指數 via TWSE MIS.
  * Yahoo ^TWOII is stuck around 2024 levels and must not be used.
  */
-async function fetchMisInstrument(instrument: FinanceInstrument) {
+async function fetchMisInstrument(instrument: FinanceInstrument, lookupSession: MarketSessionLookup) {
   const exCh = instrument.symbol.includes("_") ? instrument.symbol : `otc_${instrument.symbol}`;
   const params = new URLSearchParams({
     ex_ch: exCh,
@@ -667,9 +651,8 @@ async function fetchMisInstrument(instrument: FinanceInstrument) {
   const changePercent =
     change != null && previousClose ? (change / previousClose) * 100 : null;
 
-  const marketSession = getTwMarketSessionFromTaipei();
-  const marketState =
-    marketSession === "regular" ? "REGULAR" : marketSession === "pre" ? "PRE" : "CLOSED";
+  const marketSession = await lookupSession("TW");
+  const marketState = marketSession.toUpperCase();
 
   const tradeDate = asText(record.d); // YYYYMMDD
   const tradeTime = asText(record.t); // HH:mm:ss
@@ -786,7 +769,7 @@ function isTickerLikeName(name: string, symbol: string) {
   return false;
 }
 
-async function fetchYahooInstrument(instrument: FinanceInstrument) {
+async function fetchYahooInstrument(instrument: FinanceInstrument, lookupSession: MarketSessionLookup) {
   // Chart API symbol may differ from display/source symbol (Japan 998407.O → ^N225).
   const chartSymbol = resolveYahooChartSymbol(instrument.symbol);
   const isUsListed =
@@ -867,17 +850,7 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   const change = regularChange;
   const changePercent = regularChangePercent;
   const marketTime = pickNumber(meta, ["regularMarketTime"]);
-  let marketSession: "pre" | "regular" | "post" | "closed" | "" = "";
-
-  if (marketState === "PRE") {
-    marketSession = "pre";
-  } else if (marketState === "POST" || marketState === "POSTPOST") {
-    marketSession = "post";
-  } else if (marketState === "REGULAR") {
-    marketSession = "regular";
-  } else if (marketState === "CLOSED") {
-    marketSession = "closed";
-  }
+  const marketSession = await yahooQuoteSession({ ...meta, marketState }, lookupSession);
 
   const dayHigh = pickNumber(meta, ["regularMarketDayHigh"]);
   const dayLow = pickNumber(meta, ["regularMarketDayLow"]);
@@ -954,15 +927,15 @@ async function fetchYahooInstrument(instrument: FinanceInstrument) {
   };
 }
 
-async function fetchFinanceInstrument(instrument: FinanceInstrument, options?: { skipHistory?: boolean }) {
+async function fetchFinanceInstrument(instrument: FinanceInstrument, lookupSession: MarketSessionLookup, skipHistory: boolean) {
   const quote =
     instrument.provider === "mis"
-      ? await fetchMisInstrument(instrument)
+      ? await fetchMisInstrument(instrument, lookupSession)
       : instrument.provider === "yahoo"
-        ? await fetchYahooInstrument(instrument)
-        : await fetchInstrument(instrument);
+        ? await fetchYahooInstrument(instrument, lookupSession)
+        : await fetchInstrument(instrument, lookupSession);
 
-  if (options?.skipHistory) {
+  if (skipHistory) {
     return { ...quote, historyRanges: {}, historyErrors: {} };
   }
 
@@ -1013,7 +986,8 @@ function shouldSkipHistory(request: Request) {
 export async function GET(request: Request) {
   const skipHistory = shouldSkipHistory(request);
   const instruments = [...getDefaultFinanceInstruments(request), ...getCustomFinanceInstruments(request)];
-  const settled = await Promise.allSettled(instruments.map((instrument) => fetchFinanceInstrument(instrument, { skipHistory })));
+  const lookupSession = createMarketSessionLookup();
+  const settled = await Promise.allSettled(instruments.map((instrument) => fetchFinanceInstrument(instrument, lookupSession, skipHistory)));
   const baseQuotes = settled.map((item, index) => {
     if (item.status === "fulfilled") return item.value;
     const instrument = instruments[index];

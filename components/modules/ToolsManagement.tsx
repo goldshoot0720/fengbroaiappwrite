@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Pencil, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
+import type { FinanceMarketSession } from "@/lib/financeMarketSession";
 import { financeChangeClass, formatFinanceChange } from "@/lib/financeQuoteChange";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
@@ -318,7 +319,7 @@ type FengbroFinanceQuote = {
   dayHigh: number | null;
   dayLow: number | null;
   marketState?: string;
-  marketSession?: "pre" | "regular" | "post" | "closed" | "";
+  marketSession?: FinanceMarketSession;
   preMarketPrice?: number | null;
   preMarketChange?: number | null;
   preMarketChangePercent?: number | null;
@@ -372,12 +373,18 @@ function getFinanceQuoteTitle(
   return name || displayName || symbol;
 }
 
-function getFinanceSessionLabel(quote: Pick<FengbroFinanceQuote, "marketSession" | "marketState">) {
-  if (quote.marketSession === "pre") return "盤前 Pre-Market";
-  if (quote.marketSession === "post") return "盤後 After-Hours";
-  if (quote.marketSession === "regular") return "盤中";
-  if (quote.marketSession === "closed" || quote.marketState === "CLOSED") return "收盤";
-  return "";
+const financeSessionBadges = {
+  pre: { label: "盤前 Pre-Market", color: "border-amber-200 bg-amber-50 text-amber-800" },
+  regular: { label: "盤中", color: "border-slate-200 bg-slate-50 text-slate-700" },
+  post: { label: "盤後 After-Hours", color: "border-violet-200 bg-violet-50 text-violet-800" },
+  closed: { label: "休市", color: "border-slate-300 bg-slate-100 text-slate-800" },
+};
+
+function FinanceSessionBadge({ quote }: { quote: Pick<FengbroFinanceQuote, "marketSession" | "marketState"> }) {
+  const session = quote.marketSession || (quote.marketState === "CLOSED" ? "closed" : "");
+  if (!session) return null;
+  const { label, color } = financeSessionBadges[session];
+  return <span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>{label}</span>;
 }
 
 type FengbroFinanceResult = {
@@ -3589,14 +3596,17 @@ function FengbroFinanceSection({
                             <p className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${cfg.accentClass} opacity-80`}>
                               {cfg.subtitle}
                             </p>
-                            <h4 className="mt-1 text-lg font-semibold text-foreground leading-tight">
-                              {indexEmoji ? (
-                                <span className="mr-1.5 align-[-2px]" aria-hidden>
-                                  {indexEmoji}
-                                </span>
-                              ) : null}
-                              {cfg.title}
-                            </h4>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <h4 className="text-lg font-semibold text-foreground leading-tight">
+                                {indexEmoji ? (
+                                  <span className="mr-1.5 align-[-2px]" aria-hidden>
+                                    {indexEmoji}
+                                  </span>
+                                ) : null}
+                                {cfg.title}
+                              </h4>
+                              <FinanceSessionBadge quote={quote} />
+                            </div>
                             {(quote.localLabel ||
                               recordLabel ||
                               isBearMarket ||
@@ -3881,19 +3891,7 @@ function FengbroFinanceSection({
                                   {quote.localLabel}
                                 </span>
                               )}
-                              {getFinanceSessionLabel(quote) && (
-                                <span
-                                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                                    quote.marketSession === "pre"
-                                      ? "border-amber-200 bg-amber-50 text-amber-800"
-                                      : quote.marketSession === "post"
-                                        ? "border-violet-200 bg-violet-50 text-violet-800"
-                                        : "border-slate-200 bg-slate-50 text-slate-700"
-                                  }`}
-                                >
-                                  {getFinanceSessionLabel(quote)}
-                                </span>
-                              )}
+                              <FinanceSessionBadge quote={quote} />
                               {quote.periodLabel && (
                                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                                   {quote.periodLabel}
