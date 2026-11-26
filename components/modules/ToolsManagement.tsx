@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Pencil, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Clock, Download, ExternalLink, Pencil, Play, Plus, RefreshCw, RotateCcw, Search, Smartphone, Star, Trash2, Upload, Wrench } from "lucide-react";
 import { financeChangeClass, formatFinanceChange } from "@/lib/financeQuoteChange";
 import { PageTitle } from "@/components/ui/section-header";
 import { DataCard } from "@/components/ui/data-card";
@@ -712,10 +712,19 @@ function FinanceChange({ quote, points, percent }: {
   points?: number | null;
   percent?: number | null;
 }) {
+  const change = Number.isFinite(points) ? points : percent;
+  const rising = change != null && change > 0;
+  const Arrow = rising ? ArrowUp : ArrowDown;
   return (
-    <div className="text-right text-xs font-semibold tabular-nums">
-      <p className={financeChangeClass(quote, points)}>{formatFinanceChange(points)}</p>
-      <p className={financeChangeClass(quote, percent)}>{formatFinanceChange(percent, true)}</p>
+    <div className="flex items-center justify-end gap-1 text-right text-xs font-semibold tabular-nums">
+      {Number.isFinite(change) && change !== 0 && (
+        <Arrow role="img" aria-label={rising ? "上漲" : "下跌"} size={16} strokeWidth={2.5}
+          className={`shrink-0 ${financeChangeClass(quote, change)}`} />
+      )}
+      <div>
+        <p className={financeChangeClass(quote, points)}>{formatFinanceChange(points)}</p>
+        <p className={financeChangeClass(quote, percent)}>{formatFinanceChange(percent, true)}</p>
+      </div>
     </div>
   );
 }
