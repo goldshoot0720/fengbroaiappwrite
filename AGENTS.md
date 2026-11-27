@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Git auto-ship
 
-After meaningful work: auto-commit and auto-push. See `docs/agents/git-auto-ship.md` and `node scripts/auto-ship.mjs "type(scope): summary"`.
+After meaningful work: auto-commit and auto-push to https://github.com/goldshoot0720/fengbroaiappwrite (`origin`, branch `main`). See `docs/agents/git-auto-ship.md` and `node scripts/auto-ship.mjs "type(scope): summary"`.
 
 ## 介面設計參考
 
