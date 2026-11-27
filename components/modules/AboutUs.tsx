@@ -114,6 +114,13 @@ const DOC_GROUPS = [
 
 const RELEASE_ITEMS = [
   {
+    date: codebaseStats.snapshotDate,
+    title: "最新核心原始碼統計",
+    bullets: [
+      `共 ${codebaseStats.totalFiles.toLocaleString("zh-TW")} 個檔案，合計 ${codebaseStats.totalLines.toLocaleString("zh-TW")} 行。各語言的檔案數與行數可在「系統架構」查看。`,
+    ],
+  },
+  {
     date: "2026-11-25",
     title: "核心原始碼統計更新",
     bullets: [
