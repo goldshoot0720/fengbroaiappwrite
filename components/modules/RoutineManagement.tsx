@@ -1,23 +1,27 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, Calendar, Search, Download, Upload, ArrowRight, LayoutGrid, Rows3, X, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, CalendarDays, Download, Upload, History, LayoutGrid, Rows3, X, Trash2, AlertTriangle, RefreshCw, Pencil, ExternalLink, CheckCheck, ListChecks, ChevronDown, SlidersHorizontal, BookOpenCheck, FileImage } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FormCard, FormGrid, FormActions } from "@/components/ui/form-card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FullPageLoading } from "@/components/ui/loading-spinner";
 import { useCrud, fetchApi } from "@/hooks/useApi";
 import { playVoiceSuccessTone, useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
+import { getAppwriteHeaders, getCurrentAccountLabel, getExportFilename } from "@/lib/utils";
 import { shouldAutoExecuteVoiceRisk } from "@/lib/voicePreferences";
-import { FriendlyAiCrudShell } from "@/components/ui/friendly-ai-crud-shell";
 import { VoiceCommandBar } from "@/components/ui/voice-command-bar";
+
+import { RecentSearchInput } from "@/components/ui/recent-search-input";
+import styles from "./RoutineManagement.module.css";
+
+const HISTORY = [
+  { key: "lastdate1", label: "最近一次" },
+  { key: "lastdate2", label: "前一次" },
+  { key: "lastdate3", label: "再前一次" },
+] as const;
 
 interface Routine {
   $id: string;
@@ -96,15 +100,23 @@ export default function RoutineManagement() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>("");
-  const [photoUploading, setPhotoUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const editor = useRef<HTMLDialogElement>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const dialog = editor.current;
+    if (isFormOpen && dialog) {
+      dialog.showModal();
+      nameInput.current?.focus({ preventScroll: true });
+      return () => dialog.close();
+    }
+  }, [isFormOpen]);
+  useEffect(() => {
+    if (photoPreviewUrl.startsWith("blob:")) return () => URL.revokeObjectURL(photoPreviewUrl);
+  }, [photoPreviewUrl]);
   const [searchQuery, setSearchQuery] = useState("");
   const [workbenchMode, setWorkbenchMode] = useState<"all" | "dated" | "linked" | "withPhoto">("all");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
-
-  // Inline editing state
-  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
-  const [inlineEditForm, setInlineEditForm] = useState<RoutineFormData>(INITIAL_FORM);
-  const [inlinePhotoFile, setInlinePhotoFile] = useState<File | null>(null);
 
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -149,7 +161,7 @@ export default function RoutineManagement() {
     const searchFiltered = !searchQuery.trim()
       ? modeFiltered
       : modeFiltered.filter(routine => {
-        const query = searchQuery.toLowerCase();
+        const query = searchQuery.trim().toLowerCase();
         return (
           routine.name?.toLowerCase().includes(query) ||
           routine.note?.toLowerCase().includes(query)
@@ -206,20 +218,6 @@ export default function RoutineManagement() {
     fetchAll();
   }, [fetchAll]);
 
-  const getAppwriteHeaders = () => {
-    if (typeof window === 'undefined') return {};
-    const endpoint = localStorage.getItem('appwrite_endpoint');
-    const project = localStorage.getItem('appwrite_project');
-    const database = localStorage.getItem('appwrite_database');
-    const apiKey = localStorage.getItem('appwrite_api_key');
-    return {
-      ...(endpoint && { 'X-Appwrite-Endpoint': endpoint }),
-      ...(project && { 'X-Appwrite-Project': project }),
-      ...(database && { 'X-Appwrite-Database': database }),
-      ...(apiKey && { 'X-Appwrite-API-Key': apiKey }),
-    };
-  };
-
   const handlePhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -245,50 +243,23 @@ export default function RoutineManagement() {
     setForm({ ...form, photo: "" });
   };
 
-  const handleInlinePhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      alert(`圖片檔案不能超過 50MB（目前 ${Math.round(file.size / 1024 / 1024)}MB）`);
-      return;
-    }
-
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      alert('僅支援 JPG、PNG、GIF、WEBP 圖片');
-      return;
-    }
-
-    setInlinePhotoFile(file);
-    setInlineEditForm((current) => ({ ...current, photo: "" }));
-  };
-
   const uploadPhotoToAppwrite = async (file: File): Promise<string> => {
-    setPhotoUploading(true);
     const formDataUpload = new FormData();
     formDataUpload.append('file', file);
 
-    try {
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        headers: getAppwriteHeaders(),
-        body: formDataUpload,
-      });
+    const response = await fetch('/api/upload-image', {
+      method: 'POST',
+      headers: getAppwriteHeaders(),
+      body: formDataUpload,
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || '圖片上傳失敗');
-      }
-
-      const data = await response.json();
-      return data.url;
-    } catch (error) {
-      throw error;
-    } finally {
-      setPhotoUploading(false);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || '圖片上傳失敗');
     }
+
+    const data = await response.json();
+    return data.url;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -298,6 +269,8 @@ export default function RoutineManagement() {
       return;
     }
 
+    if (saving) return;
+    setSaving(true);
     try {
       let finalPhoto = form.photo;
 
@@ -327,6 +300,8 @@ export default function RoutineManagement() {
       }
     } catch (err) {
       alert("操作失敗：" + (err instanceof Error ? err.message : "請稍後再試"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -351,45 +326,6 @@ export default function RoutineManagement() {
     if (routine && confirm(`確定要刪除此例行事項嗎？\n\n注意：若包含圖片，將同時從Appwrite儲存空間永久刪除。`)) {
       await remove(id);
     }
-  };
-
-  // 開始行內編輯
-  const handleInlineEdit = (routine: Routine) => {
-    setInlineEditForm({
-      name: routine.name || '',
-      note: routine.note || '',
-      lastdate1: routine.lastdate1 ? routine.lastdate1.substring(0, 10) : '',
-      lastdate2: routine.lastdate2 ? routine.lastdate2.substring(0, 10) : '',
-      lastdate3: routine.lastdate3 ? routine.lastdate3.substring(0, 10) : '',
-      link: routine.link || '',
-      photo: routine.photo || '',
-    });
-    setInlinePhotoFile(null);
-    setInlineEditingId(routine.$id);
-  };
-
-  // 儲存行內編輯
-  const handleInlineSave = async (routineId: string) => {
-    if (!inlineEditingId) return;
-    try {
-      const photo = inlinePhotoFile
-        ? await uploadPhotoToAppwrite(inlinePhotoFile)
-        : inlineEditForm.photo;
-      await update(routineId, { ...inlineEditForm, photo });
-      setInlineEditingId(null);
-      setInlineEditForm(INITIAL_FORM);
-      setInlinePhotoFile(null);
-    } catch (error) {
-      console.error('Inline edit failed:', error);
-      alert('更新失敗，請稍後再試');
-    }
-  };
-
-  // 取消行內編輯
-  const cancelInlineEdit = () => {
-    setInlineEditingId(null);
-    setInlineEditForm(INITIAL_FORM);
-    setInlinePhotoFile(null);
   };
 
   const handleShiftDates = async (routine: Routine) => {
@@ -449,16 +385,6 @@ export default function RoutineManagement() {
     link.download = getExportFilename('routine');
     link.click();
     URL.revokeObjectURL(link.href);
-  };
-
-  const parseCSVLine = (line: string): string[] => {
-    const result: string[] = []; let current = ''; let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (inQuotes) { if (char === '"') { if (line[i + 1] === '"') { current += '"'; i++; } else { inQuotes = false; } } else { current += char; } }
-      else { if (char === '"') { inQuotes = true; } else if (char === ',') { result.push(current); current = ''; } else { current += char; } }
-    }
-    result.push(current); return result;
   };
 
   // 解析完整 CSV（處理多行欄位）
@@ -533,8 +459,9 @@ export default function RoutineManagement() {
       setImportProgress({ current: i + 1, total: importPreview.data.length });
       try {
         const existing = routines.find(r => r.name === formData.name);
-        if (existing) await update(existing.$id, formData); else await create(formData);
-        successCount++;
+        const saved = existing ? await update(existing.$id, formData) : await create(formData);
+        if (saved) successCount++;
+        else failCount++;
       } catch { failCount++; }
     }
 
@@ -633,27 +560,6 @@ export default function RoutineManagement() {
     return `${years}年又${months}月又${days}天（${totalDays}天）`;
   };
 
-  const formatRoutineGap = (compareDate: string | null, currentDate: string | null, compareLabel: string) => {
-    const days = calculateAbsoluteDayDiff(compareDate, currentDate);
-    if (days === null) return "";
-    return `相差 ${days} 天（與${compareLabel}）`;
-  };
-
-  const renderRoutineDate = (date: string | null, compareDate?: string | null, compareLabel?: string) => {
-    const gapText = compareLabel ? formatRoutineGap(compareDate ?? null, date, compareLabel) : "";
-
-    return (
-      <div className="space-y-1">
-        <div>{formatDateTime(date)}</div>
-        {gapText && (
-          <div className="text-[11px] font-medium leading-tight text-slate-500 dark:text-slate-400">
-            {gapText}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const normalizeRoutineLink = (rawLink: string | null | undefined) => {
     const trimmed = rawLink?.trim();
     if (!trimmed) return "";
@@ -662,16 +568,6 @@ export default function RoutineManagement() {
     if (/^[^\s]+\.[^\s]+/.test(trimmed)) return `https://${trimmed}`;
 
     return "";
-  };
-
-  const handleOpenLink = (rawLink: string | null | undefined) => {
-    const normalized = normalizeRoutineLink(rawLink);
-    if (!normalized) {
-      alert("這筆例行沒有可開啟的連結");
-      return;
-    }
-
-    window.open(normalized, "_blank", "noopener,noreferrer");
   };
 
   const parseRoutineVoiceCommand = (text: string): RoutineVoiceCommand => {
@@ -812,143 +708,124 @@ export default function RoutineManagement() {
       setPendingVoiceCommand(command);
     }
   };
-  handleVoiceTextRef.current = handleVoiceText;
+  useEffect(() => { handleVoiceTextRef.current = handleVoiceText; });
+
+  const today = new Date();
+  const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (today.getDay() + 6) % 7);
+  const dayKey = (date: Date) => date.toLocaleDateString("zh-TW");
+  const week = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(weekStart);
+    day.setDate(day.getDate() + index);
+    return { day, key: dayKey(day), count: 0 };
+  });
+  for (const routine of routines) {
+    for (const { key } of HISTORY) {
+      const value = routine[key];
+      if (!value) continue;
+      const match = week.find(entry => entry.key === dayKey(new Date(value)));
+      if (match) match.count++;
+    }
+  }
+  const totalThisWeek = week.reduce((sum, entry) => sum + entry.count, 0);
+  const modes = [
+    { key: "all", label: "全部", count: routines.length },
+    { key: "dated", label: "有最近日期", count: routinesWithDate.length },
+    { key: "linked", label: "有連結", count: routinesWithLink.length },
+    { key: "withPhoto", label: "有圖片", count: routinesWithPhoto.length },
+  ] as const;
+  const isFiltered = Boolean(searchQuery.trim()) || workbenchMode !== "all";
 
   return (
-    <div className="space-y-6">
-      <FriendlyAiCrudShell
-        title="鋒兄例行"
-        description="把日常任務、最近完成時間與整理節奏放在同一個工作台，先看得出哪些有紀錄、哪些還缺上下文。"
-        searchPlaceholder="搜尋名稱、備註..."
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        recentSearchKey="routine-management"
-        density="compact"
-        intro={
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="font-display text-xl font-semibold tracking-tight text-[var(--foreground)] sm:text-2xl">
-              鋒兄例行
-            </h1>
-            <span className="text-sm text-[var(--muted-foreground)]">
-              共 {routines.length} 項
-            </span>
-            <span className="text-xs font-medium uppercase tracking-[0.15em] text-[var(--accent-strong)]">
-              {getCurrentAccountLabel()}
-            </span>
-            <span className="surface-inset inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-[var(--muted-foreground)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              即時同步
-            </span>
+    <div className={styles.workspace}>
+      <header className={styles.cover}>
+        <div className={styles.coverIntro}>
+          <h1>鋒兄例行</h1>
+          <div className={styles.dateline}><CalendarDays size={16} aria-hidden="true" />{today.toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}</div>
+          <div className={styles.byline}>
+            <span>{getCurrentAccountLabel()}</span>
+            <span role="status">{loading ? "讀取中…" : error ? "同步異常" : "已同步"}</span>
           </div>
-        }
-        activeMode={workbenchMode}
-        onModeChange={(mode) => setWorkbenchMode(mode as typeof workbenchMode)}
-        modeItems={[
-          { key: "all", label: "全部", count: routines.length },
-          { key: "dated", label: "有最近日期", count: routinesWithDate.length },
-          { key: "linked", label: "有連結", count: routinesWithLink.length },
-          { key: "withPhoto", label: "有圖片", count: routinesWithPhoto.length },
-        ]}
-        summaries={[
-          { label: "例行總數", value: routines.length, tone: "blue" },
-          { label: "有日期", value: routinesWithDate.length, detail: "可追蹤最近完成", tone: "green" },
-          { label: "有連結", value: routinesWithLink.length, detail: "可快速跳轉", tone: "neutral" },
-          { label: "有圖片", value: routinesWithPhoto.length, detail: "辨識更直覺", tone: "amber" },
-        ]}
-        suggestions={[
-          routines.length === 0
-            ? { title: "先建立節奏", body: "先把每週或每天最常做的 3 到 5 個例行建進來，之後再慢慢補日期與連結。", tone: "green" }
-            : { title: "優先補日期", body: `目前有 ${Math.max(routines.length - routinesWithDate.length, 0)} 筆沒有最近日期，AI 很難判斷哪些最久沒做。`, tone: routines.length - routinesWithDate.length > 0 ? "amber" : "green" },
-          routinesWithLink.length < routines.length
-            ? { title: "加快操作", body: "有操作流程的例行項目可補上連結，之後從清單就能直接跳轉。", tone: "blue" }
-            : { title: "入口完整", body: "大多數例行都有對應入口，之後可再補提醒與排程邏輯。", tone: "green" },
-          routinesWithPhoto.length > 0
-            ? { title: "視覺整理", body: `已有 ${routinesWithPhoto.length} 筆使用圖片，可優先把高頻例行補圖，手機上更好辨識。`, tone: "neutral" }
-            : { title: "手機優化", body: "如果常在手機上用，替高頻例行補圖會讓辨識和點擊都更快。", tone: "neutral" },
-        ]}
-        toolbar={
-          <>
-            <input type="file" accept=".csv" onChange={handleCSVFileSelect} className="hidden" id="csv-import-routine" />
-            <Button onClick={() => fetchAll(true)} variant="outline" className="rounded-xl flex items-center gap-2" disabled={loading}>
-              <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 重新整理
-            </Button>
-            <Button onClick={() => document.getElementById('csv-import-routine')?.click()} variant="outline" className="rounded-xl flex items-center gap-2">
-              <Upload size={18} /> 匯入
-            </Button>
-            <Button onClick={exportToCSV} variant="outline" className="rounded-xl flex items-center gap-2">
-              <Download size={18} /> 匯出
-            </Button>
-            <Button onClick={handleSelectAll} variant="outline" className="rounded-xl flex items-center gap-2">
-              {selectionMode && filteredRoutines.length > 0 && filteredRoutines.every((routine) => selectedIds.has(routine.$id)) ? "取消全選" : "全選"}
-            </Button>
-            {selectedIds.size > 0 && (
-              <Button onClick={() => setBulkDeleteOpen(true)} className="rounded-xl flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white">
-                <Trash2 size={18} />
-                刪除選取 ({selectedIds.size})
-              </Button>
-            )}
-            <div className="hidden xl:flex overflow-hidden rounded-xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors ${viewMode === "table"
-                  ? "bg-slate-900 text-white dark:bg-sky-400 dark:text-slate-950"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  }`}
-              >
-                <Rows3 size={16} />
-                列表
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("cards")}
-                className={`flex items-center gap-2 border-l border-slate-200 px-3 py-2 text-sm font-medium transition-colors dark:border-slate-700 ${viewMode === "cards"
-                  ? "bg-slate-900 text-white dark:bg-sky-400 dark:text-slate-950"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  }`}
-              >
-                <LayoutGrid size={16} />
-                卡片
-              </button>
+        </div>
+        <section className={styles.week} aria-label="本週完成紀錄">
+          <div className={styles.weekTitle}><h2>本週紀錄</h2><span>{totalThisWeek} 筆</span></div>
+          <ol>{week.map(({ day, key, count }) => (
+            <li key={key} aria-current={key === dayKey(today) ? "date" : undefined} aria-label={key + "，" + count + " 筆紀錄"} title={key + "，" + count + " 筆紀錄"}>
+              <span>{["日","一","二","三","四","五","六"][day.getDay()]}</span>
+              <strong>{day.getDate()}</strong><small>{count > 0 ? `${count} 筆` : ""}</small>
+            </li>
+          ))}</ol>
+        </section>
+      </header>
+
+      <section className={styles.ledger} aria-labelledby="routine-index">
+        <div className={styles.indexHead}>
+          <div className={styles.heading}><h2 id="routine-index">例行清單</h2><span aria-live="polite">{isFiltered ? filteredRoutines.length + " / " : ""}{routines.length} 項</span></div>
+          <button type="button" className={styles.add} onClick={() => setIsFormOpen(true)}><Plus size={18} />新增例行事項</button>
+        </div>
+        <div className={styles.controls}>
+          <RecentSearchInput value={searchQuery} onChange={setSearchQuery} placeholder="搜尋名稱或備註" storageKey="routine-management" showRecentSearches={false} />
+          <div className={styles.segment} role="group" aria-label="顯示方式">
+            <button type="button" aria-label="列表" title="列表" aria-pressed={viewMode === "table"} onClick={() => setViewMode("table")}><Rows3 size={16} /><span>列表</span></button>
+            <button type="button" aria-label="卡片" title="卡片" aria-pressed={viewMode === "cards"} onClick={() => setViewMode("cards")}><LayoutGrid size={16} /><span>卡片</span></button>
+          </div>
+        </div>
+        <div className={styles.filters} role="group" aria-label="篩選例行事項">
+          {modes.map(mode => <button type="button" key={mode.key} aria-pressed={workbenchMode === mode.key} onClick={() => setWorkbenchMode(mode.key)}>{mode.label}<span>{mode.count}</span></button>)}
+        </div>
+        <details className={styles.tools}>
+          <summary><SlidersHorizontal size={16} />管理工具<ChevronDown size={15} /></summary>
+          <div className={styles.toolBody}>
+            <div className={styles.toolButtons}>
+              <Button variant="outline" disabled={loading} onClick={() => fetchAll(true)}><RefreshCw size={15} />重新整理</Button>
+              <Button variant="outline" onClick={() => document.getElementById("csv-import-routine")?.click()}><Upload size={15} />匯入 CSV</Button>
+              <Button variant="outline" onClick={exportToCSV}><Download size={15} />匯出 CSV</Button>
+              <Button variant="outline" onClick={handleSelectAll} disabled={!filteredRoutines.length}><CheckCheck size={16} />{selectionMode && filteredRoutines.length > 0 && filteredRoutines.every(r => selectedIds.has(r.$id)) ? "取消全選" : "全選"}</Button>
             </div>
-            <Button onClick={() => setIsFormOpen(!isFormOpen)} className="w-full md:w-auto">
-              <Plus size={18} className="mr-2" />
-              {isFormOpen ? "收起表單" : "新增例行事項"}
-            </Button>
-          </>
-        }
-        voicePanel={
-          <VoiceCommandBar
-            title="例行語音指令"
-            description=""
-            helpText={ROUTINE_VOICE_HELP}
-            accent="emerald"
-            transcript={voiceTranscript}
-            onTranscriptChange={(value) => {
-              setVoiceTranscript(value);
-              setPendingVoiceCommand(null);
-            }}
-            feedback={voiceFeedback}
-            isListening={isVoiceListening}
-            isSupported={isVoiceSupported}
-            canStop={canStopVoiceRecording}
-            elapsedMs={voiceElapsedMs}
-            placeholder="例：搜尋 倒垃圾 / 有日期 / 列表 / 匯出 CSV"
-            samples={["有日期", "有連結", "列表", "重新整理"]}
-            pending={pendingVoiceCommand}
-            onToggleListen={toggleVoiceInput}
-            onSubmit={handleVoiceText}
-            onConfirm={() => {
-              if (pendingVoiceCommand) void executeRoutineVoiceCommand(pendingVoiceCommand);
-            }}
-            onCancelPending={() => setPendingVoiceCommand(null)}
-          />
-        }
-      />
+            <div className={styles.assistants}>
+              <VoiceCommandBar
+                title="例行語音指令"
+                description=""
+                helpText={ROUTINE_VOICE_HELP}
+                accent="emerald"
+                transcript={voiceTranscript}
+                onTranscriptChange={(value) => {
+                  setVoiceTranscript(value);
+                  setPendingVoiceCommand(null);
+                }}
+                feedback={voiceFeedback}
+                isListening={isVoiceListening}
+                isSupported={isVoiceSupported}
+                canStop={canStopVoiceRecording}
+                elapsedMs={voiceElapsedMs}
+                placeholder="例：搜尋 倒垃圾 / 有日期 / 列表 / 匯出 CSV"
+                samples={["有日期", "有連結", "列表", "重新整理"]}
+                pending={pendingVoiceCommand}
+                onToggleListen={toggleVoiceInput}
+                onSubmit={handleVoiceText}
+                onConfirm={() => {
+                  if (pendingVoiceCommand) void executeRoutineVoiceCommand(pendingVoiceCommand);
+                }}
+                onCancelPending={() => setPendingVoiceCommand(null)}
+              />
+              <details className={styles.tip}>
+                <summary><ListChecks size={16} />整理提示<ChevronDown size={15} /></summary>
+                <p>{!routines.length ? "新增第一筆例行事項，並填寫最近完成日期。" : routines.length > routinesWithDate.length ? `還有 ${routines.length - routinesWithDate.length} 項沒有最近完成日期，可在編輯時補上。` : "所有事項都已填寫最近完成日期。"}</p>
+                <p>有固定流程的事項可附上連結，常用物品可附照片，方便下次查找。</p>
+              </details>
+            </div>
+          </div>
+        </details>
+        <input type="file" accept=".csv" onChange={handleCSVFileSelect} hidden id="csv-import-routine" />
+        {selectionMode && <div className={styles.selection}>
+          <strong>已選 {selectedIds.size} 項</strong>
+          <button type="button" onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }}>取消選取</button>
+          <button type="button" disabled={!selectedIds.size} onClick={() => setBulkDeleteOpen(true)}><Trash2 size={15}/>刪除選取</button>
+        </div>}
 
       {error && (
         <DataCard className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
-          <p className="text-red-600 dark:text-red-400 whitespace-pre-line">{error}</p>
+          <p role="alert" className="text-red-600 dark:text-red-400 whitespace-pre-line">{error}</p>
+          <Button variant="outline" onClick={() => fetchAll(true)} disabled={loading}>重試</Button>
         </DataCard>
       )}
 
@@ -992,7 +869,7 @@ export default function RoutineManagement() {
                     <div className="flex items-center gap-3">
                       <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-300"
+                          className="h-full bg-primary"
                           style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                         />
                       </div>
@@ -1003,7 +880,7 @@ export default function RoutineManagement() {
                   ) : (
                     <>
                       <Button variant="outline" onClick={() => setImportPreview(null)} className="rounded-xl w-full sm:w-auto">取消</Button>
-                      <Button onClick={executeImport} disabled={importPreview.data.length === 0 || importPreview.errors.length > 0} className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto">
+                      <Button onClick={executeImport} disabled={importPreview.data.length === 0 || importPreview.errors.length > 0} className="rounded-xl w-full sm:w-auto">
                         確認匯入 ({importPreview.data.length} 筆)
                       </Button>
                     </>
@@ -1013,613 +890,94 @@ export default function RoutineManagement() {
             </div>
           )}
 
-          {isFormOpen && (
-            <FormCard title={editingId ? "編輯例行事項" : "新增例行事項"}>
-              <form onSubmit={handleSubmit}>
-                <FormGrid columns={1} className="md:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">
-                      名稱 / Name <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Input
-                        value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        placeholder="名稱 / Name (例如：晨跑、閱讀)"
-                        maxLength={100}
-                        required
-                        className="h-12 rounded-xl sm:flex-1"
-                      />
-                      {existingNames.length > 0 && (
-                        <Select
-                          value=""
-                          onValueChange={(val) => val && setForm({ ...form, name: val })}
-                        >
-                          <SelectTrigger className="h-12 w-full rounded-xl sm:w-36">
-                            <SelectValue placeholder="套用既有名稱" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {existingNames.map(name => (
-                              <SelectItem key={name} value={name}>{name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                    <div className="px-1 h-4">
-                      {form.name ? (
-                        <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-                      ) : (
-                        <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">請輸入名稱 / Please enter name</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">備註 / Note</label>
-                    <Textarea
-                      value={form.note}
-                      onChange={(e) => setForm({ ...form, note: e.target.value })}
-                      placeholder="額外說明 / Additional Description"
-                      maxLength={100}
-                      rows={3}
-                      className="rounded-xl"
-                    />
-                    <div className="px-1 h-4">
-                      {form.note ? (
-                        <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入備註 / (Optional) Please enter note</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">最近① / Last Date 1 (Recent)</label>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Input
-                        type="date"
-                        value={form.lastdate1}
-                        onChange={(e) => setForm({ ...form, lastdate1: e.target.value })}
-                        className="h-12 rounded-xl sm:flex-1"
-                      />
-                      {form.lastdate1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setForm({ ...form, lastdate1: "" })}
-                          className="h-12 w-full rounded-xl px-0 sm:w-12"
-                          title="清空日期"
-                        >
-                          <X size={16} />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="px-1 h-4">
-                      {form.lastdate1 ? (
-                        <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已選擇 / Selected</span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請選擇日期 / (Optional) Please select a date</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">最近② / Last Date 2</label>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Input
-                        type="date"
-                        value={form.lastdate2}
-                        onChange={(e) => setForm({ ...form, lastdate2: e.target.value })}
-                        className="h-12 rounded-xl sm:flex-1"
-                      />
-                      {form.lastdate2 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setForm({ ...form, lastdate2: "" })}
-                          className="h-12 w-full rounded-xl px-0 sm:w-12"
-                          title="清空日期"
-                        >
-                          <X size={16} />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="px-1 h-4">
-                      {form.lastdate2 ? (
-                        <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已選擇 / Selected</span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請選擇日期 / (Optional) Please select a date</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">最近③ / Last Date 3 (Oldest)</label>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Input
-                        type="date"
-                        value={form.lastdate3}
-                        onChange={(e) => setForm({ ...form, lastdate3: e.target.value })}
-                        className="h-12 rounded-xl sm:flex-1"
-                      />
-                      {form.lastdate3 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setForm({ ...form, lastdate3: "" })}
-                          className="h-12 w-full rounded-xl px-0 sm:w-12"
-                          title="清空日期"
-                        >
-                          <X size={16} />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="px-1 h-4">
-                      {form.lastdate3 ? (
-                        <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已選擇 / Selected</span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請選擇日期 / (Optional) Please select a date</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium mb-2">連結 / Link</label>
-                    <Input
-                      type="url"
-                      value={form.link}
-                      onChange={(e) => setForm({ ...form, link: e.target.value })}
-                      placeholder="https://..."
-                      className="h-12 rounded-xl"
-                    />
-                    <div className="px-1 h-4">
-                      {form.link ? (
-                        <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">已輸入 / Entered</span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">(選填) 請輸入 URL / (Optional) Please enter URL</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-2">圖片</label>
-                    <div className="space-y-3">
-                      {/* URL 輸入 */}
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">圖片網址</label>
-                        <Input
-                          type="url"
-                          value={form.photo}
-                          onChange={(e) => {
-                            setForm({ ...form, photo: e.target.value });
-                            setPhotoPreviewUrl(e.target.value);
-                            setSelectedPhotoFile(null);
-                          }}
-                          placeholder="https://..."
-                        />
-                      </div>
-
-                      {/* 或者上傳檔案 */}
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">或上傳圖片檔案（上限 50MB）</label>
-                        <Input
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                          onChange={handlePhotoFileSelect}
-                        />
-                        {selectedPhotoFile && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            已選擇: {selectedPhotoFile.name} ({Math.round(selectedPhotoFile.size / 1024)}KB)
-                          </p>
-                        )}
-                      </div>
-
-                      {/* 預覽 */}
-                      {photoPreviewUrl && (
-                        <div className="mt-2">
-                          <img
-                            src={photoPreviewUrl}
-                            alt="圖片預覽"
-                            className="w-32 h-32 object-contain rounded border"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </FormGrid>
-
-                <FormActions>
-                  <Button type="submit" disabled={photoUploading}>
-                    {photoUploading ? "上傳中..." : editingId ? "更新" : "新增"}
-                  </Button>
-                  <Button type="button" variant="outline" onClick={handleCancel} disabled={photoUploading}>
-                    取消
-                  </Button>
-                </FormActions>
-              </form>
-            </FormCard>
-          )}
-
-          {!loading && routines.length === 0 ? (
-            <EmptyState
-              icon={<Calendar size={48} />}
-              title="暫無例行事項"
-              description="點擊上方按鈕新增第一筆例行事項"
-            />
+          {loading && !routines.length ? (
+            <p role="status" className={styles.notice}>正在讀取例行事項…</p>
+          ) : !filteredRoutines.length ? (
+            <EmptyState icon={<CalendarDays size={28}/>} title={isFiltered ? "找不到符合條件的事項" : "還沒有例行事項"}
+              action={isFiltered ? <Button variant="outline" onClick={() => { setSearchQuery(""); setWorkbenchMode("all"); }}>清除篩選</Button> : <Button onClick={() => setIsFormOpen(true)}>新增第一筆事項</Button>} />
           ) : (
-            <>
-              {filteredRoutines.length === 0 ? (
-                <EmptyState
-                  icon={<Search size={48} />}
-                  title="無搜尋結果"
-                  description={`找不到「${searchQuery}」相關的例行事項`}
-                />
-              ) : (
-                <>
-                  {/* 列表檢視 */}
-                  {viewMode === "table" && (
-                  <div className="overflow-x-auto">
-                    <DataCard className="overflow-visible">
-                      <Table className="min-w-[640px]">
-                        <TableHeader className="sticky top-0 z-20">
-                          <TableRow>
-                            <TableHead className="sticky top-0 z-20 w-8 bg-white/95 backdrop-blur dark:bg-slate-950/95"></TableHead>
-                            <TableHead className="sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-950/95">名稱</TableHead>
-                            <TableHead className="sticky top-0 z-20 bg-white/95 text-right backdrop-blur dark:bg-slate-950/95">操作</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredRoutines.map((routine) => (
-                            <TableRow key={routine.$id}>
-                              {inlineEditingId === routine.$id ? (
-                                // 行內編輯模式
-                                <>
-                                  <TableCell colSpan={3} className="bg-orange-50 dark:bg-orange-900/20">
-                                    <div className="space-y-3 py-2">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">編輯中</span>
-                                      </div>
-                                      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-                                        <Input
-                                          placeholder="名稱"
-                                          value={inlineEditForm.name}
-                                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
-                                          className="h-9 rounded-lg text-sm"
-                                        />
-                                        <Textarea
-                                          placeholder="備註"
-                                          value={inlineEditForm.note}
-                                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
-                                          className="min-h-[72px] rounded-lg text-sm lg:col-span-1 xl:col-span-3 resize-y"
-                                        />
-                                      </div>
-                                      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-                                        <Input
-                                          placeholder="日期一"
-                                          type="date"
-                                          value={inlineEditForm.lastdate1}
-                                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate1: e.target.value })}
-                                          className="h-9 rounded-lg text-sm"
-                                        />
-                                        <Input
-                                          placeholder="日期二"
-                                          type="date"
-                                          value={inlineEditForm.lastdate2}
-                                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate2: e.target.value })}
-                                          className="h-9 rounded-lg text-sm"
-                                        />
-                                      </div>
-                                      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-                                        <Input
-                                          placeholder="日期三"
-                                          type="date"
-                                          value={inlineEditForm.lastdate3}
-                                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate3: e.target.value })}
-                                          className="h-9 rounded-lg text-sm"
-                                        />
-                                        <Input
-                                          placeholder="連結"
-                                          value={inlineEditForm.link}
-                                          onChange={(e) => setInlineEditForm({ ...inlineEditForm, link: e.target.value })}
-                                          className="h-9 rounded-lg text-sm"
-                                        />
-                                        <Input
-                                          placeholder="圖片網址"
-                                          value={inlineEditForm.photo}
-                                          onChange={(e) => {
-                                            setInlineEditForm({ ...inlineEditForm, photo: e.target.value });
-                                            setInlinePhotoFile(null);
-                                          }}
-                                          className="h-9 rounded-lg text-sm lg:col-span-2 xl:col-span-2"
-                                        />
-                                        <div className="lg:col-span-2 xl:col-span-2">
-                                          <Input
-                                            type="file"
-                                            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                                            onChange={handleInlinePhotoFileSelect}
-                                            className="h-9 rounded-lg text-sm"
-                                            aria-label="上傳圖片檔案"
-                                          />
-                                          {inlinePhotoFile && (
-                                            <p className="mt-1 text-xs text-muted-foreground">
-                                              將上傳：{inlinePhotoFile.name} ({Math.round(inlinePhotoFile.size / 1024)}KB)
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex gap-2 justify-end">
-                                        <Button size="sm" onClick={() => handleInlineSave(routine.$id)} disabled={photoUploading} className="bg-green-600 hover:bg-green-700 text-white rounded-lg">
-                                          儲存
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="rounded-lg">
-                                          取消
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </TableCell>
-                                </>
-                              ) : (
-                                // 正常顯示模式
-                                <>
-                                  <TableCell>
-                                    {selectionMode && (
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedIds.has(routine.$id)}
-                                        onChange={() => handleToggleSelect(routine.$id)}
-                                        className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer"
-                                      />
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="font-medium">
-                                    <div className="space-y-2">
-                                      <div className="flex items-start gap-3">
-                                        {routine.photo ? (
-                                          <img
-                                            src={routine.photo}
-                                            alt={routine.name}
-                                            className="h-12 w-12 shrink-0 rounded object-contain"
-                                          />
-                                        ) : (
-                                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-gray-100 dark:bg-gray-800">
-                                            <Calendar size={20} className="text-gray-400" />
-                                          </div>
-                                        )}
-                                        <div className="min-w-0 flex-1">
-                                          {normalizeRoutineLink(routine.link) ? (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleOpenLink(routine.link)}
-                                              className="whitespace-normal break-words text-left text-blue-600 underline underline-offset-2 hover:text-blue-700"
-                                              title={normalizeRoutineLink(routine.link)}
-                                            >
-                                              {routine.name}
-                                            </button>
-                                          ) : (
-                                            <div className="whitespace-normal break-words">{routine.name}</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal text-muted-foreground">
-                                        <div className="min-w-0">
-                                          <span className="mr-1">最近①</span>
-                                          <span className="tabular-nums">{formatDateTime(routine.lastdate1)}</span>
-                                          <span className="ml-1">距今 {formatRoutineElapsed(routine.lastdate1)}</span>
-                                        </div>
-                                        <div className="min-w-0">
-                                          <span className="mr-1">最近②</span>
-                                          <span className="tabular-nums">{formatDateTime(routine.lastdate2)}</span>
-                                          <span className="ml-1">距① {formatRoutineElapsed(routine.lastdate2, routine.lastdate1)}</span>
-                                        </div>
-                                        <div className="min-w-0">
-                                          <span className="mr-1">最近③</span>
-                                          <span className="tabular-nums">{formatDateTime(routine.lastdate3)}</span>
-                                          <span className="ml-1">距② {formatRoutineElapsed(routine.lastdate3, routine.lastdate2)}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    {routine.note && (
-                                      <div className="max-h-[150px] overflow-y-auto border-t border-border/60 pt-2 text-xs font-normal text-muted-foreground whitespace-pre-wrap break-words">
-                                        {routine.note}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right space-x-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleShiftDates(routine)}
-                                      disabled={!routine.lastdate1}
-                                      title="日期遞移：一→二，二→三"
-                                    >
-                                      <ArrowRight size={16} />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleInlineEdit(routine)}
-                                    >
-                                      編輯
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      onClick={() => handleDelete(routine.$id)}
-                                    >
-                                      刪除
-                                    </Button>
-                                  </TableCell>
-                                </>
-                              )}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </DataCard>
-                  </div>
-                  )}
-
-                  {/* 卡片檢視 */}
-                  {viewMode === "cards" && (
-                  <div className="space-y-4">
-                    {filteredRoutines.map((routine) => (
-                      <DataCard key={routine.$id}>
-                        {inlineEditingId === routine.$id ? (
-                          // 行內編輯模式
-                          <div className="space-y-3 border-2 border-orange-500 rounded-lg p-4 -m-4">
-                            <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">編輯中</div>
-                            <Input
-                              placeholder="例行事項名稱"
-                              value={inlineEditForm.name}
-                              onChange={(e) => setInlineEditForm({ ...inlineEditForm, name: e.target.value })}
-                              className="h-9 rounded-lg text-sm"
-                            />
-                            <Textarea
-                              placeholder="備註"
-                              value={inlineEditForm.note}
-                              onChange={(e) => setInlineEditForm({ ...inlineEditForm, note: e.target.value })}
-                              className="rounded-lg text-sm h-16 resize-none"
-                            />
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input
-                                placeholder="日期一"
-                                type="date"
-                                value={inlineEditForm.lastdate1}
-                                onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate1: e.target.value })}
-                                className="h-9 rounded-lg text-sm"
-                              />
-                              <Input
-                                placeholder="日期二"
-                                type="date"
-                                value={inlineEditForm.lastdate2}
-                                onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate2: e.target.value })}
-                                className="h-9 rounded-lg text-sm"
-                              />
-                            </div>
-                            <Input
-                              placeholder="日期三"
-                              type="date"
-                              value={inlineEditForm.lastdate3}
-                              onChange={(e) => setInlineEditForm({ ...inlineEditForm, lastdate3: e.target.value })}
-                              className="h-9 rounded-lg text-sm"
-                            />
-                            <Input
-                              placeholder="連結"
-                              value={inlineEditForm.link}
-                              onChange={(e) => setInlineEditForm({ ...inlineEditForm, link: e.target.value })}
-                              className="h-9 rounded-lg text-sm"
-                            />
-                            <div className="flex gap-2">
-                              <Button size="sm" onClick={() => handleInlineSave(routine.$id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg">
-                                儲存
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={cancelInlineEdit} className="flex-1 rounded-lg">
-                                取消
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          // 正常顯示模式
-                          <div className="space-y-4 pb-3">
-                            <div className="flex items-start gap-3">
-                              {selectionMode && (
-                                <input
-                                  type="checkbox"
-                                  checked={selectedIds.has(routine.$id)}
-                                  onChange={() => handleToggleSelect(routine.$id)}
-                                  className="h-4 w-4 rounded border-gray-300 text-red-600 cursor-pointer mt-1 shrink-0"
-                                />
-                              )}
-                              {routine.photo ? (
-                                <img
-                                  src={routine.photo}
-                                  alt={routine.name}
-                                  className="w-16 h-16 object-contain rounded flex-shrink-0"
-                                />
-                              ) : (
-                                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center flex-shrink-0">
-                                  <Calendar size={24} className="text-gray-400" />
-                                </div>
-                              )}
-                              <div className="flex-1">
-                                <div className="space-y-1">
-                                  {normalizeRoutineLink(routine.link) ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenLink(routine.link)}
-                                      className="text-left text-lg font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-700"
-                                      title={normalizeRoutineLink(routine.link)}
-                                    >
-                                      {routine.name}
-                                    </button>
-                                  ) : (
-                                    <h3 className="font-semibold text-lg">{routine.name}</h3>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            {routine.note && (
-                              <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 whitespace-pre-wrap break-all max-h-[200px] overflow-y-auto shadow-inner">
-                                {routine.note}
-                              </div>
-                            )}
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">最近① · 距今 {formatRoutineElapsed(routine.lastdate1)}</span>
-                                <span className="text-right">{renderRoutineDate(routine.lastdate1)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">最近② · 距① {formatRoutineElapsed(routine.lastdate2, routine.lastdate1)}</span>
-                                <span className="text-right">{renderRoutineDate(routine.lastdate2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">最近③ · 距② {formatRoutineElapsed(routine.lastdate3, routine.lastdate2)}</span>
-                                <span className="text-right">{renderRoutineDate(routine.lastdate3)}</span>
-                              </div>
-                            </div>
-                            <div className="flex gap-2 pt-3">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleShiftDates(routine)}
-                                disabled={!routine.lastdate1}
-                                className="h-11 flex-1 rounded-xl"
-                                title="日期遞移：一→二，二→三"
-                              >
-                                <ArrowRight size={16} />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleInlineEdit(routine)}
-                                className="h-11 flex-1 rounded-xl"
-                              >
-                                編輯
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDelete(routine.$id)}
-                                className="h-11 flex-1 rounded-xl"
-                              >
-                                刪除
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </DataCard>
-                    ))}
-                  </div>
-                  )}
-                </>
-              )}
-            </>
+            <div className={viewMode === "cards" ? styles.cards : styles.list}>
+              {viewMode === "table" && <div className={styles.columns} aria-hidden="true">
+                <span>事項名稱</span><div>{HISTORY.map(({ label }) => <span key={label}>{label}</span>)}</div><span>操作</span>
+              </div>}
+              <ul className={styles.records}>
+                {filteredRoutines.map(routine => {
+                  const link = normalizeRoutineLink(routine.link);
+                  return <li key={routine.$id} className={styles.record} data-selected={selectionMode && selectedIds.has(routine.$id)}>
+                    <div className={styles.identity}>
+                      {selectionMode && <input type="checkbox" aria-label={"選取 " + routine.name} checked={selectedIds.has(routine.$id)} onChange={() => handleToggleSelect(routine.$id)} />}
+                      <div className={styles.thumb}>{routine.photo ? <img src={routine.photo} alt="" loading="lazy" /> : <BookOpenCheck size={20} />}</div>
+                      <div>
+                        <h3>{link ? <a href={link} target="_blank" rel="noopener noreferrer">{routine.name} <ExternalLink size={13} /></a> : routine.name}</h3>
+                        {routine.note && <p>{routine.note}</p>}
+                      </div>
+                    </div>
+                    <dl className={styles.history}>{HISTORY.map(({ key, label }, index) => {
+                      const value = routine[key];
+                      const reference = index ? routine[HISTORY[index - 1].key] : today.toISOString();
+                      const days = calculateAbsoluteDayDiff(value, reference);
+                      return <div key={key}>
+                        <dt>{label}</dt>
+                        <dd title={value && reference ? formatRoutineElapsed(value, reference) : undefined}>
+                          {value ? <time dateTime={value}>{formatDateTime(value)}</time> : <span className={styles.missing}>未記錄</span>}
+                          {days !== null && <small>{index ? `間隔 ${days} 天` : days === 0 ? "今天" : `距今 ${days} 天`}</small>}
+                        </dd>
+                      </div>;
+                    })}</dl>
+                    <div className={styles.actions}>
+                      <button type="button" onClick={() => handleShiftDates(routine)} disabled={!routine.lastdate1} title="將前兩次日期各往前移一格，清空最近一次" aria-label={"日期遞移 " + routine.name}><History size={16}/><span>日期遞移</span></button>
+                      <button type="button" onClick={() => handleEdit(routine)} aria-label={"編輯 " + routine.name}><Pencil size={15}/><span>編輯</span></button>
+                      <button type="button" className={styles.delete} onClick={() => handleDelete(routine.$id)} aria-label={"刪除 " + routine.name} title="刪除"><Trash2 size={15}/></button>
+                    </div>
+                  </li>;
+                })}
+              </ul>
+            </div>
           )}
         </>
+      )}
+      </section>
+
+      {isFormOpen && (
+        <dialog ref={editor} className={styles.editor} aria-labelledby="routine-editor-title"
+          onCancel={event => { event.preventDefault(); if (!saving) handleCancel(); }}>
+          <form onSubmit={handleSubmit}>
+            <header className={styles.editorHead}>
+              <div><BookOpenCheck size={20} /><h2 id="routine-editor-title">{editingId ? "編輯例行事項" : "新增例行事項"}</h2></div>
+              <button type="button" onClick={handleCancel} disabled={saving} aria-label="關閉表單"><X size={19} /></button>
+            </header>
+            <div className={styles.editorBody}>
+              <label htmlFor="routine-name">事項名稱 <small>必填</small></label>
+              <Input ref={nameInput} id="routine-name" required maxLength={100} list="routine-names" value={form.name} placeholder="例如：更換濾芯" onChange={e => setForm({ ...form, name: e.target.value })} />
+              <datalist id="routine-names">{existingNames.map(name => <option value={name} key={name} />)}</datalist>
+              <label htmlFor="routine-note">備註</label>
+              <Textarea id="routine-note" rows={2} maxLength={100} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
+              <fieldset className={styles.dateFields}>
+                <legend><CalendarDays size={16}/>完成紀錄</legend>
+                <div>{HISTORY.map(({ key, label }) => <div key={key}>
+                  <label htmlFor={"routine-" + key}>{label}</label>
+                  <div className={styles.dateInput}><input id={"routine-" + key} type="date" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} />
+                  <button type="button" disabled={!form[key]} aria-label={"清空" + label} onClick={() => setForm({ ...form, [key]: "" })}><X size={14}/></button></div>
+                </div>)}</div>
+              </fieldset>
+              <label htmlFor="routine-link">相關連結</label>
+              <Input id="routine-link" inputMode="url" placeholder="https://…" value={form.link} onChange={e => setForm({ ...form, link: e.target.value })} />
+              <details className={styles.attachments}>
+                <summary><FileImage size={16} />圖片附件{(selectedPhotoFile || form.photo) && <span>1</span>}<ChevronDown size={15}/></summary>
+                <label htmlFor="routine-photo">圖片網址</label>
+                <Input type="url" id="routine-photo" placeholder="https://…" value={form.photo} onChange={e => { setForm({...form, photo:e.target.value}); setPhotoPreviewUrl(e.target.value); setSelectedPhotoFile(null); }} />
+                <label htmlFor="routine-upload">上傳圖片 <small>上限 50 MB</small></label>
+                <Input id="routine-upload" type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onChange={handlePhotoFileSelect}/>
+                {photoPreviewUrl && <img className={styles.preview} src={photoPreviewUrl} alt="圖片預覽" />}
+              </details>
+              {error && <p role="alert">{error}</p>}
+            </div>
+            <footer className={styles.editorFoot}>
+              <button type="button" onClick={handleCancel} disabled={saving}>取消</button>
+              <button type="submit" className={styles.add} disabled={saving}>{saving ? "儲存中…" : editingId ? "儲存" : "新增"}</button>
+            </footer>
+          </form>
+        </dialog>
       )}
       {/* 批次刪除確認 Modal */}
       {bulkDeleteOpen && (
@@ -1644,7 +1002,7 @@ export default function RoutineManagement() {
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
                   <div
-                    className="bg-red-500 h-2.5 rounded-full transition-all duration-300"
+                    className="bg-destructive h-2.5 rounded-full"
                     style={{ width: `${deleteTotal > 0 ? (deleteProgress / deleteTotal) * 100 : 0}%` }}
                   />
                 </div>

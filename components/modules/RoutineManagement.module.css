@@ -1,0 +1,189 @@
+/* Hallmark · genre: editorial · shape: app screen · redesign: full · v2.0.0
+ * Signature: a dated weekly register above a ruled household ledger.
+ * Critique: the week uses real completions; notes and dates get the space previously taken by duplicate counters. */
+.workspace {
+  --leaf: color-mix(in srgb, var(--success) 9%, var(--card));
+  --record-cols: minmax(12rem, 1.16fr) minmax(21rem, 1.36fr) auto;
+  color: var(--foreground);
+  container-type: inline-size;
+  max-width: 82rem;
+  margin-inline: auto;
+  min-width: 0;
+}
+.workspace :is(button, summary, a, input, textarea):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.workspace :is(button:not(:disabled), summary) { cursor: pointer; }
+.workspace button { transition-property: background-color, color; }
+.workspace button:disabled { color: var(--muted-foreground); background: var(--muted); cursor: not-allowed; }
+.workspace button:active:not(:disabled) { outline: 1px solid currentColor; outline-offset: -2px; }
+.workspace :is(h1, h2, h3) { overflow-wrap: break-word; min-width: 0; text-wrap: balance; }
+.cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, .85fr);
+  align-items: center;
+  gap: 2rem;
+  padding: 1.6rem 2rem;
+  background: var(--routine-cover-ground);
+  color: var(--routine-cover-ink);
+  border-radius: 12px;
+}
+.coverIntro h1 { margin: 0 0 .6rem; font: 650 2.55rem/1.15 var(--font-display); letter-spacing: -.035em; }
+.dateline, .byline, .weekTitle, .indexHead, .heading, .controls, .segment, .filters,
+.toolButtons, .selection, .actions, .editorHead, .editorHead > div, .editorFoot {
+  display: flex;
+  align-items: center;
+}
+.dateline { gap: .45rem; color: var(--routine-cover-dim); font-size: .85rem; }
+.byline { gap: .65rem; margin-top: .4rem; color: var(--routine-cover-dim); font-size: .76rem; overflow-wrap: anywhere; }
+.byline span + span { padding-inline-start: .65rem; border-inline-start: 1px solid var(--routine-cover-rule); }
+.week { padding-inline-start: 1.6rem; border-inline-start: 1px solid var(--routine-cover-rule); min-width: 0; }
+.weekTitle { justify-content: space-between; margin-bottom: .6rem; }
+.weekTitle h2 { font: 600 1rem/1.4 var(--font-sans); }
+.weekTitle > span { font-size: .8rem; color: var(--routine-cover-dim); }
+.week ol { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); list-style: none; padding: 0; margin: 0; }
+.week li { display: grid; justify-items: center; gap: .08rem; padding: .35rem 0; border-top: 1px solid var(--routine-cover-rule); }
+.week li span, .week li small { font-size: .72rem; color: var(--routine-cover-dim); }
+.week li strong { font: 600 1.3rem/1.35 var(--font-display); font-variant-numeric: tabular-nums; }
+.week li small { min-height: 1em; line-height: 1; }
+.week li[aria-current] { border-color: var(--routine-today-paper); background: var(--routine-today-paper); border-radius: 4px; color: var(--routine-cover-ground); }
+.week li[aria-current] :is(span,small) { color: inherit; }
+.ledger { padding-block: 1.6rem .2rem; min-width: 0; }
+.indexHead, .controls, .weekTitle, .editorHead { justify-content: space-between; gap: .65rem; }
+.heading { gap: .75rem; flex-wrap: wrap; }
+.heading h2 { font: 650 1.6rem/1.25 var(--font-display); }
+.heading > span, .notice { color: var(--muted-foreground); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.add, .segment button, .filters button, .actions button, .selection button, .editorHead button, .editorFoot button {
+  display: inline-flex; justify-content: center; align-items: center; gap: .4rem; min-height: 2.55rem;
+  border-radius: 6px; padding: .4rem .65rem; font-size: .85rem; font-weight: 600; line-height: 1.25;
+}
+.add, .editorFoot .add { background: var(--primary); color: var(--primary-foreground); padding-inline: .9rem; }
+.add:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 88%, var(--foreground)); }
+.controls { margin-block: 1rem .35rem; }
+.controls > div:first-child { flex: 1; min-width: 0; max-width: 34rem; }
+.controls input, .controls button[type=submit] { border-radius: 6px; box-shadow: none; }
+.controls input { border-color: color-mix(in srgb, var(--foreground) 54%, var(--card)); }
+.segment { border: 1px solid var(--border); border-radius: 7px; padding: 2px; background: var(--muted); }
+.segment button { font-weight: 500; min-height: 2.05rem; white-space: nowrap; color: var(--muted-foreground); }
+.segment button[aria-pressed=true] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px var(--border); }
+.filters { flex-wrap: wrap; gap: .12rem .65rem; border-bottom: 1px solid var(--border); }
+.filters button { min-height: 2.6rem; padding-inline: .1rem; border-radius: 0; border-bottom: 2px solid transparent; color: var(--muted-foreground); }
+.filters button[aria-pressed=true] { border-color: var(--primary); color: var(--primary); }
+.filters button span { font-variant-numeric: tabular-nums; font-size: .76rem; font-weight: 500; }
+.tools { margin-bottom: .65rem; }
+.workspace summary { display: flex; align-items: center; gap: .45rem; list-style: none; font-size: .85rem; font-weight: 600; }
+.workspace summary::-webkit-details-marker { display: none; }
+.workspace summary > svg:last-child { margin-left: auto; }
+.workspace details[open] > summary > svg:last-child { transform: rotate(180deg); }
+.tools > summary { width: fit-content; min-height: 2.6rem; margin-left: auto; color: var(--muted-foreground); }
+.toolBody { padding: .7rem; background: var(--muted); border-radius: 8px; }
+.toolButtons, .selection { flex-wrap: wrap; gap: .5rem; }
+.assistants { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .75rem; margin-top: .75rem; }
+.tip { align-self: start; background: var(--card); border-radius: 7px; padding: .8rem; }
+.tip p { font-size: .86rem; margin-top: .6rem; }
+.selection { padding: .5rem .75rem; background: var(--leaf); margin-bottom: .5rem; }
+.selection strong { margin-right: auto; }
+.selection button:hover, .actions button:hover:not(:disabled), .editorFoot button:not(.add):hover, .editorHead button:hover { background: var(--muted); }
+.records { list-style: none; margin: 0; padding: 0; }
+.columns, .list .record { display: grid; align-items: center; grid-template-columns: var(--record-cols); column-gap: 1rem; }
+.columns { font-size: .75rem; color: var(--muted-foreground); padding: .6rem .65rem; background: var(--muted); border-block: 1px solid var(--border); }
+.columns > div, .history { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .45rem; }
+.columns > span:last-child { width: 10.6rem; text-align: right; }
+.record { padding: .95rem .65rem; border-bottom: 1px solid var(--border); }
+.record[data-selected=true] { background: var(--leaf); }
+.identity { min-width: 0; display: flex; align-items: flex-start; gap: .7rem; }
+.identity input { align-self: center; accent-color: var(--primary); width: 1.1rem; height: 1.1rem; }
+.thumb { display: grid; place-items: center; flex: 0 0 2.55rem; aspect-ratio: 1; overflow: hidden; border-radius: 7px; background: var(--leaf); color: var(--success); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.identity h3 { font: 650 1rem/1.4 var(--font-sans); overflow-wrap: anywhere; }
+.identity h3 a { text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: .2em; }
+.identity h3 svg { display: inline; color: var(--primary); }
+.identity p { color: var(--muted-foreground); font-size: .84rem; margin-top: .25rem; white-space: pre-line; overflow-wrap: anywhere; }
+.history { margin: 0; }
+.history div { min-width: 0; }
+.history dt, .history small, .missing { color: var(--muted-foreground); font-size: .76rem; }
+.history dd { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .18rem; }
+.history time { font-size: .87rem; font-variant-numeric: tabular-nums; }
+.history > div:first-child time { font-weight: 650; }
+.list .history dt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.actions { justify-content: flex-end; gap: .12rem; }
+.actions button { padding-inline: .4rem; font-size: .79rem; }
+.actions button:first-child { color: var(--primary); }
+.actions .delete { color: var(--muted-foreground); }
+.actions .delete:hover { color: var(--destructive); }
+.cards .records { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,19rem),1fr)); gap: 1rem; }
+.cards .record { display: flex; flex-direction: column; gap: .9rem; border: 1px solid var(--border); padding: 1rem; border-radius: 10px; }
+.cards .actions { margin-top: auto; padding-top: .45rem; border-top: 1px solid var(--border); }
+.cards .history dt { margin-bottom: .25rem; }
+.notice { padding: 1.5rem .6rem; }
+.editor { width: min(calc(100% - 2rem), 38rem); max-width: none; max-height: calc(100dvh - 2rem); margin: auto; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: 13px; padding: 0; }
+.editor::backdrop { background: var(--routine-veil); }
+.editor form { display: flex; flex-direction: column; max-height: inherit; }
+.editorHead, .editorFoot { flex: none; padding: .8rem 1.4rem; }
+.editorHead { border-bottom: 1px solid var(--border); }
+.editorHead > div { gap: .6rem; }
+.editorHead > div > svg { color: var(--primary); }
+.editorHead h2 { font: 650 1.4rem/1.4 var(--font-display); }
+.editorBody { overflow-y: auto; overscroll-behavior: contain; padding: 1rem 1.4rem 1.4rem; min-height: 0; }
+.editorBody label, .dateFields legend { display: block; font-size: .85rem; font-weight: 650; margin-bottom: .3rem; }
+.editorBody label:not(:first-child), .attachments { margin-top: .95rem; }
+.editorBody small { color: var(--muted-foreground); font-weight: 500; margin-left: .3rem; }
+.editorBody :is(input, textarea) { color: var(--foreground); width: 100%; min-width: 0; background: var(--card); border: 1px solid color-mix(in srgb, var(--foreground) 54%, var(--card)); border-radius: 6px; font-size: 1rem; padding: .48rem .65rem; }
+.editorBody input { min-height: 2.6rem; }
+.editorBody textarea { resize: vertical; }
+.dateFields { border: none; padding: 0; margin: 1rem 0; min-width: 0; }
+.dateFields legend svg { display: inline; margin-inline-end: .35rem; }
+.dateFields > div { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .6rem; }
+.dateFields label { color: var(--muted-foreground); font-weight: 500; font-size: .78rem; }
+.dateInput { display: flex; align-items: center; }
+.dateInput button { display: grid; place-items: center; flex: none; width: 1.6rem; padding: 0; }
+.dateInput button:disabled { visibility: hidden; }
+.attachments summary { padding: .65rem 0; border-top: 1px solid var(--border); }
+.preview { margin-top: .7rem; max-height: 10rem; max-width: 100%; border-radius: 5px; }
+.editorFoot { justify-content: flex-end; gap: .6rem; border-top: 1px solid var(--border); }
+@container (max-width: 63rem) {
+  .columns { display: none; }
+  .list .record { grid-template-columns: minmax(0,1fr) auto; gap: .65rem; }
+  .list .history { grid-column: 1 / -1; grid-row: 2; }
+  .list .history dt { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .list .records { border-top: 1px solid var(--border); }
+}
+@container (max-width: 37rem) {
+  .cover { display: block; padding: 1rem; }
+  .coverIntro h1 { font-size: 2rem; margin-bottom: .35rem; }
+  .coverIntro .byline { margin-top: .25rem; }
+  .week { margin-top: .85rem; border: 0; padding: 0; }
+  .weekTitle { margin-bottom: .4rem; }
+  .week li { padding-block: .25rem; }
+  .week li strong { font-size: 1.08rem; }
+  .ledger { padding-top: 1.15rem; }
+  .heading { gap: .35rem; }
+  .heading h2 { font-size: 1.25rem; }
+  .indexHead, .controls { flex-wrap: wrap; }
+  .add { padding-inline: .65rem; }
+  .controls { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .4rem; }
+  .controls form { gap: .2rem; }
+  .controls button[type=submit] { padding-inline: .45rem; }
+  .segment button { padding-inline: .5rem; min-height: 2.55rem; }
+  .segment button span { display: none; }
+  .filters { gap: .2rem .65rem; }
+  .tools { margin-bottom: .15rem; }
+  .assistants { grid-template-columns: minmax(0,1fr); }
+  .list .record { display: flex; flex-direction: column; align-items: stretch; gap: .6rem; padding: .85rem 0; }
+  .history { padding: .45rem .5rem; border-radius: 5px; background: var(--muted); }
+  .history time { font-size: .8rem; }
+  .actions { justify-content: flex-start; }
+  .actions .delete { margin-left: auto; }
+  .cards .record { padding: .8rem; }
+  .cards .actions { justify-content: flex-start; }
+}
+@media (max-width: 40rem) {
+  .editor { width: 100%; max-height: calc(100dvh - .65rem); margin: auto 0 0; border-radius: 14px 14px 0 0; }
+  .editorHead, .editorFoot { padding: .65rem 1rem; }
+  .editorBody { padding: .65rem 1rem 1.1rem; }
+  .editorFoot { padding-bottom: max(.65rem,env(safe-area-inset-bottom)); }
+  .dateFields > div { grid-template-columns: minmax(0,1fr); }
+  .dateFields > div > div { display: grid; align-items: center; grid-template-columns: 4.6rem minmax(0,1fr); gap: .4rem; }
+  .dateInput button, .editorFoot button, .editorHead button { min-width: 44px; min-height: 44px; }
+}

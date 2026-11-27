@@ -160,6 +160,7 @@ export function useCrud<T extends { $id: string }>(baseUrl: string) {
     
     // 如果有快取且沒有 CRUD 操作，直接使用快取
     if (!forceRefresh && cache && (!storedRefreshKey || cache.timestamp >= parseInt(storedRefreshKey))) {
+      setError(null);
       setItems(cache.data);
       setLoading(false);
       return cache.data;
@@ -173,6 +174,7 @@ export function useCrud<T extends { $id: string }>(baseUrl: string) {
       // 更新快取
       setCache(data);
       
+      setError(null);
       setItems(data);
       return data;
     } catch (err) {
@@ -190,6 +192,7 @@ export function useCrud<T extends { $id: string }>(baseUrl: string) {
           method: "POST",
           body: JSON.stringify(item),
         });
+        setError(null);
         setItems((prev) => [...prev, newItem]);
         clearCache();
         setRefreshKeyValue();
@@ -209,6 +212,7 @@ export function useCrud<T extends { $id: string }>(baseUrl: string) {
           method: "PUT",
           body: JSON.stringify(item),
         });
+        setError(null);
         setItems((prev) =>
           prev.map((i) => (i.$id === id ? updatedItem : i))
         );
@@ -227,6 +231,7 @@ export function useCrud<T extends { $id: string }>(baseUrl: string) {
     async (id: string): Promise<boolean> => {
       try {
         await fetchApi(`${baseUrl}/${id}`, { method: "DELETE" });
+        setError(null);
         setItems((prev) => prev.filter((i) => i.$id !== id));
         clearCache();
         setRefreshKeyValue();

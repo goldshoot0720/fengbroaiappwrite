@@ -409,6 +409,14 @@
   --radius-3xl: 1.25rem;
   --radius-pill: 999px;
 
+  /* The weekly routine register keeps the same ink and paper in both themes. */
+  --routine-cover-ink: #faf7e9;
+  --routine-cover-dim: #d4e0cf;
+  --routine-cover-ground: #263f37;
+  --routine-cover-rule: #60786b;
+  --routine-today-paper: #f2d69b;
+  --routine-veil: rgb(16 25 21 / 58%);
+
   /* Warm paper ground, ink text, clay accent */
   --background: oklch(0.97 0.005 92);
   --foreground: oklch(0.26 0.008 75);
